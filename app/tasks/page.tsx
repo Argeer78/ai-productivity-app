@@ -236,47 +236,56 @@ export default function TasksPage() {
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top bar */}
       <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-  <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-    {/* Left: logo + nav */}
-    <div className="flex items-center gap-4">
-      <Link href="/" className="flex items-center gap-2">
-        <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
-          AI
-        </div>
-        <span className="text-sm font-semibold tracking-tight">
-          AI Productivity Hub
-        </span>
-      </Link>
-      <nav className="hidden sm:flex items-center gap-3 text-xs text-slate-300">
-        <Link href="/notes" className="hover:text-white">
-          Notes
-        </Link>
-        <Link href="/tasks" className="hover:text-white">
-          Tasks
-        </Link>
-        <Link href="/dashboard" className="hover:text-white">
-          Dashboard
-        </Link>
-          <Link href="/feedback" className="hover:text-white">
-    💬 Feedback
-  </Link>
-      </nav>
-    </div>
-
-    {/* Right: user + logout */}
-    <div className="flex items-center gap-3 text-xs sm:text-sm">
-      <span className="hidden sm:inline text-slate-300">
-        Logged in as <span className="font-semibold">{user.email}</span>
+  <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+    <Link href="/" className="flex items-center gap-2">
+      <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
+        AI
+      </div>
+      <span className="text-sm font-semibold tracking-tight">
+        AI Productivity Hub
       </span>
-      <button
-        onClick={handleLogout}
-        className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+    </Link>
+    <nav className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+      <Link
+        href="/dashboard"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
       >
-        Log out
-      </button>
-    </div>
+        Dashboard
+      </Link>
+      <Link
+        href="/notes"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        Notes
+      </Link>
+      <Link
+        href="/tasks"
+        className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-indigo-300"
+      >
+        Tasks
+      </Link>
+      <Link
+        href="/templates"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        AI Templates
+      </Link>
+      <Link
+        href="/planner"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        Planner
+      </Link>
+      <Link
+        href="/feedback"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        Feedback
+      </Link>
+    </nav>
   </div>
 </header>
+
 
       {/* Content */}
       <div className="flex-1">

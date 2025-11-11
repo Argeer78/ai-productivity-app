@@ -385,64 +385,57 @@ function handleShareNote(note) {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur mb-6">
-  <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-    {/* Left: logo + nav */}
-    <div className="flex items-center gap-4">
-      <Link href="/" className="flex items-center gap-2">
-        <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
-          AI
-        </div>
-        <span className="text-sm font-semibold tracking-tight">
-          AI Productivity Hub
-        </span>
-      </Link>
-      <nav className="hidden sm:flex items-center gap-3 text-xs text-slate-300">
-        <Link href="/notes" className="hover:text-white">
-          Notes
-        </Link>
-        <Link href="/tasks" className="hover:text-white">
-          Tasks
-        </Link>
-        <Link href="/dashboard" className="hover:text-white">
-          Dashboard
-        </Link>
-          <Link href="/feedback" className="hover:text-white">
-    💬 Feedback
-  </Link>
-      </nav>
-    </div>
-
-    {/* Right: plan, usage, user, buttons */}
-    <div className="flex flex-col items-end gap-1 text-xs text-slate-300">
-      <p className="text-[11px] text-slate-400">
-        Plan:{" "}
-        <span className="font-semibold">{plan.toUpperCase()}</span> | AI
-        today: {aiCountToday}/{dailyLimit}
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="hidden sm:inline">
-          Logged in as <span className="font-semibold">{user.email}</span>
-        </span>
-        {plan === "free" && (
-          <button
-            onClick={startCheckout}
-            disabled={billingLoading}
-            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60"
-          >
-            {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
-          </button>
-        )}
-        <button
-          onClick={handleLogout}
-          className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
-        >
-          Log out
-        </button>
+      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+  <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+    <Link href="/" className="flex items-center gap-2">
+      <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
+        AI
       </div>
-    </div>
+      <span className="text-sm font-semibold tracking-tight">
+        AI Productivity Hub
+      </span>
+    </Link>
+    <nav className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+      <Link
+        href="/dashboard"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        Dashboard
+      </Link>
+      <Link
+        href="/notes"
+        className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-indigo-300"
+      >
+        Notes
+      </Link>
+      <Link
+        href="/tasks"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        Tasks
+      </Link>
+      <Link
+        href="/templates"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        AI Templates
+      </Link>
+      <Link
+        href="/planner"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        Planner
+      </Link>
+      <Link
+        href="/feedback"
+        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+      >
+        Feedback
+      </Link>
+    </nav>
   </div>
 </header>
+
       {/* rest of the page: create note + list (unchanged below) */}
       <div className="grid gap-6 md:grid-cols-[1.2fr,1fr]">
         {/* Create note */}
