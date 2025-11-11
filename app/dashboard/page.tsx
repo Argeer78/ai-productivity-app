@@ -217,19 +217,25 @@ export default function DashboardPage() {
         }
 
         // Recent tasks
-                const { data: tasks, error: tasksError } = await supabase
-          .from("tasks")
-          .select("id, title, completed, created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(5);
+              const { data: tasks, error: tasksError } = await supabase
+  .from("tasks")
+  .select("*")
+  .order("created_at", { ascending: false })
+  .limit(5);
 
-        if (tasksError && tasksError.code !== "PGRST116") {
-          console.error("Dashboard: tasks error", tasksError);
-          setRecentTasks([]);
-        } else {
-          setRecentTasks(tasks || []);
-        }
+// Debug log to see what comes back (you can remove later)
+console.log("Dashboard: recent tasks data =", tasks, "error =", tasksError);
+
+// Only log real errors with a code (optional)
+if (
+  tasksError &&
+  (tasksError as any).code &&
+  (tasksError as any).code !== "PGRST116"
+) {
+  console.error("Dashboard: tasks error", tasksError);
+}
+
+setRecentTasks(tasks || []);
 
       } catch (err: any) {
         console.error(err);
