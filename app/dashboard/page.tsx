@@ -22,6 +22,10 @@ export default function DashboardPage() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [summary, setSummary] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+
   // derive daily limit from plan
   const dailyLimit =
     plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
@@ -165,6 +169,66 @@ export default function DashboardPage() {
     }
   }
 
+  async function generateSummary() {
+    if (!user) return;
+    if (aiCountToday >= dailyLimit) {
+      setSummaryError(
+        "You’ve reached today’s AI limit on your current plan. Try again tomorrow or upgrade to Pro."
+      );
+      return;
+    }
+
+    setSummaryLoading(true);
+    setSummaryError("");
+
+    try {
+      const res = await fetch("/api/ai-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const text = await res.text();
+      let data: any;
+
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("Non-JSON response from /api/ai-summary:", text);
+        setSummaryError("Server returned an invalid response.");
+        setSummaryLoading(false);
+        return;
+      }
+
+      if (!res.ok || !data.summary) {
+        console.error("AI summary error payload:", data);
+        if (res.status === 429) {
+          setSummaryError(
+            data.error ||
+              "You’ve reached today’s AI limit for your plan."
+          );
+        } else {
+          setSummaryError(data.error || "Failed to generate summary.");
+        }
+        setSummaryLoading(false);
+        return;
+      }
+
+      setSummary(data.summary);
+      // keep UI in sync with new usage count
+      if (typeof data.usedToday === "number") {
+        setAiCountToday(data.usedToday);
+      } else {
+        setAiCountToday((prev) => prev + 1);
+      }
+    } catch (err) {
+      console.error(err);
+      setSummaryError("Network error while generating summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
   // Loading state
   if (checkingUser) {
     return (
@@ -244,7 +308,7 @@ export default function DashboardPage() {
                 </span>
               </p>
               <p className="text-[11px] text-slate-400 mt-1">
-                This includes both note AI actions and the global AI assistant.
+                This includes notes AI, the global assistant, and the summary.
               </p>
             </div>
 
@@ -328,6 +392,44 @@ export default function DashboardPage() {
                     : "You reached today’s limit on this plan."}
                 </p>
               </div>
+
+              {/* AI Summary card */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 md:col-span-3">
+                <p className="text-xs font-semibold text-slate-400 mb-1">
+                  AI SUMMARY (BETA)
+                </p>
+                {summary ? (
+                  <div className="text-[12px] text-slate-100 whitespace-pre-wrap mb-2">
+                    {summary}
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-slate-400 mb-2">
+                    Let AI scan your recent notes and tasks and give you a
+                    short overview plus suggestions.
+                  </p>
+                )}
+
+                {summaryError && (
+                  <p className="text-[11px] text-red-400 mb-2">
+                    {summaryError}
+                  </p>
+                )}
+
+                <button
+                  onClick={generateSummary}
+                  disabled={summaryLoading || aiCountToday >= dailyLimit}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs md:text-sm"
+                >
+                  {summaryLoading
+                    ? "Generating..."
+                    : aiCountToday >= dailyLimit
+                    ? "Daily AI limit reached"
+                    : "Generate summary"}
+                </button>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Uses your daily AI limit (shared with notes & assistant).
+                </p>
+              </div>
             </div>
           )}
 
@@ -350,6 +452,12 @@ export default function DashboardPage() {
               className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
             >
               💬 Feedback
+            </Link>
+            <Link
+              href="/templates"
+              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+            >
+              🧠 AI Templates
             </Link>
           </div>
 
