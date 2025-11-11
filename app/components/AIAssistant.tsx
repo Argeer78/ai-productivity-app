@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 type ChatMessage = {
   id: string;
@@ -16,9 +17,30 @@ export default function AIAssistant() {
   const [error, setError] = useState("");
   const [externalContext, setExternalContext] = useState<string | null>(null);
 
-    // Listen for external context events from pages (notes/tasks)
-  // so they can send content into the assistant.
-  React.useEffect(() => {
+  const [user, setUser] = useState<any | null>(null);
+  const [checkingUser, setCheckingUser] = useState(true);
+
+  // Load current user once
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error(error);
+        }
+        setUser(data?.user ?? null);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setCheckingUser(false);
+      }
+    }
+
+    loadUser();
+  }, []);
+
+  // Listen for external context events (notes/tasks)
+  useEffect(() => {
     function handleContextEvent(e: any) {
       const detail = e.detail || {};
       const content = detail.content as string | undefined;
@@ -30,32 +52,29 @@ export default function AIAssistant() {
         setExternalContext(null);
       }
 
-      // Optional: pre-fill a suggested question
       if (hint) {
         setInput(hint);
       }
 
-      // Open the assistant when context is sent
       setOpen(true);
     }
 
-    window.addEventListener(
-      "ai-assistant-context",
-      handleContextEvent as EventListener
-    );
+    window.addEventListener("ai-assistant-context", handleContextEvent);
 
     return () => {
-      window.removeEventListener(
-        "ai-assistant-context",
-        handleContextEvent as EventListener
-      );
+      window.removeEventListener("ai-assistant-context", handleContextEvent);
     };
   }, []);
 
-async function handleSend(e?: React.FormEvent) {
+  async function handleSend(e?: React.FormEvent) {
     if (e) e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || loading) return;
+
+    if (!user) {
+      setError("You must be logged in to use the assistant.");
+      return;
+    }
 
     const newUserMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -69,16 +88,16 @@ async function handleSend(e?: React.FormEvent) {
     setError("");
 
     try {
-            const res = await fetch("/api/assistant", {
+      const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: trimmed,
+          userId: user.id,
           context:
             "The user is using an AI productivity web app with notes, tasks, and a dashboard." +
             (externalContext
-              ? "\n\nHere is extra context (note or task):\n" +
-                externalContext
+              ? "\n\nHere is extra context (note or task):\n" + externalContext
               : ""),
         }),
       });
@@ -96,7 +115,16 @@ async function handleSend(e?: React.FormEvent) {
 
       if (!res.ok || !data.reply) {
         console.error("Assistant error payload:", data);
-        setError(data.error || "Assistant failed to respond.");
+        if (res.status === 401) {
+          setError("You must be logged in to use the assistant.");
+        } else if (res.status === 429) {
+          setError(
+            data.error ||
+              "You reached today’s AI limit for your plan. Try again tomorrow or upgrade to Pro."
+          );
+        } else {
+          setError(data.error || "Assistant failed to respond.");
+        }
         setLoading(false);
         return;
       }
@@ -114,6 +142,16 @@ async function handleSend(e?: React.FormEvent) {
     } finally {
       setLoading(false);
     }
+  }
+
+  // If still checking user, just show the button later
+  if (checkingUser) {
+    return null;
+  }
+
+  // Hide assistant completely for logged-out users (optional)
+  if (!user) {
+    return null;
   }
 
   return (
