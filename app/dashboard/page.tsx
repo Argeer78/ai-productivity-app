@@ -11,12 +11,14 @@ const PRO_DAILY_LIMIT = 50;
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
 }
+
 function getStreakConfig(streak: number) {
   if (streak >= 30) {
     return {
       emoji: "🏆",
       title: "Legendary streak!",
-      subtitle: "You’ve been consistently productive for 30+ days. That’s huge.",
+      subtitle:
+        "You’ve been consistently productive for 30+ days. That’s huge.",
       gradient: "from-amber-400 via-pink-500 to-indigo-600",
     };
   }
@@ -37,11 +39,12 @@ function getStreakConfig(streak: number) {
     };
   }
 
-  // 3–6 days
+  // 1–6 days
   return {
     emoji: "🎉",
     title: "Nice streak!",
-    subtitle: "You’re building a habit. A few more days and it becomes automatic.",
+    subtitle:
+      "You’re building a habit. A few more days and it becomes automatic.",
     gradient: "from-indigo-600 to-purple-600",
   };
 }
@@ -55,19 +58,20 @@ export default function DashboardPage() {
   const [loadingData, setLoadingData] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
   const [error, setError] = useState("");
-  const [streak, setStreak] = useState(0);
-  const [activeDays, setActiveDays] = useState(10);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
-  const showBanner = streak >= 1;
 
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
 
-  // derive daily limit from plan
-  const dailyLimit =
-    plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+  const [streak, setStreak] = useState(0);
+  const [activeDays, setActiveDays] = useState(0);
+
+  const [recentNotes, setRecentNotes] = useState<any[]>([]);
+  const [recentTasks, setRecentTasks] = useState<any[]>([]);
+
+  const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
+  const showBanner = streak >= 1;
 
   // 1) Load the current user
   useEffect(() => {
@@ -88,11 +92,15 @@ export default function DashboardPage() {
     loadUser();
   }, []);
 
-  // 2) Ensure profile exists & load plan + AI usage
+  // 2) Ensure profile exists & load plan + AI usage + streak + recent activity
   useEffect(() => {
     if (!user) {
       setPlan("free");
       setAiCountToday(0);
+      setStreak(0);
+      setActiveDays(0);
+      setRecentNotes([]);
+      setRecentTasks([]);
       return;
     }
 
@@ -132,11 +140,11 @@ export default function DashboardPage() {
           setPlan((profile.plan as "free" | "pro") || "free");
         }
 
-                // ai_usage: today's count
+        // ai_usage: today's count
         const today = getTodayString();
         const { data: usage, error: usageError } = await supabase
           .from("ai_usage")
-          .select("count")
+          .select("count, usage_date")
           .eq("user_id", user.id)
           .eq("usage_date", today)
           .maybeSingle();
@@ -164,7 +172,8 @@ export default function DashboardPage() {
           throw historyError;
         }
 
-        const historyList = (history || []) as { usage_date: string; count: number }[];
+        const historyList =
+          (history || []) as { usage_date: string; count: number }[];
 
         // Active days (last 30) = days with count > 0
         const active = historyList.filter((h) => h.count > 0).length;
@@ -180,7 +189,6 @@ export default function DashboardPage() {
         let streakCount = 0;
         let currentDate = new Date();
 
-        // look back up to 365 days, but will break as soon as no activity for a day
         for (let i = 0; i < 365; i++) {
           const dayStr = currentDate.toISOString().split("T")[0];
           if (activeDateSet.has(dayStr)) {
@@ -192,6 +200,32 @@ export default function DashboardPage() {
         }
 
         setStreak(streakCount);
+
+        // Recent notes
+        const { data: notes, error: notesError } = await supabase
+          .from("notes")
+          .select("id, content, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (notesError && notesError.code !== "PGRST116") {
+          throw notesError;
+        }
+        setRecentNotes(notes || []);
+
+        // Recent tasks
+        const { data: tasks, error: tasksError } = await supabase
+          .from("tasks")
+          .select("id, title, completed, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (tasksError && tasksError.code !== "PGRST116") {
+          throw tasksError;
+        }
+        setRecentTasks(tasks || []);
       } catch (err: any) {
         console.error(err);
         setError("Failed to load dashboard data.");
@@ -341,6 +375,8 @@ export default function DashboardPage() {
     );
   }
 
+  const streakCfg = getStreakConfig(streak);
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top bar */}
@@ -355,45 +391,43 @@ export default function DashboardPage() {
             </span>
           </Link>
           <div className="flex items-center gap-3 text-xs sm:text-sm">
-  <span className="hidden sm:inline text-slate-300">
-    Logged in as{" "}
-    <span className="font-semibold">{user.email}</span>
-  </span>
-  <Link
-    href="/settings"
-    className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
-  >
-    Settings
-  </Link>
-  <button
-    onClick={handleLogout}
-    className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
-  >
-    Log out
-  </button>
-</div>
+            <span className="hidden sm:inline text-slate-300">
+              Logged in as{" "}
+              <span className="font-semibold">{user.email}</span>
+            </span>
+            <Link
+              href="/settings"
+              className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+            >
+              Settings
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+            >
+              Log out
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Content */}
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
-                             {showBanner && (() => {
-            const cfg = getStreakConfig(streak);
-            return (
-              <div className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${cfg.gradient} text-white shadow-md animate-fadeIn`}>
-                <div>
-                  <p className="font-semibold text-sm md:text-base">
-                    {cfg.emoji} {cfg.title} You’re on a{" "}
-                    <span className="font-bold">{streak}-day</span> productivity streak.
-                  </p>
-                  <p className="text-xs opacity-90">
-                    {cfg.subtitle}
-                  </p>
-                </div>
+          {showBanner && (
+            <div
+              className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${streakCfg.gradient} text-white shadow-md animate-fadeIn`}
+            >
+              <div>
+                <p className="font-semibold text-sm md:text-base">
+                  {streakCfg.emoji} {streakCfg.title} You’re on a{" "}
+                  <span className="font-bold">{streak}-day</span>{" "}
+                  productivity streak.
+                </p>
+                <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
               </div>
-            );
-          })()}
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
@@ -401,7 +435,7 @@ export default function DashboardPage() {
                 Dashboard
               </h1>
               <p className="text-xs md:text-sm text-slate-400">
-                Quick overview of your plan and AI usage.
+                Quick overview of your plan, AI usage, and activity.
               </p>
             </div>
 
@@ -415,14 +449,17 @@ export default function DashboardPage() {
                 </span>
               </p>
               <p className="text-[11px] text-slate-400 mt-1">
-                This includes notes AI, the global assistant, and the summary.
+                This includes notes AI, the global assistant, summary, and
+                planner.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
                 Plan:{" "}
-                <span className="font-semibold">{plan.toUpperCase()}</span>
+                <span className="font-semibold">
+                  {plan.toUpperCase()}
+                </span>
               </span>
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
                 AI today: {aiCountToday}/{dailyLimit}
@@ -437,115 +474,184 @@ export default function DashboardPage() {
           {loadingData ? (
             <p className="text-slate-300 text-sm">Loading your data...</p>
           ) : (
-            <div className="grid md:grid-cols-3 gap-5 mb-8 text-sm">
-              {/* Account card */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                <p className="text-xs font-semibold text-slate-400 mb-1">
-                  ACCOUNT
-                </p>
-                <p className="text-slate-100 mb-1 text-sm break-all">
-                  {user.email}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  This is the account you use to log in.
-                </p>
-              </div>
-
-              {/* Plan card */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                <p className="text-xs font-semibold text-slate-400 mb-1">
-                  PLAN
-                </p>
-                <p className="text-slate-100 mb-1 text-sm">
-                  {plan === "pro" ? "Pro" : "Free"}
-                </p>
-                <p className="text-[11px] text-slate-400 mb-2">
-                  {plan === "pro"
-                    ? "Higher daily AI limits and more room to experiment."
-                    : "Good for trying the app and light daily use."}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  Daily AI limit:{" "}
-                  <span className="font-semibold">
-                    {dailyLimit} calls/day
-                  </span>
-                </p>
-              </div>
-
-                           {/* Usage card */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                <p className="text-xs font-semibold text-slate-400 mb-1">
-                  TODAY&apos;S AI USAGE
-                </p>
-                <p className="text-slate-100 mb-1 text-sm">
-                  {aiCountToday}/{dailyLimit} used
-                </p>
-                <div className="h-2 rounded-full bg-slate-800 overflow-hidden mb-2">
-                  <div
-                    className="h-full bg-indigo-500"
-                    style={{
-                      width: `${Math.min(
-                        dailyLimit > 0
-                          ? (aiCountToday / dailyLimit) * 100
-                          : 0,
-                        100
-                      )}%`,
-                    }}
-                  />
+            <>
+              {/* Top stats grid */}
+              <div className="grid md:grid-cols-3 gap-5 mb-8 text-sm">
+                {/* Account card */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                    ACCOUNT
+                  </p>
+                  <p className="text-slate-100 mb-1 text-sm break-all">
+                    {user.email}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    This is the account you use to log in.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-400">
-                  {remaining > 0
-                    ? `${remaining} AI calls left today.`
-                    : "You reached today’s limit on this plan."}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Streak:{" "}
-                  <span className="font-semibold">
-                    {streak} day{streak === 1 ? "" : "s"}
-                  </span>{" "}
-                  in a row • Active days (last 30):{" "}
-                  <span className="font-semibold">{activeDays}</span>
-                </p>
-              </div>
 
-              {/* AI Summary card */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 md:col-span-3">
-                <p className="text-xs font-semibold text-slate-400 mb-1">
-                  AI SUMMARY (BETA)
-                </p>
-                {summary ? (
-                  <div className="text-[12px] text-slate-100 whitespace-pre-wrap mb-2">
-                    {summary}
+                {/* Plan card */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                    PLAN
+                  </p>
+                  <p className="text-slate-100 mb-1 text-sm">
+                    {plan === "pro" ? "Pro" : "Free"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    {plan === "pro"
+                      ? "Higher daily AI limits and more room to experiment."
+                      : "Good for trying the app and light daily use."}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Daily AI limit:{" "}
+                    <span className="font-semibold">
+                      {dailyLimit} calls/day
+                    </span>
+                  </p>
+                </div>
+
+                {/* Usage card */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                    TODAY&apos;S AI USAGE
+                  </p>
+                  <p className="text-slate-100 mb-1 text-sm">
+                    {aiCountToday}/{dailyLimit} used
+                  </p>
+                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden mb-2">
+                    <div
+                      className="h-full bg-indigo-500"
+                      style={{
+                        width: `${Math.min(
+                          dailyLimit > 0
+                            ? (aiCountToday / dailyLimit) * 100
+                            : 0,
+                          100
+                        )}%`,
+                      }}
+                    />
                   </div>
-                ) : (
-                  <p className="text-[12px] text-slate-400 mb-2">
-                    Let AI scan your recent notes and tasks and give you a
-                    short overview plus suggestions.
+                  <p className="text-[11px] text-slate-400">
+                    {remaining > 0
+                      ? `${remaining} AI calls left today.`
+                      : "You reached today’s limit on this plan."}
                   </p>
-                )}
-
-                {summaryError && (
-                  <p className="text-[11px] text-red-400 mb-2">
-                    {summaryError}
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Streak:{" "}
+                    <span className="font-semibold">
+                      {streak} day{streak === 1 ? "" : "s"}
+                    </span>{" "}
+                    in a row • Active days (last 30):{" "}
+                    <span className="font-semibold">{activeDays}</span>
                   </p>
-                )}
+                </div>
 
-                <button
-                  onClick={generateSummary}
-                  disabled={summaryLoading || aiCountToday >= dailyLimit}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs md:text-sm"
-                >
-                  {summaryLoading
-                    ? "Generating..."
-                    : aiCountToday >= dailyLimit
-                    ? "Daily AI limit reached"
-                    : "Generate summary"}
-                </button>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Uses your daily AI limit (shared with notes & assistant).
-                </p>
+                {/* AI Summary card */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 md:col-span-3">
+                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                    AI SUMMARY (BETA)
+                  </p>
+                  {summary ? (
+                    <div className="text-[12px] text-slate-100 whitespace-pre-wrap mb-2">
+                      {summary}
+                    </div>
+                  ) : (
+                    <p className="text-[12px] text-slate-400 mb-2">
+                      Let AI scan your recent notes and tasks and give you a
+                      short overview plus suggestions.
+                    </p>
+                  )}
+
+                  {summaryError && (
+                    <p className="text-[11px] text-red-400 mb-2">
+                      {summaryError}
+                    </p>
+                  )}
+
+                  <button
+                    onClick={generateSummary}
+                    disabled={summaryLoading || aiCountToday >= dailyLimit}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs md:text-sm"
+                  >
+                    {summaryLoading
+                      ? "Generating..."
+                      : aiCountToday >= dailyLimit
+                      ? "Daily AI limit reached"
+                      : "Generate summary"}
+                  </button>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Uses your daily AI limit (shared with notes, assistant,
+                    planner).
+                  </p>
+                </div>
               </div>
-            </div>
+
+              {/* Recent activity */}
+              <div className="grid md:grid-cols-2 gap-5 mb-8 text-sm">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                  <p className="text-xs font-semibold text-slate-400 mb-2">
+                    RECENT NOTES
+                  </p>
+                  {recentNotes.length === 0 ? (
+                    <p className="text-[12px] text-slate-500">
+                      No notes yet. Create your first note from the Notes page.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {recentNotes.map((n) => (
+                        <li
+                          key={n.id}
+                          className="text-[12px] text-slate-200 line-clamp-2"
+                        >
+                          {n.content?.slice(0, 160) || "(empty note)"}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Link
+                    href="/notes"
+                    className="mt-3 inline-block text-[11px] text-indigo-400 hover:text-indigo-300"
+                  >
+                    Open Notes →
+                  </Link>
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                  <p className="text-xs font-semibold text-slate-400 mb-2">
+                    RECENT TASKS
+                  </p>
+                  {recentTasks.length === 0 ? (
+                    <p className="text-[12px] text-slate-500">
+                      No tasks yet. Start by adding a few tasks you want to
+                      track.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {recentTasks.map((t) => (
+                        <li
+                          key={t.id}
+                          className="text-[12px] text-slate-200 flex items-center gap-2 line-clamp-2"
+                        >
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              t.completed ? "bg-emerald-400" : "bg-slate-500"
+                            }`}
+                          />
+                          <span>{t.title || "(untitled task)"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Link
+                    href="/tasks"
+                    className="mt-3 inline-block text-[11px] text-indigo-400 hover:text-indigo-300"
+                  >
+                    Open Tasks →
+                  </Link>
+                </div>
+              </div>
+            </>
           )}
 
           {/* Actions */}
@@ -574,14 +680,12 @@ export default function DashboardPage() {
             >
               🧠 AI Templates
             </Link>
-
-                        <Link
+            <Link
               href="/planner"
               className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
             >
               🗓 Daily Planner
             </Link>
-
           </div>
 
           {plan === "free" && (
