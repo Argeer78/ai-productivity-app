@@ -355,17 +355,23 @@ export default function DashboardPage() {
             </span>
           </Link>
           <div className="flex items-center gap-3 text-xs sm:text-sm">
-            <span className="hidden sm:inline text-slate-300">
-              Logged in as{" "}
-              <span className="font-semibold">{user.email}</span>
-            </span>
-            <button
-              onClick={handleLogout}
-              className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
-            >
-              Log out
-            </button>
-          </div>
+  <span className="hidden sm:inline text-slate-300">
+    Logged in as{" "}
+    <span className="font-semibold">{user.email}</span>
+  </span>
+  <Link
+    href="/settings"
+    className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+  >
+    Settings
+  </Link>
+  <button
+    onClick={handleLogout}
+    className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+  >
+    Log out
+  </button>
+</div>
         </div>
       </header>
 

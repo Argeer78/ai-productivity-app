@@ -13,54 +13,65 @@ function getTodayString() {
   return new Date().toISOString().split("T")[0];
 }
 
+function buildToneDescription(aiTone?: string | null) {
+  switch (aiTone) {
+    case "friendly":
+      return "Use a warm, friendly, and encouraging tone.";
+    case "direct":
+      return "Be concise, straightforward, and to the point. Avoid fluff.";
+    case "motivational":
+      return "Be energetic and motivational, but still practical.";
+    case "casual":
+      return "Use a relaxed, casual tone, like chatting with a friend.";
+    case "balanced":
+    default:
+      return "Use a balanced, clear, and professional but approachable tone.";
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { message, context, userId } = body as {
-      message?: string;
-      context?: string;
-      userId?: string | null;
-    };
+    const {
+      message,
+      userId,
+      context,
+    }: { message?: string; userId?: string; context?: string } = body;
 
-    if (!message || !message.trim()) {
+    if (!userId || !message) {
       return NextResponse.json(
-        { error: "Message is required." },
+        { error: "Missing userId or message." },
         { status: 400 }
-      );
-    }
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "You must be logged in to use the assistant." },
-        { status: 401 }
       );
     }
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: "OpenAI API key is not configured on the server." },
+        { error: "OpenAI API key is not configured." },
         { status: 500 }
       );
     }
 
     const today = getTodayString();
 
-    // 1) Find user plan
+    // 1) Load profile for plan + preferences
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("plan")
+      .select("plan, ai_tone, focus_area")
       .eq("id", userId)
       .maybeSingle();
 
     if (profileError) {
-      console.error("Assistant: profile query error", profileError);
-      // default to free if profile missing or error
+      console.error("Assistant: profile error", profileError);
     }
 
     const plan = (profile?.plan as "free" | "pro") || "free";
     const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
-    // 2) Get current usage for today
+    const toneDescription = buildToneDescription(profile?.ai_tone);
+    const focusArea = profile?.focus_area || null;
+
+    // 2) Current usage from ai_usage
     const { data: usage, error: usageError } = await supabaseAdmin
       .from("ai_usage")
       .select("id, count")
@@ -69,8 +80,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (usageError && usageError.code !== "PGRST116") {
-      console.error("Assistant: usage query error", usageError);
-      // don't block on usageError; we can still proceed, but safer to stop:
+      console.error("Assistant: usage error", usageError);
       return NextResponse.json(
         { error: "Could not check your AI usage. Please try again later." },
         { status: 500 }
@@ -91,31 +101,41 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3) Call OpenAI
-    const systemPrompt = `
-You are an AI assistant inside a web app called "AI Productivity Hub".
-Help the user with writing, summarizing, planning, or breaking down tasks.
-Be concise and practical. If user refers to "my notes" or "my tasks",
-answer generally unless context was provided.
+    // 3) Build system prompt
+    let systemPrompt = `
+You are an AI assistant inside a productivity web app called "AI Productivity Hub".
+You help the user with their notes, tasks, planning, and productivity questions.
 
-${context ? `Extra context:\n${context}` : ""}
+${toneDescription}
 `.trim();
+
+    if (focusArea) {
+      systemPrompt += `\nThe user's main focus area is: "${focusArea}". Tailor your examples and suggestions towards that where helpful.`;
+    }
+
+    // 4) Build context text
+    const fullContext = context
+      ? `Additional app context:\n${context}`
+      : "";
 
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
       messages: [
         { role: "system", content: systemPrompt },
+        ...(fullContext
+          ? [{ role: "system", content: fullContext } as const]
+          : []),
         { role: "user", content: message },
       ],
-      max_tokens: 400,
+      max_tokens: 600,
       temperature: 0.7,
     });
 
-    const reply =
+    const answer =
       completion.choices[0]?.message?.content ||
-      "Sorry, I could not generate a response.";
+      "Sorry, I couldn't generate a response. Please try again.";
 
-    // 4) Log usage (increment ai_usage)
+    // 5) Increment usage
     if (!usage) {
       const { error: insertError } = await supabaseAdmin
         .from("ai_usage")
@@ -141,9 +161,14 @@ ${context ? `Extra context:\n${context}` : ""}
       }
     }
 
-    return NextResponse.json({ reply, plan, dailyLimit, usedToday: currentCount + 1 });
+    return NextResponse.json({
+      reply: answer,
+      plan,
+      dailyLimit,
+      usedToday: currentCount + 1,
+    });
   } catch (err: any) {
-    console.error("Assistant API error:", err);
+    console.error("Assistant route error:", err);
     return NextResponse.json(
       {
         error:
