@@ -1,9 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
-const templates = [
+type Plan = "free" | "pro";
+
+type TemplateDef = {
+  id: string;
+  title: string;
+  description: string;
+  prompt: string;
+  icon: string;
+  proOnly?: boolean;
+};
+
+const templates: TemplateDef[] = [
   {
     id: "summarize",
     title: "Summarize this note",
@@ -13,10 +25,11 @@ const templates = [
   },
   {
     id: "brainstorm",
-    title: "Brainstorm ideas",
-    description: "Generate creative ideas for a topic or problem.",
-    prompt: "Brainstorm ideas about:",
+    title: "Brainstorm ideas (Pro)",
+    description: "Generate creative ideas for a topic or problem with more depth.",
+    prompt: "Brainstorm ideas about this topic. Be creative and practical:",
     icon: "💡",
+    proOnly: true,
   },
   {
     id: "action",
@@ -27,20 +40,63 @@ const templates = [
   },
   {
     id: "rewrite",
-    title: "Rewrite for clarity",
-    description: "Rephrase your writing to make it sound more clear and professional.",
-    prompt: "Rewrite this for clarity and professionalism:",
+    title: "Rewrite for clarity (Pro)",
+    description: "Rephrase your writing to make it clearer and more professional.",
+    prompt: "Rewrite this for clarity, conciseness, and a professional tone:",
     icon: "🗣️",
+    proOnly: true,
   },
 ];
 
 export default function TemplatesPage() {
-  const [selected, setSelected] = useState<any | null>(null);
+  const [selected, setSelected] = useState<TemplateDef | null>(null);
   const [inputText, setInputText] = useState("");
+  const [plan, setPlan] = useState<Plan>("free");
+  const [user, setUser] = useState<any | null>(null);
+  const [checkingUser, setCheckingUser] = useState(true);
+  const [upgradeMessage, setUpgradeMessage] = useState("");
 
-  function handleOpenTemplate(t: any) {
+  // Load user & plan
+  useEffect(() => {
+    async function loadUserAndPlan() {
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error("Templates: getUser error", error);
+        }
+        const currentUser = data?.user ?? null;
+        setUser(currentUser);
+
+        if (!currentUser) {
+          setPlan("free");
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("plan")
+          .eq("id", currentUser.id)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error("Templates: profile error", profileError);
+        }
+
+        setPlan((profile?.plan as Plan) || "free");
+      } catch (err) {
+        console.error("Templates: loadUserAndPlan error", err);
+      } finally {
+        setCheckingUser(false);
+      }
+    }
+
+    loadUserAndPlan();
+  }, []);
+
+  function handleOpenTemplate(t: TemplateDef) {
     setSelected(t);
     setInputText("");
+    setUpgradeMessage("");
   }
 
   function handleUseInAssistant() {
@@ -53,18 +109,27 @@ export default function TemplatesPage() {
       window.dispatchEvent(
         new CustomEvent("ai-assistant-context", {
           detail: {
-            // This becomes extra context inside the assistant
+            // extra context for the assistant
             content: text,
-            // This becomes the initial message in the assistant input
+            // initial message inside assistant
             hint: `${selected.prompt}\n\n${text}`,
           },
         })
       );
     }
 
-    // Close modal and reset
     setSelected(null);
     setInputText("");
+  }
+
+  function handleTemplateClick(t: TemplateDef) {
+    if (t.proOnly && plan !== "pro") {
+      setUpgradeMessage(
+        "This template is available on the Pro plan. Open your Dashboard to upgrade and unlock all templates."
+      );
+      return;
+    }
+    handleOpenTemplate(t);
   }
 
   return (
@@ -80,38 +145,91 @@ export default function TemplatesPage() {
               AI Productivity Hub
             </span>
           </Link>
-          <Link
-            href="/dashboard"
-            className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-xs sm:text-sm"
-          >
-            Back to Dashboard
-          </Link>
+          <div className="flex items-center gap-3 text-xs sm:text-sm">
+            <Link
+              href="/dashboard"
+              className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
         </div>
       </header>
 
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
-        <h1 className="text-2xl md:text-3xl font-bold mb-2">AI Templates</h1>
-        <p className="text-slate-400 mb-8 text-sm">
-          Use these pre-built prompts to speed up your workflow. When you pick a
-          template, your text will be sent into the AI assistant.
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold mb-1">
+              AI Templates
+            </h1>
+            <p className="text-slate-400 text-sm">
+              Use these pre-built prompts to speed up your workflow.
+            </p>
+          </div>
+          <div className="text-xs text-slate-300">
+            Current plan:{" "}
+            <span className="font-semibold uppercase">{plan}</span>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-500 mb-4">
+          Some templates are marked <span className="text-amber-300">PRO</span>{" "}
+          and are only available on the Pro plan.
         </p>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {templates.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => handleOpenTemplate(t)}
-              className="text-left border border-slate-800 bg-slate-900/60 rounded-2xl p-4 hover:bg-slate-800 transition group"
-            >
-              <div className="text-2xl mb-2">{t.icon}</div>
-              <h3 className="text-base font-semibold mb-1 group-hover:text-indigo-400">
-                {t.title}
-              </h3>
-              <p className="text-xs text-slate-400">{t.description}</p>
-            </button>
-          ))}
+          {templates.map((t) => {
+            const locked = t.proOnly && plan !== "pro";
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => handleTemplateClick(t)}
+                className={`relative text-left border border-slate-800 rounded-2xl p-4 transition group ${
+                  locked
+                    ? "bg-slate-900/40 cursor-pointer hover:bg-slate-900/60"
+                    : "bg-slate-900/60 hover:bg-slate-800"
+                }`}
+              >
+                {t.proOnly && (
+                  <span className="absolute top-2 right-3 text-[10px] px-2 py-0.5 rounded-full border border-amber-400/70 text-amber-300 bg-slate-950/80">
+                    PRO
+                  </span>
+                )}
+                <div className="text-2xl mb-2">{t.icon}</div>
+                <h3
+                  className={`text-base font-semibold mb-1 ${
+                    locked
+                      ? "text-slate-400 group-hover:text-slate-200"
+                      : "group-hover:text-indigo-400"
+                  }`}
+                >
+                  {t.title}
+                </h3>
+                <p className="text-xs text-slate-400">{t.description}</p>
+                {locked && (
+                  <p className="mt-2 text-[11px] text-amber-300">
+                    Pro plan required
+                  </p>
+                )}
+              </button>
+            );
+          })}
         </div>
+
+        {upgradeMessage && (
+          <p className="mt-4 text-xs text-amber-300 max-w-md">
+            {upgradeMessage} You can upgrade from the{" "}
+            <Link
+              href="/dashboard"
+              className="underline hover:text-amber-200"
+            >
+              dashboard
+            </Link>
+            .
+          </p>
+        )}
 
         {selected && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -130,9 +248,7 @@ export default function TemplatesPage() {
                 Your text here will be sent into the assistant with this
                 instruction:
                 <br />
-                <span className="text-slate-300">
-                  {selected.prompt}
-                </span>
+                <span className="text-slate-300">{selected.prompt}</span>
               </p>
               <textarea
                 className="w-full h-32 bg-slate-950 border border-slate-700 rounded-xl p-2 text-sm text-slate-100"
