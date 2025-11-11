@@ -181,6 +181,28 @@ export default function TasksPage() {
       console.error(err);
     }
   }
+  function handleAskAssistantAboutTask(task: Task) {
+    if (typeof window === "undefined" || !task) return;
+
+    const pieces = [
+      task.title || "",
+      task.description || "",
+      task.due_date ? `Due date: ${task.due_date}` : "",
+    ].filter(Boolean);
+
+    const content = pieces.join("\n");
+    if (!content.trim()) return;
+
+    window.dispatchEvent(
+      new CustomEvent("ai-assistant-context", {
+        detail: {
+          content,
+          hint:
+            "Help me prioritize this task and suggest the next 3 small steps.",
+        },
+      })
+    );
+  }
 
   // Checking session
   if (checkingUser) {
@@ -394,6 +416,14 @@ export default function TasksPage() {
                   >
                     {deletingId === task.id ? "..." : "Delete"}
                   </button>
+
+                                    <button
+                    onClick={() => handleAskAssistantAboutTask(task)}
+                    className="text-[11px] text-slate-500 hover:text-indigo-300"
+                  >
+                    🤖 Ask AI
+                  </button>
+
                 </article>
               ))}
             </div>

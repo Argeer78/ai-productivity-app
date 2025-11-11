@@ -245,6 +245,22 @@ function handleShareNote(note) {
       setAiCountToday(newCount);
     }
   }
+  function handleAskAssistantAboutNote(note) {
+    if (typeof window === "undefined" || !note) return;
+
+    const content = note.content || "";
+    if (!content.trim()) return;
+
+    window.dispatchEvent(
+      new CustomEvent("ai-assistant-context", {
+        detail: {
+          content,
+          hint:
+            "Help me turn this note into 3 clear next actions and a short summary.",
+        },
+      })
+    );
+  }
 
   // 7) AI call
   async function handleAI(noteId, noteContent, mode = "summarize") {
@@ -481,7 +497,7 @@ function handleShareNote(note) {
               No notes yet. Create your first note on the left.
             </p>
           )}
-
+ 
           <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
             {notes.map((note) => (
               <article
@@ -543,6 +559,14 @@ function handleShareNote(note) {
 >
   {copiedNoteId === note.id ? "✅ Copied" : "Share (copy)"}
 </button>
+
+      <button
+        onClick={() => handleAskAssistantAboutNote(note)}
+        className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
+      >
+        🤖 Ask AI about this
+      </button>
+
                 </div>
 
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 type ChatMessage = {
   id: string;
@@ -14,8 +14,45 @@ export default function AIAssistant() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [externalContext, setExternalContext] = useState<string | null>(null);
 
-  async function handleSend(e?: React.FormEvent) {
+    // Listen for external context events from pages (notes/tasks)
+  // so they can send content into the assistant.
+  React.useEffect(() => {
+    function handleContextEvent(e: any) {
+      const detail = e.detail || {};
+      const content = detail.content as string | undefined;
+      const hint = detail.hint as string | undefined;
+
+      if (content) {
+        setExternalContext(content);
+      } else {
+        setExternalContext(null);
+      }
+
+      // Optional: pre-fill a suggested question
+      if (hint) {
+        setInput(hint);
+      }
+
+      // Open the assistant when context is sent
+      setOpen(true);
+    }
+
+    window.addEventListener(
+      "ai-assistant-context",
+      handleContextEvent as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "ai-assistant-context",
+        handleContextEvent as EventListener
+      );
+    };
+  }, []);
+
+async function handleSend(e?: React.FormEvent) {
     if (e) e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || loading) return;
@@ -32,13 +69,17 @@ export default function AIAssistant() {
     setError("");
 
     try {
-      const res = await fetch("/api/assistant", {
+            const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: trimmed,
           context:
-            "The user is using an AI productivity web app with notes, tasks, and a dashboard.",
+            "The user is using an AI productivity web app with notes, tasks, and a dashboard." +
+            (externalContext
+              ? "\n\nHere is extra context (note or task):\n" +
+                externalContext
+              : ""),
         }),
       });
 
