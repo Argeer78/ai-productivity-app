@@ -1,0 +1,43 @@
+{
+  "name": "AI Productivity Hub",
+  "short_name": "AI Hub",
+  "description": "Turn messy notes into clear tasks and summaries with AI.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open Notes",
+      "short_name": "Notes",
+      "url": "/notes",
+      "description": "Jump straight to your AI notes."
+    },
+    {
+      "name": "Tasks",
+      "short_name": "Tasks",
+      "url": "/tasks",
+      "description": "See and manage your tasks."
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard",
+      "description": "View your plan and usage."
+    }
+  ]
+}
