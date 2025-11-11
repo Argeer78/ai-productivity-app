@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import SocialShare from "@/app/components/SocialShare";
 
 export default function HomePage() {
   const [user, setUser] = useState<any | null>(null);
@@ -157,6 +158,7 @@ export default function HomePage() {
                 Free plan includes daily AI usage. Upgrade to Pro inside the
                 app when you&apos;re ready — cancel anytime.
               </p>
+              <SocialShare />
             </div>
 
             {/* Right side "preview" card */}
