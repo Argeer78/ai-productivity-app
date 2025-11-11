@@ -121,7 +121,7 @@ export default function SettingsPage() {
   if (!user) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-        <AppHeader />
+        <AppHeader active="settings" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Settings</h1>
           <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">

@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
     if (!userId) {
       return NextResponse.json(
-        { error: "You must be logged in to use the daily planner." },
+        { error: "You must be logged in to use AI summary." },
         { status: 401 }
       );
     }
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (profileError) {
-      console.error("Daily plan: profile error", profileError);
+      console.error("AI summary: profile error", profileError);
     }
 
     const plan = (profile?.plan as "free" | "pro") || "free";
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (usageError && usageError.code !== "PGRST116") {
-      console.error("Daily plan: usage error", usageError);
+      console.error("AI summary: usage error", usageError);
       return NextResponse.json(
         { error: "Could not check your AI usage. Please try again later." },
         { status: 500 }
@@ -97,55 +97,66 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3) Fetch upcoming / incomplete tasks
-    const { data: tasks, error: tasksError } = await supabaseAdmin
-      .from("tasks")
-      .select("title, description, due_date, completed")
+    // 3) Fetch recent notes and tasks
+    const { data: notes, error: notesError } = await supabaseAdmin
+      .from("notes")
+      .select("content")
       .eq("user_id", userId)
-      .order("due_date", { ascending: true })
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(20);
 
-    if (tasksError) {
-      console.error("Daily plan: tasks error", tasksError);
+    if (notesError) {
+      console.error("AI summary: notes error", notesError);
     }
 
-    const tasksList = (tasks || []).filter((t: any) => !t.completed);
+    const { data: tasks, error: tasksError } = await supabaseAdmin
+      .from("tasks")
+      .select("title, description")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20);
 
-    const tasksText = tasksList
-      .map((t: any, idx: number) => {
+    if (tasksError) {
+      console.error("AI summary: tasks error", tasksError);
+    }
+
+    const notesText = (notes || [])
+      .map((n: any) => `- ${n.content}`)
+      .join("\n");
+
+    const tasksText = (tasks || [])
+      .map((t: any) => {
         const desc = t.description ? ` – ${t.description}` : "";
-        const due = t.due_date ? ` (due: ${t.due_date})` : "";
-        return `${idx + 1}. ${t.title}${desc}${due}`;
+        return `- ${t.title}${desc}`;
       })
       .join("\n");
 
     const contextText = `
-Today: ${today}
+Recent notes:
+${notesText || "(no recent notes)"}
 
-Here are the user's upcoming / incomplete tasks:
-${tasksText || "(no open tasks right now)"}
+Recent tasks:
+${tasksText || "(no recent tasks)"}
 `.trim();
 
     let systemPrompt = `
-You are an AI daily planner inside a web app called "AI Productivity Hub".
-Given the user's tasks, create a focused plan JUST for today.
+You are an AI summarizer inside a productivity app called "AI Productivity Hub".
+Given the user's recent notes and tasks, create a very concise overview.
 
 ${toneDescription}
 `.trim();
 
     if (focusArea) {
-      systemPrompt += `\nThe user's main focus area is: "${focusArea}". Consider this when suggesting priorities.`;
+      systemPrompt += `\nThe user's main focus area is: "${focusArea}". Tailor your insights towards that area where helpful.`;
     }
 
     systemPrompt += `
-Output format in plain text:
-1) A short motivating sentence.
-2) A "Today's Top 3" list (if enough tasks).
-3) A suggested order to tackle tasks (morning / afternoon / evening).
-4) 2-3 concrete tips to stay focused.
+Output format:
+1) A short paragraph summary of their recent activity.
+2) 3 bullet points of key themes or patterns.
+3) 2 concrete suggestions for what they could focus on next.
 
-Be encouraging, but also realistic. If there are very few or no tasks, say so and suggest one or two meaningful things they could do.
+If there isn't much data, be honest but still encouraging.
 `;
 
     const completion = await client.chat.completions.create({
@@ -158,9 +169,9 @@ Be encouraging, but also realistic. If there are very few or no tasks, say so an
       temperature: 0.7,
     });
 
-    const planText =
+    const summary =
       completion.choices[0]?.message?.content ||
-      "Not enough data to generate a meaningful plan yet, but you can add some tasks and try again.";
+      "Not enough data to generate a meaningful summary yet, but keep going!";
 
     // 4) Increment usage
     if (!usage) {
@@ -175,7 +186,7 @@ Be encouraging, but also realistic. If there are very few or no tasks, say so an
         ]);
 
       if (insertError) {
-        console.error("Daily plan: usage insert error", insertError);
+        console.error("AI summary: usage insert error", insertError);
       }
     } else {
       const { error: updateError } = await supabaseAdmin
@@ -184,23 +195,22 @@ Be encouraging, but also realistic. If there are very few or no tasks, say so an
         .eq("id", usage.id);
 
       if (updateError) {
-        console.error("Daily plan: usage update error", updateError);
+        console.error("AI summary: usage update error", updateError);
       }
     }
 
     return NextResponse.json({
-      plan: planText,
-      planType: "daily",
-      usedToday: currentCount + 1,
+      summary,
+      plan,
       dailyLimit,
-      planAccount: plan,
+      usedToday: currentCount + 1,
     });
   } catch (err: any) {
-    console.error("Daily plan route error:", err);
+    console.error("AI summary route error:", err);
     return NextResponse.json(
       {
         error:
-          err?.message || "Something went wrong while generating your plan.",
+          err?.message || "Something went wrong while generating your summary.",
       },
       { status: 500 }
     );

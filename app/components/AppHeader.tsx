@@ -1,6 +1,13 @@
 import Link from "next/link";
 
-type ActiveKey = "dashboard" | "notes" | "tasks" | "templates" | "planner" | "feedback";
+type ActiveKey =
+  | "dashboard"
+  | "notes"
+  | "tasks"
+  | "templates"
+  | "planner"
+  | "feedback"
+  | "settings";
 
 type AppHeaderProps = {
   active?: ActiveKey;
@@ -63,6 +70,12 @@ export default function AppHeader({ active }: AppHeaderProps) {
             className={navLinkClasses(active === "feedback")}
           >
             Feedback
+          </Link>
+          <Link
+            href="/settings"
+            className={navLinkClasses(active === "settings")}
+          >
+            Settings
           </Link>
         </nav>
       </div>
