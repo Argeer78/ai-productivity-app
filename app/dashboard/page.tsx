@@ -568,6 +568,14 @@ export default function DashboardPage() {
             >
               🧠 AI Templates
             </Link>
+
+                        <Link
+              href="/planner"
+              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+            >
+              🗓 Daily Planner
+            </Link>
+
           </div>
 
           {plan === "free" && (
