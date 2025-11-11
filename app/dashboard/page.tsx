@@ -161,7 +161,7 @@ export default function DashboardPage() {
         past.setDate(past.getDate() - 30);
         const pastStr = past.toISOString().split("T")[0];
 
-        const { data: history, error: historyError } = await supabase
+                const { data: history, error: historyError } = await supabase
           .from("ai_usage")
           .select("usage_date, count")
           .eq("user_id", user.id)
@@ -169,7 +169,7 @@ export default function DashboardPage() {
           .order("usage_date", { ascending: true });
 
         if (historyError && historyError.code !== "PGRST116") {
-          throw historyError;
+          console.error("Dashboard: history error", historyError);
         }
 
         const historyList =
@@ -202,7 +202,7 @@ export default function DashboardPage() {
         setStreak(streakCount);
 
         // Recent notes
-        const { data: notes, error: notesError } = await supabase
+                const { data: notes, error: notesError } = await supabase
           .from("notes")
           .select("id, content, created_at")
           .eq("user_id", user.id)
@@ -210,12 +210,14 @@ export default function DashboardPage() {
           .limit(5);
 
         if (notesError && notesError.code !== "PGRST116") {
-          throw notesError;
+          console.error("Dashboard: notes error", notesError);
+          setRecentNotes([]);
+        } else {
+          setRecentNotes(notes || []);
         }
-        setRecentNotes(notes || []);
 
         // Recent tasks
-        const { data: tasks, error: tasksError } = await supabase
+                const { data: tasks, error: tasksError } = await supabase
           .from("tasks")
           .select("id, title, completed, created_at")
           .eq("user_id", user.id)
@@ -223,9 +225,12 @@ export default function DashboardPage() {
           .limit(5);
 
         if (tasksError && tasksError.code !== "PGRST116") {
-          throw tasksError;
+          console.error("Dashboard: tasks error", tasksError);
+          setRecentTasks([]);
+        } else {
+          setRecentTasks(tasks || []);
         }
-        setRecentTasks(tasks || []);
+
       } catch (err: any) {
         console.error(err);
         setError("Failed to load dashboard data.");
