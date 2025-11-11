@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
 
@@ -235,58 +236,7 @@ export default function TasksPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top bar */}
-      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-  <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-    <Link href="/" className="flex items-center gap-2">
-      <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
-        AI
-      </div>
-      <span className="text-sm font-semibold tracking-tight">
-        AI Productivity Hub
-      </span>
-    </Link>
-    <nav className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
-      <Link
-        href="/dashboard"
-        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
-      >
-        Dashboard
-      </Link>
-      <Link
-        href="/notes"
-        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
-      >
-        Notes
-      </Link>
-      <Link
-        href="/tasks"
-        className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-indigo-300"
-      >
-        Tasks
-      </Link>
-      <Link
-        href="/templates"
-        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
-      >
-        AI Templates
-      </Link>
-      <Link
-        href="/planner"
-        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
-      >
-        Planner
-      </Link>
-      <Link
-        href="/feedback"
-        className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
-      >
-        Feedback
-      </Link>
-    </nav>
-  </div>
-</header>
-
-
+      <AppHeader active="tasks" />
       {/* Content */}
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 grid md:grid-cols-[1.1fr,0.9fr] gap-6">
