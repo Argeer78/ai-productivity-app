@@ -59,7 +59,12 @@ export default function HomePage() {
             >
               Dashboard
             </Link>
-
+  <Link
+    href="/feedback"
+    className="hidden sm:inline text-slate-300 hover:text-white"
+  >
+    💬 Feedback
+  </Link>
             {!loggedIn && (
               <Link
                 href="/auth"
@@ -287,7 +292,7 @@ export default function HomePage() {
                   PRO PLAN
                 </p>
                 <p className="text-2xl font-bold mb-2">
-                  $7
+                  €9.99
                   <span className="text-base text-slate-300">/month</span>
                 </p>
                 <p className="text-slate-100 text-[13px] mb-4">
