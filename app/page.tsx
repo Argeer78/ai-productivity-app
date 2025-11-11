@@ -1,6 +1,31 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function HomePage() {
+  const [user, setUser] = useState<any | null>(null);
+  const [checkingUser, setCheckingUser] = useState(true);
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) console.error(error);
+        setUser(data?.user ?? null);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setCheckingUser(false);
+      }
+    }
+
+    loadUser();
+  }, []);
+
+  const loggedIn = !!user;
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top nav */}
@@ -34,12 +59,24 @@ export default function HomePage() {
             >
               Dashboard
             </Link>
-            <Link
-              href="/auth"
-              className="px-3 py-1.5 rounded-xl text-xs sm:text-sm bg-slate-100 text-slate-900 font-medium hover:bg-white"
-            >
-              Log in / Sign up
-            </Link>
+
+            {!loggedIn && (
+              <Link
+                href="/auth"
+                className="px-3 py-1.5 rounded-xl text-xs sm:text-sm bg-slate-100 text-slate-900 font-medium hover:bg-white"
+              >
+                Log in / Sign up
+              </Link>
+            )}
+
+            {loggedIn && (
+              <Link
+                href="/dashboard"
+                className="px-3 py-1.5 rounded-xl text-xs sm:text-sm bg-slate-100 text-slate-900 font-medium hover:bg-white"
+              >
+                Go to dashboard
+              </Link>
+            )}
           </nav>
         </div>
       </header>
@@ -49,10 +86,22 @@ export default function HomePage() {
         <section className="border-b border-slate-900 bg-gradient-to-b from-slate-950 to-slate-950/60">
           <div className="max-w-5xl mx-auto px-4 py-12 md:py-16 grid md:grid-cols-[1.1fr,0.9fr] gap-10 items-center">
             <div>
-              <p className="inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full border border-indigo-500/40 bg-indigo-500/10 text-indigo-200 mb-4">
-                <span className="text-[10px]">⚡</span>
-                AI-powered notes & focus
-              </p>
+              {loggedIn && !checkingUser && (
+                <p className="inline-flex items-center gap-2 text-[11px] px-3 py-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 mb-4">
+                  <span className="text-[10px]">👋</span>
+                  Welcome back,{" "}
+                  <span className="font-semibold">
+                    {user?.email ?? "there"}
+                  </span>
+                </p>
+              )}
+
+              {!loggedIn && (
+                <p className="inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full border border-indigo-500/40 bg-indigo-500/10 text-indigo-200 mb-4">
+                  <span className="text-[10px]">⚡</span>
+                  AI-powered notes & focus
+                </p>
+              )}
 
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4">
                 Turn messy notes into clear
@@ -60,29 +109,48 @@ export default function HomePage() {
               </h1>
 
               <p className="text-sm sm:text-base text-slate-300 mb-6 max-w-xl">
-                Capture ideas, clean them up with AI, and turn them into
-                tasks you&apos;ll actually do. One simple workspace for notes,
-                summaries, and productivity.
+                AI Productivity Hub is your lightweight workspace for capturing
+                ideas, cleaning them up with AI, and turning them into tasks you
+                can actually finish.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                <Link
-                  href="/auth"
-                  className="inline-flex justify-center items-center px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-medium"
-                >
-                  Get started free
-                </Link>
-                <Link
-                  href="/notes"
-                  className="inline-flex justify-center items-center px-5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
-                >
-                  Open the app
-                </Link>
+                {loggedIn ? (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="inline-flex justify-center items-center px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-medium"
+                    >
+                      Go to your dashboard
+                    </Link>
+                    <Link
+                      href="/notes"
+                      className="inline-flex justify-center items-center px-5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+                    >
+                      Open notes
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/auth"
+                      className="inline-flex justify-center items-center px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-medium"
+                    >
+                      Get started free
+                    </Link>
+                    <Link
+                      href="/notes"
+                      className="inline-flex justify-center items-center px-5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+                    >
+                      Explore the app
+                    </Link>
+                  </>
+                )}
               </div>
 
               <p className="text-[11px] text-slate-400">
                 Free plan includes daily AI usage. Upgrade to Pro inside the
-                app when you&apos;re ready.
+                app when you&apos;re ready — cancel anytime.
               </p>
             </div>
 
@@ -142,42 +210,42 @@ export default function HomePage() {
                 <p className="text-lg mb-1">📝 Smart notes</p>
                 <p className="text-slate-300 text-[13px]">
                   Capture thoughts quickly and let AI organize, clean up, and
-                  highlight what matters.
+                  highlight the key points in a click.
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
                 <p className="text-lg mb-1">✨ One-click AI actions</p>
                 <p className="text-slate-300 text-[13px]">
-                  Summarize, turn into bullet points, or rewrite in a better
-                  style — straight from your notes.
+                  Summarize long text, turn it into bullet points, or rewrite it
+                  in a clearer style — directly from your notes.
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
                 <p className="text-lg mb-1">✅ Tasks from text</p>
                 <p className="text-slate-300 text-[13px]">
-                  Turn long notes into actionable tasks so you know exactly
-                  what to do next.
+                  Turn walls of text into actionable tasks and track them on the
+                  built-in Tasks page.
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
                 <p className="text-lg mb-1">🔐 Private by default</p>
                 <p className="text-slate-300 text-[13px]">
-                  Your notes are stored in your account in Supabase —
-                  only you can see them.
+                  Your notes and tasks are stored securely in your own account
+                  via Supabase — only you see your content.
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
-                <p className="text-lg mb-1">🌐 Web-based</p>
+                <p className="text-lg mb-1">🌐 Works in your browser</p>
                 <p className="text-slate-300 text-[13px]">
-                  Works in your browser on desktop or laptop. No install
-                  required.
+                  No install required. Open the app on your laptop or desktop
+                  and pick up where you left off.
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
-                <p className="text-lg mb-1">💳 Simple upgrade</p>
+                <p className="text-lg mb-1">💳 Simple upgrade path</p>
                 <p className="text-slate-300 text-[13px]">
-                  Start free. Upgrade to Pro inside the app for higher AI
-                  limits when you need them.
+                  Start free. When AI becomes part of your daily workflow, go
+                  Pro in a few clicks using Stripe.
                 </p>
               </div>
             </div>
@@ -197,12 +265,14 @@ export default function HomePage() {
                 </p>
                 <p className="text-2xl font-bold mb-2">$0</p>
                 <p className="text-slate-300 text-[13px] mb-4">
-                  Perfect to try the app and add AI to your daily notes.
+                  Perfect to try the app and add AI to your daily note-taking.
+                  No credit card required.
                 </p>
                 <ul className="text-[13px] text-slate-300 space-y-1 mb-4">
                   <li>• Email login</li>
                   <li>• Notes & basic AI actions</li>
                   <li>• Limited AI usage per day</li>
+                  <li>• Tasks page for simple to-dos</li>
                 </ul>
                 <Link
                   href="/auth"
@@ -217,25 +287,27 @@ export default function HomePage() {
                   PRO PLAN
                 </p>
                 <p className="text-2xl font-bold mb-2">
-                  $X<span className="text-base text-slate-300">/month</span>
+                  $7
+                  <span className="text-base text-slate-300">/month</span>
                 </p>
                 <p className="text-slate-100 text-[13px] mb-4">
                   For people who use AI to think, plan, and write every day.
+                  Designed to be cheaper than one takeaway coffee a month.
                 </p>
                 <ul className="text-[13px] text-slate-100 space-y-1 mb-4">
                   <li>• Much higher daily AI limits</li>
                   <li>• Faster workflow for notes & tasks</li>
-                  <li>• Supports continued development</li>
+                  <li>• Support ongoing improvements</li>
                 </ul>
                 <p className="text-[11px] text-indigo-100 mb-3">
-                  You can upgrade securely via Stripe from inside the app on
-                  the Notes page.
+                  You can upgrade securely via Stripe from inside the app on the
+                  Notes or Dashboard pages.
                 </p>
                 <Link
-                  href="/notes"
+                  href={loggedIn ? "/dashboard" : "/auth"}
                   className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-xs sm:text-sm text-slate-950 font-medium"
                 >
-                  Go to app
+                  {loggedIn ? "Manage your plan" : "Get started then upgrade"}
                 </Link>
               </div>
             </div>
