@@ -23,6 +23,8 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [streak, setStreak] = useState(0);
   const [activeDays, setActiveDays] = useState(0);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const showBanner = streak >= 3 && !bannerDismissed;
 
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -336,6 +338,25 @@ export default function DashboardPage() {
       {/* Content */}
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
+                    {showBanner && (
+            <div className="mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md animate-fadeIn">
+              <div>
+                <p className="font-semibold text-sm md:text-base">
+                  🎉 Nice streak! You’re on a{" "}
+                  <span className="font-bold">{streak}-day</span> productivity streak — keep it up!
+                </p>
+                <p className="text-xs opacity-90">
+                  Log in and use AI daily to keep your streak growing.
+                </p>
+                <button
+  onClick={() => setBannerDismissed(true)}
+  className="text-white/80 hover:text-white text-xs font-semibold ml-3"
+>
+  ✖
+</button>
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
