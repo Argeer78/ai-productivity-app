@@ -21,6 +21,8 @@ export default function DashboardPage() {
   const [loadingData, setLoadingData] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
   const [error, setError] = useState("");
+  const [streak, setStreak] = useState(0);
+  const [activeDays, setActiveDays] = useState(0);
 
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -94,7 +96,7 @@ export default function DashboardPage() {
           setPlan((profile.plan as "free" | "pro") || "free");
         }
 
-        // ai_usage: today's count
+                // ai_usage: today's count
         const today = getTodayString();
         const { data: usage, error: usageError } = await supabase
           .from("ai_usage")
@@ -107,7 +109,53 @@ export default function DashboardPage() {
           throw usageError;
         }
 
-        setAiCountToday(usage?.count || 0);
+        const todayCount = usage?.count || 0;
+        setAiCountToday(todayCount);
+
+        // ai_usage history: last 30 days for streak + active days
+        const past = new Date();
+        past.setDate(past.getDate() - 30);
+        const pastStr = past.toISOString().split("T")[0];
+
+        const { data: history, error: historyError } = await supabase
+          .from("ai_usage")
+          .select("usage_date, count")
+          .eq("user_id", user.id)
+          .gte("usage_date", pastStr)
+          .order("usage_date", { ascending: true });
+
+        if (historyError && historyError.code !== "PGRST116") {
+          throw historyError;
+        }
+
+        const historyList = (history || []) as { usage_date: string; count: number }[];
+
+        // Active days (last 30) = days with count > 0
+        const active = historyList.filter((h) => h.count > 0).length;
+        setActiveDays(active);
+
+        // Streak = consecutive days up to today with count > 0
+        const activeDateSet = new Set(
+          historyList
+            .filter((h) => h.count > 0)
+            .map((h) => h.usage_date)
+        );
+
+        let streakCount = 0;
+        let currentDate = new Date();
+
+        // look back up to 365 days, but will break as soon as no activity for a day
+        for (let i = 0; i < 365; i++) {
+          const dayStr = currentDate.toISOString().split("T")[0];
+          if (activeDateSet.has(dayStr)) {
+            streakCount += 1;
+            currentDate.setDate(currentDate.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+
+        setStreak(streakCount);
       } catch (err: any) {
         console.error(err);
         setError("Failed to load dashboard data.");
@@ -365,7 +413,7 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {/* Usage card */}
+                           {/* Usage card */}
               <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
                 <p className="text-xs font-semibold text-slate-400 mb-1">
                   TODAY&apos;S AI USAGE
@@ -390,6 +438,14 @@ export default function DashboardPage() {
                   {remaining > 0
                     ? `${remaining} AI calls left today.`
                     : "You reached today’s limit on this plan."}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Streak:{" "}
+                  <span className="font-semibold">
+                    {streak} day{streak === 1 ? "" : "s"}
+                  </span>{" "}
+                  in a row • Active days (last 30):{" "}
+                  <span className="font-semibold">{activeDays}</span>
                 </p>
               </div>
 
