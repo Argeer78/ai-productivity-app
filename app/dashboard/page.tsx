@@ -11,6 +11,40 @@ const PRO_DAILY_LIMIT = 50;
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
 }
+function getStreakConfig(streak: number) {
+  if (streak >= 30) {
+    return {
+      emoji: "🏆",
+      title: "Legendary streak!",
+      subtitle: "You’ve been consistently productive for 30+ days. That’s huge.",
+      gradient: "from-amber-400 via-pink-500 to-indigo-600",
+    };
+  }
+  if (streak >= 14) {
+    return {
+      emoji: "⚡",
+      title: "Impressive streak!",
+      subtitle: "14+ days in a row using AI to move things forward.",
+      gradient: "from-purple-500 to-pink-500",
+    };
+  }
+  if (streak >= 7) {
+    return {
+      emoji: "🔥",
+      title: "Strong streak!",
+      subtitle: "A full week of momentum. Keep riding it.",
+      gradient: "from-emerald-500 to-teal-500",
+    };
+  }
+
+  // 3–6 days
+  return {
+    emoji: "🎉",
+    title: "Nice streak!",
+    subtitle: "You’re building a habit. A few more days and it becomes automatic.",
+    gradient: "from-indigo-600 to-purple-600",
+  };
+}
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
@@ -22,9 +56,9 @@ export default function DashboardPage() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [error, setError] = useState("");
   const [streak, setStreak] = useState(0);
-  const [activeDays, setActiveDays] = useState(0);
+  const [activeDays, setActiveDays] = useState(10);
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  const showBanner = streak >= 3 && !bannerDismissed;
+  const showBanner = streak >= 1;
 
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -338,25 +372,23 @@ export default function DashboardPage() {
       {/* Content */}
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
-                    {showBanner && (
-            <div className="mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md animate-fadeIn">
-              <div>
-                <p className="font-semibold text-sm md:text-base">
-                  🎉 Nice streak! You’re on a{" "}
-                  <span className="font-bold">{streak}-day</span> productivity streak — keep it up!
-                </p>
-                <p className="text-xs opacity-90">
-                  Log in and use AI daily to keep your streak growing.
-                </p>
-                <button
-  onClick={() => setBannerDismissed(true)}
-  className="text-white/80 hover:text-white text-xs font-semibold ml-3"
->
-  ✖
-</button>
+                             {showBanner && (() => {
+            const cfg = getStreakConfig(streak);
+            return (
+              <div className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${cfg.gradient} text-white shadow-md animate-fadeIn`}>
+                <div>
+                  <p className="font-semibold text-sm md:text-base">
+                    {cfg.emoji} {cfg.title} You’re on a{" "}
+                    <span className="font-bold">{streak}-day</span> productivity streak.
+                  </p>
+                  <p className="text-xs opacity-90">
+                    {cfg.subtitle}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
+
           <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
