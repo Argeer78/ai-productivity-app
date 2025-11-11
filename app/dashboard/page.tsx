@@ -22,7 +22,9 @@ export default function DashboardPage() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+  // derive daily limit from plan
+  const dailyLimit =
+    plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
 
   // 1) Load the current user
@@ -125,7 +127,7 @@ export default function DashboardPage() {
     }
   }
 
-  // Start Stripe checkout (same idea as on /notes)
+  // Start Stripe checkout
   async function startCheckout() {
     if (!user) return;
     setBillingLoading(true);
@@ -231,12 +233,25 @@ export default function DashboardPage() {
                 Quick overview of your plan and AI usage.
               </p>
             </div>
+
+            <div className="mb-4 text-xs md:text-sm text-slate-300">
+              <p>
+                Plan:{" "}
+                <span className="font-semibold uppercase">{plan}</span> | AI
+                today:{" "}
+                <span className="font-semibold">
+                  {aiCountToday}/{dailyLimit}
+                </span>
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                This includes both note AI actions and the global AI assistant.
+              </p>
+            </div>
+
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
                 Plan:{" "}
-                <span className="font-semibold">
-                  {plan.toUpperCase()}
-                </span>
+                <span className="font-semibold">{plan.toUpperCase()}</span>
               </span>
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
                 AI today: {aiCountToday}/{dailyLimit}
@@ -299,7 +314,9 @@ export default function DashboardPage() {
                     className="h-full bg-indigo-500"
                     style={{
                       width: `${Math.min(
-                        (aiCountToday / dailyLimit) * 100,
+                        dailyLimit > 0
+                          ? (aiCountToday / dailyLimit) * 100
+                          : 0,
                         100
                       )}%`,
                     }}
@@ -329,11 +346,11 @@ export default function DashboardPage() {
               Go to Tasks
             </Link>
             <Link
-  href="/feedback"
-  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
->
-  💬 Feedback
-</Link>
+              href="/feedback"
+              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+            >
+              💬 Feedback
+            </Link>
           </div>
 
           {plan === "free" && (
@@ -352,7 +369,7 @@ export default function DashboardPage() {
                 className="px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium disabled:opacity-60"
               >
                 {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
-              </button>           
+              </button>
             </div>
           )}
         </div>
