@@ -28,6 +28,25 @@ export default function NotesPage() {
   const [aiCountToday, setAiCountToday] = useState(0);
   const [plan, setPlan] = useState("free");
   const [billingLoading, setBillingLoading] = useState(false);
+const [copiedNoteId, setCopiedNoteId] = useState(null);
+
+function handleShareNote(note) {
+  if (!note || !note.content) return;
+
+  const textToCopy = `${note.content}\n\n— shared from AI Productivity Hub`;
+
+  if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard
+      .writeText(textToCopy)
+      .then(() => {
+        setCopiedNoteId(note.id);
+        setTimeout(() => setCopiedNoteId(null), 2000);
+      })
+      .catch((err) => {
+        console.error("Failed to copy note:", err);
+      });
+  }
+}
 
   // 1) Load current user
   useEffect(() => {
@@ -517,7 +536,15 @@ export default function NotesPage() {
                   >
                     ✍️ Rewrite
                   </button>
+                  
+                  <button
+  onClick={() => handleShareNote(note)}
+  className="text-[11px] px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+>
+  {copiedNoteId === note.id ? "✅ Copied" : "Share (copy)"}
+</button>
                 </div>
+
 
                 {note.ai_result && (
                   <div className="mt-3 text-xs text-slate-200 border-t border-slate-800 pt-2 whitespace-pre-wrap">
