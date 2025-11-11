@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import FeedbackForm from "@/app/components/FeedbackForm";
 
 type Task = {
   id: string;
@@ -234,6 +235,9 @@ export default function TasksPage() {
         <Link href="/dashboard" className="hover:text-white">
           Dashboard
         </Link>
+          <Link href="/feedback" className="hover:text-white">
+    💬 Feedback
+  </Link>
       </nav>
     </div>
 
@@ -395,6 +399,7 @@ export default function TasksPage() {
             </div>
           </section>
         </div>
+        <FeedbackForm user={user} />
       </div>
     </main>
   );

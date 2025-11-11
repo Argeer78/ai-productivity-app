@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import FeedbackForm from "@/app/components/FeedbackForm";
 
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 50;
@@ -371,6 +372,9 @@ export default function NotesPage() {
         <Link href="/dashboard" className="hover:text-white">
           Dashboard
         </Link>
+          <Link href="/feedback" className="hover:text-white">
+    💬 Feedback
+  </Link>
       </nav>
     </div>
 
@@ -525,6 +529,7 @@ export default function NotesPage() {
               </article>
             ))}
           </div>
+          <FeedbackForm user={user} />
         </section>
       </div>
     </main>
