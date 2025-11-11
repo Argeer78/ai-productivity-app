@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 const FREE_DAILY_LIMIT = 5;
@@ -348,39 +349,61 @@ export default function NotesPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <header className="flex flex-wrap items-center justify-between mb-6 gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Notes</h1>
-          <p className="text-xs text-slate-400">
-            Plan:{" "}
-            <span className="font-semibold">
-              {plan.toUpperCase()}
-            </span>{" "}
-            | AI uses today: {aiCountToday}/{dailyLimit}
-          </p>
+      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur mb-6">
+  <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+    {/* Left: logo + nav */}
+    <div className="flex items-center gap-4">
+      <Link href="/" className="flex items-center gap-2">
+        <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
+          AI
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
-          <span className="hidden sm:inline">
-            Logged in as <span className="font-semibold">{user.email}</span>
-          </span>
-          {plan === "free" && (
-            <button
-              onClick={startCheckout}
-              disabled={billingLoading}
-              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60"
-            >
-              {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
-            </button>
-          )}
-          <button
-            onClick={handleLogout}
-            className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-800"
-          >
-            Log out
-          </button>
-        </div>
-      </header>
+        <span className="text-sm font-semibold tracking-tight">
+          AI Productivity Hub
+        </span>
+      </Link>
+      <nav className="hidden sm:flex items-center gap-3 text-xs text-slate-300">
+        <Link href="/notes" className="hover:text-white">
+          Notes
+        </Link>
+        <Link href="/tasks" className="hover:text-white">
+          Tasks
+        </Link>
+        <Link href="/dashboard" className="hover:text-white">
+          Dashboard
+        </Link>
+      </nav>
+    </div>
 
+    {/* Right: plan, usage, user, buttons */}
+    <div className="flex flex-col items-end gap-1 text-xs text-slate-300">
+      <p className="text-[11px] text-slate-400">
+        Plan:{" "}
+        <span className="font-semibold">{plan.toUpperCase()}</span> | AI
+        today: {aiCountToday}/{dailyLimit}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="hidden sm:inline">
+          Logged in as <span className="font-semibold">{user.email}</span>
+        </span>
+        {plan === "free" && (
+          <button
+            onClick={startCheckout}
+            disabled={billingLoading}
+            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60"
+          >
+            {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
+          </button>
+        )}
+        <button
+          onClick={handleLogout}
+          className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+        >
+          Log out
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
       {/* rest of the page: create note + list (unchanged below) */}
       <div className="grid gap-6 md:grid-cols-[1.2fr,1fr]">
         {/* Create note */}
