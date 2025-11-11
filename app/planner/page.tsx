@@ -71,7 +71,10 @@ export default function PlannerPage() {
       }
 
       setPlanText(data.plan);
-      if (typeof data.usedToday === "number" && typeof data.dailyLimit === "number") {
+      if (
+        typeof data.usedToday === "number" &&
+        typeof data.dailyLimit === "number"
+      ) {
         setAiInfo({
           usedToday: data.usedToday,
           dailyLimit: data.dailyLimit,
@@ -112,9 +115,9 @@ export default function PlannerPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Header */}
+      {/* Header + Navigation */}
       <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
               AI
@@ -123,12 +126,44 @@ export default function PlannerPage() {
               AI Productivity Hub
             </span>
           </Link>
-          <Link
-            href="/dashboard"
-            className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-xs sm:text-sm"
-          >
-            Back to Dashboard
-          </Link>
+          <nav className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+            <Link
+              href="/dashboard"
+              className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/notes"
+              className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+            >
+              Notes
+            </Link>
+            <Link
+              href="/tasks"
+              className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+            >
+              Tasks
+            </Link>
+            <Link
+              href="/templates"
+              className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+            >
+              AI Templates
+            </Link>
+            <Link
+              href="/planner"
+              className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-indigo-300"
+            >
+              Planner
+            </Link>
+            <Link
+              href="/feedback"
+              className="px-2 py-1 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-700"
+            >
+              Feedback
+            </Link>
+          </nav>
         </div>
       </header>
 
