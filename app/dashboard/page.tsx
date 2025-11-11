@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import FeedbackForm from "@/app/components/FeedbackForm";
 
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 50;
@@ -230,7 +231,6 @@ export default function DashboardPage() {
                 Quick overview of your plan and AI usage.
               </p>
             </div>
-
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
                 Plan:{" "}
@@ -328,6 +328,12 @@ export default function DashboardPage() {
             >
               Go to Tasks
             </Link>
+            <Link
+  href="/feedback"
+  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+>
+  💬 Feedback
+</Link>
           </div>
 
           {plan === "free" && (
@@ -346,10 +352,11 @@ export default function DashboardPage() {
                 className="px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium disabled:opacity-60"
               >
                 {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
-              </button>
+              </button>           
             </div>
           )}
         </div>
+        <FeedbackForm user={user} />
       </div>
     </main>
   );
