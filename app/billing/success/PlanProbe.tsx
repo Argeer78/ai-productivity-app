@@ -1,5 +1,5 @@
 "use client";
-<HashToQuery />
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -25,6 +25,7 @@ export default function PlanProbe() {
         setStatus("free");
         return;
       }
+
       setStatus(profile.plan === "pro" ? "pro" : "free");
     })();
   }, []);
@@ -34,24 +35,17 @@ export default function PlanProbe() {
   }
 
   if (status === "pro") {
-    return (
-      <p className="text-sm text-green-400">
-        Your account is Pro — you’re all set! 🎉
-      </p>
-    );
+    return <p className="text-sm text-green-400">Your account is Pro — you’re all set! 🎉</p>;
   }
 
   if (status === "anon") {
-    return (
-      <p className="text-sm text-slate-300">
-        You’re not logged in. If you completed payment, please sign in to see your Pro plan.
-      </p>
-    );
+    return <p className="text-sm text-slate-300">You’re not logged in. Please sign in to view your plan.</p>;
   }
 
   return (
     <p className="text-sm text-yellow-300">
-      We couldn’t confirm via URL, and your account isn’t Pro yet. If you just paid, give it a few seconds and refresh.
+      We couldn’t confirm via URL, and your account isn’t Pro yet.  
+      If you just paid, give it a few seconds and refresh.
     </p>
   );
 }

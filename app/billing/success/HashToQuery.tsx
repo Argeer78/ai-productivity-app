@@ -4,13 +4,17 @@ import { useRouter } from "next/navigation";
 
 export default function HashToQuery() {
   const router = useRouter();
+
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const { hash, pathname, search } = window.location;
     if (!hash || hash.length < 2) return;
+
     const params = new URLSearchParams(hash.slice(1));
     const sid = params.get("session_id") || params.get("sessionId");
     if (!sid) return;
+
     const url = new URL(window.location.href);
     url.hash = "";
     if (!url.searchParams.get("session_id")) {
@@ -18,5 +22,6 @@ export default function HashToQuery() {
       router.replace(pathname + url.search);
     }
   }, [router]);
+
   return null;
 }
