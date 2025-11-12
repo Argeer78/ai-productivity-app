@@ -208,6 +208,40 @@ export default function SettingsPage() {
               >
                 {saving ? "Saving..." : "Save settings"}
               </button>
+
+<div className="pt-2 border-t border-slate-800 mt-4">
+  <p className="text-[11px] text-slate-400 mb-2">
+    You can download a copy of your notes and tasks as a Markdown file.
+  </p>
+  <button
+    type="button"
+    onClick={async () => {
+      if (!user) return;
+      try {
+        const res = await fetch("/api/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id }),
+        });
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ai_productivity_export.md";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error(e);
+        alert("Export failed. Please try again.");
+      }
+    }}
+    className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+  >
+    Download my data (.md)
+  </button>
+</div>
             </form>
           )}
         </div>

@@ -660,6 +660,13 @@ setRecentTasks(tasks || []);
                   >
                     Open Tasks →
                   </Link>
+
+                  <Link
+  href="/settings"
+  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+>
+  ⚙︎ Settings / Export
+</Link>
                 </div>
               </div>
             </>
