@@ -37,9 +37,7 @@ export async function POST(req: Request) {
     }
 
     // 2) Create a Billing Portal session
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2024-09-30.acacia", // or your installed version
-    });
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
     const returnUrl =
       process.env.NEXT_PUBLIC_APP_URL
