@@ -1,11 +1,11 @@
 // app/billing/success/page.tsx
-<HashToQuery />
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
+import HashToQuery from "./HashToQuery";
 import PlanProbe from "./PlanProbe";
 
-export const dynamic = "force-dynamic"; // run on server at request time
+export const dynamic = "force-dynamic"; // run on server per request
 
 type Search = { session_id?: string; sessionId?: string };
 
@@ -14,50 +14,52 @@ export default async function BillingSuccessPage({
 }: {
   searchParams: Search;
 }) {
-  // Accept both session_id and sessionId
-  const sessionId = searchParams?.session_id || searchParams?.sessionId;
+  // Accept both keys
+  const sessionId = searchParams?.session_id || searchParams?.sessionId || null;
 
   let title = "Payment status";
-  let message = "Processing your upgrade…";
+  let message = sessionId
+    ? "Processing your upgrade…"
+    : "Missing Stripe session ID in the URL.";
   let isSuccess = false;
 
-  if (!sessionId) {
-    message = "Missing Stripe session ID in the URL.";
-  } else {
+  if (sessionId) {
     try {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
-      // Get the session + useful fields
+      // Retrieve checkout session and useful fields
       const session = await stripe.checkout.sessions.retrieve(sessionId, {
         expand: ["subscription", "customer"],
       });
 
-      // Basic sanity: make sure it’s complete/paid
+      // Must be paid/complete
       const paidOrComplete =
         session?.payment_status === "paid" || session?.status === "complete";
+
       if (!paidOrComplete) {
         message =
           "Checkout session is not paid/complete yet. Please wait a few seconds and refresh.";
       } else {
-        // Read metadata (support both keys)
+        // Metadata can have either key
         const meta = (session.metadata || {}) as Record<string, string>;
         const userId = meta.userId || meta.user_id || null;
 
-        // Customer id & email if present
+        // Customer id & email (if present)
         const customerId =
           typeof session.customer === "string"
             ? session.customer
             : session.customer?.id || null;
 
         const email =
-          (session.customer_details && session.customer_details.email) ||
-          (session as any).customer_email ||
+          session.customer_details?.email ||
+          // @ts-ignore (older sessions)
+          (session as any)?.customer_email ||
           null;
 
         if (!userId) {
           message = "Payment found, but no user ID in session metadata.";
         } else {
-          // Prepare updates: set plan=pro and store stripe_customer_id if we have it
+          // Update profile: plan=pro and store stripe_customer_id if available
           const updates: any = { plan: "pro" };
           if (customerId) updates.stripe_customer_id = customerId;
 
@@ -66,7 +68,7 @@ export default async function BillingSuccessPage({
             .upsert(
               {
                 id: userId,
-                email: email ?? undefined, // harmless if undefined
+                email: email ?? undefined,
                 ...updates,
               },
               { onConflict: "id" }
@@ -92,16 +94,21 @@ export default async function BillingSuccessPage({
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4">
+      {/* Move hash params to query if needed (client) */}
+      <HashToQuery />
+
       <div className="max-w-md w-full border border-slate-800 rounded-2xl p-6 bg-slate-900/70 text-center">
         <h1 className="text-2xl font-bold mb-3">{title}</h1>
         <p className="text-sm text-slate-300 mb-5">{message}</p>
-{!sessionId && (
-  <div className="mt-3">
-    <PlanProbe />
-  </div>
-)}
 
-        <div className="flex flex-wrap gap-3 justify-center">
+        {/* If there was no session_id in the URL, try to detect plan client-side */}
+        {!sessionId && (
+          <div className="mt-3">
+            <PlanProbe />
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-3 justify-center mt-4">
           <Link
             href="/dashboard"
             className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
