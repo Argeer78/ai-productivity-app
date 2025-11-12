@@ -1,7 +1,9 @@
 // app/billing/success/page.tsx
+<HashToQuery />
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
+import PlanProbe from "./PlanProbe";
 
 export const dynamic = "force-dynamic"; // run on server at request time
 
@@ -93,6 +95,11 @@ export default async function BillingSuccessPage({
       <div className="max-w-md w-full border border-slate-800 rounded-2xl p-6 bg-slate-900/70 text-center">
         <h1 className="text-2xl font-bold mb-3">{title}</h1>
         <p className="text-sm text-slate-300 mb-5">{message}</p>
+{!sessionId && (
+  <div className="mt-3">
+    <PlanProbe />
+  </div>
+)}
 
         <div className="flex flex-wrap gap-3 justify-center">
           <Link
