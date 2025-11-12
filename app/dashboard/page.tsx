@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
-
+import { useAnalytics } from "@/app/lib/analytics";
+const { track } = useAnalytics();
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 50;
 
@@ -723,6 +724,7 @@ setRecentTasks(tasks || []);
               >
                 {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
               </button>
+              track("ai_call_used", { feature: "summary", plan, usedToday: aiCountToday + 1 });
             </div>
           )}
         </div>

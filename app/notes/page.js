@@ -6,7 +6,8 @@ import AppHeader from "@/app/components/AppHeader";
 
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
-
+import { useAnalytics } from "@/app/lib/analytics";
+const { track } = useAnalytics();
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 50;
 
@@ -520,6 +521,7 @@ function handleShareNote(note) {
                     <strong>AI Result (saved):</strong>
                     <br />
                     {note.ai_result}
+                    track("note_created");
                   </div>
                 )}
               </article>

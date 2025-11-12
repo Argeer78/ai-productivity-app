@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import Link from "next/link";
 import HashToQuery from "./HashToQuery";
 import PlanProbe from "./PlanProbe";
-
+import TrackUpgrade from "./TrackUpgrade";
 export const dynamic = "force-dynamic"; // run on server per request
 
 type Search = { session_id?: string; sessionId?: string };
@@ -130,7 +130,7 @@ export default async function BillingSuccessPage({
             </Link>
           )}
         </div>
-
+<TrackUpgrade success={isSuccess} />
         <p className="mt-4 text-[11px] text-slate-500">
           Tip: If your plan doesn’t show as Pro yet, refresh the Dashboard. The
           Stripe webhook also keeps your plan in sync.

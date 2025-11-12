@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
+import { useAnalytics } from "@/app/lib/analytics";
 type Props = {
   url?: string;
   title?: string;
@@ -16,7 +16,8 @@ export default function ShareButtons({
   compact = false,
 }: Props) {
   const [copied, setCopied] = useState(false);
-
+const { track } = useAnalytics();
+track("share_clicked", { network: "native" });
   const appUrl =
     url ||
     process.env.NEXT_PUBLIC_APP_URL ||

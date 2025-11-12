@@ -5,7 +5,8 @@ import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
-
+import { useAnalytics } from "@/app/lib/analytics";
+const { track } = useAnalytics();
 type Task = {
   id: string;
   title: string | null;
@@ -382,8 +383,8 @@ export default function TasksPage() {
                   >
                     🤖 Ask AI
                   </button>
-
                 </article>
+                track("task_created");
               ))}
             </div>
           </section>

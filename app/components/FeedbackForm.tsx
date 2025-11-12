@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-
+import { useAnalytics } from "@/app/lib/analytics";
+const { track } = useAnalytics();
 type Status = "idle" | "sending" | "sent" | "error";
 
 export default function FeedbackForm({ user }: { user?: any }) {
@@ -97,6 +98,7 @@ export default function FeedbackForm({ user }: { user?: any }) {
               <span>✅ Feedback sent — thank you!</span>
             ) : (
               <span>⚠️ Something went wrong. Please try again.</span>
+              track("feedback_submitted", { page: "dashboard" });
             )}
           </div>
         </div>

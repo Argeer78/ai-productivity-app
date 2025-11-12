@@ -209,6 +209,8 @@ export default function SettingsPage() {
                 {saving ? "Saving..." : "Save settings"}
               </button>
 {/* Manage subscription (Stripe Portal) */}
+onClick={async () => {
+  track("manage_subscription_opened");
 <button
   type="button"
   onClick={async () => {
@@ -234,6 +236,7 @@ export default function SettingsPage() {
 >
   Manage subscription (Stripe)
 </button>
+}}
 
 <div className="pt-2 border-t border-slate-800 mt-4">
   <p className="text-[11px] text-slate-400 mb-2">
