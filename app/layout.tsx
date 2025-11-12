@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import AIAssistant from "@/app/components/AIAssistant";
+import PlausibleProvider from "next-plausible";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -49,6 +50,16 @@ export const metadata: Metadata = {
   themeColor: "#0f172a",
   manifest: "/manifest.json",
 };
+<html lang="en">
+  <head>
+    <PlausibleProvider
+      domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "your-domain.com"}
+      trackLocalhost={false}
+      selfHosted={false}
+    />
+  </head>
+  <body className={inter.className}>{children}</body>
+</html>
 
 export default function RootLayout({
   children,
