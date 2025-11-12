@@ -208,6 +208,32 @@ export default function SettingsPage() {
               >
                 {saving ? "Saving..." : "Save settings"}
               </button>
+{/* Manage subscription (Stripe Portal) */}
+<button
+  type="button"
+  onClick={async () => {
+    if (!user) return;
+    try {
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (data?.url) {
+        window.location.href = data.url; // go to Stripe portal
+      } else {
+        alert(data?.error || "Could not open billing portal.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Could not open billing portal.");
+    }
+  }}
+  className="mt-3 px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+>
+  Manage subscription (Stripe)
+</button>
 
 <div className="pt-2 border-t border-slate-800 mt-4">
   <p className="text-[11px] text-slate-400 mb-2">
