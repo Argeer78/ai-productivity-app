@@ -39,57 +39,97 @@ export async function POST(req: Request) {
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const customerId = (session.customer as string) ?? null;
-        const email = session.customer_details?.email ?? null;
-        const metaUserId =
-          (session.metadata as any)?.userId ??
-          (session.metadata as any)?.user_id ??
-          null;
+  const session = event.data.object as Stripe.Checkout.Session;
 
-        // Helpful debug log (safe to keep during testing)
-        console.log("WEBHOOK checkout.session.completed", {
-          customerId,
-          email,
-          metadata: session.metadata,
-        });
+  // Prefer metadata.userId when present
+  const metaUserId =
+    (session.metadata as any)?.userId ??
+    (session.metadata as any)?.user_id ??
+    null;
 
-        if (!customerId) break;
+  // Stripe may put the email here OR only later in customer object
+  const email =
+    (session as any).customer_email ??
+    session.customer_details?.email ??
+    null;
 
-        if (metaUserId) {
-          const { error: upErr } = await supabaseAdmin
-            .from("profiles")
-            .update({ stripe_customer_id: customerId, plan: "pro" })
-            .eq("id", metaUserId);
-          if (upErr) console.error("profiles update by userId failed:", upErr);
-        } else if (email) {
-          const { error: upErr } = await supabaseAdmin
-            .from("profiles")
-            .update({ stripe_customer_id: customerId, plan: "pro" })
-            .eq("email", email);
-          if (upErr) console.error("profiles update by email failed:", upErr);
-        }
-        break;
-      }
+  const customerId = (session.customer as string) ?? null;
 
-      case "customer.subscription.updated": {
-        const sub = event.data.object as Stripe.Subscription;
-        const customerId = sub.customer as string;
-        const plan = planFromStatus(sub.status);
+  console.log("WEBHOOK checkout.session.completed", {
+    customerId,
+    email,
+    metadata: session.metadata,
+  });
 
-        console.log("WEBHOOK subscription.updated", {
-          customerId,
-          status: sub.status,
-          plan,
-        });
+  // 1) If we can target by user id, do that (most reliable)
+  if (metaUserId && (customerId || email)) {
+    const updates: any = { plan: "pro" };
+    if (customerId) updates.stripe_customer_id = customerId;
 
-        const { error: upErr } = await supabaseAdmin
+    const { error: upErr } = await supabaseAdmin
+      .from("profiles")
+      .update(updates)
+      .eq("id", metaUserId);
+
+    if (upErr) console.error("profiles update by userId failed:", upErr);
+    break;
+  }
+
+  // 2) Otherwise, if we have an email, update by email
+  if (email) {
+    const updates: any = { plan: "pro" };
+    if (customerId) updates.stripe_customer_id = customerId;
+
+    const { error: upErr } = await supabaseAdmin
+      .from("profiles")
+      .update(updates)
+      .eq("email", email);
+
+    if (upErr) console.error("profiles update by email failed:", upErr);
+  }
+
+  break;
+}
+
+case "customer.subscription.updated": {
+  const sub = event.data.object as Stripe.Subscription;
+  const customerId = sub.customer as string;
+  const plan = planFromStatus(sub.status);
+
+  console.log("WEBHOOK subscription.updated", {
+    customerId,
+    status: sub.status,
+    plan,
+  });
+
+  // Update by customer id
+  const { error: upErr } = await supabaseAdmin
+    .from("profiles")
+    .update({ plan })
+    .eq("stripe_customer_id", customerId);
+
+  if (upErr) console.error("profiles plan update failed:", upErr);
+
+  // If no row matched (stripe_customer_id not filled yet), try backfilling by email
+  if (upErr || (upErr == null)) {
+    // Best-effort: fetch the customer to get their email, then update by email if needed
+    try {
+      const cust = await stripe.customers.retrieve(customerId);
+      // @ts-ignore
+      const email = (cust as any)?.email as string | null;
+      if (email) {
+        await supabaseAdmin
           .from("profiles")
-          .update({ plan })
-          .eq("stripe_customer_id", customerId);
-        if (upErr) console.error("profiles plan update failed:", upErr);
-        break;
+          .update({ plan, stripe_customer_id: customerId })
+          .eq("email", email);
       }
+    } catch (e) {
+      console.error("backfill by email failed:", e);
+    }
+  }
+
+  break;
+}
 
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
