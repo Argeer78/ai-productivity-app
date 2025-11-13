@@ -5,8 +5,8 @@ import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
-import { useAnalytics } from "@/app/lib/analytics";
-const { track } = useAnalytics();
+import { useAnalytics } from "@/lib/analytics";
+
 type Task = {
   id: string;
   title: string | null;
@@ -30,6 +30,9 @@ export default function TasksPage() {
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [error, setError] = useState("");
+
+  // ✅ useAnalytics must be *inside* the component
+  const { track } = useAnalytics();
 
   // 1) Load current user
   useEffect(() => {
@@ -112,6 +115,13 @@ export default function TasksPage() {
 
       if (error) throw error;
 
+      // ✅ track AFTER successful insert
+      try {
+        track("task_created");
+      } catch {
+        // ignore analytics errors
+      }
+
       setTitle("");
       setDescription("");
       setDueDate("");
@@ -172,17 +182,6 @@ export default function TasksPage() {
     }
   }
 
-  // 6) Logout
-  async function handleLogout() {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setTasks([]);
-      window.location.href = "/";
-    } catch (err) {
-      console.error(err);
-    }
-  }
   function handleAskAssistantAboutTask(task: Task) {
     if (typeof window === "undefined" || !task) return;
 
@@ -238,6 +237,7 @@ export default function TasksPage() {
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top bar */}
       <AppHeader active="tasks" />
+
       {/* Content */}
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 grid md:grid-cols-[1.1fr,0.9fr] gap-6">
@@ -369,27 +369,28 @@ export default function TasksPage() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    disabled={deletingId === task.id}
-                    className="self-start text-[11px] text-slate-500 hover:text-red-400 disabled:opacity-60"
-                  >
-                    {deletingId === task.id ? "..." : "Delete"}
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      disabled={deletingId === task.id}
+                      className="self-start text-[11px] text-slate-500 hover:text-red-400 disabled:opacity-60"
+                    >
+                      {deletingId === task.id ? "..." : "Delete"}
+                    </button>
 
-                                    <button
-                    onClick={() => handleAskAssistantAboutTask(task)}
-                    className="text-[11px] text-slate-500 hover:text-indigo-300"
-                  >
-                    🤖 Ask AI
-                  </button>
+                    <button
+                      onClick={() => handleAskAssistantAboutTask(task)}
+                      className="text-[11px] text-slate-500 hover:text-indigo-300"
+                    >
+                      🤖 Ask AI
+                    </button>
+                  </div>
                 </article>
-                track("task_created");
               ))}
             </div>
           </section>
         </div>
-        <FeedbackForm user={user} />
+        <FeedbackForm user={user} source="tasks" />
       </div>
     </main>
   );
