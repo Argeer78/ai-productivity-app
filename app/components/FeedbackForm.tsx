@@ -2,14 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useAnalytics } from "@/app/lib/analytics";
-const { track } = useAnalytics();
+import { useAnalytics } from "@/lib/analytics";
+
 type Status = "idle" | "sending" | "sent" | "error";
 
-export default function FeedbackForm({ user }: { user?: any }) {
+export default function FeedbackForm({
+  user,
+  source = "unknown",
+}: {
+  user?: any;
+  source?: "dashboard" | "notes" | "tasks" | "landing" | "settings" | "unknown";
+}) {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [showToast, setShowToast] = useState(false);
+  const { track } = useAnalytics();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,10 +30,22 @@ export default function FeedbackForm({ user }: { user?: any }) {
           user_id: user?.id || null,
           email: user?.email || null,
           message: message.trim(),
+          // optionally add a 'source' column in your feedback table to store this
+          // source,
         },
       ]);
 
       if (error) throw error;
+
+      // track AFTER a successful write
+      try {
+        track("feedback_submitted", {
+          source,
+          hasUser: Boolean(user?.id),
+        });
+      } catch {
+        // never let analytics crash the UX
+      }
 
       setMessage("");
       setStatus("sent"); // triggers success toast
@@ -41,14 +60,10 @@ export default function FeedbackForm({ user }: { user?: any }) {
   // Auto-hide toast after a short delay
   useEffect(() => {
     if (!showToast) return;
-
     const timer = setTimeout(() => {
       setShowToast(false);
-      if (status === "sent") {
-        setStatus("idle");
-      }
+      if (status === "sent") setStatus("idle");
     }, 2500);
-
     return () => clearTimeout(timer);
   }, [showToast, status]);
 
@@ -60,9 +75,7 @@ export default function FeedbackForm({ user }: { user?: any }) {
         onSubmit={handleSubmit}
         className="border border-slate-800 bg-slate-900/60 rounded-2xl p-4 mt-6"
       >
-        <h3 className="text-sm font-semibold mb-2 text-slate-200">
-          💬 Send feedback
-        </h3>
+        <h3 className="text-sm font-semibold mb-2 text-slate-200">💬 Send feedback</h3>
         <p className="text-xs text-slate-400 mb-3">
           Got an idea or found a bug? Let me know!
         </p>
@@ -98,7 +111,6 @@ export default function FeedbackForm({ user }: { user?: any }) {
               <span>✅ Feedback sent — thank you!</span>
             ) : (
               <span>⚠️ Something went wrong. Please try again.</span>
-              track("feedback_submitted", { page: "dashboard" });
             )}
           </div>
         </div>

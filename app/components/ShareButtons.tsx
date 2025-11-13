@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAnalytics } from "@/app/lib/analytics";
+import { useAnalytics } from "@/lib/analytics";
 type Props = {
   url?: string;
   title?: string;

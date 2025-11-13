@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useAnalytics } from "@/app/lib/analytics";
+import { useAnalytics } from "@/lib/analytics";
 
 export default function CtaButtons() {
   const [user, setUser] = useState<any | null>(null);

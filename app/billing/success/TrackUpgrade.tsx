@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { useAnalytics } from "@/app/lib/analytics";
+import { useAnalytics } from "@/lib/analytics";
 
 export default function TrackUpgrade({ success }: { success: boolean }) {
   const { track } = useAnalytics();

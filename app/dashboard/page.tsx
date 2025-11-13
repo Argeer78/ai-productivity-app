@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
-import { useAnalytics } from "@/app/lib/analytics";
-const { track } = useAnalytics();
+import { useAnalytics } from "@/lib/analytics";
+
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 50;
 
@@ -40,7 +40,6 @@ function getStreakConfig(streak: number) {
     };
   }
 
-  // 1–6 days
   return {
     emoji: "🎉",
     title: "Nice streak!",
@@ -69,6 +68,9 @@ export default function DashboardPage() {
 
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
   const [recentTasks, setRecentTasks] = useState<any[]>([]);
+
+  // ✅ useAnalytics MUST be inside the component, not at top-level
+  const { track } = useAnalytics();
 
   const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
@@ -122,7 +124,6 @@ export default function DashboardPage() {
         }
 
         if (!profile) {
-          // Create default free profile if missing
           const { data: inserted, error: insertError } = await supabase
             .from("profiles")
             .insert([
@@ -157,12 +158,12 @@ export default function DashboardPage() {
         const todayCount = usage?.count || 0;
         setAiCountToday(todayCount);
 
-        // ai_usage history: last 30 days for streak + active days
+        // ai_usage history: last 30 days
         const past = new Date();
         past.setDate(past.getDate() - 30);
         const pastStr = past.toISOString().split("T")[0];
 
-                const { data: history, error: historyError } = await supabase
+        const { data: history, error: historyError } = await supabase
           .from("ai_usage")
           .select("usage_date, count")
           .eq("user_id", user.id)
@@ -176,11 +177,9 @@ export default function DashboardPage() {
         const historyList =
           (history || []) as { usage_date: string; count: number }[];
 
-        // Active days (last 30) = days with count > 0
         const active = historyList.filter((h) => h.count > 0).length;
         setActiveDays(active);
 
-        // Streak = consecutive days up to today with count > 0
         const activeDateSet = new Set(
           historyList
             .filter((h) => h.count > 0)
@@ -203,7 +202,7 @@ export default function DashboardPage() {
         setStreak(streakCount);
 
         // Recent notes
-                const { data: notes, error: notesError } = await supabase
+        const { data: notes, error: notesError } = await supabase
           .from("notes")
           .select("id, content, created_at")
           .eq("user_id", user.id)
@@ -218,26 +217,19 @@ export default function DashboardPage() {
         }
 
         // Recent tasks
-              const { data: tasks, error: tasksError } = await supabase
-  .from("tasks")
-  .select("*")
-  .order("created_at", { ascending: false })
-  .limit(5);
+        const { data: tasks, error: tasksError } = await supabase
+          .from("tasks")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(5);
 
-// Debug log to see what comes back (you can remove later)
-console.log("Dashboard: recent tasks data =", tasks, "error =", tasksError);
+        console.log("Dashboard: recent tasks data =", tasks, "error =", tasksError);
 
-// Only log real errors with a code (optional)
-if (
-  tasksError &&
-  (tasksError as any).code &&
-  (tasksError as any).code !== "PGRST116"
-) {
-  console.error("Dashboard: tasks error", tasksError);
-}
+        if (tasksError && (tasksError as any).code && (tasksError as any).code !== "PGRST116") {
+          console.error("Dashboard: tasks error", tasksError);
+        }
 
-setRecentTasks(tasks || []);
-
+        setRecentTasks(tasks || []);
       } catch (err: any) {
         console.error(err);
         setError("Failed to load dashboard data.");
@@ -261,7 +253,6 @@ setRecentTasks(tasks || []);
     }
   }
 
-  // Start Stripe checkout
   async function startCheckout() {
     if (!user) return;
     setBillingLoading(true);
@@ -334,8 +325,7 @@ setRecentTasks(tasks || []);
         console.error("AI summary error payload:", data);
         if (res.status === 429) {
           setSummaryError(
-            data.error ||
-              "You’ve reached today’s AI limit for your plan."
+            data.error || "You’ve reached today’s AI limit for your plan."
           );
         } else {
           setSummaryError(data.error || "Failed to generate summary.");
@@ -345,11 +335,24 @@ setRecentTasks(tasks || []);
       }
 
       setSummary(data.summary);
-      // keep UI in sync with new usage count
+
       if (typeof data.usedToday === "number") {
         setAiCountToday(data.usedToday);
       } else {
         setAiCountToday((prev) => prev + 1);
+      }
+
+      // ✅ track ai_call_used here, AFTER success
+      try {
+        track("ai_call_used", {
+          feature: "summary",
+          plan,
+          usedToday: (typeof data.usedToday === "number"
+            ? data.usedToday
+            : aiCountToday + 1),
+        });
+      } catch {
+        // never break UX for analytics
       }
     } catch (err) {
       console.error(err);
@@ -359,7 +362,6 @@ setRecentTasks(tasks || []);
     }
   }
 
-  // Loading state
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
@@ -368,7 +370,6 @@ setRecentTasks(tasks || []);
     );
   }
 
-  // Not logged in
   if (!user) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
@@ -433,8 +434,8 @@ setRecentTasks(tasks || []);
               <div>
                 <p className="font-semibold text-sm md:text-base">
                   {streakCfg.emoji} {streakCfg.title} You’re on a{" "}
-                  <span className="font-bold">{streak}-day</span>{" "}
-                  productivity streak.
+                  <span className="font-bold">{streak}-day</span> productivity
+                  streak.
                 </p>
                 <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
               </div>
@@ -663,11 +664,11 @@ setRecentTasks(tasks || []);
                   </Link>
 
                   <Link
-  href="/settings"
-  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
->
-  ⚙︎ Settings / Export
-</Link>
+                    href="/settings"
+                    className="mt-3 inline-block text-[11px] text-indigo-400 hover:text-indigo-300"
+                  >
+                    Settings / Export →
+                  </Link>
                 </div>
               </div>
             </>
@@ -724,11 +725,10 @@ setRecentTasks(tasks || []);
               >
                 {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
               </button>
-              track("ai_call_used", { feature: "summary", plan, usedToday: aiCountToday + 1 });
             </div>
           )}
         </div>
-        <FeedbackForm user={user} />
+        <FeedbackForm user={user} source="dashboard" />
       </div>
     </main>
   );
