@@ -2,7 +2,7 @@
 import { Resend } from "resend";
 
 const resendApiKey = process.env.RESEND_API_KEY || "";
-const fromEmail = process.env.RESEND_FROM_EMAIL || "";
+const fromEmail = process.env.RESEND_FROM_EMAIL || ""; // <= assistant@aiprod.app
 
 let resend: Resend | null = null;
 
@@ -23,7 +23,6 @@ type DailyDigestOptions = {
 
 /**
  * VERY DEFENSIVE: this function never throws outwards.
- * If Resend is not configured or sending fails, it just logs and returns.
  */
 export async function sendDailyDigest(
   opts: DailyDigestOptions
@@ -43,13 +42,11 @@ export async function sendDailyDigest(
     return;
   }
 
-  if (!fromEmail) {
-    console.warn(
-      "[daily-digest] RESEND_FROM_EMAIL not set, skipping send to",
-      email
-    );
-    return;
-  }
+  // Decide the "from" address
+  const from =
+    fromEmail && fromEmail.includes("@")
+      ? `AI Productivity Hub <${fromEmail}>`
+      : "AI Productivity Hub <onboarding@resend.dev>"; // fallback
 
   try {
     const subject = "Your AI Productivity Hub daily digest (prototype)";
@@ -67,16 +64,16 @@ export async function sendDailyDigest(
       "You can disable this email from Settings → Daily AI email digest.",
     ].filter(Boolean);
 
-    const result = await resend.emails.send({
-      from: `AI Productivity Hub <${fromEmail}>`,
+    await resend.emails.send({
+      from,
       to: email,
       subject,
       text: lines.join("\n"),
     });
 
-    console.log("[daily-digest] Email send result:", result);
+    console.log("[daily-digest] Email sent to", email, "from", from);
   } catch (err) {
     console.error("[daily-digest] Resend send error for", email, err);
-    // DO NOT rethrow – we don’t want the API route to return 500 because of email
+    // Don’t rethrow
   }
 }
