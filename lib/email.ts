@@ -22,10 +22,14 @@ type DailyDigestOptions = {
 
 function getFromAddress() {
   const envFrom = process.env.RESEND_FROM_EMAIL;
-  if (!envFrom) {
-    // Fallback – Resend sandbox
-    return "AI Productivity Hub <onboarding@resend.dev>";
+
+  if (envFrom) {
+    return `AI Productivity Hub <${envFrom}>`;
   }
+
+  // Fallback – if env is missing, use assistant@aiprod.app
+  return "AI Productivity Hub <assistant@aiprod.app>";
+}
 
   // If user already put a full "Name <email@domain>" keep it
   if (envFrom.includes("<") && envFrom.includes(">")) {
