@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [checkingUser, setCheckingUser] = useState(true);
 
   const [tone, setTone] = useState<Tone>("balanced");
+  const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
   const [focusArea, setFocusArea] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,10 +57,10 @@ export default function SettingsPage() {
       setError("");
       try {
         const { data, error } = await supabase
-          .from("profiles")
-          .select("ai_tone, focus_area")
-          .eq("id", user.id)
-          .maybeSingle();
+  .from("profiles")
+  .select("ai_tone, focus_area, daily_digest_enabled, daily_digest_hour")
+  .eq("id", user.id)
+  .maybeSingle();
 
         if (error && error.code !== "PGRST116") {
           throw error;
@@ -71,6 +72,9 @@ export default function SettingsPage() {
         if (data?.focus_area) {
           setFocusArea(data.focus_area);
         }
+        if (typeof data?.daily_digest_enabled === "boolean") {
+  setDailyDigestEnabled(data.daily_digest_enabled);
+}
       } catch (err: any) {
         console.error(err);
         setError("Failed to load your settings.");
@@ -92,12 +96,14 @@ export default function SettingsPage() {
 
     try {
       const { error } = await supabase
-        .from("profiles")
-        .update({
-          ai_tone: tone,
-          focus_area: focusArea.trim() || null,
-        })
-        .eq("id", user.id);
+  .from("profiles")
+  .update({
+    ai_tone: tone,
+    focus_area: focusArea.trim() || null,
+    daily_digest_enabled: dailyDigestEnabled,
+    // daily_digest_hour: dailyDigestHour,
+  })
+  .eq("id", user.id);
 
       if (error) {
         console.error(error);
@@ -167,6 +173,24 @@ export default function SettingsPage() {
                   {success}
                 </p>
               )}
+<div className="pt-4 border-t border-slate-800">
+  <label className="flex items-start gap-3 text-xs text-slate-200">
+    <input
+      type="checkbox"
+      checked={dailyDigestEnabled}
+      onChange={(e) => setDailyDigestEnabled(e.target.checked)}
+      className="mt-[2px] h-4 w-4 rounded border-slate-600 bg-slate-950"
+    />
+    <span>
+      <span className="font-semibold">Daily AI email digest</span>
+      <br />
+      <span className="text-[11px] text-slate-400">
+        Once per day, AI will email you a short summary of recent notes and
+        tasks, plus suggested next steps.
+      </span>
+    </span>
+  </label>
+</div>
 
               {/* AI tone */}
               <div>
