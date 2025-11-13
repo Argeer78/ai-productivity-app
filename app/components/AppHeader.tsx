@@ -1,31 +1,38 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
-type ActiveKey =
-  | "dashboard"
-  | "notes"
-  | "tasks"
-  | "templates"
-  | "planner"
-  | "feedback"
-  | "settings";
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
-type AppHeaderProps = {
-  active?: ActiveKey;
+type Props = {
+  active?:
+    | "dashboard"
+    | "notes"
+    | "tasks"
+    | "templates"
+    | "planner"
+    | "feedback"
+    | "settings"
+    | "admin";
 };
 
-function navLinkClasses(isActive: boolean) {
-  const base =
-    "px-2 py-1 rounded-lg border text-xs sm:text-sm transition-colors";
-  if (isActive) {
-    return `${base} bg-slate-900 border-slate-700 text-indigo-300`;
-  }
-  return `${base} border-transparent hover:bg-slate-900 hover:border-slate-700`;
-}
+export default function AppHeader({ active }: Props) {
+  const [user, setUser] = useState<any | null>(null);
 
-export default function AppHeader({ active }: AppHeaderProps) {
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data?.user ?? null);
+    });
+  }, []);
+
+  const isAdmin = user?.email && ADMIN_EMAIL && user.email === ADMIN_EMAIL;
+
   return (
     <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        {/* Logo / App name */}
         <Link href="/" className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
             AI
@@ -34,49 +41,77 @@ export default function AppHeader({ active }: AppHeaderProps) {
             AI Productivity Hub
           </span>
         </Link>
-        <nav className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+
+        {/* Nav */}
+        <nav className="flex items-center gap-2 text-xs sm:text-sm">
           <Link
             href="/dashboard"
-            className={navLinkClasses(active === "dashboard")}
+            className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "dashboard" ? "border-slate-600 bg-slate-900" : ""
+            }`}
           >
             Dashboard
           </Link>
           <Link
             href="/notes"
-            className={navLinkClasses(active === "notes")}
+            className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "notes" ? "border-slate-600 bg-slate-900" : ""
+            }`}
           >
             Notes
           </Link>
           <Link
             href="/tasks"
-            className={navLinkClasses(active === "tasks")}
+            className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "tasks" ? "border-slate-600 bg-slate-900" : ""
+            }`}
           >
             Tasks
           </Link>
           <Link
             href="/templates"
-            className={navLinkClasses(active === "templates")}
+            className={`hidden sm:inline px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "templates" ? "border-slate-600 bg-slate-900" : ""
+            }`}
           >
-            AI Templates
+            Templates
           </Link>
           <Link
             href="/planner"
-            className={navLinkClasses(active === "planner")}
+            className={`hidden sm:inline px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "planner" ? "border-slate-600 bg-slate-900" : ""
+            }`}
           >
             Planner
           </Link>
           <Link
             href="/feedback"
-            className={navLinkClasses(active === "feedback")}
+            className={`hidden sm:inline px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "feedback" ? "border-slate-600 bg-slate-900" : ""
+            }`}
           >
             Feedback
           </Link>
           <Link
             href="/settings"
-            className={navLinkClasses(active === "settings")}
+            className={`hidden sm:inline px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "settings" ? "border-slate-600 bg-slate-900" : ""
+            }`}
           >
             Settings
           </Link>
+
+          {/* Admin link only for your email */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className={`px-3 py-1.5 rounded-xl border border-amber-500/60 text-amber-300 hover:bg-amber-500/10 ${
+                active === "admin" ? "bg-amber-500/20" : ""
+              }`}
+            >
+              Admin
+            </Link>
+          )}
         </nav>
       </div>
     </header>
