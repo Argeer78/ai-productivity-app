@@ -2,6 +2,7 @@
 import { Resend } from "resend";
 
 const resendApiKey = process.env.RESEND_API_KEY || "";
+const fromEmail = process.env.RESEND_FROM_EMAIL || "";
 
 let resend: Resend | null = null;
 
@@ -42,6 +43,14 @@ export async function sendDailyDigest(
     return;
   }
 
+  if (!fromEmail) {
+    console.warn(
+      "[daily-digest] RESEND_FROM_EMAIL not set, skipping send to",
+      email
+    );
+    return;
+  }
+
   try {
     const subject = "Your AI Productivity Hub daily digest (prototype)";
 
@@ -58,14 +67,14 @@ export async function sendDailyDigest(
       "You can disable this email from Settings → Daily AI email digest.",
     ].filter(Boolean);
 
-    await resend.emails.send({
-  from: "AI Productivity Hub <assistant@aiprod.app>",
-  to: email,
-  subject,
-  text: lines.join("\n"),
-});
+    const result = await resend.emails.send({
+      from: `AI Productivity Hub <${fromEmail}>`,
+      to: email,
+      subject,
+      text: lines.join("\n"),
+    });
 
-    console.log("[daily-digest] Email sent to", email);
+    console.log("[daily-digest] Email send result:", result);
   } catch (err) {
     console.error("[daily-digest] Resend send error for", email, err);
     // DO NOT rethrow – we don’t want the API route to return 500 because of email
