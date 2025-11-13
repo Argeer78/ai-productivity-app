@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   description:
     "Notes, tasks, and an AI that actually helps. Start free, upgrade anytime.",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://ai-productivity-app.vercel.app"
+    process.env.NEXT_PUBLIC_APP_URL || "https://aiprod.app/"
   ),
   openGraph: {
     title: "AI Productivity Hub",
@@ -46,7 +46,7 @@ export default function RootLayout({
         <PlausibleProvider
           domain={
             process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN ||
-            "ai-productivity-app.vercel.app"
+            "aiprod.app/"
           }
           trackLocalhost={false}
         />
