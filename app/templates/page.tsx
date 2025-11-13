@@ -1,258 +1,463 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 
-type Plan = "free" | "pro";
-
-type TemplateDef = {
+type Template = {
   id: string;
-  title: string;
-  description: string;
+  user_id: string | null;
+  name: string;
+  description: string | null;
   prompt: string;
-  icon: string;
-  proOnly?: boolean;
+  category: string | null;
+  is_pro_only: boolean | null;
+  created_at: string | null;
 };
 
-const templates: TemplateDef[] = [
-  {
-    id: "summarize",
-    title: "Summarize this note",
-    description: "Condense long text into key bullet points or a short summary.",
-    prompt: "Summarize the following note clearly and concisely:",
-    icon: "📝",
-  },
-  {
-    id: "brainstorm",
-    title: "Brainstorm ideas (Pro)",
-    description: "Generate creative ideas for a topic or problem with more depth.",
-    prompt: "Brainstorm ideas about this topic. Be creative and practical:",
-    icon: "💡",
-    proOnly: true,
-  },
-  {
-    id: "action",
-    title: "Make it actionable",
-    description: "Turn a note or thought into specific steps or tasks.",
-    prompt: "Convert this into a clear list of actionable tasks:",
-    icon: "✅",
-  },
-  {
-    id: "rewrite",
-    title: "Rewrite for clarity (Pro)",
-    description: "Rephrase your writing to make it clearer and more professional.",
-    prompt: "Rewrite this for clarity, conciseness, and a professional tone:",
-    icon: "🗣️",
-    proOnly: true,
-  },
+const CATEGORY_OPTIONS = [
+  "All",
+  "Planning",
+  "Study",
+  "Writing",
+  "Work",
+  "Personal",
 ];
 
 export default function TemplatesPage() {
-  const [selected, setSelected] = useState<TemplateDef | null>(null);
-  const [inputText, setInputText] = useState("");
-  const [plan, setPlan] = useState<Plan>("free");
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
-  const [upgradeMessage, setUpgradeMessage] = useState("");
 
-  // Load user & plan
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
+
+  // Simple inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPrompt, setEditPrompt] = useState("");
+  const [editCategory, setEditCategory] = useState("Planning");
+  const [editIsProOnly, setEditIsProOnly] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Load user
   useEffect(() => {
-    async function loadUserAndPlan() {
+    async function loadUser() {
       try {
         const { data, error } = await supabase.auth.getUser();
         if (error) {
-          console.error("Templates: getUser error", error);
+          console.error(error);
         }
-        const currentUser = data?.user ?? null;
-        setUser(currentUser);
-
-        if (!currentUser) {
-          setPlan("free");
-          return;
-        }
-
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", currentUser.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error("Templates: profile error", profileError);
-        }
-
-        setPlan((profile?.plan as Plan) || "free");
+        setUser(data?.user ?? null);
       } catch (err) {
-        console.error("Templates: loadUserAndPlan error", err);
+        console.error(err);
       } finally {
         setCheckingUser(false);
       }
     }
-
-    loadUserAndPlan();
+    loadUser();
   }, []);
 
-  function handleOpenTemplate(t: TemplateDef) {
-    setSelected(t);
-    setInputText("");
-    setUpgradeMessage("");
+  // Load templates
+  useEffect(() => {
+    async function loadTemplates() {
+      setLoading(true);
+      setError("");
+      try {
+        const { data, error } = await supabase
+          .from("templates")
+          .select(
+            "id, user_id, name, description, prompt, category, is_pro_only, created_at"
+          )
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        setTemplates((data || []) as Template[]);
+      } catch (err: any) {
+        console.error(err);
+        setError("Failed to load templates.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadTemplates();
+  }, []);
+
+  const filteredTemplates = useMemo(() => {
+    return templates.filter((t) => {
+      if (showOnlyMine && user && t.user_id !== user.id) {
+        return false;
+      }
+
+      if (categoryFilter !== "All") {
+        if ((t.category || "").toLowerCase() !== categoryFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const combined = `${t.name} ${t.description || ""} ${t.prompt}`.toLowerCase();
+        if (!combined.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [templates, search, categoryFilter, showOnlyMine, user]);
+
+  function handleUseWithAssistant(t: Template) {
+    if (typeof window === "undefined") return;
+
+    const content = t.prompt || "";
+    const hint =
+      t.name ||
+      t.description ||
+      "Use this template inside the assistant to get started faster.";
+
+    window.dispatchEvent(
+      new CustomEvent("ai-assistant-context", {
+        detail: {
+          content,
+          hint,
+        },
+      })
+    );
   }
 
-  function handleUseInAssistant() {
-    if (!selected) return;
+  function startEditing(t: Template) {
+    setEditingId(t.id);
+    setEditName(t.name);
+    setEditDescription(t.description || "");
+    setEditPrompt(t.prompt);
+    setEditCategory(t.category || "Planning");
+    setEditIsProOnly(!!t.is_pro_only);
+  }
 
-    const text = inputText.trim();
-    if (!text) return;
+  function cancelEditing() {
+    setEditingId(null);
+    setEditName("");
+    setEditDescription("");
+    setEditPrompt("");
+    setEditCategory("Planning");
+    setEditIsProOnly(false);
+  }
 
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("ai-assistant-context", {
-          detail: {
-            content: text,
-            hint: `${selected.prompt}\n\n${text}`,
-          },
+  async function saveEdit() {
+    if (!editingId) return;
+    if (!editName.trim() || !editPrompt.trim()) return;
+
+    setSavingEdit(true);
+    setError("");
+
+    try {
+      const { error } = await supabase
+        .from("templates")
+        .update({
+          name: editName.trim(),
+          description: editDescription.trim() || null,
+          prompt: editPrompt.trim(),
+          category: editCategory.trim() || null,
+          is_pro_only: editIsProOnly,
         })
-      );
-    }
+        .eq("id", editingId)
+        .eq("user_id", user?.id); // only allow editing own templates
 
-    setSelected(null);
-    setInputText("");
+      if (error) throw error;
+
+      setTemplates((prev) =>
+        prev.map((t) =>
+          t.id === editingId
+            ? {
+                ...t,
+                name: editName.trim(),
+                description: editDescription.trim() || null,
+                prompt: editPrompt.trim(),
+                category: editCategory.trim() || null,
+                is_pro_only: editIsProOnly,
+              }
+            : t
+        )
+      );
+
+      cancelEditing();
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to save template changes.");
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
-  function handleTemplateClick(t: TemplateDef) {
-    if (t.proOnly && plan !== "pro") {
-      setUpgradeMessage(
-        "This template is available on the Pro plan. Open your Dashboard to upgrade and unlock all templates."
-      );
-      return;
+  async function deleteTemplate(id: string) {
+    if (!user) return;
+    if (!confirm("Delete this template? This can’t be undone.")) return;
+
+    setDeletingId(id);
+    setError("");
+
+    try {
+      const { error } = await supabase
+        .from("templates")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id); // only delete own templates
+
+      if (error) throw error;
+
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to delete template.");
+    } finally {
+      setDeletingId(null);
     }
-    handleOpenTemplate(t);
+  }
+
+  if (checkingUser) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+        <p className="text-slate-300 text-sm">Checking your session...</p>
+      </main>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Header + Navigation */}
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <AppHeader active="templates" />
-      {/* Content */}
-      <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
-        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-1">
-              AI Templates
-            </h1>
-            <p className="text-slate-400 text-sm">
-              Use these pre-built prompts to speed up your workflow.
-            </p>
-          </div>
-          <div className="text-xs text-slate-300">
-            Current plan:{" "}
-            <span className="font-semibold uppercase">{plan}</span>
-          </div>
-        </div>
-
-        <p className="text-[11px] text-slate-500 mb-4">
-          Some templates are marked <span className="text-amber-300">PRO</span>{" "}
-          and are only available on the Pro plan.
-        </p>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {templates.map((t) => {
-            const locked = t.proOnly && plan !== "pro";
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => handleTemplateClick(t)}
-                className={`relative text-left border border-slate-800 rounded-2xl p-4 transition group ${
-                  locked
-                    ? "bg-slate-900/40 cursor-pointer hover:bg-slate-900/60"
-                    : "bg-slate-900/60 hover:bg-slate-800"
-                }`}
-              >
-                {t.proOnly && (
-                  <span className="absolute top-2 right-3 text-[10px] px-2 py-0.5 rounded-full border border-amber-400/70 text-amber-300 bg-slate-950/80">
-                    PRO
-                  </span>
-                )}
-                <div className="text-2xl mb-2">{t.icon}</div>
-                <h3
-                  className={`text-base font-semibold mb-1 ${
-                    locked
-                      ? "text-slate-400 group-hover:text-slate-200"
-                      : "group-hover:text-indigo-400"
-                  }`}
-                >
-                  {t.title}
-                </h3>
-                <p className="text-xs text-slate-400">{t.description}</p>
-                {locked && (
-                  <p className="mt-2 text-[11px] text-amber-300">
-                    Pro plan required
-                  </p>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {upgradeMessage && (
-          <p className="mt-4 text-xs text-amber-300 max-w-md">
-            {upgradeMessage} You can upgrade from the{" "}
-            <Link
-              href="/dashboard"
-              className="underline hover:text-amber-200"
-            >
-              dashboard
-            </Link>
-            .
-          </p>
-        )}
-
-        {selected && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full relative">
-              <button
-                onClick={() => setSelected(null)}
-                className="absolute top-2 right-3 text-slate-500 hover:text-slate-300"
-              >
-                ✕
-              </button>
-              <h2 className="text-lg font-semibold mb-2">{selected.title}</h2>
-              <p className="text-slate-400 text-sm mb-3">
-                {selected.description}
+      <div className="flex-1">
+        <div className="max-w-6xl mx-auto px-4 py-8 md:py-10">
+          <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1">
+                AI Templates
+              </h1>
+              <p className="text-xs md:text-sm text-slate-400">
+                Quick starting points for the assistant, planning, and writing.
               </p>
-              <p className="text-[11px] text-slate-500 mb-2">
-                Your text here will be sent into the assistant with this
-                instruction:
-                <br />
-                <span className="text-slate-300">{selected.prompt}</span>
-              </p>
-              <textarea
-                className="w-full h-32 bg-slate-950 border border-slate-700 rounded-xl p-2 text-sm text-slate-100"
-                placeholder="Paste or type your note/text here..."
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-              />
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  onClick={() => setSelected(null)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUseInAssistant}
-                  disabled={!inputText.trim()}
-                  className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-sm"
-                >
-                  Open in Assistant
-                </button>
-              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs md:text-sm">
+              <Link
+                href="/dashboard"
+                className="px-3 py-1 rounded-xl border border-slate-700 hover:bg-slate-900"
+              >
+                ← Back to Dashboard
+              </Link>
             </div>
           </div>
-        )}
+
+          {/* Filters bar */}
+          <div className="mb-5 flex flex-wrap gap-3 items-center text-xs md:text-sm">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search templates…"
+                className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs md:text-sm text-slate-100"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">Category:</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs md:text-sm"
+              >
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {user && (
+              <label className="flex items-center gap-1 text-[11px] md:text-xs text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={showOnlyMine}
+                  onChange={(e) => setShowOnlyMine(e.target.checked)}
+                  className="h-3 w-3"
+                />
+                Show only my templates
+              </label>
+            )}
+          </div>
+
+          {error && (
+            <div className="mb-3 text-sm text-red-400">{error}</div>
+          )}
+
+          {loading ? (
+            <p className="text-sm text-slate-300">Loading templates…</p>
+          ) : filteredTemplates.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No templates match this filter yet.
+            </p>
+          ) : (
+            <div className="grid md:grid-cols-3 gap-4 text-sm">
+              {filteredTemplates.map((t) => {
+                const isOwner = user && t.user_id === user.id;
+                const isEditing = editingId === t.id;
+
+                return (
+                  <article
+                    key={t.id}
+                    className="border border-slate-800 rounded-2xl bg-slate-900/70 p-4 flex flex-col justify-between"
+                  >
+                    {/* Top: main content */}
+                    <div>
+                      {/* Category + Pro badge */}
+                      <div className="flex items-center justify-between mb-2 text-[11px]">
+                        <div className="flex gap-2 items-center">
+                          {t.category && (
+                            <span className="px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950 text-slate-300">
+                              {t.category}
+                            </span>
+                          )}
+                          {t.is_pro_only && (
+                            <span className="px-2 py-0.5 rounded-full border border-amber-400/70 bg-amber-500/10 text-amber-200">
+                              PRO
+                            </span>
+                          )}
+                        </div>
+                        {t.created_at && (
+                          <span className="text-[10px] text-slate-500">
+                            {new Date(t.created_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+
+                      {isEditing ? (
+                        <div className="space-y-2 text-[11px]">
+                          <input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-100"
+                            placeholder="Template name"
+                          />
+                          <textarea
+                            value={editDescription}
+                            onChange={(e) =>
+                              setEditDescription(e.target.value)
+                            }
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-100 min-h-[60px]"
+                            placeholder="Short description"
+                          />
+                          <textarea
+                            value={editPrompt}
+                            onChange={(e) => setEditPrompt(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-100 min-h-[80px]"
+                            placeholder="Prompt that will be sent to AI"
+                          />
+                          <div className="flex flex-wrap gap-2 items-center">
+                            <select
+                              value={editCategory}
+                              onChange={(e) =>
+                                setEditCategory(e.target.value)
+                              }
+                              className="bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-100"
+                            >
+                              {CATEGORY_OPTIONS.filter(
+                                (c) => c !== "All"
+                              ).map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                            </select>
+                            <label className="flex items-center gap-1 text-[10px] text-slate-300">
+                              <input
+                                type="checkbox"
+                                checked={editIsProOnly}
+                                onChange={(e) =>
+                                  setEditIsProOnly(e.target.checked)
+                                }
+                                className="h-3 w-3"
+                              />
+                              Pro-only
+                            </label>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <h2 className="font-semibold text-sm mb-1 text-slate-50">
+                            {t.name}
+                          </h2>
+                          {t.description && (
+                            <p className="text-xs text-slate-300 mb-2 line-clamp-2">
+                              {t.description}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-slate-500 line-clamp-3">
+                            {t.prompt}
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Bottom: actions */}
+                    <div className="mt-3 flex flex-wrap gap-2 justify-between items-center">
+                      <button
+                        onClick={() => handleUseWithAssistant(t)}
+                        className="text-[11px] px-3 py-1 rounded-xl border border-slate-700 hover:bg-slate-900"
+                      >
+                        🤖 Use with Assistant
+                      </button>
+
+                      {isOwner && (
+                        <div className="flex gap-2 text-[11px]">
+                          {isEditing ? (
+                            <>
+                              <button
+                                onClick={saveEdit}
+                                disabled={savingEdit}
+                                className="px-2 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60"
+                              >
+                                {savingEdit ? "Saving…" : "Save"}
+                              </button>
+                              <button
+                                onClick={cancelEditing}
+                                className="px-2 py-1 rounded-xl border border-slate-700 hover:bg-slate-900"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => startEditing(t)}
+                                className="px-2 py-1 rounded-xl border border-slate-700 hover:bg-slate-900"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => deleteTemplate(t.id)}
+                                disabled={deletingId === t.id}
+                                className="px-2 py-1 rounded-xl border border-red-500/70 text-red-300 hover:bg-red-900/30 disabled:opacity-60"
+                              >
+                                {deletingId === t.id ? "…" : "Delete"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

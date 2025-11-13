@@ -2,6 +2,8 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import AIAssistant from "@/app/components/AIAssistant";
+
 // If you installed Plausible, keep this import; otherwise comment it out or remove the component below.
 // npm i next-plausible
 import PlausibleProvider from "next-plausible";
@@ -49,7 +51,7 @@ export default function RootLayout({
           trackLocalhost={false}
         />
       </head>
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>{children}<AIAssistant /></body>
     </html>
   );
 }
