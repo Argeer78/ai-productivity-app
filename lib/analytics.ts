@@ -2,22 +2,22 @@
 
 import { usePlausible } from "next-plausible";
 
-export type AnalyticEvent =
-  | "signup_started"
-  | "signup_completed"
-  | "login_completed"
-  | "upgrade_pro"
-  | "manage_subscription_opened"
-  | "ai_call_used"
-  | "note_created"
-  | "task_created"
-  | "feedback_submitted"
-  | "share_clicked";
-
+/**
+ * Tiny wrapper around Plausible so the rest of the app
+ * can just call track("event_name", { optional: "props" }).
+ */
 export function useAnalytics() {
-  const plausible = usePlausible<AnalyticEvent>();
+  const plausible = usePlausible();
+
   return {
-    track: (name: AnalyticEvent, props?: Record<string, any>) =>
-      plausible(name, { props }),
+    track: (name: string, props?: Record<string, any>) => {
+      try {
+        // Plausible expects: plausible("event-name", { props: {...} })
+        plausible(name as any, props ? { props } : undefined);
+      } catch (e) {
+        // Never break the UI because of analytics
+        console.error("Analytics error:", e);
+      }
+    },
   };
 }
