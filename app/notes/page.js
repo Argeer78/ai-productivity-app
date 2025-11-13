@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
-import AppHeader from "@/app/components/AppHeader"; // make sure this exists
 import { useAnalytics } from "@/lib/analytics";
 
 const FREE_DAILY_LIMIT = 5;
@@ -15,38 +15,40 @@ function getTodayString() {
 }
 
 export default function NotesPage() {
-  const [user, setUser] = useState<any>(null);
+  const { track } = useAnalytics();
+
+  const [user, setUser] = useState(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  const [notes, setNotes] = useState<any[]>([]);
+  const [notes, setNotes] = useState([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState("");
-  const [aiLoading, setAiLoading] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(null);
 
   const [aiCountToday, setAiCountToday] = useState(0);
-  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [plan, setPlan] = useState("free");
   const [billingLoading, setBillingLoading] = useState(false);
 
-  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
+  const [copiedNoteId, setCopiedNoteId] = useState(null);
 
-  // ✅ useAnalytics must be inside component
-  const { track } = useAnalytics();
-
-  function handleShareNote(note: any) {
+  function handleShareNote(note) {
     if (!note || !note.content) return;
 
     const textToCopy = `${note.content}\n\n— shared from AI Productivity Hub`;
 
-    if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard
         .writeText(textToCopy)
         .then(() => {
           setCopiedNoteId(note.id);
           setTimeout(() => setCopiedNoteId(null), 2000);
+          try {
+            track("note_shared");
+          } catch {}
         })
         .catch((err) => {
           console.error("Failed to copy note:", err);
@@ -54,21 +56,26 @@ export default function NotesPage() {
     }
   }
 
-  function handleAskAssistantAboutNote(note: any) {
+  function handleAskAssistantAboutNote(note) {
     if (typeof window === "undefined" || !note) return;
 
-    const content = note.content || "";
-    if (!content.trim()) return;
+    const c = note.content || "";
+    if (!c.trim()) return;
 
-    window.dispatchEvent(
-      new CustomEvent("ai-assistant-context", {
-        detail: {
-          content,
-          hint:
-            "Help me turn this note into 3 clear next actions and a short summary.",
-        },
-      })
-    );
+    try {
+      window.dispatchEvent(
+        new CustomEvent("ai-assistant-context", {
+          detail: {
+            content: c,
+            hint:
+              "Help me turn this note into 3 clear next actions and a short summary.",
+          },
+        })
+      );
+      track("ask_ai_from_note");
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   // 1) Load current user
@@ -119,7 +126,7 @@ export default function NotesPage() {
         if (insertError) throw insertError;
         setPlan(inserted.plan || "free");
       } else {
-        setPlan((data.plan as "free" | "pro") || "free");
+        setPlan(data.plan || "free");
       }
     } catch (err) {
       console.error(err);
@@ -186,61 +193,54 @@ export default function NotesPage() {
       setAiCountToday(0);
       setPlan("free");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
 
-  // Save note
-async function handleSaveNote(e) {
-  e.preventDefault();
-  setError("");
+  // 5) Save note
+  async function handleSaveNote(e) {
+    e.preventDefault();
+    setError("");
 
-  if (!user) {
-    setError("You must be logged in to save notes.");
-    return;
-  }
-
-  if (!title.trim() && !content.trim()) {
-    setError("Please enter a title or content.");
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    const { error } = await supabase.from("notes").insert([
-      {
-        title,
-        content,
-        user_id: user.id,
-      },
-    ]);
-
-    if (error) throw error;
-
-    // reset fields
-    setTitle("");
-    setContent("");
-
-    // reload list
-    await fetchNotes();
-
-    // ✅ Analytics: track AFTER successful insert
-    try {
-      track("note_created");
-    } catch {
-      /* ignore analytics errors */
+    if (!user) {
+      setError("You must be logged in to save notes.");
+      return;
     }
 
-  } catch (err) {
-    console.error(err);
-    setError("Failed to save note.");
-  } finally {
-    setLoading(false);
+    if (!title.trim() && !content.trim()) {
+      setError("Please enter a title or content.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { error } = await supabase.from("notes").insert([
+        {
+          title,
+          content,
+          user_id: user.id,
+        },
+      ]);
+
+      if (error) throw error;
+
+      setTitle("");
+      setContent("");
+      await fetchNotes();
+
+      // ✅ track note_created AFTER successful insert
+      try {
+        track("note_created");
+      } catch {}
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save note.");
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
   // 6) Increment AI usage
   async function incrementAiUsage() {
@@ -267,6 +267,7 @@ async function handleSaveNote(e) {
       ]);
       if (insertError) throw insertError;
       setAiCountToday(1);
+      return 1;
     } else {
       const newCount = (data.count || 0) + 1;
       const { error: updateError } = await supabase
@@ -276,11 +277,12 @@ async function handleSaveNote(e) {
 
       if (updateError) throw updateError;
       setAiCountToday(newCount);
+      return newCount;
     }
   }
 
   // 7) AI call
-  async function handleAI(noteId: string, noteContent: string, mode = "summarize") {
+  async function handleAI(noteId, noteContent, mode = "summarize") {
     if (!user) {
       setError("You must be logged in to use AI.");
       return;
@@ -324,12 +326,15 @@ async function handleSaveNote(e) {
 
       if (updateError) throw updateError;
 
-      await incrementAiUsage();
+      const newCount = await incrementAiUsage();
       await fetchNotes();
 
-      // Optional: track ai_call_used for notes
       try {
-        track("ai_call_used", { feature: "note_ai", plan });
+        track("ai_call_used", {
+          feature: `note_${mode}`,
+          plan,
+          usedToday: newCount,
+        });
       } catch {}
     } catch (err) {
       console.error(err);
@@ -339,7 +344,7 @@ async function handleSaveNote(e) {
     }
   }
 
-  // 8) Stripe checkout
+  // 8) Stripe checkout start (optional upgrade from notes)
   async function startCheckout() {
     if (!user) return;
     setBillingLoading(true);
@@ -406,13 +411,26 @@ async function handleSaveNote(e) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-8">
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
       <AppHeader active="notes" />
 
-      <div className="grid gap-6 md:grid-cols-[1.2fr,1fr] mt-4">
+      <div className="max-w-5xl mx-auto mt-6 grid gap-6 md:grid-cols-[1.2fr,1fr]">
         {/* Create note */}
         <section className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60">
-          <h2 className="text-lg font-semibold mb-3">Create a new note</h2>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-lg font-semibold">Create a new note</h2>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Use notes with AI to summarize, bullet, or rewrite.
+              </p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-[11px] px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+            >
+              Log out
+            </button>
+          </div>
 
           {error && (
             <div className="mb-3 text-sm text-red-400">{error}</div>
@@ -434,13 +452,41 @@ async function handleSaveNote(e) {
               onChange={(e) => setContent(e.target.value)}
             />
 
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+              <span>
+                Plan:{" "}
+                <span className="font-semibold uppercase">{plan}</span> • AI
+                today:{" "}
+                <span className="font-semibold">
+                  {aiCountToday}/{dailyLimit}
+                </span>
+              </span>
+              <span>
+                This AI limit is shared with dashboard, planner & assistant.
+              </span>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 transition text-sm"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 transition text-sm mt-1"
             >
               {loading ? "Saving..." : "Save note"}
             </button>
+
+            {plan === "free" && (
+              <div className="mt-3 text-[11px] text-slate-400">
+                Hitting the limit often?{" "}
+                <button
+                  type="button"
+                  disabled={billingLoading}
+                  onClick={startCheckout}
+                  className="underline text-indigo-300 disabled:opacity-60"
+                >
+                  Upgrade to Pro
+                </button>
+              </div>
+            )}
           </form>
         </section>
 
@@ -499,7 +545,9 @@ async function handleSaveNote(e) {
                   </button>
 
                   <button
-                    onClick={() => handleAI(note.id, note.content, "bullets")}
+                    onClick={() =>
+                      handleAI(note.id, note.content, "bullets")
+                    }
                     disabled={aiLoading === note.id || remaining === 0}
                     className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
                   >
@@ -507,7 +555,9 @@ async function handleSaveNote(e) {
                   </button>
 
                   <button
-                    onClick={() => handleAI(note.id, note.content, "rewrite")}
+                    onClick={() =>
+                      handleAI(note.id, note.content, "rewrite")
+                    }
                     disabled={aiLoading === note.id || remaining === 0}
                     className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
                   >
@@ -540,7 +590,18 @@ async function handleSaveNote(e) {
             ))}
           </div>
 
-          <FeedbackForm user={user} source="notes" />
+          <div className="mt-4 text-[11px] text-slate-400 flex gap-3">
+            <Link href="/tasks" className="hover:text-indigo-300">
+              → Go to Tasks
+            </Link>
+            <Link href="/dashboard" className="hover:text-indigo-300">
+              Open Dashboard
+            </Link>
+          </div>
+
+          <div className="mt-4">
+            <FeedbackForm user={user} />
+          </div>
         </section>
       </div>
     </main>
