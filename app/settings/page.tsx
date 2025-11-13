@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import Link from "next/link";
+import { useAnalytics } from "@/lib/analytics";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
+
 const TONE_OPTIONS: { value: Tone; label: string }[] = [
   { value: "balanced", label: "Balanced (default)" },
   { value: "friendly", label: "Friendly" },
@@ -24,6 +26,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const { track } = useAnalytics();
 
   // Load user
   useEffect(() => {
@@ -140,7 +144,7 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <AppHeader />
+      <AppHeader active="settings" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
           <h1 className="text-2xl md:text-3xl font-bold mb-1">Settings</h1>
@@ -164,6 +168,7 @@ export default function SettingsPage() {
                 </p>
               )}
 
+              {/* AI tone */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
                   AI tone
@@ -184,6 +189,7 @@ export default function SettingsPage() {
                 </select>
               </div>
 
+              {/* Focus area */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Main focus area (optional)
@@ -208,69 +214,82 @@ export default function SettingsPage() {
               >
                 {saving ? "Saving..." : "Save settings"}
               </button>
-{/* Manage subscription (Stripe Portal) */}
-onClick={async () => {
-  track("manage_subscription_opened");
-<button
-  type="button"
-  onClick={async () => {
-    if (!user) return;
-    try {
-      const res = await fetch("/api/stripe/portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
-      });
-      const data = await res.json();
-      if (data?.url) {
-        window.location.href = data.url; // go to Stripe portal
-      } else {
-        alert(data?.error || "Could not open billing portal.");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("Could not open billing portal.");
-    }
-  }}
-  className="mt-3 px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
->
-  Manage subscription (Stripe)
-</button>
-}}
 
-<div className="pt-2 border-t border-slate-800 mt-4">
-  <p className="text-[11px] text-slate-400 mb-2">
-    You can download a copy of your notes and tasks as a Markdown file.
-  </p>
-  <button
-    type="button"
-    onClick={async () => {
-      if (!user) return;
-      try {
-        const res = await fetch("/api/export", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id }),
-        });
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "ai_productivity_export.md";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch (e) {
-        console.error(e);
-        alert("Export failed. Please try again.");
-      }
-    }}
-    className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
-  >
-    Download my data (.md)
-  </button>
-</div>
+              {/* Manage subscription (Stripe Portal) */}
+              <div className="pt-4 border-t border-slate-800 mt-4">
+                <p className="text-[11px] text-slate-400 mb-2">
+                  Manage your subscription, billing details, and invoices in the
+                  secure Stripe customer portal.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!user) return;
+                    try {
+                      // Analytics event
+                      try {
+                        track("manage_subscription_opened");
+                      } catch {
+                        // ignore analytics errors
+                      }
+
+                      const res = await fetch("/api/stripe/portal", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: user.id }),
+                      });
+                      const data = await res.json();
+                      if (data?.url) {
+                        window.location.href = data.url;
+                      } else {
+                        alert(data?.error || "Could not open billing portal.");
+                      }
+                    } catch (e) {
+                      console.error(e);
+                      alert("Could not open billing portal.");
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+                >
+                  Manage subscription (Stripe)
+                </button>
+              </div>
+
+              {/* Export data */}
+              <div className="pt-4 border-t border-slate-800 mt-4">
+                <p className="text-[11px] text-slate-400 mb-2">
+                  You can download a copy of your notes and tasks as a Markdown
+                  file.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!user) return;
+                    try {
+                      const res = await fetch("/api/export", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: user.id }),
+                      });
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "ai_productivity_export.md";
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(url);
+                    } catch (e) {
+                      console.error(e);
+                      alert("Export failed. Please try again.");
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+                >
+                  Download my data (.md)
+                </button>
+              </div>
             </form>
           )}
         </div>
