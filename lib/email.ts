@@ -3,6 +3,7 @@ import { Resend } from "resend";
 
 const resendApiKey = process.env.RESEND_API_KEY || "";
 
+// Single shared Resend client (or null if not configured)
 let resend: Resend | null = null;
 
 if (resendApiKey) {
@@ -20,24 +21,25 @@ type DailyDigestOptions = {
   focusArea?: string | null;
 };
 
-function getFromAddress() {
+/**
+ * Build the "from" address for emails.
+ * Uses RESEND_FROM_EMAIL if set, otherwise falls back to assistant@aiprod.app.
+ */
+function getFromAddress(): string {
   const envFrom = process.env.RESEND_FROM_EMAIL;
 
+  // If ENV already includes a full "Name <email>" string, just return it
+  if (envFrom && envFrom.includes("<") && envFrom.includes(">")) {
+    return envFrom;
+  }
+
+  // If ENV is just an email (assistant@aiprod.app), wrap it
   if (envFrom) {
     return `AI Productivity Hub <${envFrom}>`;
   }
 
-  // Fallback – if env is missing, use assistant@aiprod.app
+  // Fallback – still a valid sender as long as domain is verified in Resend
   return "AI Productivity Hub <assistant@aiprod.app>";
-}
-
-  // If user already put a full "Name <email@domain>" keep it
-  if (envFrom.includes("<") && envFrom.includes(">")) {
-    return envFrom;
-  }
-
-  // Otherwise wrap it nicely
-  return `AI Productivity Hub <${envFrom}>`;
 }
 
 /**
@@ -89,53 +91,5 @@ export async function sendDailyDigest(
   } catch (err) {
     console.error("[daily-digest] Resend send error for", email, err);
     // DO NOT rethrow – we don’t want the API route to return 500 because of email
-  }
-}
-
-/**
- * Test email helper – used by the Settings "Send test email" button.
- * Also defensive: never throws, just returns boolean.
- */
-export async function sendTestEmail(email: string): Promise<boolean> {
-  if (!email) {
-    console.warn("[test-email] Missing email");
-    return false;
-  }
-
-  if (!resend) {
-    console.warn(
-      "[test-email] Resend client not initialized, skipping send to",
-      email
-    );
-    return false;
-  }
-
-  try {
-    const subject = "AI Productivity Hub – test email";
-
-    const text = [
-      "Hi 👋",
-      "",
-      "This is a test email from AI Productivity Hub.",
-      "",
-      "If you are reading this, your email sending configuration is working.",
-      "",
-      "You can disable daily digests from Settings inside the app.",
-      "",
-      "— AI Productivity Hub",
-    ].join("\n");
-
-    await resend.emails.send({
-      from: getFromAddress(),
-      to: email,
-      subject,
-      text,
-    });
-
-    console.log("[test-email] Email sent to", email);
-    return true;
-  } catch (err) {
-    console.error("[test-email] Resend send error for", email, err);
-    return false;
   }
 }
