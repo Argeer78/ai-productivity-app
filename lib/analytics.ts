@@ -1,23 +1,22 @@
 "use client";
 
-import { usePlausible } from "next-plausible";
-
 /**
- * Tiny wrapper around Plausible so the rest of the app
- * can just call track("event_name", { optional: "props" }).
+ * Very simple analytics helper.
+ * - Safe on server and client
+ * - No external dependencies
+ * - Won't crash anything if something goes wrong
  */
 export function useAnalytics() {
-  const plausible = usePlausible();
+  function track(name: string, props?: Record<string, any>) {
+    // Only do anything in the browser
+    if (typeof window === "undefined") return;
 
-  return {
-    track: (name: string, props?: Record<string, any>) => {
-      try {
-        // Plausible expects: plausible("event-name", { props: {...} })
-        plausible(name as any, props ? { props } : undefined);
-      } catch (e) {
-        // Never break the UI because of analytics
-        console.error("Analytics error:", e);
-      }
-    },
-  };
+    // For now we just log to console in dev.
+    // Later you can wire this to Plausible/GA/etc.
+    if (process.env.NODE_ENV === "development") {
+      console.log("[analytics]", name, props || {});
+    }
+  }
+
+  return { track };
 }
