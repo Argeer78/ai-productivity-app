@@ -93,3 +93,40 @@ export async function sendDailyDigest(
     // DO NOT rethrow – we don’t want the API route to return 500 because of email
   }
 }
+
+/**
+ * Simple “test email” helper for the Settings → Test Email button.
+ */
+export async function sendTestEmail(to: string): Promise<void> {
+  if (!to) {
+    console.warn("[test-email] Missing 'to' address");
+    return;
+  }
+
+  if (!resend) {
+    console.warn(
+      "[test-email] Resend client not initialized, skipping send to",
+      to
+    );
+    return;
+  }
+
+  try {
+    await resend.emails.send({
+      from: getFromAddress(),
+      to,
+      subject: "Test email from AI Productivity Hub",
+      text: [
+        "Hi 👋",
+        "",
+        "This is a test email from AI Productivity Hub.",
+        "If you’re reading this, your email setup works!",
+        "",
+        "You can now use daily digests and other email features.",
+      ].join("\n"),
+    });
+    console.log("[test-email] Email sent to", to);
+  } catch (err) {
+    console.error("[test-email] Resend send error for", to, err);
+  }
+}

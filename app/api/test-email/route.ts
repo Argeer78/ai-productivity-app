@@ -4,8 +4,7 @@ import { sendTestEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const email = body?.email as string | undefined;
+    const { email } = await req.json();
 
     if (!email) {
       return NextResponse.json(
@@ -14,20 +13,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const success = await sendTestEmail(email);
-
-    if (!success) {
-      return NextResponse.json(
-        { ok: false, error: "Failed to send test email" },
-        { status: 500 }
-      );
-    }
-
+    await sendTestEmail(email);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[test-email] route error", err);
     return NextResponse.json(
-      { ok: false, error: "Server error while sending test email" },
+      { ok: false, error: "Internal error" },
       { status: 500 }
     );
   }
