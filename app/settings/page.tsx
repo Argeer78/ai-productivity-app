@@ -260,6 +260,12 @@ useEffect(() => {
         >
           🔒 Unlock with Pro
         </a>
+        <Link
+        href="/weekly-history"
+        className="block mt-2 text-[11px] text-slate-400 hover:text-slate-200"
+      >
+        See how weekly reports work →
+      </Link>
       </>
     ) : (
       <>
@@ -280,6 +286,12 @@ useEffect(() => {
           Emails are sent once per week and include your streak, average
           score, and tailored suggestions.
         </p>
+            <Link
+      href="/weekly-history"
+      className="inline-block mt-2 text-[11px] text-indigo-400 hover:text-indigo-300"
+    >
+      View past weekly reports →
+    </Link>
       </>
     )}
   </div>
