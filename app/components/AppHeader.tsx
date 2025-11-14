@@ -61,6 +61,14 @@ export default function AppHeader({ active }: Props) {
             Notes
           </Link>
           <Link
+            href="/daily-success"
+            className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "daily-success" ? "border-slate-600 bg-slate-900" : ""
+            }`}
+          >
+            Daily Success
+          </Link>
+          <Link
             href="/tasks"
             className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
               active === "tasks" ? "border-slate-600 bg-slate-900" : ""
