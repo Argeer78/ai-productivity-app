@@ -9,6 +9,7 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 type Props = {
   active?:
     | "dashboard"
+    | "explore"
     | "daily-success"
     | "notes"
     | "tasks"
@@ -54,6 +55,22 @@ export default function AppHeader({ active }: Props) {
             Dashboard
           </Link>
           <Link
+  href="/explore"
+  className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+    active === "explore" ? "border-slate-600 bg-slate-900" : ""
+  }`}
+>
+  Explore
+</Link>
+          <Link
+            href="/tasks"
+            className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
+              active === "tasks" ? "border-slate-600 bg-slate-900" : ""
+            }`}
+          >
+          Daily Success
+          </Link>
+          <Link
             href="/notes"
             className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
               active === "notes" ? "border-slate-600 bg-slate-900" : ""
@@ -65,14 +82,6 @@ export default function AppHeader({ active }: Props) {
             href="/daily-success"
             className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
               active === "daily-success" ? "border-slate-600 bg-slate-900" : ""
-            }`}
-          >
-            Daily Success
-          </Link>
-          <Link
-            href="/tasks"
-            className={`px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
-              active === "tasks" ? "border-slate-600 bg-slate-900" : ""
             }`}
           >
             Tasks
