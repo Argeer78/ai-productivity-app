@@ -1,3 +1,4 @@
+// app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,6 +13,11 @@ const PRO_DAILY_LIMIT = 50;
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
 }
+
+type DailyScoreRow = {
+  score_date: string;
+  score: number;
+};
 
 function getStreakConfig(streak: number) {
   if (streak >= 30) {
@@ -63,20 +69,26 @@ export default function DashboardPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
 
-  const [streak, setStreak] = useState(0);
+  const [streak, setStreak] = useState(0); // AI usage streak
   const [activeDays, setActiveDays] = useState(0);
 
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
   const [recentTasks, setRecentTasks] = useState<any[]>([]);
 
-  // ✅ useAnalytics MUST be inside the component, not at top-level
+  // Productivity score state (from daily_scores)
+  const [scoreLoading, setScoreLoading] = useState(true);
+  const [todayScore, setTodayScore] = useState<number | null>(null);
+  const [avg7, setAvg7] = useState<number | null>(null);
+  const [scoreStreak, setScoreStreak] = useState<number>(0); // consecutive days with score >= 60
+
   const { track } = useAnalytics();
 
   const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
   const showBanner = streak >= 1;
+  const streakCfg = getStreakConfig(streak);
 
-  // 1) Load the current user
+  // Load the current user
   useEffect(() => {
     async function loadUser() {
       try {
@@ -95,7 +107,90 @@ export default function DashboardPage() {
     loadUser();
   }, []);
 
-  // 2) Ensure profile exists & load plan + AI usage + streak + recent activity
+  // Load productivity score stats (daily_scores)
+  useEffect(() => {
+    if (!user) {
+      setScoreLoading(false);
+      setTodayScore(null);
+      setAvg7(null);
+      setScoreStreak(0);
+      return;
+    }
+
+    async function loadScoreStats() {
+      setScoreLoading(true);
+
+      try {
+        const todayStr = getTodayString();
+
+        const past = new Date();
+        past.setDate(past.getDate() - 30);
+        const pastStr = past.toISOString().split("T")[0];
+
+        const { data, error } = await supabase
+          .from("daily_scores")
+          .select("score_date, score")
+          .eq("user_id", user.id)
+          .gte("score_date", pastStr)
+          .order("score_date", { ascending: true });
+
+        if (error) {
+          console.error("Dashboard: load score error", error);
+          return;
+        }
+
+        const list = (data || []) as DailyScoreRow[];
+
+        // Today
+        const todayRow = list.find((r) => r.score_date === todayStr);
+        setTodayScore(todayRow ? todayRow.score : null);
+
+        // 7-day average
+        const seven = new Date();
+        seven.setDate(seven.getDate() - 6);
+        const sevenStr = seven.toISOString().split("T")[0];
+
+        const last7 = list.filter((r) => r.score_date >= sevenStr);
+
+        if (last7.length > 0) {
+          const avg =
+            last7.reduce((sum, r) => sum + (r.score || 0), 0) /
+            last7.length;
+          setAvg7(Math.round(avg));
+        } else {
+          setAvg7(null);
+        }
+
+        // streak = days in a row with score ≥ 60
+        const goodSet = new Set(
+          list.filter((r) => r.score >= 60).map((r) => r.score_date)
+        );
+
+        let streakCount = 0;
+        let current = new Date();
+
+        for (let i = 0; i < 365; i++) {
+          const dStr = current.toISOString().split("T")[0];
+          if (goodSet.has(dStr)) {
+            streakCount++;
+            current.setDate(current.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+
+        setScoreStreak(streakCount);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setScoreLoading(false);
+      }
+    }
+
+    loadScoreStats();
+  }, [user]);
+
+  // Ensure profile exists & load plan + AI usage + streak + recent activity
   useEffect(() => {
     if (!user) {
       setPlan("free");
@@ -223,9 +318,18 @@ export default function DashboardPage() {
           .order("created_at", { ascending: false })
           .limit(5);
 
-        console.log("Dashboard: recent tasks data =", tasks, "error =", tasksError);
+        console.log(
+          "Dashboard: recent tasks data =",
+          tasks,
+          "error =",
+          tasksError
+        );
 
-        if (tasksError && (tasksError as any).code && (tasksError as any).code !== "PGRST116") {
+        if (
+          tasksError &&
+          (tasksError as any).code &&
+          (tasksError as any).code !== "PGRST116"
+        ) {
           console.error("Dashboard: tasks error", tasksError);
         }
 
@@ -342,17 +446,17 @@ export default function DashboardPage() {
         setAiCountToday((prev) => prev + 1);
       }
 
-      // ✅ track ai_call_used here, AFTER success
       try {
         track("ai_call_used", {
           feature: "summary",
           plan,
-          usedToday: (typeof data.usedToday === "number"
-            ? data.usedToday
-            : aiCountToday + 1),
+          usedToday:
+            typeof data.usedToday === "number"
+              ? data.usedToday
+              : aiCountToday + 1,
         });
       } catch {
-        // never break UX for analytics
+        // ignore analytics error
       }
     } catch (err) {
       console.error(err);
@@ -387,8 +491,6 @@ export default function DashboardPage() {
       </main>
     );
   }
-
-  const streakCfg = getStreakConfig(streak);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -434,8 +536,8 @@ export default function DashboardPage() {
               <div>
                 <p className="font-semibold text-sm md:text-base">
                   {streakCfg.emoji} {streakCfg.title} You’re on a{" "}
-                  <span className="font-bold">{streak}-day</span> productivity
-                  streak.
+                  <span className="font-bold">{streak}-day</span>{" "}
+                  productivity streak.
                 </p>
                 <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
               </div>
@@ -455,8 +557,8 @@ export default function DashboardPage() {
             <div className="mb-4 text-xs md:text-sm text-slate-300">
               <p>
                 Plan:{" "}
-                <span className="font-semibold uppercase">{plan}</span> | AI
-                today:{" "}
+                <span className="font-semibold uppercase">{plan}</span> |
+                AI today:{" "}
                 <span className="font-semibold">
                   {aiCountToday}/{dailyLimit}
                 </span>
@@ -524,7 +626,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                {/* Usage card */}
+                {/* Usage + Productivity Score card */}
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
                   <p className="text-xs font-semibold text-slate-400 mb-1">
                     TODAY&apos;S AI USAGE
@@ -545,13 +647,64 @@ export default function DashboardPage() {
                       }}
                     />
                   </div>
-                  <p className="text-[11px] text-slate-400">
+
+                  {/* Productivity Score Widget */}
+                  <div className="border border-slate-800 bg-slate-900/90 rounded-2xl p-3 mt-3">
+                    <h3 className="text-sm font-semibold mb-2">
+                      📈 Productivity Score
+                    </h3>
+
+                    {scoreLoading ? (
+                      <p className="text-[11px] text-slate-400">
+                        Loading...
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-[13px] mb-1">
+                          <span className="text-slate-400">Today:</span>{" "}
+                          <span className="font-semibold">
+                            {todayScore !== null
+                              ? `${todayScore}/100`
+                              : "—"}
+                          </span>
+                        </p>
+
+                        <p className="text-[13px] mb-1">
+                          <span className="text-slate-400">
+                            7-day avg:
+                          </span>{" "}
+                          <span className="font-semibold">
+                            {avg7 !== null ? `${avg7}` : "—"}
+                          </span>
+                        </p>
+
+                        <p className="text-[13px] mb-3">
+                          <span className="text-slate-400">
+                            Score streak (≥60):
+                          </span>{" "}
+                          <span className="font-semibold">
+                            {scoreStreak} day
+                            {scoreStreak === 1 ? "" : "s"}
+                          </span>
+                        </p>
+
+                        <Link
+                          href="/daily-success"
+                          className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500"
+                        >
+                          Update today&apos;s score
+                        </Link>
+                      </>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 mt-2">
                     {remaining > 0
                       ? `${remaining} AI calls left today.`
                       : "You reached today’s limit on this plan."}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Streak:{" "}
+                    Usage streak:{" "}
                     <span className="font-semibold">
                       {streak} day{streak === 1 ? "" : "s"}
                     </span>{" "}
@@ -608,7 +761,8 @@ export default function DashboardPage() {
                   </p>
                   {recentNotes.length === 0 ? (
                     <p className="text-[12px] text-slate-500">
-                      No notes yet. Create your first note from the Notes page.
+                      No notes yet. Create your first note from the Notes
+                      page.
                     </p>
                   ) : (
                     <ul className="space-y-2">
@@ -648,7 +802,9 @@ export default function DashboardPage() {
                         >
                           <span
                             className={`h-2 w-2 rounded-full ${
-                              t.completed ? "bg-emerald-400" : "bg-slate-500"
+                              t.completed
+                                ? "bg-emerald-400"
+                                : "bg-slate-500"
                             }`}
                           />
                           <span>{t.title || "(untitled task)"}</span>
