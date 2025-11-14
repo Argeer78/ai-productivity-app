@@ -49,6 +49,53 @@ function getFromAddress() {
 }
 
 /**
+ * Generic email sender (used by weekly reports, etc.)
+ */
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text,
+}: {
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+}): Promise<void> {
+  if (!to) {
+    console.warn("[sendEmail] Missing 'to' address");
+    return;
+  }
+  if (!resend) {
+    console.warn(
+      "[sendEmail] Resend client not initialized, skipping send to",
+      to
+    );
+    return;
+  }
+
+  // Fallback: if no text is provided but html is, create a rough text version
+  let fallbackText = text;
+  if (!fallbackText && html) {
+    fallbackText = html.replace(/<[^>]+>/g, "");
+  }
+
+  try {
+    await resend.emails.send({
+      from: getFromAddress(),
+      to,
+      subject,
+      // Resend supports both html and text; we pass what we have
+      html,
+      text: fallbackText,
+    });
+    console.log("[sendEmail] Email sent to", to);
+  } catch (err) {
+    console.error("[sendEmail] Resend error for", to, err);
+  }
+}
+
+/**
  * Fetch last 24h notes & open tasks for a user.
  */
 async function fetchUserActivity(userId: string) {
