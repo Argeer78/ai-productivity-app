@@ -1,6 +1,7 @@
+// app/templates/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
@@ -8,22 +9,14 @@ import { supabase } from "@/lib/supabaseClient";
 type Template = {
   id: string;
   user_id: string | null;
-  name: string;
+  title: string | null;
   description: string | null;
-  prompt: string;
+  ai_prompt: string | null;
   category: string | null;
-  is_pro_only: boolean | null;
+  is_public: boolean;
+  usage_count: number | null;
   created_at: string | null;
 };
-
-const CATEGORY_OPTIONS = [
-  "All",
-  "Planning",
-  "Study",
-  "Writing",
-  "Work",
-  "Personal",
-];
 
 export default function TemplatesPage() {
   const [user, setUser] = useState<any | null>(null);
@@ -33,29 +26,15 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Filters
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
-  const [showOnlyMine, setShowOnlyMine] = useState(false);
-
-  // Simple inline edit state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editPrompt, setEditPrompt] = useState("");
-  const [editCategory, setEditCategory] = useState("Planning");
-  const [editIsProOnly, setEditIsProOnly] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // Load user
   useEffect(() => {
     async function loadUser() {
       try {
         const { data, error } = await supabase.auth.getUser();
-        if (error) {
-          console.error(error);
-        }
+        if (error) console.error(error);
         setUser(data?.user ?? null);
       } catch (err) {
         console.error(err);
@@ -66,160 +45,96 @@ export default function TemplatesPage() {
     loadUser();
   }, []);
 
-  // Load templates
+  // Load templates (both public + mine if logged in)
   useEffect(() => {
-    async function loadTemplates() {
+    async function loadData() {
       setLoading(true);
       setError("");
+
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from("templates")
           .select(
-            "id, user_id, name, description, prompt, category, is_pro_only, created_at"
-          )
-          .order("created_at", { ascending: false });
+            "id, user_id, title, description, ai_prompt, category, is_public, usage_count, created_at"
+          );
 
-        if (error) throw error;
-        setTemplates((data || []) as Template[]);
+        if (user) {
+          // Show all public templates + my private ones
+          query = query.or(`is_public.eq.true,user_id.eq.${user.id}`);
+        } else {
+          // Only public if not logged in
+          query = query.eq("is_public", true);
+        }
+
+        const { data, error: tmplError } = await query.order("created_at", {
+          ascending: false,
+        });
+
+        if (tmplError && (tmplError as any).code !== "PGRST116") {
+          console.error("Templates: templates load error", tmplError);
+          setTemplates([]);
+        } else {
+          setTemplates((data || []) as Template[]);
+        }
       } catch (err: any) {
         console.error(err);
         setError("Failed to load templates.");
+        setTemplates([]);
       } finally {
         setLoading(false);
       }
     }
-    loadTemplates();
-  }, []);
 
-  const filteredTemplates = useMemo(() => {
-    return templates.filter((t) => {
-      if (showOnlyMine && user && t.user_id !== user.id) {
-        return false;
-      }
+    loadData();
+  }, [user]);
 
-      if (categoryFilter !== "All") {
-        if ((t.category || "").toLowerCase() !== categoryFilter.toLowerCase()) {
-          return false;
-        }
-      }
-
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const combined = `${t.name} ${t.description || ""} ${t.prompt}`.toLowerCase();
-        if (!combined.includes(q)) return false;
-      }
-
-      return true;
-    });
-  }, [templates, search, categoryFilter, showOnlyMine, user]);
-
+  // 🔹 Use with Assistant
   function handleUseWithAssistant(t: Template) {
     if (typeof window === "undefined") return;
 
-    const content = t.prompt || "";
-    const hint =
-      t.name ||
-      t.description ||
-      "Use this template inside the assistant to get started faster.";
+    const safeTitle = t.title || (t as any).name || "this template";
+    const safePrompt = t.ai_prompt || (t as any).prompt || "";
+
+    console.log("Templates: dispatching ai-assistant-context for", t.id);
 
     window.dispatchEvent(
       new CustomEvent("ai-assistant-context", {
         detail: {
-          content,
-          hint,
+          content:
+            safePrompt ||
+            `Use this template: "${safeTitle}".`,
+          hint: `Use this template: "${safeTitle}". I may add extra details before sending.`,
         },
       })
     );
   }
 
-  function startEditing(t: Template) {
-    setEditingId(t.id);
-    setEditName(t.name);
-    setEditDescription(t.description || "");
-    setEditPrompt(t.prompt);
-    setEditCategory(t.category || "Planning");
-    setEditIsProOnly(!!t.is_pro_only);
-  }
+  // 🔍 Filtering: search + category
+  const filteredTemplates = templates.filter((t) => {
+    // Search across title, description, category and ai_prompt
+    const q = search.trim().toLowerCase();
+    if (q) {
+      const combined = (
+        (t.title || "") +
+        " " +
+        (t.description || "") +
+        " " +
+        (t.category || "") +
+        " " +
+        (t.ai_prompt || "")
+      ).toLowerCase();
 
-  function cancelEditing() {
-    setEditingId(null);
-    setEditName("");
-    setEditDescription("");
-    setEditPrompt("");
-    setEditCategory("Planning");
-    setEditIsProOnly(false);
-  }
-
-  async function saveEdit() {
-    if (!editingId) return;
-    if (!editName.trim() || !editPrompt.trim()) return;
-
-    setSavingEdit(true);
-    setError("");
-
-    try {
-      const { error } = await supabase
-        .from("templates")
-        .update({
-          name: editName.trim(),
-          description: editDescription.trim() || null,
-          prompt: editPrompt.trim(),
-          category: editCategory.trim() || null,
-          is_pro_only: editIsProOnly,
-        })
-        .eq("id", editingId)
-        .eq("user_id", user?.id); // only allow editing own templates
-
-      if (error) throw error;
-
-      setTemplates((prev) =>
-        prev.map((t) =>
-          t.id === editingId
-            ? {
-                ...t,
-                name: editName.trim(),
-                description: editDescription.trim() || null,
-                prompt: editPrompt.trim(),
-                category: editCategory.trim() || null,
-                is_pro_only: editIsProOnly,
-              }
-            : t
-        )
-      );
-
-      cancelEditing();
-    } catch (err: any) {
-      console.error(err);
-      setError("Failed to save template changes.");
-    } finally {
-      setSavingEdit(false);
+      if (!combined.includes(q)) return false;
     }
-  }
 
-  async function deleteTemplate(id: string) {
-    if (!user) return;
-    if (!confirm("Delete this template? This can’t be undone.")) return;
-
-    setDeletingId(id);
-    setError("");
-
-    try {
-      const { error } = await supabase
-        .from("templates")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id); // only delete own templates
-
-      if (error) throw error;
-
-      setTemplates((prev) => prev.filter((t) => t.id !== id));
-    } catch (err: any) {
-      console.error(err);
-      setError("Failed to delete template.");
-    } finally {
-      setDeletingId(null);
+    // Category filter (case-insensitive)
+    if (categoryFilter !== "all") {
+      const cat = (t.category || "").toLowerCase();
+      if (cat !== categoryFilter.toLowerCase()) return false;
     }
-  }
+
+    return true;
+  });
 
   if (checkingUser) {
     return (
@@ -233,224 +148,115 @@ export default function TemplatesPage() {
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <AppHeader active="templates" />
       <div className="flex-1">
-        <div className="max-w-6xl mx-auto px-4 py-8 md:py-10">
-          <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+        <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 AI Templates
               </h1>
               <p className="text-xs md:text-sm text-slate-400">
-                Quick starting points for the assistant, planning, and writing.
+                Reusable prompts for planning, focus, study, and writing. Use
+                them with the assistant in one click.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs md:text-sm">
-              <Link
-                href="/dashboard"
-                className="px-3 py-1 rounded-xl border border-slate-700 hover:bg-slate-900"
-              >
-                ← Back to Dashboard
-              </Link>
-            </div>
+            <Link
+              href="/dashboard"
+              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
+            >
+              ← Back to Dashboard
+            </Link>
           </div>
 
-          {/* Filters bar */}
-          <div className="mb-5 flex flex-wrap gap-3 items-center text-xs md:text-sm">
-            <div className="flex items-center gap-2">
+                            {/* Filters: compact bar (search + category) */}
+          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center">
+            {/* Search */}
+            <div className="flex-1">
               <input
                 type="text"
+                placeholder="Search templates..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search templates…"
-                className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs md:text-sm text-slate-100"
+                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400">Category:</span>
+            {/* Right side filters */}
+            <div className="flex w-full md:w-auto gap-3">
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs md:text-sm"
+                className="w-full md:w-48 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
               >
-                {CATEGORY_OPTIONS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
+                <option value="all">All categories</option>
+                <option value="Planning">Planning</option>
+                <option value="Study">Study</option>
+                <option value="Writing">Writing</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
               </select>
             </div>
-
-            {user && (
-              <label className="flex items-center gap-1 text-[11px] md:text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={showOnlyMine}
-                  onChange={(e) => setShowOnlyMine(e.target.checked)}
-                  className="h-3 w-3"
-                />
-                Show only my templates
-              </label>
-            )}
           </div>
 
           {error && (
-            <div className="mb-3 text-sm text-red-400">{error}</div>
+            <p className="text-sm text-red-400 mb-3">{error}</p>
           )}
 
           {loading ? (
-            <p className="text-sm text-slate-300">Loading templates…</p>
+            <p className="text-slate-300 text-sm">Loading templates…</p>
           ) : filteredTemplates.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-slate-300 text-sm">
               No templates match this filter yet.
             </p>
           ) : (
-            <div className="grid md:grid-cols-3 gap-4 text-sm">
+            <div className="grid md:grid-cols-2 gap-4">
               {filteredTemplates.map((t) => {
-                const isOwner = user && t.user_id === user.id;
-                const isEditing = editingId === t.id;
+                const isMine = user && t.user_id === user.id;
 
                 return (
                   <article
                     key={t.id}
-                    className="border border-slate-800 rounded-2xl bg-slate-900/70 p-4 flex flex-col justify-between"
+                    className="border border-slate-800 rounded-2xl bg-slate-900/60 p-4 flex flex-col justify-between"
                   >
-                    {/* Top: main content */}
                     <div>
-                      {/* Category + Pro badge */}
-                      <div className="flex items-center justify-between mb-2 text-[11px]">
-                        <div className="flex gap-2 items-center">
-                          {t.category && (
-                            <span className="px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950 text-slate-300">
-                              {t.category}
-                            </span>
-                          )}
-                          {t.is_pro_only && (
-                            <span className="px-2 py-0.5 rounded-full border border-amber-400/70 bg-amber-500/10 text-amber-200">
-                              PRO
-                            </span>
-                          )}
-                        </div>
-                        {t.created_at && (
-                          <span className="text-[10px] text-slate-500">
-                            {new Date(t.created_at).toLocaleDateString()}
-                          </span>
-                        )}
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <h2 className="text-sm font-semibold">
+                          {t.title || "Untitled template"}
+                        </h2>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-400">
+                          {t.category || "Uncategorized"}
+                        </span>
                       </div>
-
-                      {isEditing ? (
-                        <div className="space-y-2 text-[11px]">
-                          <input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-100"
-                            placeholder="Template name"
-                          />
-                          <textarea
-                            value={editDescription}
-                            onChange={(e) =>
-                              setEditDescription(e.target.value)
-                            }
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-100 min-h-[60px]"
-                            placeholder="Short description"
-                          />
-                          <textarea
-                            value={editPrompt}
-                            onChange={(e) => setEditPrompt(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-100 min-h-[80px]"
-                            placeholder="Prompt that will be sent to AI"
-                          />
-                          <div className="flex flex-wrap gap-2 items-center">
-                            <select
-                              value={editCategory}
-                              onChange={(e) =>
-                                setEditCategory(e.target.value)
-                              }
-                              className="bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-100"
-                            >
-                              {CATEGORY_OPTIONS.filter(
-                                (c) => c !== "All"
-                              ).map((c) => (
-                                <option key={c} value={c}>
-                                  {c}
-                                </option>
-                              ))}
-                            </select>
-                            <label className="flex items-center gap-1 text-[10px] text-slate-300">
-                              <input
-                                type="checkbox"
-                                checked={editIsProOnly}
-                                onChange={(e) =>
-                                  setEditIsProOnly(e.target.checked)
-                                }
-                                className="h-3 w-3"
-                              />
-                              Pro-only
-                            </label>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <h2 className="font-semibold text-sm mb-1 text-slate-50">
-                            {t.name}
-                          </h2>
-                          {t.description && (
-                            <p className="text-xs text-slate-300 mb-2 line-clamp-2">
-                              {t.description}
-                            </p>
+                      <p className="text-[12px] text-slate-300 line-clamp-3 mb-2">
+                        {t.description ||
+                          "No description yet. Edit this template to add more context."}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mb-1">
+                        {t.is_public ? "Public" : "Private"}
+                        {isMine ? " • Yours" : ""}
+                        {typeof t.usage_count === "number" &&
+                          t.usage_count > 0 && (
+                            <>
+                              {" "}
+                              • Used {t.usage_count} time
+                              {t.usage_count === 1 ? "" : "s"}
+                            </>
                           )}
-                          <p className="text-[11px] text-slate-500 line-clamp-3">
-                            {t.prompt}
-                          </p>
-                        </>
-                      )}
+                      </p>
                     </div>
 
-                    {/* Bottom: actions */}
-                    <div className="mt-3 flex flex-wrap gap-2 justify-between items-center">
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                       <button
                         onClick={() => handleUseWithAssistant(t)}
-                        className="text-[11px] px-3 py-1 rounded-xl border border-slate-700 hover:bg-slate-900"
+                        className="text-xs px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
                       >
                         🤖 Use with Assistant
                       </button>
-
-                      {isOwner && (
-                        <div className="flex gap-2 text-[11px]">
-                          {isEditing ? (
-                            <>
-                              <button
-                                onClick={saveEdit}
-                                disabled={savingEdit}
-                                className="px-2 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60"
-                              >
-                                {savingEdit ? "Saving…" : "Save"}
-                              </button>
-                              <button
-                                onClick={cancelEditing}
-                                className="px-2 py-1 rounded-xl border border-slate-700 hover:bg-slate-900"
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => startEditing(t)}
-                                className="px-2 py-1 rounded-xl border border-slate-700 hover:bg-slate-900"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => deleteTemplate(t.id)}
-                                disabled={deletingId === t.id}
-                                className="px-2 py-1 rounded-xl border border-red-500/70 text-red-300 hover:bg-red-900/30 disabled:opacity-60"
-                              >
-                                {deletingId === t.id ? "…" : "Delete"}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
+                      <Link
+                        href={`/templates/${t.id}`}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300"
+                      >
+                        View / edit
+                      </Link>
                     </div>
                   </article>
                 );
