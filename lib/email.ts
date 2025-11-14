@@ -1,9 +1,9 @@
 // lib/email.ts
 import { Resend } from "resend";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const resendApiKey = process.env.RESEND_API_KEY || "";
 
-// Single shared Resend client (or null if not configured)
 let resend: Resend | null = null;
 
 if (resendApiKey) {
@@ -14,6 +14,19 @@ if (resendApiKey) {
   );
 }
 
+function getFromAddress() {
+  const envFrom = process.env.RESEND_FROM_EMAIL;
+  console.log("[email] RESEND_FROM_EMAIL =", envFrom);
+
+  if (!envFrom) {
+    // Fallback – but in your case this *should* be set to assistant@aiprod.app
+    return "AI Productivity Hub <assistant@aiprod.app>";
+  }
+
+  // Nicely formatted From header
+  return `AI Productivity Hub <${envFrom}>`;
+}
+
 type DailyDigestOptions = {
   userId: string;
   email: string;
@@ -21,25 +34,67 @@ type DailyDigestOptions = {
   focusArea?: string | null;
 };
 
+type NoteRow = {
+  id: string;
+  title: string | null;
+  content: string | null;
+  created_at: string | null;
+};
+
+type TaskRow = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  is_done: boolean | null;
+  due_date: string | null;
+  created_at: string | null;
+};
+
 /**
- * Build the "from" address for emails.
- * Uses RESEND_FROM_EMAIL if set, otherwise falls back to assistant@aiprod.app.
+ * Fetch recent notes & tasks for the last 24 hours.
+ * Very defensive: logs errors and returns empty arrays on failure.
  */
-function getFromAddress(): string {
-  const envFrom = process.env.RESEND_FROM_EMAIL;
+async function fetchRecentData(userId: string): Promise<{
+  notes: NoteRow[];
+  tasks: TaskRow[];
+}> {
+  const now = new Date();
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000); // last 24h
+  const sinceIso = since.toISOString();
 
-  // If ENV already includes a full "Name <email>" string, just return it
-  if (envFrom && envFrom.includes("<") && envFrom.includes(">")) {
-    return envFrom;
+  try {
+    const { data: notes, error: notesErr } = await supabaseAdmin
+      .from("notes")
+      .select("id, title, content, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (notesErr) {
+      console.error("[daily-digest] notes fetch error:", notesErr);
+    }
+
+    const { data: tasks, error: tasksErr } = await supabaseAdmin
+      .from("tasks")
+      .select("id, title, description, is_done, due_date, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (tasksErr) {
+      console.error("[daily-digest] tasks fetch error:", tasksErr);
+    }
+
+    return {
+      notes: (notes || []) as NoteRow[],
+      tasks: (tasks || []) as TaskRow[],
+    };
+  } catch (err) {
+    console.error("[daily-digest] fetchRecentData error:", err);
+    return { notes: [], tasks: [] };
   }
-
-  // If ENV is just an email (assistant@aiprod.app), wrap it
-  if (envFrom) {
-    return `AI Productivity Hub <${envFrom}>`;
-  }
-
-  // Fallback – still a valid sender as long as domain is verified in Resend
-  return "AI Productivity Hub <assistant@aiprod.app>";
 }
 
 /**
@@ -65,20 +120,65 @@ export async function sendDailyDigest(
   }
 
   try {
-    const subject = "Your AI Productivity Hub daily digest (prototype)";
+    const { notes, tasks } = await fetchRecentData(userId);
 
-    const lines: string[] = [
-      "Hi there 👋",
-      "",
-      "This is your (prototype) daily digest from AI Productivity Hub.",
-      focusArea ? `Main focus: ${focusArea}` : "",
-      aiTone ? `AI tone preference: ${aiTone}` : "",
-      "",
-      "Right now this email just confirms that the daily-digest pipeline works.",
-      "Later it can include AI-generated summaries of your notes & tasks plus suggested next actions.",
-      "",
-      "You can disable this email from Settings → Daily AI email digest.",
-    ].filter(Boolean);
+    const subject = "Your AI Productivity Hub daily digest";
+
+    const lines: string[] = [];
+
+    lines.push("Hi there 👋");
+    lines.push("");
+    lines.push("Here’s your daily snapshot from AI Productivity Hub.");
+    if (focusArea) lines.push(`Main focus: ${focusArea}`);
+    if (aiTone) lines.push(`AI tone preference: ${aiTone}`);
+    lines.push("");
+
+    // Notes section
+    if (notes.length > 0) {
+      lines.push("📝 Notes in the last 24 hours:");
+      notes.forEach((n) => {
+        const createdAt = n.created_at
+          ? new Date(n.created_at).toLocaleString("en-GB", {
+              hour12: false,
+            })
+          : "";
+        const titleOrSnippet =
+          n.title?.trim() ||
+          (n.content ? n.content.slice(0, 60) + "…" : "(empty note)");
+
+        lines.push(`- [${createdAt}] ${titleOrSnippet}`);
+      });
+      lines.push("");
+    } else {
+      lines.push("📝 No new notes in the last 24 hours.");
+      lines.push("");
+    }
+
+    // Tasks section
+    if (tasks.length > 0) {
+      lines.push("✅ Tasks created/updated in the last 24 hours:");
+      tasks.forEach((t) => {
+        const createdAt = t.created_at
+          ? new Date(t.created_at).toLocaleString("en-GB", {
+              hour12: false,
+            })
+          : "";
+        const status = t.is_done ? "[x]" : "[ ]";
+        const title = t.title?.trim() || "(untitled task)";
+        const due = t.due_date ? ` (due ${t.due_date})` : "";
+        lines.push(`- ${status} ${title}${due} – created ${createdAt}`);
+      });
+      lines.push("");
+    } else {
+      lines.push("✅ No new tasks in the last 24 hours.");
+      lines.push("");
+    }
+
+    lines.push(
+      "You can adjust or turn off this digest under Settings → Daily AI email digest."
+    );
+    lines.push("");
+    lines.push("— AI Productivity Hub");
 
     await resend.emails.send({
       from: getFromAddress(),
@@ -90,43 +190,49 @@ export async function sendDailyDigest(
     console.log("[daily-digest] Email sent to", email);
   } catch (err) {
     console.error("[daily-digest] Resend send error for", email, err);
-    // DO NOT rethrow – we don’t want the API route to return 500 because of email
+    // Do not rethrow – keep cron endpoint stable
   }
 }
 
 /**
- * Simple “test email” helper for the Settings → Test Email button.
+ * Simple test email used by the Settings "Send test email" button.
  */
-export async function sendTestEmail(to: string): Promise<void> {
-  if (!to) {
-    console.warn("[test-email] Missing 'to' address");
+export async function sendTestEmail(email: string): Promise<void> {
+  if (!email) {
+    console.warn("[test-email] No email provided");
     return;
   }
 
   if (!resend) {
     console.warn(
       "[test-email] Resend client not initialized, skipping send to",
-      to
+      email
     );
     return;
   }
 
   try {
+    const subject = "AI Productivity Hub – test email";
+
+    const lines = [
+      "Hi 👋",
+      "",
+      "This is a test email from AI Productivity Hub.",
+      "",
+      "If you see this, your email configuration is working.",
+      "",
+      "— AI Productivity Hub",
+    ];
+
     await resend.emails.send({
       from: getFromAddress(),
-      to,
-      subject: "Test email from AI Productivity Hub",
-      text: [
-        "Hi 👋",
-        "",
-        "This is a test email from AI Productivity Hub.",
-        "If you’re reading this, your email setup works!",
-        "",
-        "You can now use daily digests and other email features.",
-      ].join("\n"),
+      to: email,
+      subject,
+      text: lines.join("\n"),
     });
-    console.log("[test-email] Email sent to", to);
+
+    console.log("[test-email] Test email sent to", email);
   } catch (err) {
-    console.error("[test-email] Resend send error for", to, err);
+    console.error("[test-email] Resend send error for", email, err);
   }
 }
