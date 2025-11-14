@@ -15,7 +15,7 @@ type Template = {
   category: string | null;
   is_public: boolean;
   is_pro_only: boolean | null;
-  usage_count?: number | null; // made optional so we don't rely on the column existing
+  usage_count: number | null;
   created_at: string | null;
 };
 
@@ -91,8 +91,7 @@ export default function TemplatesPage() {
         let query = supabase
           .from("templates")
           .select(
-            // removed usage_count from select so we don't depend on the column
-            "id, user_id, title, description, ai_prompt, category, is_public, is_pro_only, created_at"
+            "id, user_id, title, description, ai_prompt, category, is_public, is_pro_only, usage_count, created_at"
           );
 
         if (user) {
@@ -127,13 +126,14 @@ export default function TemplatesPage() {
     }
   }, [user, checkingUser]);
 
-  // Use with Assistant
-  function handleUseWithAssistant(t: Template) {
+  // Use with Assistant (now increments usage_count)
+  async function handleUseWithAssistant(t: Template) {
     if (typeof window === "undefined") return;
 
     const safeTitle = t.title || (t as any).name || "this template";
     const safePrompt = t.ai_prompt || (t as any).prompt || "";
 
+    // Send to global assistant
     window.dispatchEvent(
       new CustomEvent("ai-assistant-context", {
         detail: {
@@ -143,6 +143,29 @@ export default function TemplatesPage() {
         },
       })
     );
+
+    // Increment usage_count in Supabase (best-effort, don't block UX)
+    const newCount = (t.usage_count ?? 0) + 1;
+
+    try {
+      const { error } = await supabase
+        .from("templates")
+        .update({ usage_count: newCount })
+        .eq("id", t.id);
+
+      if (error) {
+        console.error("Templates: failed to increment usage_count", error);
+      } else {
+        // Update local state so UI reflects new count
+        setTemplates((prev) =>
+          prev.map((tpl) =>
+            tpl.id === t.id ? { ...tpl, usage_count: newCount } : tpl
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Templates: usage_count increment error", err);
+    }
   }
 
   // Local filtering
@@ -171,6 +194,12 @@ export default function TemplatesPage() {
 
     return true;
   });
+
+  // Trending public templates (top by usage_count)
+  const trendingTemplates = [...templates]
+    .filter((t) => t.is_public && (t.usage_count ?? 0) > 0)
+    .sort((a, b) => (b.usage_count ?? 0) - (a.usage_count ?? 0))
+    .slice(0, 5);
 
   if (checkingUser) {
     return (
@@ -239,98 +268,206 @@ export default function TemplatesPage() {
 
           {loading ? (
             <p className="text-slate-300 text-sm">Loading templates…</p>
-          ) : filteredTemplates.length === 0 ? (
-            <p className="text-slate-300 text-sm">
-              No templates match this filter yet.
-            </p>
           ) : (
-            <div className="grid md:grid-cols-2 gap-4">
-              {filteredTemplates.map((t) => {
-                const isMine = user && t.user_id === user.id;
-                const isProTemplate = !!t.is_pro_only;
-                const isProUser = plan === "pro";
-                const locked = isProTemplate && !isProUser && !isMine;
+            <div className="grid md:grid-cols-[2fr,1fr] gap-6">
+              {/* Main templates grid */}
+              <div>
+                {filteredTemplates.length === 0 ? (
+                  <p className="text-slate-300 text-sm">
+                    No templates match this filter yet.
+                  </p>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {filteredTemplates.map((t) => {
+                      const isMine = user && t.user_id === user.id;
+                      const isProTemplate = !!t.is_pro_only;
+                      const isProUser = plan === "pro";
+                      const locked =
+                        isProTemplate && !isProUser && !isMine;
 
-                return (
-                  <article
-                    key={t.id}
-                    className="border border-slate-800 rounded-2xl bg-slate-900/60 p-4 flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <h2 className="text-sm font-semibold">
-                          {t.title || "Untitled template"}
-                        </h2>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-400">
-                          {t.category || "Uncategorized"}
-                        </span>
-                      </div>
-                      <p className="text-[12px] text-slate-300 line-clamp-3 mb-2">
-                        {t.description ||
-                          "No description yet. Edit this template to add more context."}
-                      </p>
-                      <p className="text-[11px] text-slate-500 mb-1">
-                        {t.is_public ? "Public" : "Private"}
-                        {isMine ? " • Yours" : ""}
-                        {isProTemplate && (
-                          <span className="ml-1 text-amber-300">
-                            • Pro template
-                          </span>
-                        )}
-                        {typeof t.usage_count === "number" &&
-                          t.usage_count > 0 && (
-                            <>
-                              {" "}
-                              • Used {t.usage_count} time
-                              {t.usage_count === 1 ? "" : "s"}
-                            </>
-                          )}
-                      </p>
-                      {locked && (
-                        <p className="text-[11px] text-amber-300">
-                          This is a Pro template. Upgrade to use it with the AI
-                          assistant and unlock full access.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                      {/* Use with Assistant (locked if Pro + not Pro user + not owner) */}
-                      <button
-                        onClick={() => {
-                          if (locked) {
-                            // hard lock, just like you wanted
-                            return;
-                          }
-                          handleUseWithAssistant(t);
-                        }}
-                        disabled={locked}
-                        className={`text-xs px-3 py-1 rounded-lg border border-slate-700 ${
-                          locked
-                            ? "opacity-60 cursor-not-allowed"
-                            : "hover:bg-slate-900"
-                        }`}
-                      >
-                        🤖 Use with Assistant
-                      </button>
-
-                      {/* View / edit (also locked for Pro templates if user is not Pro and not owner) */}
-                      {locked ? (
-                        <span className="text-[11px] px-3 py-1 rounded-lg border border-slate-800 text-slate-500 opacity-60 cursor-not-allowed">
-                          View / edit
-                        </span>
-                      ) : (
-                        <Link
-                          href={`/templates/${t.id}`}
-                          className="text-[11px] text-indigo-400 hover:text-indigo-300"
+                      return (
+                        <article
+                          key={t.id}
+                          className="border border-slate-800 rounded-2xl bg-slate-900/60 p-4 flex flex-col justify-between"
                         >
-                          View / edit
-                        </Link>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <h2 className="text-sm font-semibold">
+                                {t.title || "Untitled template"}
+                              </h2>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-400">
+                                {t.category || "Uncategorized"}
+                              </span>
+                            </div>
+                            <p className="text-[12px] text-slate-300 line-clamp-3 mb-2">
+                              {t.description ||
+                                "No description yet. Edit this template to add more context."}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mb-1">
+                              {t.is_public ? "Public" : "Private"}
+                              {isMine ? " • Yours" : ""}
+                              {isProTemplate && (
+                                <span className="ml-1 text-amber-300">
+                                  • Pro template
+                                </span>
+                              )}
+                              {typeof t.usage_count === "number" &&
+                                t.usage_count > 0 && (
+                                  <>
+                                    {" "}
+                                    • Used {t.usage_count} time
+                                    {t.usage_count === 1 ? "" : "s"}
+                                  </>
+                                )}
+                            </p>
+                            {locked && (
+                              <p className="text-[11px] text-amber-300">
+                                This is a Pro template. Upgrade to use it with
+                                the AI assistant and unlock full access.
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                            {/* Use with Assistant (locked if Pro + not Pro user + not owner) */}
+                            <button
+                              onClick={() => {
+                                if (locked) {
+                                  return;
+                                }
+                                handleUseWithAssistant(t);
+                              }}
+                              disabled={locked}
+                              className={`text-xs px-3 py-1 rounded-lg border border-slate-700 ${
+                                locked
+                                  ? "opacity-60 cursor-not-allowed"
+                                  : "hover:bg-slate-900"
+                              }`}
+                            >
+                              🤖 Use with Assistant
+                            </button>
+
+                            {/* View / edit (also locked for Pro templates if user is not Pro and not owner) */}
+                            {locked ? (
+                              <span className="text-[11px] px-3 py-1 rounded-lg border border-slate-800 text-slate-500 opacity-60 cursor-not-allowed">
+                                View / edit
+                              </span>
+                            ) : (
+                              <Link
+                                href={`/templates/${t.id}`}
+                                className="text-[11px] text-indigo-400 hover:text-indigo-300"
+                              >
+                                View / edit
+                              </Link>
+                            )}
+
+                            {/* Share link for public templates */}
+                            {t.is_public && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (typeof window === "undefined") return;
+                                  const url = `${window.location.origin}/templates/${t.id}`;
+                                  navigator.clipboard
+                                    .writeText(url)
+                                    .catch((err) =>
+                                      console.error(
+                                        "Failed to copy template URL",
+                                        err
+                                      )
+                                    );
+                                }}
+                                className="text-[11px] text-slate-400 hover:text-slate-200"
+                              >
+                                🔗 Copy link
+                              </button>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Trending sidebar */}
+              <aside className="space-y-3">
+                <div className="border border-slate-800 bg-slate-900/70 rounded-2xl p-4">
+                  <h3 className="text-sm font-semibold mb-2">
+                    🔥 Trending public templates
+                  </h3>
+                  {trendingTemplates.length === 0 ? (
+                    <p className="text-[11px] text-slate-400">
+                      When templates are used with the assistant, they&apos;ll
+                      show up here.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2 text-[12px]">
+                      {trendingTemplates.map((t) => {
+                        const isProTemplate = !!t.is_pro_only;
+                        const isProUser = plan === "pro";
+                        const isMine = user && t.user_id === user.id;
+                        const locked =
+                          isProTemplate && !isProUser && !isMine;
+
+                        return (
+                          <li
+                            key={t.id}
+                            className="flex flex-col border border-slate-800 rounded-xl bg-slate-950/60 p-2"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <p className="font-semibold text-[12px]">
+                                  {t.title || "Untitled template"}
+                                </p>
+                                <p className="text-[10px] text-slate-500">
+                                  {t.category || "Uncategorized"} • Used{" "}
+                                  {t.usage_count ?? 0} time
+                                  {t.usage_count === 1 ? "" : "s"}
+                                </p>
+                              </div>
+                              {isProTemplate && (
+                                <span className="text-[10px] text-amber-300">
+                                  Pro
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-2 flex gap-2 text-[10px]">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (locked) return;
+                                  handleUseWithAssistant(t);
+                                }}
+                                disabled={locked}
+                                className={`px-2 py-1 rounded-lg border border-slate-700 ${
+                                  locked
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : "hover:bg-slate-900"
+                                }`}
+                              >
+                                🤖 Use
+                              </button>
+                              {!locked && (
+                                <Link
+                                  href={`/templates/${t.id}`}
+                                  className="px-2 py-1 rounded-lg border border-slate-800 hover:bg-slate-900"
+                                >
+                                  View
+                                </Link>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Make one of your templates public and use it often to push it
+                  into the trending list.
+                </p>
+              </aside>
             </div>
           )}
         </div>
