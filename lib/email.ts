@@ -1,11 +1,12 @@
 // lib/email.ts
 import { Resend } from "resend";
+import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const resendApiKey = process.env.RESEND_API_KEY || "";
+const openaiApiKey = process.env.OPENAI_API_KEY || "";
 
 let resend: Resend | null = null;
-
 if (resendApiKey) {
   resend = new Resend(resendApiKey);
 } else {
@@ -14,17 +15,13 @@ if (resendApiKey) {
   );
 }
 
-function getFromAddress() {
-  const envFrom = process.env.RESEND_FROM_EMAIL;
-  console.log("[email] RESEND_FROM_EMAIL =", envFrom);
-
-  if (!envFrom) {
-    // Fallback – but in your case this *should* be set to assistant@aiprod.app
-    return "AI Productivity Hub <assistant@aiprod.app>";
-  }
-
-  // Nicely formatted From header
-  return `AI Productivity Hub <${envFrom}>`;
+let openai: OpenAI | null = null;
+if (openaiApiKey) {
+  openai = new OpenAI({ apiKey: openaiApiKey });
+} else {
+  console.warn(
+    "[email] OPENAI_API_KEY is not set – daily digest will use a simple fallback."
+  );
 }
 
 type DailyDigestOptions = {
@@ -34,77 +31,191 @@ type DailyDigestOptions = {
   focusArea?: string | null;
 };
 
-type NoteRow = {
-  id: string;
-  title: string | null;
-  content: string | null;
-  created_at: string | null;
-};
-
-type TaskRow = {
-  id: string;
-  title: string | null;
-  description: string | null;
-  is_done: boolean | null;
-  due_date: string | null;
-  created_at: string | null;
+type TestEmailOptions = {
+  email: string;
 };
 
 /**
- * Fetch recent notes & tasks for the last 24 hours.
- * Very defensive: logs errors and returns empty arrays on failure.
+ * Decide which "from" address to use.
+ * - If RESEND_FROM_EMAIL is set → "AI Productivity Hub <that@address>"
+ * - Otherwise fallback to a hard-coded assistant@aiprod.app
  */
-async function fetchRecentData(userId: string): Promise<{
-  notes: NoteRow[];
-  tasks: TaskRow[];
-}> {
-  const now = new Date();
-  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000); // last 24h
-  const sinceIso = since.toISOString();
-
-  try {
-    const { data: notes, error: notesErr } = await supabaseAdmin
-      .from("notes")
-      .select("id, title, content, created_at")
-      .eq("user_id", userId)
-      .gte("created_at", sinceIso)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (notesErr) {
-      console.error("[daily-digest] notes fetch error:", notesErr);
-    }
-
-    const { data: tasks, error: tasksErr } = await supabaseAdmin
-      .from("tasks")
-      .select("id, title, description, is_done, due_date, created_at")
-      .eq("user_id", userId)
-      .gte("created_at", sinceIso)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (tasksErr) {
-      console.error("[daily-digest] tasks fetch error:", tasksErr);
-    }
-
-    return {
-      notes: (notes || []) as NoteRow[],
-      tasks: (tasks || []) as TaskRow[],
-    };
-  } catch (err) {
-    console.error("[daily-digest] fetchRecentData error:", err);
-    return { notes: [], tasks: [] };
+function getFromAddress() {
+  const envFrom = process.env.RESEND_FROM_EMAIL;
+  if (!envFrom) {
+    return "AI Productivity Hub <assistant@aiprod.app>";
   }
+  return `AI Productivity Hub <${envFrom}>`;
 }
 
 /**
- * VERY DEFENSIVE: this function never throws outwards.
- * If Resend is not configured or sending fails, it just logs and returns.
+ * Fetch last 24h notes & open tasks for a user.
+ */
+async function fetchUserActivity(userId: string) {
+  const now = new Date();
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+  // Notes from last 24h
+  const { data: notes, error: notesError } = await supabaseAdmin
+    .from("notes")
+    .select("id, title, content, created_at")
+    .eq("user_id", userId)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (notesError) {
+    console.error("[daily-digest] Notes query error:", notesError);
+  }
+
+  // Open (not done) tasks – no date filter so AI can see current backlog
+  const { data: tasks, error: tasksError } = await supabaseAdmin
+    .from("tasks")
+    .select("id, title, description, is_done, due_date, created_at")
+    .eq("user_id", userId)
+    .eq("is_done", false)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (tasksError) {
+    console.error("[daily-digest] Tasks query error:", tasksError);
+  }
+
+  return {
+    notes: (notes || []) as {
+      id: string;
+      title: string | null;
+      content: string | null;
+      created_at: string | null;
+    }[],
+    tasks: (tasks || []) as {
+      id: string;
+      title: string | null;
+      description: string | null;
+      is_done: boolean;
+      due_date: string | null;
+      created_at: string | null;
+    }[],
+  };
+}
+
+/**
+ * Build the AI body text using OpenAI.
+ */
+async function buildAiDigestBody(opts: {
+  notes: any[];
+  tasks: any[];
+  aiTone?: string | null;
+  focusArea?: string | null;
+}): Promise<string> {
+  const { notes, tasks, aiTone, focusArea } = opts;
+
+  // If no OpenAI, fallback to a very simple text body
+  if (!openai) {
+    const lines: string[] = [];
+    lines.push("Here’s your simple daily snapshot (fallback mode).");
+    lines.push("");
+
+    if (notes.length === 0 && tasks.length === 0) {
+      lines.push(
+        "No new notes or open tasks found. This could be a good moment to jot down what you want to focus on today."
+      );
+      return lines.join("\n");
+    }
+
+    if (notes.length > 0) {
+      lines.push("Recent notes (last 24 hours):");
+      for (const n of notes.slice(0, 5)) {
+        const titleOrSnippet =
+          n.title ||
+          (n.content ? n.content.slice(0, 60) + (n.content.length > 60 ? "…" : "") : "(untitled)");
+        lines.push(`- ${titleOrSnippet}`);
+      }
+      lines.push("");
+    }
+
+    if (tasks.length > 0) {
+      lines.push("Open tasks:");
+      for (const t of tasks.slice(0, 5)) {
+        lines.push(`- ${t.title || "(untitled task)"}`);
+      }
+      lines.push("");
+    }
+
+    lines.push(
+      "Tip: You can adjust AI tone and focus area in Settings."
+    );
+    return lines.join("\n");
+  }
+
+  // Prepare compact JSON payload for the model
+  const notesForModel = notes.map((n) => ({
+    title: n.title,
+    content: n.content ? String(n.content).slice(0, 400) : "",
+    created_at: n.created_at,
+  }));
+
+  const tasksForModel = tasks.map((t) => ({
+    title: t.title,
+    description: t.description ? String(t.description).slice(0, 300) : "",
+    due_date: t.due_date,
+    created_at: t.created_at,
+    is_done: t.is_done,
+  }));
+
+  const tone = aiTone || "balanced";
+  const focus = focusArea || "general productivity";
+
+  const systemPrompt = `
+You are an AI productivity coach writing a short daily digest email in a ${tone} tone.
+
+User's main focus area: ${focus}.
+
+You receive the user's last 24 hours of notes and their current open tasks in JSON.
+Write:
+
+1) A short 2–3 sentence summary of what they worked on or captured.
+2) 3–5 specific, actionable next steps they could take today (start each with "-").
+3) A brief, encouraging closing line.
+
+Keep it concise, friendly, and practical.
+Return plain text only (no markdown, no headings).
+If there is almost no data, gently encourage them to capture something today and suggest 2–3 generic next steps.
+`.trim();
+
+  const userPrompt = JSON.stringify({
+    notes: notesForModel,
+    tasks: tasksForModel,
+  });
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    max_tokens: 500,
+  });
+
+  const content = completion.choices[0]?.message?.content;
+  if (!content || typeof content !== "string") {
+    return "Your daily digest is ready, but the AI response was empty. Please try again tomorrow.";
+  }
+  return content;
+}
+
+/**
+ * REAL daily digest:
+ * - Fetch notes/tasks from Supabase
+ * - Use OpenAI to write a summary + next actions
+ * - Send via Resend
+ *
+ * Very defensive: logs and returns on errors instead of throwing.
  */
 export async function sendDailyDigest(
   opts: DailyDigestOptions
 ): Promise<void> {
-  const { email, aiTone, focusArea, userId } = opts;
+  const { userId, email, aiTone, focusArea } = opts;
 
   if (!email) {
     console.warn("[daily-digest] Missing email for user", userId);
@@ -120,65 +231,29 @@ export async function sendDailyDigest(
   }
 
   try {
-    const { notes, tasks } = await fetchRecentData(userId);
+    // 1) Fetch activity
+    const { notes, tasks } = await fetchUserActivity(userId);
 
+    // 2) Build AI body (or fallback)
+    const aiBody = await buildAiDigestBody({
+      notes,
+      tasks,
+      aiTone,
+      focusArea,
+    });
+
+    // 3) Build overall email text
     const subject = "Your AI Productivity Hub daily digest";
 
-    const lines: string[] = [];
-
-    lines.push("Hi there 👋");
-    lines.push("");
-    lines.push("Here’s your daily snapshot from AI Productivity Hub.");
-    if (focusArea) lines.push(`Main focus: ${focusArea}`);
-    if (aiTone) lines.push(`AI tone preference: ${aiTone}`);
-    lines.push("");
-
-    // Notes section
-    if (notes.length > 0) {
-      lines.push("📝 Notes in the last 24 hours:");
-      notes.forEach((n) => {
-        const createdAt = n.created_at
-          ? new Date(n.created_at).toLocaleString("en-GB", {
-              hour12: false,
-            })
-          : "";
-        const titleOrSnippet =
-          n.title?.trim() ||
-          (n.content ? n.content.slice(0, 60) + "…" : "(empty note)");
-
-        lines.push(`- [${createdAt}] ${titleOrSnippet}`);
-      });
-      lines.push("");
-    } else {
-      lines.push("📝 No new notes in the last 24 hours.");
-      lines.push("");
-    }
-
-    // Tasks section
-    if (tasks.length > 0) {
-      lines.push("✅ Tasks created/updated in the last 24 hours:");
-      tasks.forEach((t) => {
-        const createdAt = t.created_at
-          ? new Date(t.created_at).toLocaleString("en-GB", {
-              hour12: false,
-            })
-          : "";
-        const status = t.is_done ? "[x]" : "[ ]";
-        const title = t.title?.trim() || "(untitled task)";
-        const due = t.due_date ? ` (due ${t.due_date})` : "";
-        lines.push(`- ${status} ${title}${due} – created ${createdAt}`);
-      });
-      lines.push("");
-    } else {
-      lines.push("✅ No new tasks in the last 24 hours.");
-      lines.push("");
-    }
-
-    lines.push(
-      "You can adjust or turn off this digest under Settings → Daily AI email digest."
-    );
-    lines.push("");
-    lines.push("— AI Productivity Hub");
+    const lines: string[] = [
+      "Hi there 👋",
+      "",
+      "Here’s your daily snapshot from AI Productivity Hub:",
+      "",
+      aiBody,
+      "",
+      "You can change tone or disable this email from Settings → Daily AI email digest.",
+    ];
 
     await resend.emails.send({
       from: getFromAddress(),
@@ -189,20 +264,22 @@ export async function sendDailyDigest(
 
     console.log("[daily-digest] Email sent to", email);
   } catch (err) {
-    console.error("[daily-digest] Resend send error for", email, err);
-    // Do not rethrow – keep cron endpoint stable
+    console.error("[daily-digest] Resend/OpenAI error for", email, err);
+    // Do NOT rethrow – we don’t want the API route to 500 just because sending failed
   }
 }
 
 /**
- * Simple test email used by the Settings "Send test email" button.
+ * Simple test email used by /api/test-email and Settings → Test button.
+ * Just verifies pipeline + from address.
  */
-export async function sendTestEmail(email: string): Promise<void> {
+export async function sendTestEmail({
+  email,
+}: TestEmailOptions): Promise<void> {
   if (!email) {
-    console.warn("[test-email] No email provided");
+    console.warn("[test-email] Missing email");
     return;
   }
-
   if (!resend) {
     console.warn(
       "[test-email] Resend client not initialized, skipping send to",
@@ -212,27 +289,18 @@ export async function sendTestEmail(email: string): Promise<void> {
   }
 
   try {
-    const subject = "AI Productivity Hub – test email";
-
-    const lines = [
-      "Hi 👋",
-      "",
-      "This is a test email from AI Productivity Hub.",
-      "",
-      "If you see this, your email configuration is working.",
-      "",
-      "— AI Productivity Hub",
-    ];
-
     await resend.emails.send({
       from: getFromAddress(),
       to: email,
-      subject,
-      text: lines.join("\n"),
+      subject: "AI Productivity Hub – test email",
+      text: [
+        "This is a test email from AI Productivity Hub.",
+        "",
+        "If you're seeing this, your email settings (Resend + domain) are wired correctly.",
+      ].join("\n"),
     });
-
-    console.log("[test-email] Test email sent to", email);
+    console.log("[test-email] Email sent to", email);
   } catch (err) {
-    console.error("[test-email] Resend send error for", email, err);
+    console.error("[test-email] Resend error for", email, err);
   }
 }
