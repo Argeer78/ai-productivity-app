@@ -85,10 +85,9 @@ export async function sendEmail({
       from: getFromAddress(),
       to,
       subject,
-      // Resend supports both html and text; we pass what we have
       html,
       text: fallbackText,
-    });
+    } as any); // TS: relax Resend's template typing
     console.log("[sendEmail] Email sent to", to);
   } catch (err) {
     console.error("[sendEmail] Resend error for", to, err);
@@ -175,7 +174,10 @@ async function buildAiDigestBody(opts: {
       for (const n of notes.slice(0, 5)) {
         const titleOrSnippet =
           n.title ||
-          (n.content ? n.content.slice(0, 60) + (n.content.length > 60 ? "…" : "") : "(untitled)");
+          (n.content
+            ? n.content.slice(0, 60) +
+              (n.content.length > 60 ? "…" : "")
+            : "(untitled)");
         lines.push(`- ${titleOrSnippet}`);
       }
       lines.push("");
@@ -204,7 +206,9 @@ async function buildAiDigestBody(opts: {
 
   const tasksForModel = tasks.map((t) => ({
     title: t.title,
-    description: t.description ? String(t.description).slice(0, 300) : "",
+    description: t.description
+      ? String(t.description).slice(0, 300)
+      : "",
     due_date: t.due_date,
     created_at: t.created_at,
     is_done: t.is_done,
@@ -307,11 +311,15 @@ export async function sendDailyDigest(
       to: email,
       subject,
       text: lines.join("\n"),
-    });
+    } as any);
 
     console.log("[daily-digest] Email sent to", email);
   } catch (err) {
-    console.error("[daily-digest] Resend/OpenAI error for", email, err);
+    console.error(
+      "[daily-digest] Resend/OpenAI error for",
+      email,
+      err
+    );
     // Do NOT rethrow – we don’t want the API route to 500 just because sending failed
   }
 }
@@ -345,7 +353,7 @@ export async function sendTestEmail({
         "",
         "If you're seeing this, your email settings (Resend + domain) are wired correctly.",
       ].join("\n"),
-    });
+    } as any);
     console.log("[test-email] Email sent to", email);
   } catch (err) {
     console.error("[test-email] Resend error for", email, err);
