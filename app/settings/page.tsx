@@ -27,6 +27,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [weeklyReportEnabled, setWeeklyReportEnabled] = useState<boolean>(true);
+  const [plan, setPlan] = useState<"free" | "pro">("free");
 
   const [testingEmail, setTestingEmail] = useState(false);
   const [testEmailMessage, setTestEmailMessage] = useState("");
@@ -52,42 +54,59 @@ export default function SettingsPage() {
   }, []);
 
   // Load profile settings
-  useEffect(() => {
-    if (!user) return;
+useEffect(() => {
+  if (!user) return;
 
-    async function loadProfile() {
-      setLoadingProfile(true);
-      setError("");
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("ai_tone, focus_area, daily_digest_enabled, daily_digest_hour")
-          .eq("id", user.id)
-          .maybeSingle();
+  async function loadProfile() {
+    setLoadingProfile(true);
+    setError("");
 
-        if (error && error.code !== "PGRST116") {
-          throw error;
-        }
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "ai_tone, weekly_report_enabled, focus_area, daily_digest_enabled, daily_digest_hour, plan"
+        )
+        .eq("id", user.id)
+        .maybeSingle();
 
-        if (data?.ai_tone) {
+      if (error && error.code !== "PGRST116") {
+        throw error;
+      }
+
+      if (data) {
+        if (data.ai_tone) {
           setTone(data.ai_tone as Tone);
         }
-        if (data?.focus_area) {
+        if (data.focus_area) {
           setFocusArea(data.focus_area);
         }
-        if (typeof data?.daily_digest_enabled === "boolean") {
+        if (typeof data.daily_digest_enabled === "boolean") {
           setDailyDigestEnabled(data.daily_digest_enabled);
         }
-      } catch (err: any) {
-        console.error(err);
-        setError("Failed to load your settings.");
-      } finally {
-        setLoadingProfile(false);
-      }
-    }
 
-    loadProfile();
-  }, [user]);
+        if (typeof data.weekly_report_enabled === "boolean") {
+          setWeeklyReportEnabled(data.weekly_report_enabled);
+        } else {
+          setWeeklyReportEnabled(true); // default if null/undefined
+        }
+
+        if (data.plan === "pro") {
+          setPlan("pro");
+        } else {
+          setPlan("free");
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to load your settings.");
+    } finally {
+      setLoadingProfile(false);
+    }
+  }
+
+  loadProfile();
+}, [user]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -104,6 +123,7 @@ export default function SettingsPage() {
           ai_tone: tone,
           focus_area: focusArea.trim() || null,
           daily_digest_enabled: dailyDigestEnabled,
+          weekly_report_enabled: weeklyReportEnabled,
           // daily_digest_hour: dailyDigestHour, // if you add hour later
         })
         .eq("id", user.id);
@@ -218,6 +238,52 @@ export default function SettingsPage() {
                   {success}
                 </p>
               )}
+<div className="grid md:grid-cols-2 gap-5">
+  {/* other settings cards */}
+  
+  <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+    <p className="text-xs font-semibold text-slate-400 mb-1">
+      WEEKLY AI REPORT
+    </p>
+    {plan !== "pro" ? (
+      <>
+        <p className="text-sm text-slate-200 mb-1">
+          Get a weekly AI-generated report with your productivity score,
+          streak, completed tasks, and focus suggestions for next week.
+        </p>
+        <p className="text-[11px] text-slate-500 mb-3">
+          This is a Pro feature. Upgrade to unlock weekly email reports.
+        </p>
+        <a
+          href="/dashboard#pricing"
+          className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-slate-50"
+        >
+          🔒 Unlock with Pro
+        </a>
+      </>
+    ) : (
+      <>
+        <p className="text-sm text-slate-200 mb-2">
+          Receive a weekly AI summary of your progress, wins, and what to
+          focus on next week.
+        </p>
+        <label className="flex items-center gap-2 text-xs text-slate-200 mb-1">
+          <input
+            type="checkbox"
+            checked={weeklyReportEnabled}
+            onChange={(e) => setWeeklyReportEnabled(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-600 bg-slate-950"
+          />
+          <span>Send me weekly AI productivity reports</span>
+        </label>
+        <p className="text-[11px] text-slate-500">
+          Emails are sent once per week and include your streak, average
+          score, and tailored suggestions.
+        </p>
+      </>
+    )}
+  </div>
+</div>
 
               {/* Daily digest toggle */}
               <div className="pt-1 pb-2 border-b border-slate-800 mb-2">

@@ -109,8 +109,8 @@ async function getWeeklySummary(userId: string) {
 export async function GET() {
   try {
     const { data: profiles, error: profilesError } = await supabaseAdmin
-      .from("profiles")
-      .select("id, email");
+  .from("profiles")
+  .select("id, email, plan, weekly_report_enabled");
 
     if (profilesError) {
       console.error("weekly-report: profiles error", profilesError);
@@ -124,9 +124,18 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SITE_URL || "https://aiprod.app";
 
     for (const user of profiles || []) {
-      if (!user.email) continue;
+  if (!user.email) continue;
 
-      const weekly = await getWeeklySummary(user.id);
+  const plan = (user as any).plan || "free";
+  const weeklyEnabled = (user as any).weekly_report_enabled;
+
+  // Only Pro users can get weekly reports
+  if (plan !== "pro") continue;
+
+  // Respect user toggle (if false, skip)
+  if (weeklyEnabled === false) continue;
+
+  const weekly = await getWeeklySummary(user.id);
 
       // Skip users with no meaningful activity
       if (
