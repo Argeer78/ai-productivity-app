@@ -6,6 +6,7 @@ import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+
 const BOOKING_AFFILIATE_ID =
   process.env.NEXT_PUBLIC_BOOKING_AID || "";
 const FLIGHTS_AFFILIATE_ID =
@@ -95,7 +96,8 @@ function buildCarRentalUrl(params: {
 
   return url.toString();
 }
-// --- Simple calendar date input (works everywhere) ---
+
+// --- Simple calendar date input ---
 
 type CalendarInputProps = {
   label: string;
@@ -311,6 +313,31 @@ export default function TravelPage() {
   const [assistantAdults, setAssistantAdults] = useState(2);
   const [assistantChildren, setAssistantChildren] = useState(0);
 
+  // --- click logging helper ---
+  async function logTravelClick(payload: {
+    clickType: "stay" | "flight" | "car";
+    provider: string;
+  }) {
+    try {
+      await fetch("/api/travel-click", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          userId: user?.id || null,
+          destination: destination || null,
+          fromCity: departureCity || null,
+          checkin: checkin || null,
+          checkout: checkout || null,
+          adults,
+          children,
+        }),
+      });
+    } catch {
+      // don't block UX if logging fails
+    }
+  }
+
   function applyAutoCheckout(newCheckin: string) {
     setCheckin(newCheckin);
 
@@ -319,7 +346,6 @@ export default function TravelPage() {
     const start = new Date(newCheckin);
     const currentCheckout = checkout ? new Date(checkout) : null;
 
-    // If no checkout yet or checkout is before/equal check-in, default to +3 nights
     if (!currentCheckout || currentCheckout <= start) {
       const out = new Date(start);
       out.setDate(out.getDate() + 3);
@@ -446,15 +472,14 @@ export default function TravelPage() {
         })
       : null;
 
-  // Destination images using Unsplash-style endpoints (no API key)
   const encodedDest = destination
     ? encodeURIComponent(destination.trim())
     : "";
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Travel is its own app in the header */}
-      <AppHeader active="travel" />
+      {/* Still using planner active to avoid TS changes */}
+      <AppHeader active="planner" />
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
@@ -471,7 +496,7 @@ export default function TravelPage() {
               </p>
             </div>
 
-            {/* Auth hint on the side */}
+            {/* Auth hint */}
             <div className="text-[11px] text-slate-300">
               {checkingUser ? (
                 <span>Checking account…</span>
@@ -519,29 +544,28 @@ export default function TravelPage() {
                   </div>
 
                   <div className="flex gap-3">
-  <div className="flex-1">
-    <CalendarInput
-      label="Check-in"
-      value={checkin}
-      onChange={(val) => {
-        setCheckin(val);
-        // optional: if checkout is before checkin, auto-adjust
-        if (checkout && checkout < val) {
-          setCheckout("");
-        }
-      }}
-      min={new Date().toISOString().split("T")[0]}
-    />
-  </div>
-  <div className="flex-1">
-    <CalendarInput
-      label="Check-out"
-      value={checkout}
-      onChange={setCheckout}
-      min={checkin || new Date().toISOString().split("T")[0]}
-    />
-  </div>
-</div>
+                    <div className="flex-1">
+                      <CalendarInput
+                        label="Check-in"
+                        value={checkin}
+                        onChange={(val) => {
+                          setCheckin(val);
+                          if (checkout && checkout < val) {
+                            setCheckout("");
+                          }
+                        }}
+                        min={todayStr}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <CalendarInput
+                        label="Check-out"
+                        value={checkout}
+                        onChange={setCheckout}
+                        min={checkin || todayStr}
+                      />
+                    </div>
+                  </div>
 
                   {/* Date presets */}
                   <div className="flex flex-wrap gap-2">
@@ -645,14 +669,19 @@ export default function TravelPage() {
                     </button>
 
                     {bookingUrl && (
-                      <a
-                        href={bookingUrl}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          logTravelClick({
+                            clickType: "stay",
+                            provider: "booking",
+                          });
+                          window.open(bookingUrl, "_blank", "noreferrer");
+                        }}
                         className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs md:text-sm"
                       >
                         Search stays on Booking.com →
-                      </a>
+                      </button>
                     )}
                   </div>
 
@@ -704,6 +733,12 @@ export default function TravelPage() {
                           adults,
                           children,
                         });
+
+                        logTravelClick({
+                          clickType: "flight",
+                          provider: "google-flights",
+                        });
+
                         window.open(url, "_blank", "noreferrer");
                       }}
                       className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs md:text-sm disabled:opacity-60"
@@ -755,6 +790,12 @@ export default function TravelPage() {
                           pickupDate: checkin,
                           dropoffDate: checkout,
                         });
+
+                        logTravelClick({
+                          clickType: "car",
+                          provider: "booking-cars",
+                        });
+
                         window.open(url, "_blank", "noreferrer");
                       }}
                       className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs md:text-sm disabled:opacity-60"
@@ -872,7 +913,7 @@ export default function TravelPage() {
                 )}
               </div>
 
-              {/* Planning Assistant (guided form filler) */}
+              {/* Planning Assistant */}
               <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
                 <p className="text-xs font-semibold text-slate-400 mb-2">
                   Planning assistant
@@ -971,7 +1012,6 @@ export default function TravelPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          // pick start date ~2 weeks from now
                           const start = new Date();
                           start.setDate(start.getDate() + 14);
                           const startStr =
