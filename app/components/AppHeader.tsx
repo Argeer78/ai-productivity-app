@@ -17,28 +17,60 @@ type HeaderProps = {
     | "feedback"
     | "settings"
     | "admin"
-    | "explore";
+    | "explore"
+    | "changelog";
 };
+
+// 👇 update this date whenever you ship a “big enough” new changelog section
+const LATEST_CHANGELOG_AT = "2025-02-15T00:00:00Z";
 
 export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [appsOpen, setAppsOpen] = useState(false);
 
-  // Load current user email
+  const [latestSeenChangelogAt, setLatestSeenChangelogAt] = useState<
+    string | null
+  >(null);
+
+  // Load current user + profile changelog state
   useEffect(() => {
     let cancelled = false;
 
-    async function loadUser() {
+    async function loadUserAndProfile() {
       try {
         const { data, error } = await supabase.auth.getUser();
         if (error) {
           console.error("[AppHeader] auth.getUser error", error);
         }
-        if (!cancelled) {
-          setUserEmail(data?.user?.email ?? null);
+
+        const user = data?.user || null;
+        if (cancelled) return;
+
+        setUserEmail(user?.email ?? null);
+        setUserId(user?.id ?? null);
+
+        if (user?.id) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("latest_seen_changelog_at")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (profileError && profileError.code !== "PGRST116") {
+            console.error(
+              "[AppHeader] profiles load error",
+              profileError
+            );
+          } else if (profile?.latest_seen_changelog_at) {
+            setLatestSeenChangelogAt(
+              profile.latest_seen_changelog_at as string
+            );
+          }
         }
       } catch (err) {
         console.error("[AppHeader] loadUser err", err);
@@ -47,7 +79,7 @@ export default function AppHeader({ active }: HeaderProps) {
       }
     }
 
-    loadUser();
+    loadUserAndProfile();
     return () => {
       cancelled = true;
     };
@@ -58,6 +90,7 @@ export default function AppHeader({ active }: HeaderProps) {
       setLoggingOut(true);
       await supabase.auth.signOut();
       setUserEmail(null);
+      setUserId(null);
       router.push("/");
     } catch (err) {
       console.error("[AppHeader] logout error", err);
@@ -71,9 +104,16 @@ export default function AppHeader({ active }: HeaderProps) {
   const navLinkInactive = "text-slate-300 hover:bg-slate-900";
   const navLinkActive = "bg-slate-800 text-slate-50";
 
+  const appsItemBase =
+    "flex flex-col items-start justify-center px-3 py-2 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-900 text-xs";
+
+  const hasUnseenChangelog =
+    !latestSeenChangelogAt ||
+    new Date(latestSeenChangelogAt) < new Date(LATEST_CHANGELOG_AT);
+
   return (
     <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3">
+      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         {/* Logo / Brand – back to landing page "/" */}
         <Link
           href="/"
@@ -87,9 +127,8 @@ export default function AppHeader({ active }: HeaderProps) {
           </span>
         </Link>
 
-        {/* Desktop nav (md+) – short set on md, full set on lg */}
+        {/* Desktop nav (md+) – core links only */}
         <nav className="hidden md:flex items-center gap-1 ml-4 flex-1 min-w-0 overflow-x-auto">
-          {/* Always show these (core) */}
           <Link
             href="/dashboard"
             className={`${navLinkBase} ${
@@ -117,55 +156,36 @@ export default function AppHeader({ active }: HeaderProps) {
             Tasks
           </Link>
 
-          {/* Show these from md+, but hide some on smaller desktop */}
           <Link
             href="/planner"
-            className={`${navLinkBase} hidden md:inline-flex ${
+            className={`${navLinkBase} ${
               active === "planner" ? navLinkActive : navLinkInactive
             }`}
           >
             Planner
           </Link>
 
-          {/* Only show on larger screens (lg+) to keep header compact */}
-          <Link
-            href="/templates"
-            className={`${navLinkBase} hidden lg:inline-flex ${
-              active === "templates" ? navLinkActive : navLinkInactive
-            }`}
+          {/* Apps button (desktop) */}
+          <button
+            type="button"
+            onClick={() => setAppsOpen((v) => !v)}
+            className={`${navLinkBase} ml-2 flex items-center gap-1 border border-slate-700 bg-slate-900/40`}
           >
-            Templates
-          </Link>
-
-          <Link
-            href="/daily-success"
-            className={`${navLinkBase} hidden lg:inline-flex ${
-              active === "daily-success" ? navLinkActive : navLinkInactive
-            }`}
-          >
-            Daily Success
-          </Link>
-
-          <Link
-            href="/weekly-reports"
-            className={`${navLinkBase} hidden lg:inline-flex ${
-              active === "weekly-reports" ? navLinkActive : navLinkInactive
-            }`}
-          >
-            Weekly Reports
-          </Link>
-
-          <Link
-            href="/feedback"
-            className={`${navLinkBase} hidden lg:inline-flex ${
-              active === "feedback" ? navLinkActive : navLinkInactive
-            }`}
-          >
-            Feedback
-          </Link>
+            <span className="flex items-center gap-1 text-[11px]">
+              Apps
+              {hasUnseenChangelog && (
+                <span className="text-[9px] px-1 py-0.5 rounded-full bg-indigo-600 text-white">
+                  New
+                </span>
+              )}
+            </span>
+            <span className="text-[11px] opacity-80">
+              {appsOpen ? "▲" : "▼"}
+            </span>
+          </button>
         </nav>
 
-        {/* Right side: email + Settings + Logout – NEVER shrink */}
+        {/* Right side: email + Settings + Logout / Login */}
         <div className="flex items-center gap-2 ml-auto flex-shrink-0">
           {/* Email */}
           {loadingUser ? (
@@ -206,15 +226,151 @@ export default function AppHeader({ active }: HeaderProps) {
           {/* Mobile menu toggle (nav only) */}
           <button
             type="button"
-            onClick={() => setMobileOpen((v) => !v)}
+            onClick={() => {
+              setMobileOpen((v) => !v);
+              setAppsOpen(false);
+            }}
             className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-700 hover:bg-slate-900 text-slate-200 text-xs"
           >
             {mobileOpen ? "✕" : "☰"}
           </button>
         </div>
+
+        {/* Apps Panel (desktop) */}
+        {appsOpen && (
+          <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-full mt-2 z-40">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/98 shadow-xl p-3 w-[360px]">
+              <p className="text-[11px] text-slate-400 mb-2 px-1 flex items-center gap-1">
+                Quick access to all tools
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-600/20 text-indigo-200">
+                  beta
+                </span>
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <Link
+                  href="/dashboard"
+                  onClick={() => setAppsOpen(false)}
+                  className={appsItemBase}
+                >
+                  <span className="font-semibold text-slate-100">
+                    Dashboard
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Overview, usage & wins
+                  </span>
+                </Link>
+                <Link
+                  href="/notes"
+                  onClick={() => setAppsOpen(false)}
+                  className={appsItemBase}
+                >
+                  <span className="font-semibold text-slate-100">
+                    Notes
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Capture ideas with AI
+                  </span>
+                </Link>
+                <Link
+                  href="/tasks"
+                  onClick={() => setAppsOpen(false)}
+                  className={appsItemBase}
+                >
+                  <span className="font-semibold text-slate-100">
+                    Tasks
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Simple AI-assisted to-dos
+                  </span>
+                </Link>
+                <Link
+                  href="/planner"
+                  onClick={() => setAppsOpen(false)}
+                  className={appsItemBase}
+                >
+                  <span className="font-semibold text-slate-100">
+                    Planner
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Plan your day with AI
+                  </span>
+                </Link>
+                <Link
+                  href="/templates"
+                  onClick={() => setAppsOpen(false)}
+                  className={appsItemBase}
+                >
+                  <span className="font-semibold text-slate-100">
+                    Templates
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Reusable AI prompts
+                  </span>
+                </Link>
+                <Link
+                  href="/daily-success"
+                  onClick={() => setAppsOpen(false)}
+                  className={appsItemBase}
+                >
+                  <span className="font-semibold text-slate-100">
+                    Daily Success
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Rate your day (score)
+                  </span>
+                </Link>
+                <Link
+                  href="/weekly-reports"
+                  onClick={() => setAppsOpen(false)}
+                  className={appsItemBase}
+                >
+                  <span className="font-semibold text-slate-100">
+                    Weekly Reports
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Email & history
+                  </span>
+                </Link>
+                <Link
+                  href="/feedback"
+                  onClick={() => setAppsOpen(false)}
+                  className={appsItemBase}
+                >
+                  <span className="font-semibold text-slate-100">
+                    Feedback
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Help improve the app
+                  </span>
+                </Link>
+
+                {/* Changelog / What's new */}
+                <Link
+                  href="/changelog"
+                  onClick={() => setAppsOpen(false)}
+                  className={`${appsItemBase} ${
+                    hasUnseenChangelog ? "border-indigo-500/70" : ""
+                  }`}
+                >
+                  <span className="flex items-center gap-1 font-semibold text-slate-100">
+                    What&apos;s new
+                    {hasUnseenChangelog && (
+                      <span className="text-[9px] px-1 py-0.5 rounded-full bg-indigo-600/40 text-indigo-50">
+                        New
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    See latest updates & changes
+                  </span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Mobile dropdown menu (all nav links live here on small screens) */}
+      {/* Mobile dropdown menu */}
       {mobileOpen && (
         <div className="md:hidden border-t border-slate-800 bg-slate-950/95">
           <div className="max-w-5xl mx-auto px-4 py-3 flex flex-col gap-2 text-sm">
@@ -268,7 +424,9 @@ export default function AppHeader({ active }: HeaderProps) {
                 href="/daily-success"
                 onClick={() => setMobileOpen(false)}
                 className={`${navLinkBase} ${
-                  active === "daily-success" ? navLinkActive : navLinkInactive
+                  active === "daily-success"
+                    ? navLinkActive
+                    : navLinkInactive
                 }`}
               >
                 Daily Success
@@ -277,7 +435,9 @@ export default function AppHeader({ active }: HeaderProps) {
                 href="/weekly-reports"
                 onClick={() => setMobileOpen(false)}
                 className={`${navLinkBase} ${
-                  active === "weekly-reports" ? navLinkActive : navLinkInactive
+                  active === "weekly-reports"
+                    ? navLinkActive
+                    : navLinkInactive
                 }`}
               >
                 Weekly Reports
@@ -290,6 +450,29 @@ export default function AppHeader({ active }: HeaderProps) {
                 }`}
               >
                 Feedback
+              </Link>
+              <Link
+                href="/changelog"
+                onClick={() => setMobileOpen(false)}
+                className={`${navLinkBase} ${
+                  active === "changelog" ? navLinkActive : navLinkInactive
+                }`}
+              >
+                What&apos;s new
+                {hasUnseenChangelog && (
+                  <span className="ml-1 text-[10px] px-1 py-0.5 rounded-full bg-indigo-600 text-white">
+                    New
+                  </span>
+                )}
+              </Link>
+              <Link
+                href="/settings"
+                onClick={() => setMobileOpen(false)}
+                className={`${navLinkBase} ${
+                  active === "settings" ? navLinkActive : navLinkInactive
+                }`}
+              >
+                Settings
               </Link>
             </div>
           </div>
