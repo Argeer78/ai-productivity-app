@@ -25,6 +25,8 @@ type QuickAction = {
   id: "summarize-today" | "plan-tomorrow" | "clear-focus";
   label: string;
   description: string;
+  content: string;
+  hint: string;
 };
 
 // 👇 update this date whenever you ship a “big enough” new changelog section
