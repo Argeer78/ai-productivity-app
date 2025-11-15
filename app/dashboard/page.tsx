@@ -774,7 +774,25 @@ export default function DashboardPage() {
                       {dailyLimit} calls/day
                     </span>
                   </p>
-                </div>
+                  {plan === "pro" && (
+    <Link
+      href="/weekly-reports"
+      className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
+    >
+      📅 View Weekly Reports →
+    </Link>
+  )}
+
+  {/* Free users: upsell */}
+  {plan === "free" && (
+    <Link
+      href="/dashboard#pricing"
+      className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
+    >
+      🔒 Unlock Weekly Reports with Pro →
+    </Link>
+  )}
+</div>
 
                 {/* Usage + Productivity Score card */}
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
@@ -849,10 +867,24 @@ export default function DashboardPage() {
                   </div>
 
                   <p className="text-[11px] text-slate-400 mt-2">
-                    {remaining > 0
-                      ? `${remaining} AI calls left today.`
-                      : "You reached today’s limit on this plan."}
-                  </p>
+  {remaining > 0 ? (
+    `${remaining} AI calls left today.`
+  ) : plan === "pro" ? (
+    "You reached today’s Pro limit for today."
+  ) : (
+    <>
+      You reached today’s limit on the free plan.{" "}
+      <Link
+        href="/dashboard#pricing"
+        className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+      >
+        Upgrade to Pro
+      </Link>{" "}
+      for a higher daily AI limit.
+    </>
+  )}
+</p>
+
                   <p className="text-[11px] text-slate-400 mt-1">
                     Usage streak:{" "}
                     <span className="font-semibold">
@@ -973,9 +1005,11 @@ export default function DashboardPage() {
                       on track.
                     </p>
                     <p className="text-[11px] text-slate-500 mb-3">
-                      This is a Pro feature. Upgrade to unlock AI-powered
-                      weekly goals and progress tracking.
-                    </p>
+  This is a Pro feature. Upgrade to unlock AI-powered weekly
+  goals, progress tracking in your weekly report emails,
+  and higher AI limits.
+</p>
+
                     <Link
                       href="/dashboard#pricing"
                       className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-slate-50"
