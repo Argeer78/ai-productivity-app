@@ -81,6 +81,12 @@ export default function DashboardPage() {
   const [avg7, setAvg7] = useState<number | null>(null);
   const [scoreStreak, setScoreStreak] = useState<number>(0); // consecutive days with score >= 60
 
+  // AI Wins this Week
+  const [weekTasksCompleted, setWeekTasksCompleted] = useState(0);
+  const [weekNotesCreated, setWeekNotesCreated] = useState(0);
+  const [weekAiCalls, setWeekAiCalls] = useState(0);
+  const [weekTimeSaved, setWeekTimeSaved] = useState(0); // in minutes
+
   const { track } = useAnalytics();
 
   const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
@@ -199,6 +205,10 @@ export default function DashboardPage() {
       setActiveDays(0);
       setRecentNotes([]);
       setRecentTasks([]);
+      setWeekAiCalls(0);
+      setWeekTimeSaved(0);
+      setWeekNotesCreated(0);
+      setWeekTasksCompleted(0);
       return;
     }
 
@@ -207,7 +217,7 @@ export default function DashboardPage() {
       setError("");
 
       try {
-        // profiles: plan
+        // 1) profiles: ensure profile exists & load plan
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("id, email, plan")
@@ -237,7 +247,7 @@ export default function DashboardPage() {
           setPlan((profile.plan as "free" | "pro") || "free");
         }
 
-        // ai_usage: today's count
+        // 2) Today’s AI usage
         const today = getTodayString();
         const { data: usage, error: usageError } = await supabase
           .from("ai_usage")
@@ -253,7 +263,7 @@ export default function DashboardPage() {
         const todayCount = usage?.count || 0;
         setAiCountToday(todayCount);
 
-        // ai_usage history: last 30 days
+        // 3) ai_usage history: last 30 days
         const past = new Date();
         past.setDate(past.getDate() - 30);
         const pastStr = past.toISOString().split("T")[0];
@@ -272,9 +282,11 @@ export default function DashboardPage() {
         const historyList =
           (history || []) as { usage_date: string; count: number }[];
 
+        // Active days (any AI usage) in last 30 days
         const active = historyList.filter((h) => h.count > 0).length;
         setActiveDays(active);
 
+        // AI usage streak (consecutive days with usage > 0)
         const activeDateSet = new Set(
           historyList
             .filter((h) => h.count > 0)
@@ -296,7 +308,25 @@ export default function DashboardPage() {
 
         setStreak(streakCount);
 
-        // Recent notes
+        // 4) AI Wins: last 7 days usage and time saved
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+        const sevenStr = sevenDaysAgo.toISOString().split("T")[0];
+
+        const last7Usage = historyList.filter(
+          (h) => h.usage_date >= sevenStr
+        );
+        const totalAiCalls7 = last7Usage.reduce(
+          (sum, h) => sum + (h.count || 0),
+          0
+        );
+        setWeekAiCalls(totalAiCalls7);
+
+        // Simple heuristic: ~3 minutes saved per AI call
+        const estimatedMins = Math.round(totalAiCalls7 * 3);
+        setWeekTimeSaved(estimatedMins);
+
+        // 5) Recent notes
         const { data: notes, error: notesError } = await supabase
           .from("notes")
           .select("id, content, created_at")
@@ -311,10 +341,24 @@ export default function DashboardPage() {
           setRecentNotes(notes || []);
         }
 
-        // Recent tasks
+        // Notes created in the last 7 days
+        const sevenDaysAgoTs = new Date();
+        sevenDaysAgoTs.setDate(sevenDaysAgoTs.getDate() - 6);
+        const sevenIso = sevenDaysAgoTs.toISOString();
+
+        const { count: notes7Count } = await supabase
+          .from("notes")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("created_at", sevenIso);
+
+        setWeekNotesCreated(notes7Count || 0);
+
+        // 6) Recent tasks
         const { data: tasks, error: tasksError } = await supabase
           .from("tasks")
           .select("*")
+          .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -334,6 +378,16 @@ export default function DashboardPage() {
         }
 
         setRecentTasks(tasks || []);
+
+        // Tasks completed in the last 7 days
+        const { count: tasks7Count } = await supabase
+          .from("tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("completed", true) // change to "is_done" if your column is named that
+          .gte("created_at", sevenIso);
+
+        setWeekTasksCompleted(tasks7Count || 0);
       } catch (err: any) {
         console.error(err);
         setError("Failed to load dashboard data.");
@@ -557,8 +611,8 @@ export default function DashboardPage() {
             <div className="mb-4 text-xs md:text-sm text-slate-300">
               <p>
                 Plan:{" "}
-                <span className="font-semibold uppercase">{plan}</span> |
-                AI today:{" "}
+                <span className="font-semibold uppercase">{plan}</span> | AI
+                today:{" "}
                 <span className="font-semibold">
                   {aiCountToday}/{dailyLimit}
                 </span>
@@ -750,6 +804,62 @@ export default function DashboardPage() {
                     Uses your daily AI limit (shared with notes, assistant,
                     planner).
                   </p>
+                </div>
+              </div>
+
+              {/* AI Wins This Week */}
+              <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/30 p-4 mb-8 text-sm">
+                <p className="text-xs font-semibold text-emerald-200 mb-1">
+                  AI WINS THIS WEEK
+                </p>
+                <p className="text-[11px] text-emerald-100/80 mb-3">
+                  A quick snapshot of how AI helped you move things forward in the last 7 days.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[12px]">
+                  <div>
+                    <p className="text-emerald-300 text-xs mb-0.5">
+                      Avg productivity score
+                    </p>
+                    <p className="text-base font-semibold">
+                      {avg7 !== null ? `${avg7}/100` : "—"}
+                    </p>
+                    <p className="text-[11px] text-emerald-200/70">
+                      Based on your daily scores
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-300 text-xs mb-0.5">
+                      Tasks completed
+                    </p>
+                    <p className="text-base font-semibold">
+                      {weekTasksCompleted}
+                    </p>
+                    <p className="text-[11px] text-emerald-200/70">
+                      Last 7 days
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-300 text-xs mb-0.5">
+                      Notes created
+                    </p>
+                    <p className="text-base font-semibold">
+                      {weekNotesCreated}
+                    </p>
+                    <p className="text-[11px] text-emerald-200/70">
+                      Captured ideas & thoughts
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-300 text-xs mb-0.5">
+                      AI calls used
+                    </p>
+                    <p className="text-base font-semibold">
+                      {weekAiCalls}
+                    </p>
+                    <p className="text-[11px] text-emerald-200/70">
+                      ~{weekTimeSaved} min saved
+                    </p>
+                  </div>
                 </div>
               </div>
 
