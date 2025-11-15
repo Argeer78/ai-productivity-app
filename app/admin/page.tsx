@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import Link from "next/link";
+import TravelAnalyticsCard from "./TravelAnalyticsCard";
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
@@ -51,6 +52,7 @@ export default function AdminPage() {
   // Fetch metrics if admin
   useEffect(() => {
     if (!authorized) return;
+
     async function loadMetrics() {
       setLoading(true);
       setError("");
@@ -189,7 +191,7 @@ export default function AdminPage() {
             Admin Analytics
           </h1>
           <p className="text-xs md:text-sm text-slate-400 mb-6">
-            High-level overview of users, plans, notes, tasks, and AI usage.
+            High-level overview of users, plans, notes, tasks, AI usage, and travel.
           </p>
 
           {error && (
@@ -292,6 +294,11 @@ export default function AdminPage() {
                 <p className="text-[11px] text-slate-400 mt-1">
                   Based on sums from <code>ai_usage</code> across all users.
                 </p>
+              </div>
+
+              {/* Travel analytics card (tiny block) */}
+              <div className="mb-8">
+                <TravelAnalyticsCard />
               </div>
 
               <div className="text-xs text-slate-500 flex flex-wrap gap-3">
