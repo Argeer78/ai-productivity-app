@@ -1164,6 +1164,15 @@ export default function DashboardPage() {
   📅 Weekly Reports
 </Link>
           </div>
+{plan === "free" && (
+  <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
+    <span className="font-semibold text-xs">What you unlock with Pro:</span>
+    <span>📈 Higher daily AI limit</span>
+    <span>📬 Weekly AI email report</span>
+    <span>✅ Goal of the Week with AI refinement</span>
+    <span>🏅 Full AI wins history</span>
+  </div>
+)}
 
           {plan === "free" && (
             <div className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-4 text-xs max-w-xl">

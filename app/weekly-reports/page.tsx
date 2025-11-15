@@ -1,3 +1,4 @@
+// app/weekly-reports/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -147,21 +148,17 @@ export default function WeeklyReportsPage() {
             <p className="text-xs text-red-400 mb-3">{error}</p>
           )}
 
-          {/* Free plan: show locked state + teaser */}
-          {plan === "free" && (
-            <div className="rounded-2xl border border-indigo-500/60 bg-indigo-950/30 p-4 mb-6 text-xs">
+          {/* Free plan: locked state + teaser */}
+          {plan !== "pro" && (
+            <div className="rounded-2xl border border-indigo-500/40 bg-indigo-950/40 p-4 text-xs mb-6">
               <p className="text-indigo-100 font-semibold mb-1">
-                Weekly reports are a Pro feature
-              </p>
-              <p className="text-indigo-100 mb-2">
-                Pro users automatically receive a weekly AI-written summary of
-                their wins, productivity score, and focus suggestions for the
-                next week. You&apos;ll also see a history of past reports here.
+                Weekly AI reports are a Pro feature.
               </p>
               <p className="text-[11px] text-indigo-100/80 mb-3">
                 Upgrade to Pro to unlock weekly reports, higher AI limits,
                 and advanced goal tracking.
               </p>
+
               <Link
                 href="/dashboard#pricing"
                 className="inline-block px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium"
@@ -186,24 +183,31 @@ export default function WeeklyReportsPage() {
               ) : (
                 <div className="space-y-4">
                   {reports.map((r) => (
-                    
-                      <li key={r.id} className="border border-slate-800 rounded-xl p-4 bg-slate-900/50">
-  <Link
-    href={`/weekly-reports/${r.id}`}
-    className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
-  >
-    View full report →
-  </Link>
+                    <div
+                      key={r.id}
+                      className="border border-slate-800 rounded-xl p-4 bg-slate-900/50"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs text-slate-400">
+                            Week of{" "}
+                            {new Date(
+                              r.report_date
+                            ).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Link
+                          href={`/weekly-reports/${r.id}`}
+                          className="text-[11px] text-indigo-400 hover:text-indigo-300"
+                        >
+                          View full report →
+                        </Link>
+                      </div>
 
-  <p className="text-xs text-slate-400 mt-1">
-    {new Date(r.report_date).toLocaleDateString()}
-  </p>
-
-  <div className="mt-2 text-[12px] text-slate-300 line-clamp-3 whitespace-pre-wrap">
-    {r.summary || "(no summary available)"}
-  </div>
-</li>
-       
+                      <div className="mt-2 text-[12px] text-slate-300 line-clamp-3 whitespace-pre-wrap">
+                        {r.summary || "(no summary available)"}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}

@@ -287,6 +287,18 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
               {report.summary || "This weekly report has no summary text."}
             </div>
           </section>
+{plan === "free" && (
+  <div className="mb-4 rounded-xl border border-indigo-500/40 bg-indigo-950/40 p-3 text-[11px] text-indigo-100">
+    Weekly AI email reports are a Pro feature.  
+    <Link
+      href="/dashboard#pricing"
+      className="underline underline-offset-2 text-indigo-300 hover:text-indigo-200 ml-1"
+    >
+      Upgrade to Pro
+    </Link>{" "}
+    to receive a summary in your inbox every week.
+  </div>
+)}
 
           {/* Weekly Action Plan */}
           <section className="rounded-2xl border border-emerald-500/40 bg-emerald-950/30 p-4 mb-6">

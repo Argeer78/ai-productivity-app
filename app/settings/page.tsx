@@ -240,7 +240,7 @@ useEffect(() => {
               )}
 <div className="grid md:grid-cols-2 gap-5">
   {/* other settings cards */}
-  
+
   <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
     <p className="text-xs font-semibold text-slate-400 mb-1">
       WEEKLY AI REPORT
@@ -251,6 +251,7 @@ useEffect(() => {
           Get a weekly AI-generated report with your productivity score,
           streak, completed tasks, and focus suggestions for next week.
         </p>
+
         <p className="text-[11px] text-slate-500 mb-3">
           This is a Pro feature. Upgrade to unlock weekly email reports.
         </p>
@@ -282,6 +283,10 @@ useEffect(() => {
           />
           <span>Send me weekly AI productivity reports</span>
         </label>
+        <p className="text-[11px] text-slate-500">
+  Weekly reports use your scores, tasks, notes & goals to give you a 
+  simple “how did I do?” email every week.
+</p>
         <p className="text-[11px] text-slate-500">
           Emails are sent once per week and include your streak, average
           score, and tailored suggestions.
