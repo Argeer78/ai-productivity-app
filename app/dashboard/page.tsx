@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
 import { useAnalytics } from "@/lib/analytics";
+import AppHeader from "@/app/components/AppHeader";
 
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 50;
@@ -644,37 +645,9 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Top bar */}
-      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
-              AI
-            </div>
-            <span className="text-sm font-semibold tracking-tight">
-              AI Productivity Hub
-            </span>
-          </Link>
-          <div className="flex items-center gap-3 text-xs sm:text-sm">
-            <span className="hidden sm:inline text-slate-300">
-              Logged in as{" "}
-              <span className="font-semibold">{user.email}</span>
-            </span>
-            <Link
-              href="/settings"
-              className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
-            >
-              Settings
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
-            >
-              Log out
-            </button>
-          </div>
-        </div>
-      </header>
+
+      <AppHeader active="dashboard" />
+    
 
       {/* Content */}
       <div className="flex-1">
