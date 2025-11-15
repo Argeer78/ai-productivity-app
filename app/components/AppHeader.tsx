@@ -9,6 +9,7 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 type Props = {
   active?:
     | "dashboard"
+    | "weekly-reports"
     | "explore"
     | "daily-success"
     | "notes"
