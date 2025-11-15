@@ -19,6 +19,7 @@ type HeaderProps = {
     | "admin"
     | "explore"
     | "travel"
+    | "my-trips"
     | "changelog";
 };
 
@@ -443,16 +444,28 @@ export default function AppHeader({ active }: HeaderProps) {
                     Simple AI-assisted to-dos
                   </span>
                 </Link>
-                <Link
+               <Link
   href="/travel"
   onClick={() => setAppsOpen(false)}
   className={appsItemBase}
 >
   <span className="font-semibold text-slate-100">
-    Travel (beta)
+    Travel Planner
   </span>
   <span className="text-[11px] text-slate-400">
-    Plan trips & open Booking
+    AI-powered trips & stays
+  </span>
+</Link>
+<Link
+  href="/my-trips"
+  onClick={() => setAppsOpen(false)}
+  className={appsItemBase}
+>
+  <span className="font-semibold text-slate-100">
+    My Trips
+  </span>
+  <span className="text-[11px] text-slate-400">
+    Saved itineraries
   </span>
 </Link>
                 <Link
@@ -646,14 +659,24 @@ export default function AppHeader({ active }: HeaderProps) {
               >
                 Planner
               </Link>
-              <Link
+             <Link
   href="/travel"
   onClick={() => setMobileOpen(false)}
   className={`${navLinkBase} ${
     active === "travel" ? navLinkActive : navLinkInactive
   }`}
 >
-  Travel
+  Travel Planner
+</Link>
+
+<Link
+  href="/my-trips"
+  onClick={() => setMobileOpen(false)}
+  className={`${navLinkBase} ${
+    active === "my-trips" ? navLinkActive : navLinkInactive
+  }`}
+>
+  My Trips
 </Link>
               <Link
                 href="/templates"
