@@ -24,50 +24,42 @@ type HeaderProps = {
 // 👇 update this date whenever you ship a “big enough” new changelog section
 const LATEST_CHANGELOG_AT = "2025-02-15T00:00:00Z";
 
-type QuickAction = {
-  id: string;
-  label: string;
-  description: string;
-  content: string;
-  hint: string;
-};
-
 const QUICK_ACTIONS: QuickAction[] = [
   {
     id: "summarize-today",
     label: "Summarize my day",
-    description: "Use recent notes & tasks, highlight 3 wins and 3 priorities.",
+    description: "Quick debrief of today with wins and priorities.",
     content:
-      "Look at my most recent notes and tasks for today. Summarize my day in 4–6 sentences, highlight 3 concrete wins, and propose 3 priorities for tomorrow.",
+      "I want a concise summary of my day. First, ask me to paste or describe the key things I did today (notes, tasks I completed, and anything still open). After I share that, summarize my day in 4–6 sentences, highlight 3 concrete wins, and propose 3 realistic priorities for tomorrow.",
     hint:
-      "Summarize my day based on my latest notes and tasks. Focus on wins and next priorities.",
+      "Help me summarize my day. Ask me to paste or describe what I worked on, then highlight my wins and suggest priorities for tomorrow.",
   },
   {
     id: "plan-tomorrow",
     label: "Plan tomorrow",
-    description: "Turn open tasks into a realistic plan for the next day.",
+    description: "Turn my tasks into a simple plan.",
     content:
-      "Based on my open tasks and recent notes, propose a realistic plan for tomorrow. Group into: 'Must do', 'Nice to do', and 'Can wait'. Limit to at most 7 items total.",
+      "I want help planning tomorrow. First, ask me to paste or describe my current tasks and anything I know I need to do tomorrow. After I share that, propose a realistic plan grouped into: 'Must do', 'Nice to do', and 'Can wait'. Keep the total number of items to at most 7.",
     hint:
-      "Help me turn my current open tasks into a realistic plan for tomorrow.",
+      "Help me design a realistic plan for tomorrow. Ask me for my tasks first, then group them into must do / nice to do / can wait.",
   },
   {
     id: "clarify-note",
     label: "Clarify a messy note",
     description: "Paste a messy note and let AI clean it up.",
     content:
-      "I will paste a rough, messy note next. Please rewrite it clearly, group related ideas, and extract 3–5 action items at the end.",
+      "I will paste a rough, messy note next. Please rewrite it clearly, group related ideas with short subheadings if helpful, and extract 3–5 action items at the end.",
     hint:
       "Take a messy note from me, clean it up, and extract clear action items.",
   },
   {
     id: "focus-plan",
     label: "Focus plan for 2 hours",
-    description: "Mini focus session based on current priorities.",
+    description: "Mini focus session based on what I say.",
     content:
-      "Based on my current tasks and priorities, design a 2-hour focus plan. Include: 1) What to work on first, 2) Short break structure, 3) How to know the session was successful.",
+      "I want a focused 2-hour work block. First, ask me what I most want to move forward in the next 2 hours and what else is on my mind. After I answer, design a 2-hour focus plan: 1) What to work on first, 2) Simple time blocks with short breaks, 3) How to know the session was successful.",
     hint:
-      "Help me design a 2-hour focused work block based on my current priorities.",
+      "Help me design a 2-hour focused work block based on what I say I need to move forward.",
   },
 ];
 

@@ -1175,24 +1175,49 @@ export default function DashboardPage() {
 )}
 
           {plan === "free" && (
-            <div className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-4 text-xs max-w-xl">
-              <p className="text-indigo-100 font-semibold mb-1">
-                Upgrade to Pro when you&apos;re ready
-              </p>
-              <p className="text-indigo-100 mb-3">
-                If you hit the free AI limit often, you can upgrade your
-                account securely via Stripe. You&apos;ll automatically get
-                higher daily AI usage.
-              </p>
-              <button
-                onClick={startCheckout}
-                disabled={billingLoading}
-                className="px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium disabled:opacity-60"
-              >
-                {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
-              </button>
-            </div>
-          )}
+  <section
+    id="pricing"
+    className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-5 text-xs md:text-sm max-w-xl"
+  >
+    <p className="text-indigo-100 font-semibold mb-1 text-sm md:text-base">
+      Unlock AI Productivity Hub Pro
+    </p>
+    <p className="text-indigo-100 mb-3">
+      Ideal if you&apos;re using the app most days and keep hitting the free AI limit.
+    </p>
+
+    {/* Simple “pricing row” – edit price text to match your Stripe plan */}
+    <div className="flex items-baseline gap-2 mb-3">
+      <p className="text-2xl font-bold text-indigo-100">
+        €9.99<span className="text-base font-normal text-indigo-200">/month</span>
+      </p>
+      <p className="text-[11px] text-indigo-200/80">
+        Billed via secure Stripe checkout
+      </p>
+    </div>
+
+    <ul className="space-y-1.5 text-[11px] text-indigo-100/90 mb-4">
+      <li>• 10× higher daily AI limit (notes, planner, assistant, summaries)</li>
+      <li>• Weekly AI email reports with wins, stats & focus suggestions</li>
+      <li>• Weekly goal coaching (set + mark your single focus goal)</li>
+      <li>• Access to Pro-only AI templates</li>
+      <li>• Priority for new features & improvements</li>
+    </ul>
+
+    <button
+      onClick={startCheckout}
+      disabled={billingLoading}
+      className="w-full justify-center px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium disabled:opacity-60 text-sm"
+    >
+      {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
+    </button>
+
+    <p className="mt-2 text-[11px] text-indigo-100/70">
+      Cancel any time from Settings → Manage subscription (Stripe).
+    </p>
+  </section>
+)}
+
         </div>
         <FeedbackForm user={user} source="dashboard" />
       </div>
