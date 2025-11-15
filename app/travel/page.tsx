@@ -6,6 +6,10 @@ import { supabase } from "@/lib/supabaseClient";
 
 const BOOKING_AFFILIATE_ID =
   process.env.NEXT_PUBLIC_BOOKING_AID || "";
+const FLIGHTS_AFFILIATE_ID =
+  process.env.NEXT_PUBLIC_FLIGHTS_AID || "";
+const CARS_AFFILIATE_ID =
+  process.env.NEXT_PUBLIC_CARS_AID || "";
 
 function buildBookingUrl(params: {
   destination: string;
@@ -14,6 +18,54 @@ function buildBookingUrl(params: {
   adults?: number;
   children?: number;
 }) {
+    function buildFlightsUrl(params: {
+  from: string;
+  to: string;
+  depart: string;
+  returnDate?: string;
+}) {
+  // Simple: use Google Flights with a query. You can swap to Skyscanner/affiliate later.
+  const base = "https://www.google.com/travel/flights";
+  const url = new URL(base);
+
+  const qParts = [
+    `from ${params.from}`,
+    `to ${params.to}`,
+    `departing ${params.depart}`,
+  ];
+  if (params.returnDate) {
+    qParts.push(`returning ${params.returnDate}`);
+  }
+  url.searchParams.set("q", qParts.join(" "));
+
+  // If you ever get a flights affiliate URL, you can replace this logic here.
+  // FLIGHTS_AFFILIATE_ID is available if needed.
+  return url.toString();
+}
+
+function buildCarRentalUrl(params: {
+  pickup: string;
+  pickupDate: string;
+  dropoffDate: string;
+}) {
+  // Simple: use Booking's car rental search with your AID if present.
+  const base = "https://www.booking.com/searchresults.html";
+  const url = new URL(base);
+
+  if (BOOKING_AFFILIATE_ID) {
+    url.searchParams.set("aid", BOOKING_AFFILIATE_ID);
+  }
+
+  // This won't be perfect, but it will open Booking with the location and dates.
+  url.searchParams.set("ss", params.pickup);
+  url.searchParams.set("checkin", params.pickupDate);
+  url.searchParams.set("checkout", params.dropoffDate);
+  url.searchParams.set("from_car_search", "1");
+
+  // Similarly, you could later change to Rentalcars.com with CARS_AFFILIATE_ID.
+  return url.toString();
+}
+
   const base = "https://www.booking.com/searchresults.html";
   const url = new URL(base);
 
@@ -43,6 +95,9 @@ export default function TravelPage() {
   const [children, setChildren] = useState(0);
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
+    // For flights & car rental
+  const [departureCity, setDepartureCity] = useState("");
+  const [pickupLocation, setPickupLocation] = useState("");
 
   const [planning, setPlanning] = useState(false);
   const [planError, setPlanError] = useState("");
@@ -132,6 +187,103 @@ export default function TravelPage() {
 
               <div className="space-y-3">
                 <div>
+                    {/* Flights & Car rental */}
+<div className="grid md:grid-cols-2 gap-6 mb-8">
+  <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+    <p className="text-xs font-semibold text-slate-400 mb-3">
+      Flights
+    </p>
+
+    <div className="space-y-3">
+      <div>
+        <label className="block text-[11px] text-slate-400 mb-1">
+          Departure city
+        </label>
+        <input
+          type="text"
+          value={departureCity}
+          onChange={(e) => setDepartureCity(e.target.value)}
+          placeholder="e.g. Athens, London"
+          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+        />
+        <p className="text-[10px] text-slate-500 mt-1">
+          If you leave this blank, we’ll use your destination as a fallback.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        disabled={!destination || !checkin}
+        onClick={() => {
+          const from = departureCity || destination;
+          const to = destination;
+          const url = buildFlightsUrl({
+            from,
+            to,
+            depart: checkin,
+            returnDate: checkout || undefined,
+          });
+          window.open(url, "_blank", "noreferrer");
+        }}
+        className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs md:text-sm disabled:opacity-60"
+      >
+        Search flights →
+      </button>
+
+      <p className="text-[10px] text-slate-500">
+        We send you to a flights search page (e.g. Google Flights). You can
+        hook in a proper affiliate link later.
+      </p>
+    </div>
+  </div>
+
+  <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+    <p className="text-xs font-semibold text-slate-400 mb-3">
+      Car rental
+    </p>
+
+    <div className="space-y-3">
+      <div>
+        <label className="block text-[11px] text-slate-400 mb-1">
+          Pickup location
+        </label>
+        <input
+          type="text"
+          value={pickupLocation}
+          onChange={(e) => setPickupLocation(e.target.value)}
+          placeholder="e.g. Airport, city name"
+          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+        />
+        <p className="text-[10px] text-slate-500 mt-1">
+          If empty, we’ll use your destination as pickup location.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        disabled={!destination || !checkin || !checkout}
+        onClick={() => {
+          const pickup = pickupLocation || destination;
+          const url = buildCarRentalUrl({
+            pickup,
+            pickupDate: checkin,
+            dropoffDate: checkout,
+          });
+          window.open(url, "_blank", "noreferrer");
+        }}
+        className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs md:text-sm disabled:opacity-60"
+      >
+        Search rental cars →
+      </button>
+
+      <p className="text-[10px] text-slate-500">
+        Car rental search opens on Booking.com. If your affiliate ID is set, it
+        will be tracked via your <code>aid</code>.
+      </p>
+    </div>
+  </div>
+</div>
+
                   <label className="block text-[11px] text-slate-400 mb-1">
                     Destination
                   </label>
