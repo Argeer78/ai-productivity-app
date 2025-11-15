@@ -24,14 +24,63 @@ type HeaderProps = {
 // 👇 update this date whenever you ship a “big enough” new changelog section
 const LATEST_CHANGELOG_AT = "2025-02-15T00:00:00Z";
 
+type QuickAction = {
+  id: string;
+  label: string;
+  description: string;
+  content: string;
+  hint: string;
+};
+
+const QUICK_ACTIONS: QuickAction[] = [
+  {
+    id: "summarize-today",
+    label: "Summarize my day",
+    description: "Use recent notes & tasks, highlight 3 wins and 3 priorities.",
+    content:
+      "Look at my most recent notes and tasks for today. Summarize my day in 4–6 sentences, highlight 3 concrete wins, and propose 3 priorities for tomorrow.",
+    hint:
+      "Summarize my day based on my latest notes and tasks. Focus on wins and next priorities.",
+  },
+  {
+    id: "plan-tomorrow",
+    label: "Plan tomorrow",
+    description: "Turn open tasks into a realistic plan for the next day.",
+    content:
+      "Based on my open tasks and recent notes, propose a realistic plan for tomorrow. Group into: 'Must do', 'Nice to do', and 'Can wait'. Limit to at most 7 items total.",
+    hint:
+      "Help me turn my current open tasks into a realistic plan for tomorrow.",
+  },
+  {
+    id: "clarify-note",
+    label: "Clarify a messy note",
+    description: "Paste a messy note and let AI clean it up.",
+    content:
+      "I will paste a rough, messy note next. Please rewrite it clearly, group related ideas, and extract 3–5 action items at the end.",
+    hint:
+      "Take a messy note from me, clean it up, and extract clear action items.",
+  },
+  {
+    id: "focus-plan",
+    label: "Focus plan for 2 hours",
+    description: "Mini focus session based on current priorities.",
+    content:
+      "Based on my current tasks and priorities, design a 2-hour focus plan. Include: 1) What to work on first, 2) Short break structure, 3) How to know the session was successful.",
+    hint:
+      "Help me design a 2-hour focused work block based on my current priorities.",
+  },
+];
+
 export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
 
   const [latestSeenChangelogAt, setLatestSeenChangelogAt] = useState<
     string | null
@@ -99,6 +148,21 @@ export default function AppHeader({ active }: HeaderProps) {
     }
   }
 
+  function triggerQuickAction(action: QuickAction) {
+    if (typeof window === "undefined") return;
+
+    window.dispatchEvent(
+      new CustomEvent("ai-assistant-context", {
+        detail: {
+          content: action.content,
+          hint: action.hint,
+        },
+      })
+    );
+
+    setQuickOpen(false);
+  }
+
   const navLinkBase =
     "px-2 py-1.5 rounded-lg whitespace-nowrap transition-colors text-xs sm:text-sm";
   const navLinkInactive = "text-slate-300 hover:bg-slate-900";
@@ -112,9 +176,8 @@ export default function AppHeader({ active }: HeaderProps) {
     new Date(latestSeenChangelogAt) < new Date(LATEST_CHANGELOG_AT);
 
   return (
-    // keep header above content / banners
-    <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur relative z-30">
-      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
+    <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur relative z-40">
+      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3">
         {/* Logo / Brand – back to landing page "/" */}
         <Link
           href="/"
@@ -169,7 +232,10 @@ export default function AppHeader({ active }: HeaderProps) {
           {/* Apps button (desktop) */}
           <button
             type="button"
-            onClick={() => setAppsOpen((v) => !v)}
+            onClick={() => {
+              setAppsOpen((v) => !v);
+              setQuickOpen(false);
+            }}
             className={`${navLinkBase} ml-2 flex items-center gap-1 border border-slate-700 bg-slate-900/40`}
           >
             <span className="flex items-center gap-1 text-[11px]">
@@ -186,33 +252,48 @@ export default function AppHeader({ active }: HeaderProps) {
           </button>
         </nav>
 
-        {/* Right side: mobile toggle + email + Settings + Logout / Login */}
-        <div className="flex items-center gap-2 ml-auto flex-shrink-0 flex-wrap justify-end">
-          {/* 🔹 Mobile menu toggle FIRST so it's always visible */}
+        {/* Right side: mobile toggle + email + Quick AI + Settings + Logout / Login */}
+        <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+          {/* Mobile menu toggle – BEFORE settings/logout so it's easy to reach */}
           <button
             type="button"
             onClick={() => {
               setMobileOpen((v) => !v);
               setAppsOpen(false);
+              setQuickOpen(false);
             }}
             className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-700 hover:bg-slate-900 text-slate-200 text-xs"
           >
             {mobileOpen ? "✕" : "☰"}
           </button>
 
-          {/* Email (truncate more aggressively on very small screens) */}
+          {/* Email (hidden on very small screens) */}
           {loadingUser ? (
-            <span className="text-[11px] text-slate-400 hidden xs:inline">
+            <span className="hidden sm:inline text-[11px] text-slate-400">
               Loading…
             </span>
           ) : userEmail ? (
-            <span className="text-[11px] text-slate-300 truncate max-w-[70px] sm:max-w-[140px]">
+            <span className="hidden sm:inline text-[11px] text-slate-300 truncate max-w-[140px]">
               {userEmail}
             </span>
           ) : null}
 
+          {/* ⚡ Quick AI (desktop only) */}
+          <button
+            type="button"
+            onClick={() => {
+              setQuickOpen((v) => !v);
+              setAppsOpen(false);
+            }}
+            className="hidden md:inline-flex items-center justify-center h-8 px-2.5 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-100"
+          >
+            <span className="mr-1">⚡</span>
+            <span className="hidden lg:inline">Quick AI</span>
+            <span className="lg:hidden">AI</span>
+          </button>
+
           {/* Settings & Logout / Login */}
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-2">
             <Link
               href="/settings"
               className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200"
@@ -241,7 +322,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
         {/* Apps Panel (desktop) */}
         {appsOpen && (
-          <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-full mt-2 z-40">
+          <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50">
             <div className="rounded-2xl border border-slate-800 bg-slate-950/98 shadow-xl p-3 w-[360px]">
               <p className="text-[11px] text-slate-400 mb-2 px-1 flex items-center gap-1">
                 Quick access to all tools
@@ -371,6 +452,37 @@ export default function AppHeader({ active }: HeaderProps) {
             </div>
           </div>
         )}
+
+        {/* Quick AI Panel (desktop) */}
+        {quickOpen && (
+          <div className="hidden md:block absolute right-4 top-full mt-2 z-50">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/98 shadow-xl p-3 w-[320px]">
+              <p className="text-[11px] text-slate-400 mb-2 px-1">
+                ⚡ Quick AI actions{" "}
+                <span className="ml-1 text-[10px] text-slate-500">
+                  (opens the assistant with context)
+                </span>
+              </p>
+              <div className="flex flex-col gap-2 text-xs">
+                {QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => triggerQuickAction(action)}
+                    className="text-left px-3 py-2 rounded-xl border border-slate-800 bg-slate-900/80 hover:bg-slate-900"
+                  >
+                    <p className="font-semibold text-slate-100 mb-0.5">
+                      {action.label}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {action.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Mobile dropdown menu */}
@@ -378,6 +490,18 @@ export default function AppHeader({ active }: HeaderProps) {
         <div className="md:hidden border-t border-slate-800 bg-slate-950/95">
           <div className="max-w-5xl mx-auto px-4 py-3 flex flex-col gap-2 text-sm">
             <div className="flex flex-wrap gap-2">
+              {/* Quick AI (mobile: default action) */}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerQuickAction(QUICK_ACTIONS[0]); // Summarize my day
+                  setMobileOpen(false);
+                }}
+                className={`${navLinkBase} ${navLinkInactive} flex items-center gap-1`}
+              >
+                <span>⚡ Quick AI</span>
+              </button>
+
               <Link
                 href="/dashboard"
                 onClick={() => setMobileOpen(false)}
@@ -458,7 +582,9 @@ export default function AppHeader({ active }: HeaderProps) {
                 href="/changelog"
                 onClick={() => setMobileOpen(false)}
                 className={`${navLinkBase} ${
-                  active === "changelog" ? navLinkActive : navLinkInactive
+                  active === "changelog"
+                    ? navLinkActive
+                    : navLinkInactive
                 }`}
               >
                 What&apos;s new
