@@ -87,6 +87,13 @@ export default function DashboardPage() {
   const [weekAiCalls, setWeekAiCalls] = useState(0);
   const [weekTimeSaved, setWeekTimeSaved] = useState(0); // in minutes
 
+  // Weekly goal state
+  const [weeklyGoalId, setWeeklyGoalId] = useState<string | null>(null);
+  const [weeklyGoalText, setWeeklyGoalText] = useState<string>("");
+  const [weeklyGoalCompleted, setWeeklyGoalCompleted] = useState(false);
+  const [weeklyGoalSaving, setWeeklyGoalSaving] = useState(false);
+  const [weeklyGoalMarking, setWeeklyGoalMarking] = useState(false);
+
   const { track } = useAnalytics();
 
   const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
@@ -196,7 +203,7 @@ export default function DashboardPage() {
     loadScoreStats();
   }, [user]);
 
-  // Ensure profile exists & load plan + AI usage + streak + recent activity
+  // Ensure profile exists & load plan + AI usage + streak + recent activity + weekly goal
   useEffect(() => {
     if (!user) {
       setPlan("free");
@@ -209,6 +216,9 @@ export default function DashboardPage() {
       setWeekTimeSaved(0);
       setWeekNotesCreated(0);
       setWeekTasksCompleted(0);
+      setWeeklyGoalId(null);
+      setWeeklyGoalText("");
+      setWeeklyGoalCompleted(false);
       return;
     }
 
@@ -384,10 +394,31 @@ export default function DashboardPage() {
           .from("tasks")
           .select("id", { count: "exact", head: true })
           .eq("user_id", user.id)
-          .eq("completed", true) // change to "is_done" if your column is named that
+          .eq("completed", true) // or "is_done" if that's your column
           .gte("created_at", sevenIso);
 
         setWeekTasksCompleted(tasks7Count || 0);
+
+        // 7) Weekly goal of the week (latest)
+        const { data: goalRow, error: goalError } = await supabase
+          .from("weekly_goals")
+          .select("id, goal_text, week_start, completed")
+          .eq("user_id", user.id)
+          .order("week_start", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (goalError && goalError.code !== "PGRST116") {
+          console.error("Dashboard: weekly_goals error", goalError);
+        } else if (goalRow) {
+          setWeeklyGoalId(goalRow.id);
+          setWeeklyGoalText(goalRow.goal_text || "");
+          setWeeklyGoalCompleted(!!goalRow.completed);
+        } else {
+          setWeeklyGoalId(null);
+          setWeeklyGoalText("");
+          setWeeklyGoalCompleted(false);
+        }
       } catch (err: any) {
         console.error(err);
         setError("Failed to load dashboard data.");
@@ -445,6 +476,71 @@ export default function DashboardPage() {
       setError("Failed to start checkout.");
     } finally {
       setBillingLoading(false);
+    }
+  }
+
+  async function saveWeeklyGoal(refineWithAI: boolean) {
+    if (!user) return;
+    const text = weeklyGoalText.trim();
+    if (!text) return;
+
+    setWeeklyGoalSaving(true);
+    try {
+      const res = await fetch("/api/weekly-goal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          goalText: text,
+          refine: refineWithAI,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok || !data?.ok) {
+        console.error("Weekly goal save error:", data);
+        alert(data?.error || "Could not save weekly goal.");
+        return;
+      }
+
+      if (data.goal) {
+        setWeeklyGoalId(data.goal.id);
+        setWeeklyGoalText(data.goal.goal_text || text);
+        setWeeklyGoalCompleted(!!data.goal.completed);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error while saving weekly goal.");
+    } finally {
+      setWeeklyGoalSaving(false);
+    }
+  }
+
+  async function toggleWeeklyGoalCompleted() {
+    if (!user || !weeklyGoalId) return;
+
+    const newCompleted = !weeklyGoalCompleted;
+    setWeeklyGoalMarking(true);
+
+    try {
+      const { error } = await supabase
+        .from("weekly_goals")
+        .update({ completed: newCompleted })
+        .eq("id", weeklyGoalId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Weekly goal complete toggle error:", error);
+        alert("Could not update goal status.");
+        return;
+      }
+
+      setWeeklyGoalCompleted(newCompleted);
+    } catch (err) {
+      console.error(err);
+      alert("Network error while updating goal status.");
+    } finally {
+      setWeeklyGoalMarking(false);
     }
   }
 
@@ -813,7 +909,8 @@ export default function DashboardPage() {
                   AI WINS THIS WEEK
                 </p>
                 <p className="text-[11px] text-emerald-100/80 mb-3">
-                  A quick snapshot of how AI helped you move things forward in the last 7 days.
+                  A quick snapshot of how AI helped you move things forward in
+                  the last 7 days.
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[12px]">
                   <div>
@@ -861,6 +958,87 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Goal of the Week */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 mb-8 text-sm">
+                <p className="text-xs font-semibold text-slate-400 mb-1">
+                  GOAL OF THE WEEK
+                </p>
+
+                {plan !== "pro" ? (
+                  <>
+                    <p className="text-[13px] text-slate-200 mb-1">
+                      Set a clear weekly focus goal and let AI help you stay
+                      on track.
+                    </p>
+                    <p className="text-[11px] text-slate-500 mb-3">
+                      This is a Pro feature. Upgrade to unlock AI-powered
+                      weekly goals and progress tracking.
+                    </p>
+                    <Link
+                      href="/dashboard#pricing"
+                      className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-slate-50"
+                    >
+                      🔒 Unlock with Pro
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[12px] text-slate-300 mb-2">
+                      Pick one meaningful outcome you want to achieve this
+                      week. Keep it small and realistic.
+                    </p>
+                    <textarea
+                      value={weeklyGoalText}
+                      onChange={(e) => setWeeklyGoalText(e.target.value)}
+                      placeholder="e.g. Finish and send the client proposal draft."
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 mb-2 min-h-[60px]"
+                    />
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => saveWeeklyGoal(false)}
+                        disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
+                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs"
+                      >
+                        {weeklyGoalSaving ? "Saving..." : "Save goal"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveWeeklyGoal(true)}
+                        disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
+                        className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs disabled:opacity-60"
+                      >
+                        {weeklyGoalSaving
+                          ? "Saving..."
+                          : "Save & let AI refine"}
+                      </button>
+                    </div>
+
+                    {weeklyGoalId && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={toggleWeeklyGoalCompleted}
+                          disabled={weeklyGoalMarking}
+                          className={`px-3 py-1.5 rounded-xl text-xs border ${
+                            weeklyGoalCompleted
+                              ? "border-emerald-500 text-emerald-300 bg-emerald-900/30"
+                              : "border-slate-700 text-slate-200 hover:bg-slate-900"
+                          } disabled:opacity-60`}
+                        >
+                          {weeklyGoalCompleted
+                            ? "✅ Marked as done"
+                            : "Mark this goal as done"}
+                        </button>
+                        <span className="text-[11px] text-slate-500">
+                          This is your single focus target for this week.
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Recent activity */}

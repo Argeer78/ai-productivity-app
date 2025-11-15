@@ -174,6 +174,24 @@ export async function GET() {
           topNotesBlock = topNotesBlock.trimEnd();
         }
 
+        // ----- 5) Weekly goal (if any) -----
+        const { data: goalRow, error: goalError } = await supabaseAdmin
+          .from("weekly_goals")
+          .select("goal_text, completed, week_start")
+          .eq("user_id", userId)
+          .order("week_start", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let weeklyGoalLine = "No explicit weekly goal was set.";
+        if (goalError) {
+          console.error("[weekly-report] weekly_goals error:", goalError);
+        } else if (goalRow?.goal_text) {
+          weeklyGoalLine = `Weekly goal: "${goalRow.goal_text}"${
+            goalRow.completed ? " (marked as completed ✅)" : ""
+          }`;
+        }
+
         // ----- Call OpenAI for reflection + focus -----
         let reflectionAndFocus =
           "Here’s your weekly reflection and focus suggestions.";
@@ -184,6 +202,8 @@ export async function GET() {
             "",
             "The user’s weekly stats:",
             aiWinsBlock,
+            "",
+            weeklyGoalLine,
             "",
             "Top notes of the week:",
             topNotes.length
@@ -196,7 +216,7 @@ export async function GET() {
               : "No notes this week.",
             "",
             "Write:",
-            "1) A short 3–4 sentence reflection of their week (what seems to be happening, how they used AI).",
+            "1) A short 3–4 sentence reflection of their week (what seems to be happening, how they used AI, and how it relates to their weekly goal).",
             "2) Then a clear section titled: 'Focus for next week:' followed by 3 specific bullet-point suggestions.",
             "",
             "Plain text only, no markdown headings.",
@@ -205,7 +225,10 @@ export async function GET() {
           const completion = await openai.chat.completions.create({
             model: "gpt-4.1-mini",
             messages: [
-              { role: "system", content: "You are an encouraging productivity coach." },
+              {
+                role: "system",
+                content: "You are an encouraging productivity coach.",
+              },
               { role: "user", content: userPrompt },
             ],
             max_tokens: 400,
@@ -229,6 +252,8 @@ export async function GET() {
         );
         lines.push("");
         lines.push(reflectionAndFocus);
+        lines.push("");
+        lines.push(weeklyGoalLine);
         lines.push("");
         lines.push(aiWinsBlock);
         lines.push("");
