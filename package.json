@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.81.0",
+    "date-fns": "^4.1.0",
     "next": "16.0.1",
     "next-plausible": "^3.12.5",
     "openai": "^6.8.1",
     "react": "19.2.0",
+    "react-datepicker": "^8.9.0",
     "react-dom": "19.2.0",
     "resend": "^6.4.2",
     "stripe": "^19.3.0"

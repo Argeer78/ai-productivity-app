@@ -18,6 +18,7 @@ type HeaderProps = {
     | "settings"
     | "admin"
     | "explore"
+    | "travel"
     | "changelog";
 };
 
@@ -645,6 +646,15 @@ export default function AppHeader({ active }: HeaderProps) {
               >
                 Planner
               </Link>
+              <Link
+  href="/travel"
+  onClick={() => setMobileOpen(false)}
+  className={`${navLinkBase} ${
+    active === "travel" ? navLinkActive : navLinkInactive
+  }`}
+>
+  Travel
+</Link>
               <Link
                 href="/templates"
                 onClick={() => setMobileOpen(false)}
