@@ -19,6 +19,7 @@ type HeaderProps = {
     | "admin"
     | "explore"
     | "changelog"
+    | "my-trips"
     | "travel"; // 👈 added travel so <AppHeader active="travel" /> is valid
 };
 
@@ -338,6 +339,18 @@ export default function AppHeader({ active }: HeaderProps) {
                   </span>
                 </Link>
                 <Link
+  href="/my-trips"
+  onClick={() => setAppsOpen(false)}
+  className={appsItemBase}
+>
+  <span className="font-semibold text-slate-100">
+    My Trips
+  </span>
+  <span className="text-[11px] text-slate-400">
+    Saved travel plans
+  </span>
+</Link>
+                <Link
                   href="/travel"
                   onClick={() => setAppsOpen(false)}
                   className={appsItemBase}
@@ -485,6 +498,15 @@ export default function AppHeader({ active }: HeaderProps) {
               >
                 Travel Planner
               </Link>
+              <Link
+  href="/my-trips"
+  onClick={() => setMobileOpen(false)}
+  className={`${navLinkBase} ${
+    active === "my-trips" ? navLinkActive : navLinkInactive
+  }`}
+>
+  My Trips
+</Link>
               <Link
                 href="/feedback"
                 onClick={() => setMobileOpen(false)}
