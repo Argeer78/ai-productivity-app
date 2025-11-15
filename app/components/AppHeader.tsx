@@ -443,6 +443,18 @@ export default function AppHeader({ active }: HeaderProps) {
                   </span>
                 </Link>
                 <Link
+  href="/travel"
+  onClick={() => setAppsOpen(false)}
+  className={appsItemBase}
+>
+  <span className="font-semibold text-slate-100">
+    Travel (beta)
+  </span>
+  <span className="text-[11px] text-slate-400">
+    Plan trips & open Booking
+  </span>
+</Link>
+                <Link
                   href="/planner"
                   onClick={() => setAppsOpen(false)}
                   className={appsItemBase}
