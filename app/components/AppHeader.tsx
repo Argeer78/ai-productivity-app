@@ -22,7 +22,7 @@ type HeaderProps = {
 };
 
 type QuickAction = {
-  id: "summarize-today" | "plan-tomorrow" | "clear-focus";
+  id: string; // allow any id like "clarify-note", "summarize-today", etc.
   label: string;
   description: string;
   content: string;
