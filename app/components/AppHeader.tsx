@@ -21,6 +21,12 @@ type HeaderProps = {
     | "changelog";
 };
 
+type QuickAction = {
+  id: "summarize-today" | "plan-tomorrow" | "clear-focus";
+  label: string;
+  description: string;
+};
+
 // 👇 update this date whenever you ship a “big enough” new changelog section
 const LATEST_CHANGELOG_AT = "2025-02-15T00:00:00Z";
 
