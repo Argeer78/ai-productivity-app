@@ -96,6 +96,16 @@ export default function AppHeader({ active }: Props) {
             Templates
           </Link>
           <Link
+  href="/weekly-reports"
+  className={`px-3 py-1 rounded-lg ${
+    active === "weekly-reports"
+      ? "bg-slate-800 text-white"
+      : "text-slate-300 hover:bg-slate-800"
+  }`}
+>
+  Weekly Reports
+</Link>
+          <Link
             href="/planner"
             className={`hidden sm:inline px-3 py-1.5 rounded-xl border border-transparent hover:bg-slate-900 ${
               active === "planner" ? "border-slate-600 bg-slate-900" : ""

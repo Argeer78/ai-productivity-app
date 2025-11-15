@@ -186,20 +186,24 @@ export default function WeeklyReportsPage() {
               ) : (
                 <div className="space-y-4">
                   {reports.map((r) => (
-                    <article
-                      key={r.id}
-                      className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4"
-                    >
-                      <p className="text-[11px] text-slate-400 mb-1">
-                        Week of{" "}
-                        <span className="font-semibold">
-                          {r.report_date}
-                        </span>
-                      </p>
-                      <pre className="whitespace-pre-wrap text-[12px] text-slate-100">
-                        {r.summary || "(empty report)"}
-                      </pre>
-                    </article>
+                    
+                      <li key={r.id} className="border border-slate-800 rounded-xl p-4 bg-slate-900/50">
+  <Link
+    href={`/weekly-reports/${r.id}`}
+    className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
+  >
+    View full report →
+  </Link>
+
+  <p className="text-xs text-slate-400 mt-1">
+    {new Date(r.report_date).toLocaleDateString()}
+  </p>
+
+  <div className="mt-2 text-[12px] text-slate-300 line-clamp-3 whitespace-pre-wrap">
+    {r.summary || "(no summary available)"}
+  </div>
+</li>
+       
                   ))}
                 </div>
               )}

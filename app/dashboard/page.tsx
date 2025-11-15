@@ -1184,6 +1184,12 @@ export default function DashboardPage() {
             >
               🗓 Daily Planner
             </Link>
+            <Link
+  href="/weekly-reports"
+  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+>
+  📅 Weekly Reports
+</Link>
           </div>
 
           {plan === "free" && (
