@@ -68,7 +68,7 @@ export default function AppHeader({ active }: Props) {
               active === "tasks" ? "border-slate-600 bg-slate-900" : ""
             }`}
           >
-          Daily Success
+            Tasks
           </Link>
           <Link
             href="/notes"
@@ -84,7 +84,7 @@ export default function AppHeader({ active }: Props) {
               active === "daily-success" ? "border-slate-600 bg-slate-900" : ""
             }`}
           >
-            Tasks
+            Daily Success
           </Link>
           <Link
             href="/templates"

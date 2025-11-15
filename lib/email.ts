@@ -33,6 +33,8 @@ type DailyDigestOptions = {
 
 type TestEmailOptions = {
   email: string;
+  subject?: string;
+  body?: string;
 };
 
 /**
@@ -325,11 +327,18 @@ export async function sendDailyDigest(
 }
 
 /**
- * Simple test email used by /api/test-email and Settings → Test button.
- * Just verifies pipeline + from address.
+ * Simple email helper used by:
+ * - /api/test-email (with default subject/body)
+ * - /api/weekly-report (custom weekly report content)
  */
 export async function sendTestEmail({
   email,
+  subject = "AI Productivity Hub – test email",
+  body = [
+    "This is a test email from AI Productivity Hub.",
+    "",
+    "If you're seeing this, your email settings (Resend + domain) are wired correctly.",
+  ].join("\n"),
 }: TestEmailOptions): Promise<void> {
   if (!email) {
     console.warn("[test-email] Missing email");
@@ -347,15 +356,12 @@ export async function sendTestEmail({
     await resend.emails.send({
       from: getFromAddress(),
       to: email,
-      subject: "AI Productivity Hub – test email",
-      text: [
-        "This is a test email from AI Productivity Hub.",
-        "",
-        "If you're seeing this, your email settings (Resend + domain) are wired correctly.",
-      ].join("\n"),
-    } as any);
+      subject,
+      text: body,
+    });
     console.log("[test-email] Email sent to", email);
   } catch (err) {
     console.error("[test-email] Resend error for", email, err);
   }
 }
+
