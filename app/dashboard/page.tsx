@@ -371,18 +371,16 @@ if (notes7Err) {
 setWeekNotesCreated(notes7Count || 0);
 
 // Tasks completed in the last 7 days
-const { count: tasks7Count, error: tasks7Err } = await supabase
+const sevenDaysAgoTs = new Date();
+sevenDaysAgoTs.setDate(sevenDaysAgoTs.getDate() - 6);
+const sevenIso = sevenDaysAgoTs.toISOString(); // full ISO with time
+
+const { data: tasks7Rows, error: tasks7Err } = await supabase
   .from("tasks")
-  .select("id", { count: "exact", head: false })
+  .select("id")
   .eq("user_id", user.id)
   .eq("completed", true)
-  .gte("created_at", sevenDateStr)
-  .limit(0);
-
-if (tasks7Err) {
-  console.error("[dashboard] tasks7 count error", tasks7Err);
-}
-setWeekTasksCompleted(tasks7Count || 0);
+  .gte("created_at", sevenIso);
 
         // 7) Weekly goal of the week (latest)
         const { data: goalRow, error: goalError } = await supabase
