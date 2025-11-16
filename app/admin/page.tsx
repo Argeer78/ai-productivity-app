@@ -8,6 +8,8 @@ import TravelAnalyticsCard from "./TravelAnalyticsCard";
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
+// ---------- TYPES ----------
+
 type Metrics = {
   totalUsers: number;
   proUsers: number;
@@ -30,6 +32,14 @@ type ActivityItem = {
   title: string;
 };
 
+type RevenueMetrics = {
+  activeSubscriptions: number;
+  mrr: number;
+  revenueLast30Days: number;
+  revenueLast12Months: number;
+  currency: string;
+};
+
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
 }
@@ -44,7 +54,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Load current user
+  const [revenue, setRevenue] = useState<RevenueMetrics | null>(null);
+  const [loadingRevenue, setLoadingRevenue] = useState(false);
+  const [revenueError, setRevenueError] = useState("");
+
+  // ---------- LOAD CURRENT USER ----------
+
   useEffect(() => {
     async function loadUser() {
       try {
@@ -55,7 +70,7 @@ export default function AdminPage() {
           setAuthorized(true);
         }
       } catch (err) {
-        console.error(err);
+        console.error("[admin] loadUser error", err);
       } finally {
         setCheckingUser(false);
       }
@@ -63,20 +78,24 @@ export default function AdminPage() {
     loadUser();
   }, []);
 
-  // Fetch metrics + activity if admin
+  // ---------- LOAD METRICS & ACTIVITY (SUPABASE) ----------
+
   useEffect(() => {
     if (!authorized) return;
 
     async function loadMetricsAndActivity() {
       setLoading(true);
       setError("");
+
       try {
         // 1) Total users
         const { count: totalUsers, error: usersErr } = await supabase
           .from("profiles")
           .select("*", { count: "exact", head: true });
 
-        if (usersErr) throw usersErr;
+        if (usersErr) {
+          console.error("[admin] profiles count error", usersErr);
+        }
 
         // 2) Pro users
         const { count: proUsers, error: proErr } = await supabase
@@ -84,21 +103,27 @@ export default function AdminPage() {
           .select("*", { count: "exact", head: true })
           .eq("plan", "pro");
 
-        if (proErr) throw proErr;
+        if (proErr) {
+          console.error("[admin] pro profiles count error", proErr);
+        }
 
         // 3) Notes
         const { count: totalNotes, error: notesErr } = await supabase
           .from("notes")
           .select("*", { count: "exact", head: true });
 
-        if (notesErr) throw notesErr;
+        if (notesErr) {
+          console.error("[admin] notes count error", notesErr);
+        }
 
         // 4) Tasks
         const { count: totalTasks, error: tasksErr } = await supabase
           .from("tasks")
           .select("*", { count: "exact", head: true });
 
-        if (tasksErr) throw tasksErr;
+        if (tasksErr) {
+          console.error("[admin] tasks count error", tasksErr);
+        }
 
         // 5) AI usage
         const today = getTodayString();
@@ -112,10 +137,15 @@ export default function AdminPage() {
           .select("count")
           .eq("usage_date", today);
 
-        if (todayErr) throw todayErr;
+        if (todayErr) {
+          console.error("[admin] ai_usage today error", todayErr);
+        }
 
         const aiCallsToday =
-          todayRows?.reduce((acc, row) => acc + (row.count || 0), 0) ?? 0;
+          todayRows?.reduce(
+            (acc: number, row: any) => acc + (row.count || 0),
+            0
+          ) ?? 0;
 
         // Last 7 days – by user
         const { data: weekRows, error: weekErr } = await supabase
@@ -124,7 +154,9 @@ export default function AdminPage() {
           .gte("usage_date", sinceStr)
           .lte("usage_date", today);
 
-        if (weekErr) throw weekErr;
+        if (weekErr) {
+          console.error("[admin] ai_usage 7d error", weekErr);
+        }
 
         const usageByUser = new Map<string, number>();
         let aiCalls7Days = 0;
@@ -157,9 +189,9 @@ export default function AdminPage() {
 
         // 6) Recent activity (last items from notes, tasks, trips)
         const [
-          { data: recentNotes },
-          { data: recentTasks },
-          { data: recentTrips },
+          { data: recentNotes, error: recentNotesErr },
+          { data: recentTasks, error: recentTasksErr },
+          { data: recentTrips, error: recentTripsErr },
         ] = await Promise.all([
           supabase
             .from("notes")
@@ -177,6 +209,16 @@ export default function AdminPage() {
             .order("created_at", { ascending: false })
             .limit(5),
         ]);
+
+        if (recentNotesErr) {
+          console.error("[admin] recent notes error", recentNotesErr);
+        }
+        if (recentTasksErr) {
+          console.error("[admin] recent tasks error", recentTasksErr);
+        }
+        if (recentTripsErr) {
+          console.error("[admin] recent trips error", recentTripsErr);
+        }
 
         const activity: ActivityItem[] = [];
 
@@ -218,7 +260,7 @@ export default function AdminPage() {
 
         setRecentActivity(activity.slice(0, 12));
       } catch (err: any) {
-        console.error(err);
+        console.error("[admin] loadMetricsAndActivity error", err);
         setError("Failed to load admin metrics.");
       } finally {
         setLoading(false);
@@ -227,6 +269,55 @@ export default function AdminPage() {
 
     loadMetricsAndActivity();
   }, [authorized]);
+
+  // ---------- LOAD REVENUE (STRIPE API ROUTE) ----------
+
+  useEffect(() => {
+    if (!authorized) return;
+
+    async function loadRevenue() {
+      setLoadingRevenue(true);
+      setRevenueError("");
+
+      try {
+        const res = await fetch("/api/admin-revenue");
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("[admin] revenue error", data);
+          setRevenueError(
+            data.error || "Failed to load revenue analytics."
+          );
+          return;
+        }
+
+        setRevenue(data as RevenueMetrics);
+      } catch (err) {
+        console.error("[admin] revenue fetch error", err);
+        setRevenueError("Network error while loading revenue analytics.");
+      } finally {
+        setLoadingRevenue(false);
+      }
+    }
+
+    loadRevenue();
+  }, [authorized]);
+
+  // ---------- HELPERS ----------
+
+  function formatMoney(amount: number, currency: string) {
+    try {
+      return new Intl.NumberFormat("en", {
+        style: "currency",
+        currency: currency || "EUR",
+        maximumFractionDigits: 0,
+      }).format(amount);
+    } catch {
+      return `${amount.toFixed(0)} ${currency}`;
+    }
+  }
+
+  // ---------- AUTH GUARDS ----------
 
   if (checkingUser) {
     return (
@@ -276,6 +367,8 @@ export default function AdminPage() {
     );
   }
 
+  // ---------- MAIN RENDER ----------
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <AppHeader active="admin" />
@@ -285,7 +378,7 @@ export default function AdminPage() {
             Admin Analytics
           </h1>
           <p className="text-xs md:text-sm text-slate-400 mb-6">
-            High-level overview of users, plans, notes, tasks, AI usage, and travel.
+            High-level overview of users, plans, notes, tasks, AI usage, travel, and revenue.
           </p>
 
           {error && (
@@ -366,7 +459,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* AI usage stats */}
+              {/* AI usage stats (detailed) */}
               <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm mb-8">
                 <p className="text-xs font-semibold text-slate-400 mb-1">
                   AI USAGE
@@ -436,7 +529,77 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Travel analytics card (tiny block) */}
+              {/* Revenue analytics (Stripe) */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm mb-8">
+                <p className="text-xs font-semibold text-slate-400 mb-1">
+                  REVENUE (STRIPE)
+                </p>
+
+                {loadingRevenue && (
+                  <p className="text-slate-300 text-sm">
+                    Loading revenue analytics…
+                  </p>
+                )}
+
+                {!loadingRevenue && revenueError && (
+                  <p className="text-xs text-red-400">{revenueError}</p>
+                )}
+
+                {!loadingRevenue && revenue && !revenueError && (
+                  <>
+                    <div className="grid md:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <p className="text-slate-400 mb-0.5">
+                          Active subscriptions
+                        </p>
+                        <p className="text-lg font-semibold text-slate-50">
+                          {revenue.activeSubscriptions}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-400 mb-0.5">MRR (approx)</p>
+                        <p className="text-lg font-semibold text-slate-50">
+                          {formatMoney(revenue.mrr, revenue.currency)}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Monthly plans only.
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-400 mb-0.5">
+                          Revenue last 30 days
+                        </p>
+                        <p className="text-lg font-semibold text-slate-50">
+                          {formatMoney(
+                            revenue.revenueLast30Days,
+                            revenue.currency
+                          )}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-400 mb-0.5">
+                          Revenue last 12 months
+                        </p>
+                        <p className="text-lg font-semibold text-slate-50">
+                          {formatMoney(
+                            revenue.revenueLast12Months,
+                            revenue.currency
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 mt-2">
+                      Based on paid Stripe invoices (up to the latest 100).
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Travel analytics card */}
               <div className="mb-8">
                 <TravelAnalyticsCard />
               </div>
