@@ -3,10 +3,16 @@ import Stripe from "stripe";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 
+// In development / when not configured, we keep Stripe disabled gracefully.
 if (!STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY is missing in env");
+  console.warn(
+    "[stripe] STRIPE_SECRET_KEY is not set. Stripe client is disabled."
+  );
 }
 
-export const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: "2024-06-20",
-});
+export const stripe = STRIPE_SECRET_KEY
+  ? new Stripe(STRIPE_SECRET_KEY, {
+      // Use the exact version your installed stripe SDK expects
+      apiVersion: "2025-10-29.clover",
+    })
+  : null;
