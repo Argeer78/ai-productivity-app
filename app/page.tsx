@@ -10,7 +10,7 @@ export default function HomePage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-    useEffect(() => {
+  useEffect(() => {
     async function loadUser() {
       try {
         // When there's no session, this can throw AuthSessionMissingError.
@@ -113,7 +113,9 @@ export default function HomePage() {
 
                 <div className="grid grid-cols-2 gap-3 mb-3 text-[11px]">
                   <div className="rounded-xl bg-slate-950/60 border border-slate-800 p-3">
-                    <p className="text-slate-400 mb-1">Today&apos;s focus</p>
+                    <p className="text-slate-400 mb-1">
+                      Today&apos;s focus
+                    </p>
                     <p className="text-slate-100">
                       Ship landing page, reply to clients, 30min learning.
                     </p>
@@ -243,7 +245,9 @@ export default function HomePage() {
                 <p className="relative text-xs font-semibold text-indigo-100 mb-1">
                   PRO
                 </p>
-                <p className="relative text-2xl font-bold mb-1">€9.99 / month</p>
+                <p className="relative text-2xl font-bold mb-1">
+                  €9.99 / month
+                </p>
                 <p className="relative text-[12px] text-indigo-100 mb-3">
                   For people who actually use this daily and want room to
                   experiment with AI.
@@ -340,10 +344,7 @@ export default function HomePage() {
           <footer className="border-t border-slate-900 pt-4 pb-2 text-[11px] text-slate-500 flex flex-wrap gap-3 justify-between">
             <span>© {new Date().getFullYear()} AI Productivity Hub</span>
             <div className="flex gap-3">
-              <Link
-                href="/changelog"
-                className="hover:text-slate-300"
-              >
+              <Link href="/changelog" className="hover:text-slate-300">
                 What&apos;s new
               </Link>
               <Link
@@ -352,10 +353,7 @@ export default function HomePage() {
               >
                 Privacy
               </Link>
-              <Link
-                href="/terms"
-                className="hover:text-slate-300"
-              >
+              <Link href="/terms" className="hover:text-slate-300">
                 Terms
               </Link>
             </div>
