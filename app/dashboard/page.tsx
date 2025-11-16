@@ -352,53 +352,37 @@ export default function DashboardPage() {
           setRecentNotes(notes || []);
         }
 
-        // Notes created in the last 7 days
-        const sevenDaysAgoTs = new Date();
-        sevenDaysAgoTs.setDate(sevenDaysAgoTs.getDate() - 6);
-        const sevenIso = sevenDaysAgoTs.toISOString();
+        // Notes / tasks in last 7 days (date-only to avoid timestamp parsing issues)
+const sevenDaysAgoDate = new Date();
+sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 6);
+const sevenDateStr = sevenDaysAgoDate.toISOString().split("T")[0];
 
-        const { count: notes7Count } = await supabase
-          .from("notes")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .gte("created_at", sevenIso);
+// Notes created in the last 7 days
+const { count: notes7Count, error: notes7Err } = await supabase
+  .from("notes")
+  .select("id", { count: "exact", head: false })
+  .eq("user_id", user.id)
+  .gte("created_at", sevenDateStr)
+  .limit(0);
 
-        setWeekNotesCreated(notes7Count || 0);
+if (notes7Err) {
+  console.error("[dashboard] notes7 count error", notes7Err);
+}
+setWeekNotesCreated(notes7Count || 0);
 
-        // 6) Recent tasks
-        const { data: tasks, error: tasksError } = await supabase
-          .from("tasks")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(5);
+// Tasks completed in the last 7 days
+const { count: tasks7Count, error: tasks7Err } = await supabase
+  .from("tasks")
+  .select("id", { count: "exact", head: false })
+  .eq("user_id", user.id)
+  .eq("completed", true)
+  .gte("created_at", sevenDateStr)
+  .limit(0);
 
-        console.log(
-          "Dashboard: recent tasks data =",
-          tasks,
-          "error =",
-          tasksError
-        );
-
-        if (
-          tasksError &&
-          (tasksError as any).code &&
-          (tasksError as any).code !== "PGRST116"
-        ) {
-          console.error("Dashboard: tasks error", tasksError);
-        }
-
-        setRecentTasks(tasks || []);
-
-        // Tasks completed in the last 7 days
-        const { count: tasks7Count } = await supabase
-          .from("tasks")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("completed", true) // or "is_done" if that's your column
-          .gte("created_at", sevenIso);
-
-        setWeekTasksCompleted(tasks7Count || 0);
+if (tasks7Err) {
+  console.error("[dashboard] tasks7 count error", tasks7Err);
+}
+setWeekTasksCompleted(tasks7Count || 0);
 
         // 7) Weekly goal of the week (latest)
         const { data: goalRow, error: goalError } = await supabase
