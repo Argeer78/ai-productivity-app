@@ -1,3 +1,4 @@
+// app/admin/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -17,10 +18,6 @@ type Metrics = {
   aiCalls7Days: number;
 };
 
-function getTodayString() {
-  return new Date().toISOString().split("T")[0];
-}
-
 export default function AdminPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -30,18 +27,28 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Load current user
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  // Load current user + session token
   useEffect(() => {
     async function loadUser() {
       try {
-        const { data } = await supabase.auth.getUser();
-        const u = data?.user ?? null;
+        const [{ data: userData }, { data: sessionData }] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.auth.getSession(),
+        ]);
+
+        const u = userData?.user ?? null;
         setUser(u);
+
+        const token = sessionData?.session?.access_token || null;
+        setAccessToken(token);
+
         if (u?.email && ADMIN_EMAIL && u.email === ADMIN_EMAIL) {
           setAuthorized(true);
         }
       } catch (err) {
-        console.error(err);
+        console.error("[admin] loadUser error", err);
       } finally {
         setCheckingUser(false);
       }
@@ -49,82 +56,31 @@ export default function AdminPage() {
     loadUser();
   }, []);
 
-  // Fetch metrics if admin
+  // Fetch metrics from secure API (only when admin + token)
   useEffect(() => {
-    if (!authorized) return;
+    if (!authorized || !accessToken) return;
 
     async function loadMetrics() {
       setLoading(true);
       setError("");
       try {
-        // 1) Total users
-        const { count: totalUsers, error: usersErr } = await supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true });
-
-        if (usersErr) throw usersErr;
-
-        // 2) Pro users
-        const { count: proUsers, error: proErr } = await supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .eq("plan", "pro");
-
-        if (proErr) throw proErr;
-
-        // 3) Notes
-        const { count: totalNotes, error: notesErr } = await supabase
-          .from("notes")
-          .select("*", { count: "exact", head: true });
-
-        if (notesErr) throw notesErr;
-
-        // 4) Tasks
-        const { count: totalTasks, error: tasksErr } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true });
-
-        if (tasksErr) throw tasksErr;
-
-        // 5) AI usage
-        const today = getTodayString();
-        const since = new Date();
-        since.setDate(since.getDate() - 6); // last 7 days incl. today
-        const sinceStr = since.toISOString().split("T")[0];
-
-        // today count (sum over all users)
-        const { data: todayRows, error: todayErr } = await supabase
-          .from("ai_usage")
-          .select("count")
-          .eq("usage_date", today);
-
-        if (todayErr) throw todayErr;
-
-        const aiCallsToday =
-          todayRows?.reduce((acc, row) => acc + (row.count || 0), 0) ?? 0;
-
-        // last 7 days total
-        const { data: weekRows, error: weekErr } = await supabase
-          .from("ai_usage")
-          .select("count")
-          .gte("usage_date", sinceStr)
-          .lte("usage_date", today);
-
-        if (weekErr) throw weekErr;
-
-        const aiCalls7Days =
-          weekRows?.reduce((acc, row) => acc + (row.count || 0), 0) ?? 0;
-
-        setMetrics({
-          totalUsers: totalUsers || 0,
-          proUsers: proUsers || 0,
-          totalNotes: totalNotes || 0,
-          totalTasks: totalTasks || 0,
-          aiCallsToday,
-          aiCalls7Days,
+        const res = await fetch("/api/admin-metrics", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
         });
+
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          console.error("[admin] metrics API error", data);
+          setError(data.error || "Failed to load admin metrics.");
+          return;
+        }
+
+        setMetrics(data.metrics as Metrics);
       } catch (err: any) {
-        console.error(err);
+        console.error("[admin] loadMetrics error", err);
         setError("Failed to load admin metrics.");
       } finally {
         setLoading(false);
@@ -132,7 +88,7 @@ export default function AdminPage() {
     }
 
     loadMetrics();
-  }, [authorized]);
+  }, [authorized, accessToken]);
 
   if (checkingUser) {
     return (
