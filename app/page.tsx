@@ -10,20 +10,24 @@ export default function HomePage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  useEffect(() => {
+    useEffect(() => {
     async function loadUser() {
       try {
-        const { data, error } = await supabase.auth.getUser();
-        if (error) {
-          console.error("[home] auth.getUser error", error);
-        }
+        // When there's no session, this can throw AuthSessionMissingError.
+        const { data } = await supabase.auth.getUser();
         setUser(data?.user ?? null);
-      } catch (err) {
-        console.error("[home] loadUser error", err);
+      } catch (err: any) {
+        // If there's simply no session, we silently treat it as "logged out".
+        if (err?.name === "AuthSessionMissingError") {
+          setUser(null);
+        } else {
+          console.error("[home] loadUser error", err);
+        }
       } finally {
         setCheckingUser(false);
       }
     }
+
     loadUser();
   }, []);
 
