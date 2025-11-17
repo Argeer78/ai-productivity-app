@@ -40,9 +40,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // TODO: if you want to count AI usage here, call your existing
-    // tracking helper, e.g. incrementAiUsage(userId, 1);
-
     return NextResponse.json({ translation });
   } catch (err) {
     console.error("[ai-translate] error", err);

@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 
 type Region =
   | "Popular"
@@ -140,7 +145,6 @@ const LANGUAGES: Language[] = [
   { code: "en", label: "English (New Zealand)", flag: "🇳🇿", region: "Oceania" },
 ];
 
-// Popular rendered separately, so region order does NOT include "Popular"
 const REGION_ORDER: Exclude<Region, "Popular">[] = [
   "Europe",
   "Asia",
@@ -149,11 +153,6 @@ const REGION_ORDER: Exclude<Region, "Popular">[] = [
   "Americas",
   "Oceania",
 ];
-
-type TranslationResponse = {
-  translated?: string;
-  error?: string;
-};
 
 export default function TranslateWithAIButton() {
   const [open, setOpen] = useState(false);
@@ -180,113 +179,99 @@ export default function TranslateWithAIButton() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       setPosition({
-        top: vh * 0.15, // 15% from top, a bit lower so browser bar doesn't hide it
+        top: vh * 0.15,
         left: vw / 2,
       });
     }
   }, [open]);
 
   function handleOpen() {
-  try {
-    const selection = window.getSelection()?.toString().trim() || "";
-
-    // If user selected text, use it; otherwise start empty so they can type.
-    const text = selection || "";
-
-    setSourceText(text);
-    setTranslatedText("");
-    setErrorMsg("");
-    setSearch("");
-    setOpen(true);
-  } catch (err) {
-    console.error("[translate] open modal error", err);
-    setSourceText("");
-    setErrorMsg("Could not read the page content.");
-    setOpen(true);
+    try {
+      const selection = window.getSelection()?.toString().trim() || "";
+      const text = selection || "";
+      setSourceText(text);
+      setTranslatedText("");
+      setErrorMsg("");
+      setSearch("");
+      setOpen(true);
+    } catch (err) {
+      console.error("[translate] open modal error", err);
+      setSourceText("");
+      setErrorMsg("Could not read the page content.");
+      setOpen(true);
+    }
   }
-}
 
-  async function handleTranslate() {
-    if (!selectedLang) return;
+ async function handleTranslate() {
+  setErrorMsg("");
+  setLoading(true);
+  setTranslatedText("");
 
-    if (!sourceText.trim()) {
+  try {
+    const res = await fetch("/api/ai-translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: sourceText,
+        targetLang: selectedLang?.code,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      console.error("[translate-ui] server error", res.status, data);
       setErrorMsg(
-        "No text detected. Select some text or make sure the page has content."
+        (data && data.error) ||
+          `Failed to translate (status ${res.status}).`
       );
       return;
     }
 
-    setLoading(true);
-    setErrorMsg("");
-    setTranslatedText("");
-
-    try {
-      const res = await fetch("/api/ai-translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: sourceText,
-          targetLang: selectedLang.label,
-        }),
-      });
-
-      const text = await res.text();
-      let data: TranslationResponse;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("[translate] non-JSON response:", text);
-        setErrorMsg("Failed to translate. Please try again in a moment.");
-        return;
-      }
-
-      if (!res.ok || !data.translated) {
-        setErrorMsg(
-          data.error || "Failed to translate. Please try again in a moment."
-        );
-        return;
-      }
-
-      setTranslatedText(data.translated);
-    } catch (err) {
-      console.error("[translate] network error", err);
-      setErrorMsg("Network error while translating. Please try again.");
-    } finally {
-      setLoading(false);
+    if (!data?.translation) {
+      setErrorMsg("No translation returned from server.");
+      return;
     }
+
+    setTranslatedText(data.translation);
+  } catch (err) {
+    console.error("[translate-ui] fetch error", err);
+    setErrorMsg("Network error while calling translation API.");
+  } finally {
+    setLoading(false);
   }
+}
 
   // Drag logic
   useEffect(() => {
-  function handleMouseMove(e: MouseEvent) {
-    if (!dragging) return;
+    function handleMouseMove(e: MouseEvent) {
+      if (!dragging) return;
+      const start = dragStartRef.current;
+      if (!start) return;
 
-    const start = dragStartRef.current;
-    if (!start) return;
+      setPosition((prev) => ({
+        top: prev.top + (e.clientY - start.y),
+        left: prev.left + (e.clientX - start.x),
+      }));
 
-    setPosition((prev) => ({
-      top: prev.top + (e.clientY - start.y),
-      left: prev.left + (e.clientX - start.x),
-    }));
+      dragStartRef.current = { x: e.clientX, y: e.clientY };
+    }
 
-    dragStartRef.current = { x: e.clientX, y: e.clientY };
-  }
+    function handleMouseUp() {
+      setDragging(false);
+      dragStartRef.current = null;
+    }
 
-  function handleMouseUp() {
-    setDragging(false);
-    dragStartRef.current = null;
-  }
+    if (dragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
 
-  if (dragging) {
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-  }
-
-  return () => {
-    window.removeEventListener("mousemove", handleMouseMove);
-    window.removeEventListener("mouseup", handleMouseUp);
-  };
-}, [dragging]);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragging]);
 
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
     e.preventDefault();
@@ -294,10 +279,9 @@ export default function TranslateWithAIButton() {
     dragStartRef.current = { x: e.clientX, y: e.clientY };
   }
 
-  // language helpers
-  const popularLanguages = LANGUAGES.filter((l) => l.region === "Popular").sort(
-    (a, b) => a.label.localeCompare(b.label)
-  );
+  const popularLanguages = LANGUAGES.filter(
+    (l) => l.region === "Popular"
+  ).sort((a, b) => a.label.localeCompare(b.label));
 
   const searchTerm = search.trim().toLowerCase();
 
@@ -310,13 +294,13 @@ export default function TranslateWithAIButton() {
     : null;
 
   const groupedByRegion = !filteredLanguages
-    ? REGION_ORDER.map((region) => {
+    ? (REGION_ORDER.map((region) => {
         const items = LANGUAGES.filter((l) => l.region === region).sort((a, b) =>
           a.label.localeCompare(b.label)
         );
         if (!items.length) return null;
         return { region, items };
-      }).filter(Boolean) as { region: Region; items: Language[] }[]
+      }).filter(Boolean) as { region: Region; items: Language[] }[])
     : [];
 
   return (
@@ -497,16 +481,16 @@ export default function TranslateWithAIButton() {
 
               {/* Source preview */}
               <div>
-  <label className="block text-[11px] text-slate-400 mb-1">
-    Text to translate
-  </label>
-  <textarea
-    value={sourceText}
-    onChange={(e) => setSourceText(e.target.value)}
-    placeholder="Type or paste the text you want to translate. If you select text on the page before opening this, it will appear here automatically."
-    className="w-full rounded-xl border border-slate-800 bg-slate-950/80 p-2 max-h-32 min-h-[80px] text-[11px] text-slate-200 resize-vertical"
-  />
-</div>
+                <label className="block text-[11px] text-slate-400 mb-1">
+                  Text to translate
+                </label>
+                <textarea
+                  value={sourceText}
+                  onChange={(e) => setSourceText(e.target.value)}
+                  placeholder="Type or paste the text you want to translate. If you select text on the page before opening this, it will appear here automatically."
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950/80 p-2 max-h-32 min-h-[80px] text-[11px] text-slate-200 resize-vertical"
+                />
+              </div>
 
               {/* Error */}
               {errorMsg && (
