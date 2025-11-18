@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
+import SocialShareBar from "@/app/components/SocialShareBar";
 
 export default function HomePage() {
   const [user, setUser] = useState<any | null>(null);
@@ -13,11 +14,9 @@ export default function HomePage() {
   useEffect(() => {
     async function loadUser() {
       try {
-        // When there's no session, this can throw AuthSessionMissingError.
         const { data } = await supabase.auth.getUser();
         setUser(data?.user ?? null);
       } catch (err: any) {
-        // If there's simply no session, we silently treat it as "logged out".
         if (err?.name === "AuthSessionMissingError") {
           setUser(null);
         } else {
@@ -86,6 +85,14 @@ export default function HomePage() {
                 No credit card required • Free plan included • Built for
                 solo makers, students and busy humans ✨
               </p>
+
+              {/* 🌐 Social share bar */}
+              <div className="mt-5">
+                <SocialShareBar
+                  title="Check out this AI Productivity Hub"
+                  // url is optional; it can default to the current page URL
+                />
+              </div>
             </div>
 
             {/* Simple “product preview” card */}
