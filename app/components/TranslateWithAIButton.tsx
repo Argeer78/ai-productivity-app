@@ -180,7 +180,6 @@ function getTranslatableTextNodes(): Text[] {
         const parent = (node as Text).parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
 
-        // skip anything inside the translate modal
         if (parent.closest("[data-translate-modal='1']")) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -198,8 +197,7 @@ function getTranslatableTextNodes(): Text[] {
 
         return NodeFilter.FILTER_ACCEPT;
       },
-    } as NodeFilter,
-    false
+    } as any
   );
 
   const nodes: Text[] = [];
