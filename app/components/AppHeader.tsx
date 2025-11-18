@@ -92,7 +92,6 @@ export default function AppHeader({ active }: HeaderProps) {
     !latestSeenChangelogAt ||
     new Date(latestSeenChangelogAt) < new Date(LATEST_CHANGELOG_AT);
 
-  // Anything here is considered part of "Apps" (for highlighting the Apps button)
   const appsActiveKeys: HeaderProps["active"][] = [
     "notes",
     "tasks",
@@ -125,6 +124,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
   return (
     <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+      {/* Top row (logo, nav, mobile menu) */}
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         {/* Logo / brand */}
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">
@@ -147,7 +147,7 @@ export default function AppHeader({ active }: HeaderProps) {
             Dashboard
           </Link>
 
-          {/* Apps – now the single place for Notes / Tasks / Planner / etc. */}
+          {/* Apps – hub for Notes / Tasks / Planner / etc. */}
           <button
             type="button"
             onClick={() => setAppsOpen((v) => !v)}
@@ -171,7 +171,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-          {/* Mobile menu button – now comes FIRST on the right side */}
+          {/* Mobile menu button – ONLY visible on mobile */}
           <button
             type="button"
             onClick={() => {
@@ -183,43 +183,42 @@ export default function AppHeader({ active }: HeaderProps) {
             {mobileOpen ? "✕" : "☰"}
           </button>
 
-          {/* User email (or loading) */}
-          {loadingUser ? (
-            <span className="text-[11px] text-slate-400">Loading…</span>
-          ) : userEmail ? (
-            <span className="text-[11px] text-slate-300 truncate max-w-[90px] sm:max-w-[140px]">
-              {userEmail}
-            </span>
-          ) : null}
+          {/* Desktop-only user controls */}
+          <div className="hidden md:flex items-center gap-2">
+            {loadingUser ? (
+              <span className="text-[11px] text-slate-400">Loading…</span>
+            ) : userEmail ? (
+              <span className="text-[11px] text-slate-300 truncate max-w-[140px]">
+                {userEmail}
+              </span>
+            ) : null}
 
-          {/* Translate button */}
-          <TranslateWithAIButton />
+            <TranslateWithAIButton />
 
-          {/* Settings */}
-          <Link
-            href="/settings"
-            className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200"
-          >
-            Settings
-          </Link>
-
-          {/* Auth button */}
-          {userEmail ? (
-            <button
-              onClick={handleLogout}
-              disabled={loggingOut}
-              className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200 disabled:opacity-60"
-            >
-              {loggingOut ? "…" : "Log out"}
-            </button>
-          ) : (
             <Link
-              href="/auth"
+              href="/settings"
               className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200"
             >
-              Log in
+              Settings
             </Link>
-          )}
+
+            {userEmail ? (
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200 disabled:opacity-60"
+              >
+                {loggingOut ? "…" : "Log out"}
+              </button>
+            ) : (
+              <Link
+                href="/auth"
+                className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200"
+              >
+                Log in
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Apps Panel (desktop) */}
@@ -272,7 +271,46 @@ export default function AppHeader({ active }: HeaderProps) {
         )}
       </div>
 
-      {/* Mobile Menu */}
+      {/* 👇 Mobile-only secondary header row: email + translate + settings + auth */}
+      <div className="md:hidden border-t border-slate-800 bg-slate-950/95">
+        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2 overflow-x-auto">
+          {loadingUser ? (
+            <span className="text-[11px] text-slate-400">Loading…</span>
+          ) : userEmail ? (
+            <span className="text-[11px] text-slate-300 truncate max-w-[140px]">
+              {userEmail}
+            </span>
+          ) : null}
+
+          <TranslateWithAIButton />
+
+          <Link
+            href="/settings"
+            className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200 flex-shrink-0"
+          >
+            Settings
+          </Link>
+
+          {userEmail ? (
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200 disabled:opacity-60 flex-shrink-0"
+            >
+              {loggingOut ? "…" : "Log out"}
+            </button>
+          ) : (
+            <Link
+              href="/auth"
+              className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200 flex-shrink-0"
+            >
+              Log in
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile Menu (nav links) */}
       {mobileOpen && (
         <div className="md:hidden border-t border-slate-800 bg-slate-950/95">
           <div className="px-4 py-3 flex flex-col gap-2 text-sm">
