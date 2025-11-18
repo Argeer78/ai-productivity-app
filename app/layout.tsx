@@ -2,9 +2,13 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import AIAssistant from "@/app/components/AIAssistant";
 import PlausibleProvider from "next-plausible";
+import AIAssistant from "@/app/components/AIAssistant";
 import { LanguageProvider } from "@/app/components/LanguageProvider";
+import ServiceWorkerRegistrar from "./components/ServiceWorkerRegistrar";
+// If you created this earlier for the “install app” prompt, keep it.
+// If not, remove this import & <PwaInstallPrompt /> below.
+import PwaInstallPrompt from "./components/PwaInstallPrompt";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,45 +32,12 @@ export const metadata: Metadata = {
       "Stay organized with notes, tasks, daily success score, weekly reports and an AI travel planner in one clean app.",
     images: ["/og-image.png"],
   },
+  manifest: "/manifest.webmanifest",
+  themeColor: "#020617",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b1220",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <head>
-        <PlausibleProvider
-          domain={
-            process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"
-          }
-          trackLocalhost={false}
-        />
-      </head>
-      <body className={inter.className}>
-        <LanguageProvider>
-          {children}
-          <AIAssistant />
-        </LanguageProvider>
-      </body>
-    </html>
-  );
-}
-// app/layout.tsx
-import type { Metadata } from "next";
-import "./globals.css";
-
-export const metadata: Metadata = {
-  title: "AI Productivity Hub",
-  description: "Your AI workspace for focus, planning & tiny wins.",
   themeColor: "#020617",
-  manifest: "/manifest.webmanifest"
 };
 
 export default function RootLayout({
@@ -76,21 +47,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-slate-950 text-slate-100">
-        {children}
-      </body>
-    </html>
-  );
-}
-// app/layout.tsx
-import ServiceWorkerRegistrar from "./components/ServiceWorkerRegistrar";
+      <body className={`${inter.className} bg-slate-950 text-slate-100`}>
+        <PlausibleProvider
+          domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
+          trackLocalhost={false}
+        >
+          {/* PWA service worker + install prompt */}
+          <ServiceWorkerRegistrar />
+          {/* Remove this if you didn’t actually create the component */}
+          <PwaInstallPrompt />
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body className="bg-slate-950 text-slate-100">
-        <ServiceWorkerRegistrar />
-        {children}
+          {/* App providers + UI */}
+          <LanguageProvider>
+            {children}
+            <AIAssistant />
+          </LanguageProvider>
+        </PlausibleProvider>
       </body>
     </html>
   );
