@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useAnalytics } from "@/lib/analytics";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
+type Reminder = "none" | "daily" | "weekly";
 
 const TONE_OPTIONS: { value: Tone; label: string }[] = [
   { value: "balanced", label: "Balanced (default)" },
@@ -33,6 +34,12 @@ export default function SettingsPage() {
   const [testingEmail, setTestingEmail] = useState(false);
   const [testEmailMessage, setTestEmailMessage] = useState("");
 
+  // NEW: onboarding-related state
+  const [onboardingUseCase, setOnboardingUseCase] = useState("");
+  const [onboardingWeeklyFocus, setOnboardingWeeklyFocus] = useState("");
+  const [onboardingReminder, setOnboardingReminder] =
+    useState<Reminder>("none");
+
   const { track } = useAnalytics();
 
   // Load user
@@ -54,59 +61,82 @@ export default function SettingsPage() {
   }, []);
 
   // Load profile settings
-useEffect(() => {
-  if (!user) return;
+  useEffect(() => {
+    if (!user) return;
 
-  async function loadProfile() {
-    setLoadingProfile(true);
-    setError("");
+    async function loadProfile() {
+      setLoadingProfile(true);
+      setError("");
 
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(
-          "ai_tone, weekly_report_enabled, focus_area, daily_digest_enabled, daily_digest_hour, plan"
-        )
-        .eq("id", user.id)
-        .maybeSingle();
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(
+            `
+            ai_tone,
+            weekly_report_enabled,
+            focus_area,
+            daily_digest_enabled,
+            daily_digest_hour,
+            plan,
+            onboarding_use_case,
+            onboarding_weekly_focus,
+            onboarding_reminder
+          `
+          )
+          .eq("id", user.id)
+          .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
-        throw error;
+        if (error && error.code !== "PGRST116") {
+          throw error;
+        }
+
+        if (data) {
+          if (data.ai_tone) {
+            setTone(data.ai_tone as Tone);
+          }
+          if (data.focus_area) {
+            setFocusArea(data.focus_area);
+          }
+          if (typeof data.daily_digest_enabled === "boolean") {
+            setDailyDigestEnabled(data.daily_digest_enabled);
+          }
+
+          if (typeof data.weekly_report_enabled === "boolean") {
+            setWeeklyReportEnabled(data.weekly_report_enabled);
+          } else {
+            setWeeklyReportEnabled(true); // default if null/undefined
+          }
+
+          if (data.plan === "pro") {
+            setPlan("pro");
+          } else {
+            setPlan("free");
+          }
+
+          // NEW: onboarding fields
+          if (data.onboarding_use_case) {
+            setOnboardingUseCase(data.onboarding_use_case);
+          }
+          if (data.onboarding_weekly_focus) {
+            setOnboardingWeeklyFocus(data.onboarding_weekly_focus);
+          }
+          if (data.onboarding_reminder) {
+            setOnboardingReminder(
+              data.onboarding_reminder as Reminder
+            );
+          }
+        }
+      } catch (err: any) {
+        console.error(err);
+        setError("Failed to load your settings.");
+      } finally {
+        setLoadingProfile(false);
       }
-
-      if (data) {
-        if (data.ai_tone) {
-          setTone(data.ai_tone as Tone);
-        }
-        if (data.focus_area) {
-          setFocusArea(data.focus_area);
-        }
-        if (typeof data.daily_digest_enabled === "boolean") {
-          setDailyDigestEnabled(data.daily_digest_enabled);
-        }
-
-        if (typeof data.weekly_report_enabled === "boolean") {
-          setWeeklyReportEnabled(data.weekly_report_enabled);
-        } else {
-          setWeeklyReportEnabled(true); // default if null/undefined
-        }
-
-        if (data.plan === "pro") {
-          setPlan("pro");
-        } else {
-          setPlan("free");
-        }
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError("Failed to load your settings.");
-    } finally {
-      setLoadingProfile(false);
     }
-  }
 
-  loadProfile();
-}, [user]);
+    loadProfile();
+  }, [user]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -124,7 +154,12 @@ useEffect(() => {
           focus_area: focusArea.trim() || null,
           daily_digest_enabled: dailyDigestEnabled,
           weekly_report_enabled: weeklyReportEnabled,
-          // daily_digest_hour: dailyDigestHour, // if you add hour later
+
+          // NEW: onboarding fields
+          onboarding_use_case: onboardingUseCase.trim() || null,
+          onboarding_weekly_focus:
+            onboardingWeeklyFocus.trim() || null,
+          onboarding_reminder: onboardingReminder || "none",
         })
         .eq("id", user.id);
 
@@ -134,7 +169,7 @@ useEffect(() => {
         return;
       }
 
-      setSuccess("Settings saved. Your AI will now use this style.");
+      setSuccess("Settings saved. Your AI will now use this style and preferences.");
     } catch (err) {
       console.error(err);
       setError("Something went wrong while saving.");
@@ -238,69 +273,130 @@ useEffect(() => {
                   {success}
                 </p>
               )}
-<div className="grid md:grid-cols-2 gap-5">
-  {/* other settings cards */}
 
-  <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-    <p className="text-xs font-semibold text-slate-400 mb-1">
-      WEEKLY AI REPORT
-    </p>
-    {plan !== "pro" ? (
-      <>
-        <p className="text-sm text-slate-200 mb-1">
-          Get a weekly AI-generated report with your productivity score,
-          streak, completed tasks, and focus suggestions for next week.
-        </p>
+              {/* Onboarding & focus card (NEW) */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-200">
+                      Onboarding & focus
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Help the app tailor AI prompts, reminders and weekly reports.
+                    </p>
+                  </div>
+                </div>
 
-        <p className="text-[11px] text-slate-500 mb-3">
-          This is a Pro feature. Upgrade to unlock weekly email reports.
-        </p>
-        <a
-          href="/dashboard#pricing"
-          className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-slate-50"
-        >
-          🔒 Unlock with Pro
-        </a>
-        <Link
-        href="/weekly-history"
-        className="block mt-2 text-[11px] text-slate-400 hover:text-slate-200"
-      >
-        See how weekly reports work →
-      </Link>
-      </>
-    ) : (
-      <>
-        <p className="text-sm text-slate-200 mb-2">
-          Receive a weekly AI summary of your progress, wins, and what to
-          focus on next week.
-        </p>
-        <label className="flex items-center gap-2 text-xs text-slate-200 mb-1">
-          <input
-            type="checkbox"
-            checked={weeklyReportEnabled}
-            onChange={(e) => setWeeklyReportEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-950"
-          />
-          <span>Send me weekly AI productivity reports</span>
-        </label>
-        <p className="text-[11px] text-slate-500">
-  Weekly reports use your scores, tasks, notes & goals to give you a 
-  simple “how did I do?” email every week.
-</p>
-        <p className="text-[11px] text-slate-500">
-          Emails are sent once per week and include your streak, average
-          score, and tailored suggestions.
-        </p>
-            <Link
-      href="/weekly-history"
-      className="inline-block mt-2 text-[11px] text-indigo-400 hover:text-indigo-300"
-    >
-      View past weekly reports →
-    </Link>
-      </>
-    )}
-  </div>
-</div>
+                <div className="space-y-2">
+                  <label className="block text-[11px] text-slate-300">
+                    Main way you plan to use this app
+                    <textarea
+                      value={onboardingUseCase}
+                      onChange={(e) =>
+                        setOnboardingUseCase(e.target.value)
+                      }
+                      placeholder="Example: I’m a solo founder using this for planning my week, journaling progress and drafting emails."
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100 resize-vertical"
+                      rows={2}
+                    />
+                  </label>
+
+                  <label className="block text-[11px] text-slate-300">
+                    One important thing you want to make progress on each week
+                    <textarea
+                      value={onboardingWeeklyFocus}
+                      onChange={(e) =>
+                        setOnboardingWeeklyFocus(e.target.value)
+                      }
+                      placeholder="Example: Shipping one small improvement to my product every week."
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100 resize-vertical"
+                      rows={2}
+                    />
+                  </label>
+
+                  <label className="block text-[11px] text-slate-300">
+                    Light reminder cadence
+                    <select
+                      value={onboardingReminder}
+                      onChange={(e) =>
+                        setOnboardingReminder(
+                          e.target.value as Reminder
+                        )
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100"
+                    >
+                      <option value="none">No reminders</option>
+                      <option value="daily">Daily nudge email</option>
+                      <option value="weekly">Weekly check-in</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              {/* Weekly AI report card (your existing grid) */}
+              <div className="grid md:grid-cols-2 gap-5">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                    WEEKLY AI REPORT
+                  </p>
+                  {plan !== "pro" ? (
+                    <>
+                      <p className="text-sm text-slate-200 mb-1">
+                        Get a weekly AI-generated report with your productivity score,
+                        streak, completed tasks, and focus suggestions for next week.
+                      </p>
+
+                      <p className="text-[11px] text-slate-500 mb-3">
+                        This is a Pro feature. Upgrade to unlock weekly email reports.
+                      </p>
+                      <a
+                        href="/dashboard#pricing"
+                        className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-slate-50"
+                      >
+                        🔒 Unlock with Pro
+                      </a>
+                      <Link
+                        href="/weekly-history"
+                        className="block mt-2 text-[11px] text-slate-400 hover:text-slate-200"
+                      >
+                        See how weekly reports work →
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate-200 mb-2">
+                        Receive a weekly AI summary of your progress, wins, and what to
+                        focus on next week.
+                      </p>
+                      <label className="flex items-center gap-2 text-xs text-slate-200 mb-1">
+                        <input
+                          type="checkbox"
+                          checked={weeklyReportEnabled}
+                          onChange={(e) =>
+                            setWeeklyReportEnabled(e.target.checked)
+                          }
+                          className="h-4 w-4 rounded border-slate-600 bg-slate-950"
+                        />
+                        <span>Send me weekly AI productivity reports</span>
+                      </label>
+                      <p className="text-[11px] text-slate-500">
+                        Weekly reports use your scores, tasks, notes & goals to give you a
+                        simple “how did I do?” email every week.
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Emails are sent once per week and include your streak, average
+                        score, and tailored suggestions.
+                      </p>
+                      <Link
+                        href="/weekly-history"
+                        className="inline-block mt-2 text-[11px] text-indigo-400 hover:text-indigo-300"
+                      >
+                        View past weekly reports →
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </div>
 
               {/* Daily digest toggle */}
               <div className="pt-1 pb-2 border-b border-slate-800 mb-2">

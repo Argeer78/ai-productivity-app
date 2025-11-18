@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import {
+  useEffect,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import { supabase } from "@/lib/supabaseClient";
 
 const LS_ONBOARDING_DONE = "aihub_onboarding_done_v1";
 const LS_ONBOARDING_USE_CASE = "aihub_onboarding_use_case";
@@ -20,7 +24,11 @@ const USE_CASE_OPTIONS = [
   "Travel & life admin",
 ];
 
-const REMINDER_OPTIONS: { id: "none" | "daily" | "weekly"; label: string; hint: string }[] = [
+const REMINDER_OPTIONS: {
+  id: "none" | "daily" | "weekly";
+  label: string;
+  hint: string;
+}[] = [
   {
     id: "daily",
     label: "Daily nudge",
@@ -43,7 +51,10 @@ export default function OnboardingFlow() {
   const [step, setStep] = useState<Step>(1);
   const [useCase, setUseCase] = useState<string | null>(null);
   const [weeklyFocus, setWeeklyFocus] = useState("");
-  const [reminder, setReminder] = useState<"none" | "daily" | "weekly">("none");
+  const [reminder, setReminder] = useState<"none" | "daily" | "weekly">(
+    "none"
+  );
+
   const [dragging, setDragging] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number }>({
     top: 0,
@@ -52,48 +63,106 @@ export default function OnboardingFlow() {
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(
     null
   );
+
   const [hasMounted, setHasMounted] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   const { lang, setLang } = useLanguage();
 
-  // Decide whether to show onboarding (only once, per browser)
+  // Decide whether to show onboarding + load user / profile
   useEffect(() => {
     setHasMounted(true);
     if (typeof window === "undefined") return;
 
-    const done = window.localStorage.getItem(LS_ONBOARDING_DONE);
-    if (!done) {
-      setOpen(true);
-      // center-ish default
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      setPosition({
-        top: vh * 0.15,
-        left: vw / 2,
-      });
+    let cancelled = false;
 
-      // preload saved answers if any
-      const savedUseCase =
-        window.localStorage.getItem(LS_ONBOARDING_USE_CASE) || "";
-      const savedFocus =
-        window.localStorage.getItem(LS_ONBOARDING_WEEKLY_FOCUS) || "";
-      const savedReminder =
-        (window.localStorage.getItem(LS_ONBOARDING_REMINDER) as
-          | "none"
-          | "daily"
-          | "weekly"
-          | null) || "none";
-      const savedLang = window.localStorage.getItem(LS_PREF_LANG);
+    async function init() {
+      try {
+        // 1) Get logged-in user (if any)
+        const { data } = await supabase.auth.getUser();
+        const user = data?.user ?? null;
 
-      if (savedUseCase) setUseCase(savedUseCase);
-      if (savedFocus) setWeeklyFocus(savedFocus);
-      if (savedReminder) setReminder(savedReminder);
-      if (savedLang) {
-        // we trust LanguageProvider to gracefully handle unknown codes
-        setLang(savedLang as any);
+        if (!cancelled) {
+          setUserId(user?.id ?? null);
+        }
+
+        // 2) Try to load profile onboarding fields if user exists
+        if (user?.id) {
+          const { data: profile, error } = await supabase
+            .from("profiles")
+            .select(
+              "onboarding_use_case, onboarding_weekly_focus, onboarding_reminder"
+            )
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (!cancelled) {
+            if (!error && profile) {
+              if (profile.onboarding_use_case) {
+                setUseCase(profile.onboarding_use_case);
+              }
+              if (profile.onboarding_weekly_focus) {
+                setWeeklyFocus(profile.onboarding_weekly_focus);
+              }
+              if (
+                profile.onboarding_reminder === "none" ||
+                profile.onboarding_reminder === "daily" ||
+                profile.onboarding_reminder === "weekly"
+              ) {
+                setReminder(profile.onboarding_reminder);
+              }
+            }
+            setProfileLoaded(true);
+          }
+        } else {
+          if (!cancelled) setProfileLoaded(true);
+        }
+
+        // 3) LocalStorage gating (only show once per browser)
+        const done = window.localStorage.getItem(LS_ONBOARDING_DONE);
+
+        // Also preload local saved answers if any (for anonymous visitors)
+        const savedUseCase =
+          window.localStorage.getItem(LS_ONBOARDING_USE_CASE) || "";
+        const savedFocus =
+          window.localStorage.getItem(LS_ONBOARDING_WEEKLY_FOCUS) || "";
+        const savedReminder =
+          (window.localStorage.getItem(LS_ONBOARDING_REMINDER) as
+            | "none"
+            | "daily"
+            | "weekly"
+            | null) || null;
+        const savedLang = window.localStorage.getItem(LS_PREF_LANG);
+
+        if (!useCase && savedUseCase) setUseCase(savedUseCase);
+        if (!weeklyFocus && savedFocus) setWeeklyFocus(savedFocus);
+        if (savedReminder && reminder === "none") setReminder(savedReminder);
+        if (savedLang) {
+          setLang(savedLang as any);
+        }
+
+        if (!done && !cancelled) {
+          setOpen(true);
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
+          setPosition({
+            top: vh * 0.15,
+            left: vw / 2,
+          });
+        }
+      } catch (err) {
+        console.error("[Onboarding] init error", err);
       }
     }
-  }, [setLang]);
+
+    init();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Drag logic
   useEffect(() => {
@@ -130,7 +199,7 @@ export default function OnboardingFlow() {
     setDragStart({ x: e.clientX, y: e.clientY });
   }
 
-  function markDoneAndClose() {
+  async function markDoneAndClose() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LS_ONBOARDING_DONE, "1");
       if (useCase) {
@@ -145,16 +214,46 @@ export default function OnboardingFlow() {
       window.localStorage.setItem(LS_ONBOARDING_REMINDER, reminder);
       window.localStorage.setItem(LS_PREF_LANG, lang);
     }
+
+    // Write to Supabase profile if user is logged in
+    if (userId) {
+      try {
+        const payload: {
+          onboarding_use_case?: string | null;
+          onboarding_weekly_focus?: string | null;
+          onboarding_reminder?: "none" | "daily" | "weekly";
+        } = {};
+
+        if (useCase) payload.onboarding_use_case = useCase;
+        if (weeklyFocus.trim())
+          payload.onboarding_weekly_focus = weeklyFocus.trim();
+        payload.onboarding_reminder = reminder;
+
+        if (Object.keys(payload).length > 0) {
+          const { error } = await supabase
+            .from("profiles")
+            .update(payload)
+            .eq("id", userId);
+
+          if (error) {
+            console.error("[Onboarding] profile update error", error);
+          }
+        }
+      } catch (err) {
+        console.error("[Onboarding] profile update exception", err);
+      }
+    }
+
     setOpen(false);
   }
 
   function handleSkip() {
-    markDoneAndClose();
+    void markDoneAndClose();
   }
 
   function handleNext() {
     if (step === 3) {
-      markDoneAndClose();
+      void markDoneAndClose();
     } else {
       setStep((s) => (s + 1) as Step);
     }
@@ -164,7 +263,7 @@ export default function OnboardingFlow() {
     setStep((s) => (s > 1 ? ((s - 1) as Step) : s));
   }
 
-  if (!hasMounted) return null;
+  if (!hasMounted || !profileLoaded) return null;
   if (!open) return null;
 
   return (
@@ -209,9 +308,7 @@ export default function OnboardingFlow() {
         <div className="px-4 py-3 space-y-4 text-xs">
           {/* Step indicator */}
           <div className="flex items-center justify-between text-[11px] text-slate-400">
-            <span>
-              Step {step} of 3
-            </span>
+            <span>Step {step} of 3</span>
             <div className="flex gap-1">
               {[1, 2, 3].map((s) => (
                 <span
@@ -314,8 +411,8 @@ export default function OnboardingFlow() {
                   </span>
                 </p>
                 <p className="text-[10px] text-slate-500">
-                  You can change language anytime from the header using
-                  the translator or future language settings.
+                  You can change language anytime from the header using the
+                  translator or future language settings.
                 </p>
               </div>
             </div>
