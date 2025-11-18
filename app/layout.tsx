@@ -58,3 +58,40 @@ export default function RootLayout({
     </html>
   );
 }
+// app/layout.tsx
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "AI Productivity Hub",
+  description: "Your AI workspace for focus, planning & tiny wins.",
+  themeColor: "#020617",
+  manifest: "/manifest.webmanifest"
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body className="bg-slate-950 text-slate-100">
+        {children}
+      </body>
+    </html>
+  );
+}
+// app/layout.tsx
+import ServiceWorkerRegistrar from "./components/ServiceWorkerRegistrar";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="bg-slate-950 text-slate-100">
+        <ServiceWorkerRegistrar />
+        {children}
+      </body>
+    </html>
+  );
+}
