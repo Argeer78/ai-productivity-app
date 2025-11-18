@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import { SUPPORTED_LANGS, translate, type TranslationKey } from "@/lib/i18n";
+
 type HeaderProps = {
   active?:
     | "dashboard"
@@ -37,7 +38,8 @@ export default function AppHeader({ active }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
   const { lang, t, setLang } = useLanguage();
-  const [latestSeenChangelogAt, setLatestSeenChangelogAt] = useState<string | null>(null);
+  const [latestSeenChangelogAt, setLatestSeenChangelogAt] =
+    useState<string | null>(null);
 
   const isAdmin = !!userEmail && ADMIN_EMAIL && userEmail === ADMIN_EMAIL;
 
@@ -46,7 +48,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
     async function loadUser() {
       try {
-        const { data, error } = await supabase.auth.getUser();
+        const { data } = await supabase.auth.getUser();
         const user = data?.user ?? null;
 
         if (!cancelled) {
@@ -90,6 +92,23 @@ export default function AppHeader({ active }: HeaderProps) {
     !latestSeenChangelogAt ||
     new Date(latestSeenChangelogAt) < new Date(LATEST_CHANGELOG_AT);
 
+  // Anything here is considered part of "Apps" (for highlighting the Apps button)
+  const appsActiveKeys: HeaderProps["active"][] = [
+    "notes",
+    "tasks",
+    "planner",
+    "templates",
+    "daily-success",
+    "weekly-reports",
+    "feedback",
+    "explore",
+    "my-trips",
+    "travel",
+    "changelog",
+    "admin",
+  ];
+  const isAppsActive = active && appsActiveKeys.includes(active);
+
   async function handleLogout() {
     try {
       setLoggingOut(true);
@@ -107,6 +126,7 @@ export default function AppHeader({ active }: HeaderProps) {
   return (
     <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
+        {/* Logo / brand */}
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">
           <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
             AI
@@ -118,28 +138,52 @@ export default function AppHeader({ active }: HeaderProps) {
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-1 ml-4 flex-1 min-w-0 overflow-x-auto">
-          <Link href="/dashboard" className={`${navLinkBase} ${active === "dashboard" ? navLinkActive : navLinkInactive}`}>Dashboard</Link>
-          <Link href="/notes" className={`${navLinkBase} ${active === "notes" ? navLinkActive : navLinkInactive}`}>Notes</Link>
-          <Link href="/tasks" className={`${navLinkBase} ${active === "tasks" ? navLinkActive : navLinkInactive}`}>Tasks</Link>
-          <Link href="/planner" className={`${navLinkBase} ${active === "planner" ? navLinkActive : navLinkInactive}`}>Planner</Link>
+          <Link
+            href="/dashboard"
+            className={`${navLinkBase} ${
+              active === "dashboard" ? navLinkActive : navLinkInactive
+            }`}
+          >
+            Dashboard
+          </Link>
 
+          {/* Apps – now the single place for Notes / Tasks / Planner / etc. */}
           <button
             type="button"
             onClick={() => setAppsOpen((v) => !v)}
-            className={`${navLinkBase} ml-2 flex items-center gap-1 border border-slate-700 bg-slate-900/40`}
+            className={`${navLinkBase} ml-2 flex items-center gap-1 border border-slate-700 bg-slate-900/40 ${
+              isAppsActive ? "bg-slate-800 text-slate-50" : ""
+            }`}
           >
             <span className="flex items-center gap-1 text-[11px]">
               Apps
               {hasUnseenChangelog && (
-                <span className="text-[9px] px-1 py-0.5 rounded-full bg-indigo-600 text-white">New</span>
+                <span className="text-[9px] px-1 py-0.5 rounded-full bg-indigo-600 text-white">
+                  New
+                </span>
               )}
             </span>
-            <span className="text-[11px] opacity-80">{appsOpen ? "▲" : "▼"}</span>
+            <span className="text-[11px] opacity-80">
+              {appsOpen ? "▲" : "▼"}
+            </span>
           </button>
         </nav>
 
         {/* Right side */}
         <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+          {/* Mobile menu button – now comes FIRST on the right side */}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileOpen((v) => !v);
+              setAppsOpen(false);
+            }}
+            className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-700 hover:bg-slate-900 text-slate-200 text-xs"
+          >
+            {mobileOpen ? "✕" : "☰"}
+          </button>
+
+          {/* User email (or loading) */}
           {loadingUser ? (
             <span className="text-[11px] text-slate-400">Loading…</span>
           ) : userEmail ? (
@@ -151,6 +195,7 @@ export default function AppHeader({ active }: HeaderProps) {
           {/* Translate button */}
           <TranslateWithAIButton />
 
+          {/* Settings */}
           <Link
             href="/settings"
             className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200"
@@ -158,6 +203,7 @@ export default function AppHeader({ active }: HeaderProps) {
             Settings
           </Link>
 
+          {/* Auth button */}
           {userEmail ? (
             <button
               onClick={handleLogout}
@@ -174,17 +220,6 @@ export default function AppHeader({ active }: HeaderProps) {
               Log in
             </Link>
           )}
-
-          <button
-            type="button"
-            onClick={() => {
-              setMobileOpen((v) => !v);
-              setAppsOpen(false);
-            }}
-            className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-700 hover:bg-slate-900 text-slate-200 text-xs"
-          >
-            {mobileOpen ? "✕" : "☰"}
-          </button>
         </div>
 
         {/* Apps Panel (desktop) */}
@@ -192,20 +227,44 @@ export default function AppHeader({ active }: HeaderProps) {
           <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-full mt-2 z-40">
             <div className="rounded-2xl border border-slate-800 bg-slate-950/98 shadow-xl p-3 w-[380px]">
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <Link href="/dashboard" className={appsItemBase}>Dashboard</Link>
-                <Link href="/notes" className={appsItemBase}>Notes</Link>
-                <Link href="/tasks" className={appsItemBase}>Tasks</Link>
-                <Link href="/planner" className={appsItemBase}>Planner</Link>
-                <Link href="/templates" className={appsItemBase}>Templates</Link>
-                <Link href="/daily-success" className={appsItemBase}>Daily Success</Link>
-                <Link href="/weekly-reports" className={appsItemBase}>Weekly Reports</Link>
-                <Link href="/my-trips" className={appsItemBase}>My Trips</Link>
-                <Link href="/travel" className={appsItemBase}>Travel Planner</Link>
-                <Link href="/feedback" className={appsItemBase}>Feedback</Link>
-                <Link href="/changelog" className={appsItemBase}>What’s new</Link>
+                <Link href="/dashboard" className={appsItemBase}>
+                  Dashboard
+                </Link>
+                <Link href="/notes" className={appsItemBase}>
+                  Notes
+                </Link>
+                <Link href="/tasks" className={appsItemBase}>
+                  Tasks
+                </Link>
+                <Link href="/planner" className={appsItemBase}>
+                  Planner
+                </Link>
+                <Link href="/templates" className={appsItemBase}>
+                  Templates
+                </Link>
+                <Link href="/daily-success" className={appsItemBase}>
+                  Daily Success
+                </Link>
+                <Link href="/weekly-reports" className={appsItemBase}>
+                  Weekly Reports
+                </Link>
+                <Link href="/my-trips" className={appsItemBase}>
+                  My Trips
+                </Link>
+                <Link href="/travel" className={appsItemBase}>
+                  Travel Planner
+                </Link>
+                <Link href="/feedback" className={appsItemBase}>
+                  Feedback
+                </Link>
+                <Link href="/changelog" className={appsItemBase}>
+                  What’s new
+                </Link>
 
                 {isAdmin && (
-                  <Link href="/admin" className={appsItemBase}>Admin</Link>
+                  <Link href="/admin" className={appsItemBase}>
+                    Admin
+                  </Link>
                 )}
               </div>
             </div>
@@ -217,21 +276,47 @@ export default function AppHeader({ active }: HeaderProps) {
       {mobileOpen && (
         <div className="md:hidden border-t border-slate-800 bg-slate-950/95">
           <div className="px-4 py-3 flex flex-col gap-2 text-sm">
-            <Link href="/dashboard" className={navLinkBase}>Dashboard</Link>
-            <Link href="/notes" className={navLinkBase}>Notes</Link>
-            <Link href="/tasks" className={navLinkBase}>Tasks</Link>
-            <Link href="/planner" className={navLinkBase}>Planner</Link>
-            <Link href="/templates" className={navLinkBase}>Templates</Link>
-            <Link href="/daily-success" className={navLinkBase}>Daily Success</Link>
-            <Link href="/weekly-reports" className={navLinkBase}>Weekly Reports</Link>
-            <Link href="/travel" className={navLinkBase}>Travel Planner</Link>
-            <Link href="/my-trips" className={navLinkBase}>My Trips</Link>
-            <Link href="/feedback" className={navLinkBase}>Feedback</Link>
-            <Link href="/changelog" className={navLinkBase}>What’s new</Link>
-            <Link href="/settings" className={navLinkBase}>Settings</Link>
+            <Link href="/dashboard" className={navLinkBase}>
+              Dashboard
+            </Link>
+            <Link href="/notes" className={navLinkBase}>
+              Notes
+            </Link>
+            <Link href="/tasks" className={navLinkBase}>
+              Tasks
+            </Link>
+            <Link href="/planner" className={navLinkBase}>
+              Planner
+            </Link>
+            <Link href="/templates" className={navLinkBase}>
+              Templates
+            </Link>
+            <Link href="/daily-success" className={navLinkBase}>
+              Daily Success
+            </Link>
+            <Link href="/weekly-reports" className={navLinkBase}>
+              Weekly Reports
+            </Link>
+            <Link href="/travel" className={navLinkBase}>
+              Travel Planner
+            </Link>
+            <Link href="/my-trips" className={navLinkBase}>
+              My Trips
+            </Link>
+            <Link href="/feedback" className={navLinkBase}>
+              Feedback
+            </Link>
+            <Link href="/changelog" className={navLinkBase}>
+              What’s new
+            </Link>
+            <Link href="/settings" className={navLinkBase}>
+              Settings
+            </Link>
 
             {isAdmin && (
-              <Link href="/admin" className={navLinkBase}>Admin</Link>
+              <Link href="/admin" className={navLinkBase}>
+                Admin
+              </Link>
             )}
           </div>
         </div>
