@@ -24,8 +24,22 @@ type Language = {
   popular?: boolean;
 };
 
+type TranslationResponse = {
+  translation?: string;
+  error?: string;
+};
+
+// LocalStorage keys
+const LS_PREF_LANG = "aihub_pref_lang";
+const LS_LAST_PATH = "aihub_last_path";
+
+// Hard limits for page translation to control cost & speed
+const MAX_NODES_PER_PAGE = 60;
+const MAX_TOTAL_CHARS = 8000;
+const SEPARATOR = "\n\n----\n\n";
+
 const LANGUAGES: Language[] = [
-  // ----- Popular (will ONLY render in "Most popular" block) -----
+  // ----- Popular -----
   { code: "en", label: "English", flag: "🇺🇸", region: "Popular", popular: true },
   { code: "es", label: "Spanish", flag: "🇪🇸", region: "Popular", popular: true },
   { code: "fr", label: "French", flag: "🇫🇷", region: "Popular", popular: true },
@@ -154,6 +168,49 @@ const REGION_ORDER: Exclude<Region, "Popular">[] = [
   "Oceania",
 ];
 
+// Collect text nodes, skipping the translation modal itself
+function getTranslatableTextNodes(): Text[] {
+  if (typeof document === "undefined") return [];
+
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+
+        // Skip anything inside the translate modal
+        if (parent.closest("[data-translate-modal='1']")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        const text = node.textContent || "";
+        if (!text.trim()) return NodeFilter.FILTER_REJECT;
+
+        const tag = parent.tagName.toLowerCase();
+        if (
+          ["script", "style", "noscript", "textarea"].includes(tag) ||
+          parent.closest("code, pre, kbd, svg")
+        ) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    } as any,
+    false
+  );
+
+  const nodes: Text[] = [];
+  let current = walker.nextNode();
+  while (current) {
+    nodes.push(current as Text);
+    current = walker.nextNode();
+  }
+  return nodes;
+}
+
 export default function TranslateWithAIButton() {
   const [open, setOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState<Language | null>(
@@ -165,7 +222,7 @@ export default function TranslateWithAIButton() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // draggable modal state
+  // drag
   const [position, setPosition] = useState<{ top: number; left: number }>({
     top: 0,
     left: 0,
@@ -175,7 +232,7 @@ export default function TranslateWithAIButton() {
 
   // center modal when opening
   useEffect(() => {
-    if (open) {
+    if (open && typeof window !== "undefined") {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       setPosition({
@@ -188,8 +245,7 @@ export default function TranslateWithAIButton() {
   function handleOpen() {
     try {
       const selection = window.getSelection()?.toString().trim() || "";
-      const text = selection || "";
-      setSourceText(text);
+      setSourceText(selection || "");
       setTranslatedText("");
       setErrorMsg("");
       setSearch("");
@@ -202,83 +258,205 @@ export default function TranslateWithAIButton() {
     }
   }
 
- async function handleTranslate() {
-  setErrorMsg("");
-  setLoading(true);
-  setTranslatedText("");
-
-  try {
-    const res = await fetch("/api/ai-translate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: sourceText,
-        targetLang: selectedLang?.code,
-      }),
-    });
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      console.error("[translate-ui] server error", res.status, data);
-      setErrorMsg(
-        (data && data.error) ||
-          `Failed to translate (status ${res.status}).`
-      );
+  // ----- basic text translation -----
+  async function handleTranslateText() {
+    if (!selectedLang) return;
+    if (!sourceText.trim()) {
+      setErrorMsg("Please type or paste some text to translate.");
       return;
     }
 
-    if (!data?.translation) {
-      setErrorMsg("No translation returned from server.");
-      return;
-    }
+    setErrorMsg("");
+    setLoading(true);
+    setTranslatedText("");
 
-    setTranslatedText(data.translation);
-  } catch (err) {
-    console.error("[translate-ui] fetch error", err);
-    setErrorMsg("Network error while calling translation API.");
-  } finally {
-    setLoading(false);
+    try {
+      const res = await fetch("/api/ai-translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: sourceText,
+          targetLang: selectedLang.code,
+        }),
+      });
+
+      const data = (await res
+        .json()
+        .catch(() => null)) as TranslationResponse | null;
+
+      if (!res.ok) {
+        console.error("[translate-ui] server error", res.status, data);
+        setErrorMsg(
+          (data && data.error) ||
+            `Failed to translate (status ${res.status}).`
+        );
+        return;
+      }
+
+      if (!data?.translation) {
+        setErrorMsg("No translation returned from server.");
+        return;
+      }
+
+      setTranslatedText(data.translation);
+    } catch (err) {
+      console.error("[translate-ui] fetch error", err);
+      setErrorMsg("Network error while calling translation API.");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  // ----- page translation (with hard caps for cost/speed) -----
+  async function translatePageWithLang(lang: Language) {
+    setErrorMsg("");
+    setTranslatedText("");
+    setLoading(true);
+
+    try {
+      const allNodes = getTranslatableTextNodes();
+
+      if (!allNodes.length) {
+        setErrorMsg("No text found on this page to translate.");
+        setLoading(false);
+        return;
+      }
+
+      const textNodes: Text[] = [];
+      let totalChars = 0;
+
+      for (const node of allNodes) {
+        if (textNodes.length >= MAX_NODES_PER_PAGE) break;
+
+        const text = node.textContent || "";
+        const len = text.length;
+
+        if (len < 3) continue;
+
+        if (totalChars + len > MAX_TOTAL_CHARS) break;
+
+        textNodes.push(node);
+        totalChars += len;
+      }
+
+      if (!textNodes.length) {
+        setErrorMsg("Not enough text to translate on this page.");
+        setLoading(false);
+        return;
+      }
+
+      const joined = textNodes.map((n) => n.textContent || "").join(SEPARATOR);
+
+      const res = await fetch("/api/ai-translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: joined,
+          targetLang: lang.code,
+        }),
+      });
+
+      const data = (await res
+        .json()
+        .catch(() => null)) as TranslationResponse | null;
+
+      if (!res.ok || !data?.translation) {
+        console.error("[translate-page] server error for chunk", res.status, data);
+        setErrorMsg(
+          (data && data.error) ||
+            `Failed to translate page (status ${res.status}).`
+        );
+        return;
+      }
+
+      const parts = String(data.translation).split(SEPARATOR);
+
+      if (parts.length !== textNodes.length) {
+        console.error(
+          "[translate-page] mismatch",
+          "nodes:",
+          textNodes.length,
+          "parts:",
+          parts.length
+        );
+        const m = Math.min(parts.length, textNodes.length);
+        for (let i = 0; i < m; i++) {
+          textNodes[i].textContent = parts[i];
+        }
+        setErrorMsg(
+          `Page translated to ${lang.label}, but some parts may remain in the original language.`
+        );
+      } else {
+        for (let i = 0; i < textNodes.length; i++) {
+          textNodes[i].textContent = parts[i];
+        }
+        setTranslatedText(
+          `Translated about ${textNodes.length} snippets (${totalChars} characters) to ${lang.label}.`
+        );
+      }
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(LS_PREF_LANG, lang.code);
+        window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
+      }
+    } catch (err) {
+      console.error("[translate-page] error", err);
+      setErrorMsg("Network error while translating the page.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleTranslatePage() {
+    if (!selectedLang) return;
+    translatePageWithLang(selectedLang);
+  }
+
+  // Optional: AI Hub auto button just calls same function
+  function handleTranslateSite() {
+    if (!selectedLang) return;
+    translatePageWithLang(selectedLang);
+  }
+  function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
+  e.preventDefault();
+  setDragging(true);
+  dragStartRef.current = { x: e.clientX, y: e.clientY };
 }
 
-  // Drag logic
-  useEffect(() => {
-    function handleMouseMove(e: MouseEvent) {
-      if (!dragging) return;
-      const start = dragStartRef.current;
-      if (!start) return;
+ // ----- drag logic -----
+useEffect(() => {
+  function handleMouseMove(e: MouseEvent) {
+    if (!dragging) return;
 
-      setPosition((prev) => ({
-        top: prev.top + (e.clientY - start.y),
-        left: prev.left + (e.clientX - start.x),
-      }));
+    const start = dragStartRef.current;
+    if (!start) return;
 
-      dragStartRef.current = { x: e.clientX, y: e.clientY };
-    }
+    setPosition((prev) => ({
+      top: prev.top + (e.clientY - start.y),
+      left: prev.left + (e.clientX - start.x),
+    }));
 
-    function handleMouseUp() {
-      setDragging(false);
-      dragStartRef.current = null;
-    }
-
-    if (dragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [dragging]);
-
-  function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
-    e.preventDefault();
-    setDragging(true);
+    // update starting point for the next event
     dragStartRef.current = { x: e.clientX, y: e.clientY };
   }
 
+  function handleMouseUp() {
+    setDragging(false);
+    dragStartRef.current = null;
+  }
+
+  if (dragging) {
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  }
+
+  return () => {
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
+  };
+}, [dragging]);
+
+  // ----- language helpers -----
   const popularLanguages = LANGUAGES.filter(
     (l) => l.region === "Popular"
   ).sort((a, b) => a.label.localeCompare(b.label));
@@ -295,14 +473,15 @@ export default function TranslateWithAIButton() {
 
   const groupedByRegion = !filteredLanguages
     ? (REGION_ORDER.map((region) => {
-        const items = LANGUAGES.filter((l) => l.region === region).sort((a, b) =>
-          a.label.localeCompare(b.label)
-        );
+        const items = LANGUAGES.filter(
+          (l) => l.region === region
+        ).sort((a, b) => a.label.localeCompare(b.label));
         if (!items.length) return null;
         return { region, items };
       }).filter(Boolean) as { region: Region; items: Language[] }[])
     : [];
 
+  // ----- render -----
   return (
     <>
       <button
@@ -314,8 +493,11 @@ export default function TranslateWithAIButton() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+        >
           <div
+            data-translate-modal="1"
             style={{
               position: "fixed",
               top: position.top,
@@ -324,7 +506,7 @@ export default function TranslateWithAIButton() {
             }}
             className="w-[95%] max-w-xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
           >
-            {/* Header (draggable area) */}
+            {/* Header (draggable) */}
             <div
               className="cursor-move flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900/80 rounded-t-2xl"
               onMouseDown={startDrag}
@@ -336,8 +518,7 @@ export default function TranslateWithAIButton() {
                     Translate with AI
                   </p>
                   <p className="text-[10px] text-slate-400">
-                    Select your language and translate the current page or selected
-                    text.
+                    Select your language and translate text or the page.
                   </p>
                 </div>
               </div>
@@ -361,7 +542,7 @@ export default function TranslateWithAIButton() {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search language (e.g. Spanish, 日本語, Português)..."
+                  placeholder="Search language (e.g. Spanish, 日本語, Português)…"
                   className="w-full px-3 py-2 mb-2 rounded-xl bg-slate-950 border border-slate-700 text-[12px] text-slate-100"
                 />
 
@@ -400,7 +581,7 @@ export default function TranslateWithAIButton() {
                     )
                   ) : (
                     <>
-                      {/* Most popular group */}
+                      {/* Most popular */}
                       {popularLanguages.length > 0 && (
                         <div>
                           <div className="flex items-center gap-1 mb-1 px-1">
@@ -439,7 +620,7 @@ export default function TranslateWithAIButton() {
                         </div>
                       )}
 
-                      {/* Regional groups */}
+                      {/* Regions */}
                       {groupedByRegion.map((group) => (
                         <div key={group.region}>
                           <p className="text-[10px] font-semibold text-slate-400 px-1 mb-1">
@@ -479,7 +660,7 @@ export default function TranslateWithAIButton() {
                 </div>
               </div>
 
-              {/* Source preview */}
+              {/* Text to translate */}
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
                   Text to translate
@@ -487,7 +668,7 @@ export default function TranslateWithAIButton() {
                 <textarea
                   value={sourceText}
                   onChange={(e) => setSourceText(e.target.value)}
-                  placeholder="Type or paste the text you want to translate. If you select text on the page before opening this, it will appear here automatically."
+                  placeholder="Type or paste text, or select text on the page before opening."
                   className="w-full rounded-xl border border-slate-800 bg-slate-950/80 p-2 max-h-32 min-h-[80px] text-[11px] text-slate-200 resize-vertical"
                 />
               </div>
@@ -499,16 +680,39 @@ export default function TranslateWithAIButton() {
 
               {/* Actions */}
               <div className="flex flex-wrap items-center gap-2 justify-between">
-                <button
-                  type="button"
-                  onClick={handleTranslate}
-                  disabled={loading || !selectedLang}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
-                >
-                  {loading
-                    ? "Translating…"
-                    : `Translate to ${selectedLang?.label ?? "…"}`}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTranslateText}
+                    disabled={loading || !selectedLang}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
+                  >
+                    {loading
+                      ? "Translating…"
+                      : `Translate text to ${selectedLang?.label ?? "…"}`}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTranslatePage}
+                    disabled={loading || !selectedLang}
+                    className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-[11px] font-medium text-slate-100 disabled:opacity-60"
+                  >
+                    {loading ? "Working on page…" : "Translate this page"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTranslateSite}
+                    disabled={loading || !selectedLang}
+                    className="px-4 py-2 rounded-xl border border-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] font-medium text-emerald-100 disabled:opacity-60"
+                  >
+                    {loading
+                      ? "Applying to AI Hub…"
+                      : "Translate AI Hub (auto)"}
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
@@ -518,11 +722,11 @@ export default function TranslateWithAIButton() {
                 </button>
               </div>
 
-              {/* Result */}
+              {/* Result / status */}
               {translatedText && (
                 <div className="mt-2">
                   <p className="text-[11px] text-slate-400 mb-1">
-                    Translation result
+                    Translation status
                   </p>
                   <div className="rounded-xl border border-slate-800 bg-slate-950/90 p-2 max-h-52 overflow-y-auto text-[11px] text-slate-100 whitespace-pre-wrap">
                     {translatedText}
