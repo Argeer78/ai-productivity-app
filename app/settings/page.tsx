@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import Link from "next/link";
@@ -18,11 +18,23 @@ const TONE_OPTIONS: { value: Tone; label: string }[] = [
   { value: "casual", label: "Casual" },
 ];
 
+// ✅ Precompute unique language options once (no hooks needed)
+const languageOptions = (() => {
+  const seen = new Set<string>();
+
+  return LANGUAGES.filter((lang) => {
+    const key = `${lang.code}-${lang.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => a.label.localeCompare(b.label));
+})();
+
 export default function SettingsPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
-
   const [preferredLangCode, setPreferredLangCode] = useState<string>("");
+
   const [tone, setTone] = useState<Tone>("balanced");
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
   const [focusArea, setFocusArea] = useState("");
@@ -44,18 +56,6 @@ export default function SettingsPage() {
     useState<Reminder>("none");
 
   const { track } = useAnalytics();
-
-  // ✅ Deduped language options (no duplicate keys)
-  const languageOptions = useMemo(() => {
-    const seen = new Set<string>();
-
-    return LANGUAGES.filter((lang) => {
-      const key = `${lang.code}-${lang.label}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }).sort((a, b) => a.label.localeCompare(b.label));
-  }, []);
 
   // Load user
   useEffect(() => {
@@ -129,7 +129,7 @@ export default function SettingsPage() {
             setPlan("free");
           }
 
-          // Onboarding fields from DB
+          // Onboarding fields
           if (data.onboarding_use_case) {
             setOnboardingUseCase(data.onboarding_use_case);
           }
@@ -177,8 +177,6 @@ export default function SettingsPage() {
           focus_area: focusArea.trim() || null,
           daily_digest_enabled: dailyDigestEnabled,
           weekly_report_enabled: weeklyReportEnabled,
-
-          // Onboarding fields
           onboarding_use_case: onboardingUseCase.trim() || null,
           onboarding_weekly_focus:
             onboardingWeeklyFocus.trim() || null,
@@ -192,7 +190,7 @@ export default function SettingsPage() {
         return;
       }
 
-      // ✅ Save preferred translation language to localStorage
+      // Save preferred translation language to localStorage
       if (typeof window !== "undefined") {
         if (preferredLangCode) {
           window.localStorage.setItem(LS_PREF_LANG, preferredLangCode);
@@ -549,7 +547,7 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              {/* Manage subscription */}
+              {/* Manage subscription (Stripe Portal) */}
               <div className="pt-4 border-t border-slate-800 mt-4">
                 <p className="text-[11px] text-slate-400 mb-2">
                   Manage your subscription, billing details, and invoices in
