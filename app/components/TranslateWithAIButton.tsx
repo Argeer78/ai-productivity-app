@@ -425,7 +425,7 @@ export default function TranslateWithAIButton() {
       ).sort((a, b) => a.label.localeCompare(b.label))
     : null;
 
-     const groupedByRegion =
+       const groupedByRegion =
     !filteredLanguages
       ? (REGION_ORDER.map((region) => {
           const items = LANGUAGES
@@ -435,7 +435,7 @@ export default function TranslateWithAIButton() {
           if (!items.length) return null;
 
           return { region, items };
-        }).filter((g) => g !== null) as { region: Region; items: Language[] }[])
+        }).filter((g) => g !== null) as { region: string; items: Language[] }[])
       : [];
 
   // ----- render -----
