@@ -226,7 +226,7 @@ export default function HomePage() {
                 <p className="text-xs font-semibold text-slate-400 mb-1">
                   FREE
                 </p>
-                <p className="text-2xl font-bold mb-1">$0</p>
+                <p className="text-2xl font-bold mb-1">€0</p>
                 <p className="text-[12px] text-slate-300 mb-3">
                   Great for trying the workflow, light daily usage, and basic
                   AI assistance.

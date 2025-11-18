@@ -6,167 +6,25 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-
-type Region =
-  | "Popular"
-  | "Europe"
-  | "Asia"
-  | "Middle East"
-  | "Africa"
-  | "Americas"
-  | "Oceania";
-
-type Language = {
-  code: string;
-  label: string;
-  flag: string;
-  region: Region;
-  popular?: boolean;
-};
+import { usePathname } from "next/navigation";
+import {
+  LANGUAGES,
+  REGION_ORDER,
+  LS_PREF_LANG,
+  LS_LAST_PATH,
+  LS_AUTO_MODE,
+  type Language,
+} from "@/lib/translateLanguages";
 
 type TranslationResponse = {
   translation?: string;
   error?: string;
 };
 
-// LocalStorage keys
-const LS_PREF_LANG = "aihub_pref_lang";
-const LS_LAST_PATH = "aihub_last_path";
-
 // Hard limits for page translation to control cost & speed
 const MAX_NODES_PER_PAGE = 60;
 const MAX_TOTAL_CHARS = 8000;
 const SEPARATOR = "\n\n----\n\n";
-
-const LANGUAGES: Language[] = [
-  // ----- Popular -----
-  { code: "en", label: "English", flag: "🇺🇸", region: "Popular", popular: true },
-  { code: "es", label: "Spanish", flag: "🇪🇸", region: "Popular", popular: true },
-  { code: "fr", label: "French", flag: "🇫🇷", region: "Popular", popular: true },
-  { code: "de", label: "German", flag: "🇩🇪", region: "Popular", popular: true },
-  { code: "pt", label: "Portuguese", flag: "🇵🇹", region: "Popular", popular: true },
-  { code: "ru", label: "Russian", flag: "🇷🇺", region: "Popular", popular: true },
-  { code: "it", label: "Italian", flag: "🇮🇹", region: "Popular", popular: true },
-  { code: "zh", label: "Chinese (Simplified)", flag: "🇨🇳", region: "Popular", popular: true },
-  { code: "ja", label: "Japanese", flag: "🇯🇵", region: "Popular", popular: true },
-  { code: "ko", label: "Korean", flag: "🇰🇷", region: "Popular", popular: true },
-  { code: "ar", label: "Arabic", flag: "🇸🇦", region: "Popular", popular: true },
-  { code: "hi", label: "Hindi", flag: "🇮🇳", region: "Popular", popular: true },
-
-  // ===== Europe =====
-  { code: "en", label: "English (UK)", flag: "🇬🇧", region: "Europe" },
-  { code: "en", label: "English (Ireland)", flag: "🇮🇪", region: "Europe" },
-  { code: "de", label: "German (Germany)", flag: "🇩🇪", region: "Europe" },
-  { code: "de", label: "German (Austria)", flag: "🇦🇹", region: "Europe" },
-  { code: "de", label: "German (Switzerland)", flag: "🇨🇭", region: "Europe" },
-  { code: "fr", label: "French (France)", flag: "🇫🇷", region: "Europe" },
-  { code: "fr", label: "French (Belgium)", flag: "🇧🇪", region: "Europe" },
-  { code: "fr", label: "French (Luxembourg)", flag: "🇱🇺", region: "Europe" },
-  { code: "fr", label: "French (Switzerland)", flag: "🇨🇭", region: "Europe" },
-  { code: "fr", label: "French (Monaco)", flag: "🇲🇨", region: "Europe" },
-  { code: "es", label: "Spanish (Spain)", flag: "🇪🇸", region: "Europe" },
-  { code: "pt", label: "Portuguese (Portugal)", flag: "🇵🇹", region: "Europe" },
-  { code: "it", label: "Italian (Italy)", flag: "🇮🇹", region: "Europe" },
-  { code: "it", label: "Italian (San Marino)", flag: "🇸🇲", region: "Europe" },
-  { code: "it", label: "Italian (Vatican City)", flag: "🇻🇦", region: "Europe" },
-  { code: "nl", label: "Dutch (Netherlands)", flag: "🇳🇱", region: "Europe" },
-  { code: "nl", label: "Dutch (Belgium)", flag: "🇧🇪", region: "Europe" },
-  { code: "da", label: "Danish", flag: "🇩🇰", region: "Europe" },
-  { code: "sv", label: "Swedish", flag: "🇸🇪", region: "Europe" },
-  { code: "nb", label: "Norwegian (Bokmål)", flag: "🇳🇴", region: "Europe" },
-  { code: "fi", label: "Finnish", flag: "🇫🇮", region: "Europe" },
-  { code: "is", label: "Icelandic", flag: "🇮🇸", region: "Europe" },
-  { code: "et", label: "Estonian", flag: "🇪🇪", region: "Europe" },
-  { code: "lv", label: "Latvian", flag: "🇱🇻", region: "Europe" },
-  { code: "lt", label: "Lithuanian", flag: "🇱🇹", region: "Europe" },
-  { code: "pl", label: "Polish", flag: "🇵🇱", region: "Europe" },
-  { code: "cs", label: "Czech", flag: "🇨🇿", region: "Europe" },
-  { code: "sk", label: "Slovak", flag: "🇸🇰", region: "Europe" },
-  { code: "hu", label: "Hungarian", flag: "🇭🇺", region: "Europe" },
-  { code: "ro", label: "Romanian", flag: "🇷🇴", region: "Europe" },
-  { code: "bg", label: "Bulgarian", flag: "🇧🇬", region: "Europe" },
-  { code: "el", label: "Greek", flag: "🇬🇷", region: "Europe" },
-  { code: "hr", label: "Croatian", flag: "🇭🇷", region: "Europe" },
-  { code: "sl", label: "Slovenian", flag: "🇸🇮", region: "Europe" },
-  { code: "sr", label: "Serbian", flag: "🇷🇸", region: "Europe" },
-  { code: "bs", label: "Bosnian", flag: "🇧🇦", region: "Europe" },
-  { code: "mk", label: "Macedonian", flag: "🇲🇰", region: "Europe" },
-  { code: "sq", label: "Albanian", flag: "🇦🇱", region: "Europe" },
-  { code: "me", label: "Montenegrin", flag: "🇲🇪", region: "Europe" },
-  { code: "ru", label: "Russian (Europe)", flag: "🇷🇺", region: "Europe" },
-  { code: "uk", label: "Ukrainian", flag: "🇺🇦", region: "Europe" },
-  { code: "be", label: "Belarusian", flag: "🇧🇾", region: "Europe" },
-  { code: "ro", label: "Romanian (Moldova)", flag: "🇲🇩", region: "Europe" },
-  { code: "ka", label: "Georgian", flag: "🇬🇪", region: "Europe" },
-  { code: "hy", label: "Armenian", flag: "🇦🇲", region: "Europe" },
-  { code: "tr", label: "Turkish (Europe)", flag: "🇹🇷", region: "Europe" },
-
-  // ===== Asia =====
-  { code: "zh", label: "Chinese (Simplified)", flag: "🇨🇳", region: "Asia" },
-  { code: "zh-TW", label: "Chinese (Traditional)", flag: "🇹🇼", region: "Asia" },
-  { code: "ja", label: "Japanese", flag: "🇯🇵", region: "Asia" },
-  { code: "ko", label: "Korean", flag: "🇰🇷", region: "Asia" },
-  { code: "hi", label: "Hindi", flag: "🇮🇳", region: "Asia" },
-  { code: "bn", label: "Bengali", flag: "🇧🇩", region: "Asia" },
-  { code: "ur", label: "Urdu", flag: "🇵🇰", region: "Asia" },
-  { code: "ta", label: "Tamil", flag: "🇮🇳", region: "Asia" },
-  { code: "te", label: "Telugu", flag: "🇮🇳", region: "Asia" },
-  { code: "ml", label: "Malayalam", flag: "🇮🇳", region: "Asia" },
-  { code: "th", label: "Thai", flag: "🇹🇭", region: "Asia" },
-  { code: "vi", label: "Vietnamese", flag: "🇻🇳", region: "Asia" },
-  { code: "id", label: "Indonesian", flag: "🇮🇩", region: "Asia" },
-  { code: "ms", label: "Malay", flag: "🇲🇾", region: "Asia" },
-  { code: "km", label: "Khmer", flag: "🇰🇭", region: "Asia" },
-  { code: "lo", label: "Lao", flag: "🇱🇦", region: "Asia" },
-  { code: "my", label: "Burmese", flag: "🇲🇲", region: "Asia" },
-  { code: "si", label: "Sinhala", flag: "🇱🇰", region: "Asia" },
-  { code: "ne", label: "Nepali", flag: "🇳🇵", region: "Asia" },
-  { code: "fa", label: "Persian (Farsi)", flag: "🇮🇷", region: "Asia" },
-
-  // ===== Middle East =====
-  { code: "ar", label: "Arabic (Standard)", flag: "🇺🇳", region: "Middle East" },
-  { code: "he", label: "Hebrew", flag: "🇮🇱", region: "Middle East" },
-  { code: "tr", label: "Turkish", flag: "🇹🇷", region: "Middle East" },
-  { code: "ku", label: "Kurdish", flag: "🇹🇷", region: "Middle East" },
-  { code: "fa", label: "Persian (Iran)", flag: "🇮🇷", region: "Middle East" },
-
-  // ===== Africa =====
-  { code: "sw", label: "Swahili", flag: "🇰🇪", region: "Africa" },
-  { code: "am", label: "Amharic", flag: "🇪🇹", region: "Africa" },
-  { code: "zu", label: "Zulu", flag: "🇿🇦", region: "Africa" },
-  { code: "xh", label: "Xhosa", flag: "🇿🇦", region: "Africa" },
-  { code: "st", label: "Sesotho", flag: "🇱🇸", region: "Africa" },
-  { code: "af", label: "Afrikaans", flag: "🇿🇦", region: "Africa" },
-  { code: "yo", label: "Yoruba", flag: "🇳🇬", region: "Africa" },
-  { code: "ig", label: "Igbo", flag: "🇳🇬", region: "Africa" },
-  { code: "ha", label: "Hausa", flag: "🇳🇬", region: "Africa" },
-  { code: "rw", label: "Kinyarwanda", flag: "🇷🇼", region: "Africa" },
-  { code: "so", label: "Somali", flag: "🇸🇴", region: "Africa" },
-  { code: "fr", label: "French (Africa)", flag: "🇨🇩", region: "Africa" },
-  { code: "ar", label: "Arabic (North Africa)", flag: "🇲🇦", region: "Africa" },
-  { code: "pt", label: "Portuguese (Mozambique)", flag: "🇲🇿", region: "Africa" },
-
-  // ===== Americas =====
-  { code: "en", label: "English (USA)", flag: "🇺🇸", region: "Americas" },
-  { code: "en", label: "English (Canada)", flag: "🇨🇦", region: "Americas" },
-  { code: "fr", label: "French (Canada)", flag: "🇨🇦", region: "Americas" },
-  { code: "es", label: "Spanish (Mexico)", flag: "🇲🇽", region: "Americas" },
-  { code: "es", label: "Spanish (Latin America)", flag: "🌎", region: "Americas" },
-  { code: "pt-BR", label: "Portuguese (Brazil)", flag: "🇧🇷", region: "Americas" },
-
-  // ===== Oceania =====
-  { code: "en", label: "English (Australia)", flag: "🇦🇺", region: "Oceania" },
-  { code: "en", label: "English (New Zealand)", flag: "🇳🇿", region: "Oceania" },
-];
-
-const REGION_ORDER: Exclude<Region, "Popular">[] = [
-  "Europe",
-  "Asia",
-  "Middle East",
-  "Africa",
-  "Americas",
-  "Oceania",
-];
 
 // Collect text nodes, skipping the translation modal itself
 function getTranslatableTextNodes(): Text[] {
@@ -180,6 +38,7 @@ function getTranslatableTextNodes(): Text[] {
         const parent = (node as Text).parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
 
+        // Skip modal
         if (parent.closest("[data-translate-modal='1']")) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -210,6 +69,8 @@ function getTranslatableTextNodes(): Text[] {
 }
 
 export default function TranslateWithAIButton() {
+  const pathname = usePathname();
+
   const [open, setOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState<Language | null>(
     LANGUAGES.find((l) => l.region === "Popular") || LANGUAGES[0]
@@ -220,13 +81,47 @@ export default function TranslateWithAIButton() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // drag
+  // drag state
   const [position, setPosition] = useState<{ top: number; left: number }>({
     top: 0,
     left: 0,
   });
   const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  // track where auto-translation was last applied
+  const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
+
+  // ----- initial language: saved or browser language -----
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
+      let lang: Language | null = null;
+
+      if (savedLangCode) {
+        lang =
+          LANGUAGES.find(
+            (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
+          ) || null;
+      }
+
+      if (!lang && typeof navigator !== "undefined" && navigator.language) {
+        const browserBase = navigator.language.split("-")[0].toLowerCase();
+        lang =
+          LANGUAGES.find(
+            (l) => l.code.toLowerCase() === browserBase
+          ) || null;
+      }
+
+      if (lang) {
+        setSelectedLang(lang);
+      }
+    } catch (err) {
+      console.error("[translate] load initial language error", err);
+    }
+  }, []);
 
   // center modal when opening
   useEffect(() => {
@@ -278,27 +173,33 @@ export default function TranslateWithAIButton() {
         }),
       });
 
-      const data = (await res
-        .json()
-        .catch(() => null)) as TranslationResponse | null;
+      const data = (await res.json().catch(() => null)) as TranslationResponse | null;
 
-      if (!res.ok) {
-        console.error("[translate-ui] server error", res.status, data);
+      if (!res.ok || !data?.translation) {
+        if (res.status === 413) {
+          setErrorMsg(
+            "This text is too long for a single translation. Please split it into smaller chunks and try again."
+          );
+          return;
+        }
+        if (res.status === 429) {
+          setErrorMsg(
+            data?.error ||
+              "AI translation is temporarily rate-limited. Please try again in a few seconds."
+          );
+          return;
+        }
+
+        console.error("[translate-text] server error", res.status, data);
         setErrorMsg(
-          (data && data.error) ||
-            `Failed to translate (status ${res.status}).`
+          data?.error || `Failed to translate (status ${res.status}).`
         );
-        return;
-      }
-
-      if (!data?.translation) {
-        setErrorMsg("No translation returned from server.");
         return;
       }
 
       setTranslatedText(data.translation);
     } catch (err) {
-      console.error("[translate-ui] fetch error", err);
+      console.error("[translate-text] fetch error", err);
       setErrorMsg("Network error while calling translation API.");
     } finally {
       setLoading(false);
@@ -306,7 +207,7 @@ export default function TranslateWithAIButton() {
   }
 
   // ----- page translation (with hard caps for cost/speed) -----
-  async function translatePageWithLang(lang: Language) {
+  async function translatePageWithLang(lang: Language, opts?: { auto?: boolean }) {
     setErrorMsg("");
     setTranslatedText("");
     setLoading(true);
@@ -330,7 +231,6 @@ export default function TranslateWithAIButton() {
         const len = text.length;
 
         if (len < 3) continue;
-
         if (totalChars + len > MAX_TOTAL_CHARS) break;
 
         textNodes.push(node);
@@ -354,15 +254,29 @@ export default function TranslateWithAIButton() {
         }),
       });
 
-      const data = (await res
-        .json()
-        .catch(() => null)) as TranslationResponse | null;
+      const data = (await res.json().catch(() => null)) as TranslationResponse | null;
 
       if (!res.ok || !data?.translation) {
-        console.error("[translate-page] server error for chunk", res.status, data);
+        if (res.status === 413) {
+          console.warn("[translate-page] payload too long", data);
+          setErrorMsg(
+            "This page is very long. Some sections were skipped because they exceed the translation limit."
+          );
+          return;
+        }
+
+        if (res.status === 429) {
+          console.warn("[translate-page] rate limited", data);
+          setErrorMsg(
+            data?.error ||
+              "AI translation is temporarily rate-limited. Please try again in a few seconds."
+          );
+          return;
+        }
+
+        console.error("[translate-page] server error", res.status, data);
         setErrorMsg(
-          (data && data.error) ||
-            `Failed to translate page (status ${res.status}).`
+          data?.error || `Failed to translate page (status ${res.status}).`
         );
         return;
       }
@@ -396,6 +310,16 @@ export default function TranslateWithAIButton() {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(LS_PREF_LANG, lang.code);
         window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
+
+        // only persist auto-mode if requested
+        if (opts?.auto) {
+          window.localStorage.setItem(LS_AUTO_MODE, "1");
+        }
+      }
+
+      // mark that we applied for this path, useful for auto-mode
+      if (pathname) {
+        setAutoAppliedPath(pathname);
       }
     } catch (err) {
       console.error("[translate-page] error", err);
@@ -407,52 +331,84 @@ export default function TranslateWithAIButton() {
 
   function handleTranslatePage() {
     if (!selectedLang) return;
-    translatePageWithLang(selectedLang);
+    translatePageWithLang(selectedLang, { auto: false });
   }
 
-  // Optional: AI Hub auto button just calls same function
+  // “Translate AI Hub (auto)” – enable auto mode
   function handleTranslateSite() {
     if (!selectedLang) return;
-    translatePageWithLang(selectedLang);
+    translatePageWithLang(selectedLang, { auto: true });
   }
+
+  // ----- auto-apply translation when navigating (auto-mode) -----
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!pathname) return;
+
+    try {
+      const autoMode = window.localStorage.getItem(LS_AUTO_MODE);
+      if (autoMode !== "1") return;
+
+      const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
+      if (!savedLangCode) return;
+
+      // avoid re-applying on the same page
+      if (autoAppliedPath === pathname) return;
+
+      const lang =
+        LANGUAGES.find(
+          (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
+        ) || null;
+      if (!lang) return;
+
+      // keep UI in sync
+      setSelectedLang(lang);
+
+      // fire-and-forget translate – we don't block navigation on it
+      translatePageWithLang(lang, { auto: true });
+    } catch (err) {
+      console.error("[translate-auto] error", err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]); // depends on route changes only
+
+  // ----- drag logic -----
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
-  e.preventDefault();
-  setDragging(true);
-  dragStartRef.current = { x: e.clientX, y: e.clientY };
-}
-
- // ----- drag logic -----
-useEffect(() => {
-  function handleMouseMove(e: MouseEvent) {
-    if (!dragging) return;
-
-    const start = dragStartRef.current;
-    if (!start) return;
-
-    setPosition((prev) => ({
-      top: prev.top + (e.clientY - start.y),
-      left: prev.left + (e.clientX - start.x),
-    }));
-
-    // update starting point for the next event
+    e.preventDefault();
+    setDragging(true);
     dragStartRef.current = { x: e.clientX, y: e.clientY };
   }
 
-  function handleMouseUp() {
-    setDragging(false);
-    dragStartRef.current = null;
-  }
+  useEffect(() => {
+    function handleMouseMove(e: MouseEvent) {
+      if (!dragging) return;
 
-  if (dragging) {
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-  }
+      const start = dragStartRef.current;
+      if (!start) return;
 
-  return () => {
-    window.removeEventListener("mousemove", handleMouseMove);
-    window.removeEventListener("mouseup", handleMouseUp);
-  };
-}, [dragging]);
+      setPosition((prev) => ({
+        top: prev.top + (e.clientY - start.y),
+        left: prev.left + (e.clientX - start.x),
+      }));
+
+      dragStartRef.current = { x: e.clientX, y: e.clientY };
+    }
+
+    function handleMouseUp() {
+      setDragging(false);
+      dragStartRef.current = null;
+    }
+
+    if (dragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragging]);
 
   // ----- language helpers -----
   const popularLanguages = LANGUAGES.filter(
@@ -491,9 +447,7 @@ useEffect(() => {
       </button>
 
       {open && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
-        >
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
           <div
             data-translate-modal="1"
             style={{
@@ -583,7 +537,9 @@ useEffect(() => {
                       {popularLanguages.length > 0 && (
                         <div>
                           <div className="flex items-center gap-1 mb-1 px-1">
-                            <span className="text-[10px] text-amber-300">⭐</span>
+                            <span className="text-[10px] text-amber-300">
+                              ⭐
+                            </span>
                             <span className="text-[10px] font-semibold text-slate-300">
                               Most popular
                             </span>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import Link from "next/link";
 import { useAnalytics } from "@/lib/analytics";
+import { LANGUAGES, LS_PREF_LANG } from "@/lib/translateLanguages";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -21,6 +22,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
+  const [preferredLangCode, setPreferredLangCode] = useState<string>("");
   const [tone, setTone] = useState<Tone>("balanced");
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
   const [focusArea, setFocusArea] = useState("");
@@ -28,19 +30,32 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [weeklyReportEnabled, setWeeklyReportEnabled] = useState<boolean>(true);
+  const [weeklyReportEnabled, setWeeklyReportEnabled] =
+    useState<boolean>(true);
   const [plan, setPlan] = useState<"free" | "pro">("free");
 
   const [testingEmail, setTestingEmail] = useState(false);
   const [testEmailMessage, setTestEmailMessage] = useState("");
 
-  // NEW: onboarding-related state
+  // Onboarding-related state
   const [onboardingUseCase, setOnboardingUseCase] = useState("");
   const [onboardingWeeklyFocus, setOnboardingWeeklyFocus] = useState("");
   const [onboardingReminder, setOnboardingReminder] =
     useState<Reminder>("none");
 
   const { track } = useAnalytics();
+
+  // ✅ Deduped language options (no duplicate keys)
+  const languageOptions = useMemo(() => {
+    const seen = new Set<string>();
+
+    return LANGUAGES.filter((lang) => {
+      const key = `${lang.code}-${lang.label}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort((a, b) => a.label.localeCompare(b.label));
+  }, []);
 
   // Load user
   useEffect(() => {
@@ -105,7 +120,7 @@ export default function SettingsPage() {
           if (typeof data.weekly_report_enabled === "boolean") {
             setWeeklyReportEnabled(data.weekly_report_enabled);
           } else {
-            setWeeklyReportEnabled(true); // default if null/undefined
+            setWeeklyReportEnabled(true);
           }
 
           if (data.plan === "pro") {
@@ -114,7 +129,7 @@ export default function SettingsPage() {
             setPlan("free");
           }
 
-          // NEW: onboarding fields
+          // Onboarding fields from DB
           if (data.onboarding_use_case) {
             setOnboardingUseCase(data.onboarding_use_case);
           }
@@ -125,6 +140,14 @@ export default function SettingsPage() {
             setOnboardingReminder(
               data.onboarding_reminder as Reminder
             );
+          }
+        }
+
+        // Preferred translation language from localStorage
+        if (typeof window !== "undefined") {
+          const lsLang = window.localStorage.getItem(LS_PREF_LANG);
+          if (lsLang) {
+            setPreferredLangCode(lsLang);
           }
         }
       } catch (err: any) {
@@ -155,7 +178,7 @@ export default function SettingsPage() {
           daily_digest_enabled: dailyDigestEnabled,
           weekly_report_enabled: weeklyReportEnabled,
 
-          // NEW: onboarding fields
+          // Onboarding fields
           onboarding_use_case: onboardingUseCase.trim() || null,
           onboarding_weekly_focus:
             onboardingWeeklyFocus.trim() || null,
@@ -169,7 +192,18 @@ export default function SettingsPage() {
         return;
       }
 
-      setSuccess("Settings saved. Your AI will now use this style and preferences.");
+      // ✅ Save preferred translation language to localStorage
+      if (typeof window !== "undefined") {
+        if (preferredLangCode) {
+          window.localStorage.setItem(LS_PREF_LANG, preferredLangCode);
+        } else {
+          window.localStorage.removeItem(LS_PREF_LANG);
+        }
+      }
+
+      setSuccess(
+        "Settings saved. Your AI will now use this style and preferences."
+      );
     } catch (err) {
       console.error(err);
       setError("Something went wrong while saving.");
@@ -188,7 +222,6 @@ export default function SettingsPage() {
     setTestEmailMessage("");
 
     try {
-      // Analytics (non-critical)
       try {
         track("test_email_clicked");
       } catch {
@@ -274,7 +307,7 @@ export default function SettingsPage() {
                 </p>
               )}
 
-              {/* Onboarding & focus card (NEW) */}
+              {/* Onboarding & focus card */}
               <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -333,7 +366,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Weekly AI report card (your existing grid) */}
+              {/* Weekly AI report card */}
               <div className="grid md:grid-cols-2 gap-5">
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
                   <p className="text-xs font-semibold text-slate-400 mb-1">
@@ -443,6 +476,32 @@ export default function SettingsPage() {
                 </select>
               </div>
 
+              {/* Preferred translation language */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Preferred translation language
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">
+                  Used as the default target for the “Translate with AI” button and
+                  auto-translation across the app.
+                </p>
+                <select
+                  value={preferredLangCode}
+                  onChange={(e) => setPreferredLangCode(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
+                >
+                  <option value="">Use my browser language</option>
+                  {languageOptions.map((lang) => (
+                    <option
+                      key={`${lang.code}-${lang.label}`}
+                      value={lang.code}
+                    >
+                      {lang.flag} {lang.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Focus area */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -490,7 +549,7 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              {/* Manage subscription (Stripe Portal) */}
+              {/* Manage subscription */}
               <div className="pt-4 border-t border-slate-800 mt-4">
                 <p className="text-[11px] text-slate-400 mb-2">
                   Manage your subscription, billing details, and invoices in

@@ -9,13 +9,10 @@ if (!apiKey) {
   );
 }
 
-const openai = apiKey
-  ? new OpenAI({
-      apiKey,
-    })
-  : null;
+const openai = apiKey ? new OpenAI({ apiKey }) : null;
 
-// export const maxDuration = 60; // optional on Vercel Edge
+// Keep this comfortably below model context so a single call doesn't blow up
+const MAX_INPUT_CHARS = 6000;
 
 export async function POST(req: Request) {
   try {
@@ -28,15 +25,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const { text, chunks, targetLang } = body as {
+    const { text, targetLang } = body as {
       text?: string;
-      chunks?: string[];
       targetLang?: string;
     };
 
-    if (!targetLang) {
+    if (!targetLang || typeof targetLang !== "string") {
       return NextResponse.json(
-        { error: "Missing targetLang" },
+        { error: "Missing targetLang." },
+        { status: 400 }
+      );
+    }
+
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return NextResponse.json(
+        { error: "Missing text to translate." },
         { status: 400 }
       );
     }
@@ -48,87 +51,85 @@ export async function POST(req: Request) {
       );
     }
 
-    // ---------- MULTI-CHUNK MODE (for page/site translation) ----------
-    if (Array.isArray(chunks) && chunks.length > 0) {
-      const cleanedChunks = chunks.map((c) =>
-        typeof c === "string" ? c : String(c ?? "")
+    const trimmed = text.trim();
+
+    // 🧯 Guard against insanely long payloads
+    if (trimmed.length > MAX_INPUT_CHARS) {
+      return NextResponse.json(
+        {
+          error:
+            `Text too long for a single translation call. ` +
+            `Got ~${trimmed.length} characters, max allowed is ${MAX_INPUT_CHARS}. ` +
+            `Please split the text into smaller chunks.`,
+        },
+        { status: 413 }
       );
+    }
 
-      const SEP = "<<<SEGMENT_SEPARATOR>>>";
-      const joined = cleanedChunks.join(SEP);
+    const systemPrompt = `You are a pure translation engine.
 
-      const systemPrompt = `You are a translation engine.
+Translate ALL user text into the target language: "${targetLang}".
 
-You will receive multiple text segments concatenated into a single string.
-Each segment is separated by this exact separator token:
+Rules:
+- Preserve meaning, tone, punctuation and formatting as closely as possible.
+- Do NOT explain, comment, add emojis or extra sentences.
+- Only return the translated text.
 
-${SEP}
+SPECIAL CASE – MULTI-SEGMENT INPUT:
+Sometimes the user text may contain multiple segments joined with the EXACT delimiter:
 
-Requirements:
-- Translate each segment into the target language (${targetLang}).
-- Keep meaning, tone, and basic formatting.
+\\n\\n----\\n\\n
+
+When that happens:
+- Treat each segment independently.
+- Do NOT add, remove, move, or rename delimiters.
 - Do NOT merge or split segments.
-- Return the translated segments joined with the SAME separator token (${SEP}) and in the SAME order.
-- Do NOT add any extra text before or after.`;
+- Output the same number of segments in the same order,
+  joined by the SAME delimiter string.
+`;
 
-      const completion = await openai.chat.completions.create({
+    let completion;
+    try {
+      completion = await openai.chat.completions.create({
         model: "gpt-4.1-mini",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: joined },
+          { role: "user", content: trimmed },
         ],
-        temperature: 0.2,
+        // low temperature = more deterministic, fewer weird formats
+        temperature: 0.1,
+        max_tokens: 2000,
       });
+    } catch (err: any) {
+      const code = err?.status || err?.code;
 
-      const raw = completion.choices[0]?.message?.content?.trim() || "";
-
-      if (!raw) {
+      // Rate limit – common cause of random 500s
+      if (code === 429) {
+        console.error("[ai-translate] OpenAI rate-limited", err);
         return NextResponse.json(
-          { error: "No translation generated for chunks." },
-          { status: 500 }
+          {
+            error:
+              "AI translation is temporarily rate-limited. Please wait a few seconds and try again.",
+          },
+          { status: 429 }
         );
       }
 
-      const parts = raw.split(SEP);
-
-      if (parts.length !== cleanedChunks.length) {
-        console.warn("[ai-translate] chunk length mismatch", {
-          input: cleanedChunks.length,
-          output: parts.length,
-        });
-        // still return whatever we got – client will handle partial mismatch
-      }
-
-      return NextResponse.json({
-        translations: parts,
-      });
-    }
-
-    // ---------- SINGLE-TEXT MODE (simple textarea) ----------
-    if (!text) {
+      console.error("[ai-translate] OpenAI error", err);
       return NextResponse.json(
-        { error: "Missing text" },
-        { status: 400 }
+        {
+          error:
+            "Upstream AI provider error while translating. Please try again in a moment.",
+        },
+        { status: 502 }
       );
     }
 
-    const systemPrompt = `You are a translation engine. Translate the user's text into the target language (${targetLang}).
-- Keep meaning, tone and formatting as much as possible.
-- Do NOT add explanations or comments.
-- Only return the translated text.`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text },
-      ],
-      temperature: 0.2,
-    });
-
-    const translation = completion.choices[0]?.message?.content?.trim() || "";
+    const translation =
+      completion.choices?.[0]?.message?.content?.trim() || "";
 
     if (!translation) {
+      console.error("[ai-translate] empty translation result", completion);
       return NextResponse.json(
         { error: "No translation generated." },
         { status: 500 }
@@ -137,7 +138,7 @@ Requirements:
 
     return NextResponse.json({ translation });
   } catch (err: any) {
-    console.error("[ai-translate] error", err);
+    console.error("[ai-translate] route error", err);
     return NextResponse.json(
       {
         error:
