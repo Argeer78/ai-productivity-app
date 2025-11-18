@@ -176,11 +176,11 @@ function getTranslatableTextNodes(): Text[] {
     document.body,
     NodeFilter.SHOW_TEXT,
     {
-      acceptNode(node) {
-        const parent = node.parentElement;
+      acceptNode(node: Node): number {
+        const parent = (node as Text).parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
 
-        // Skip anything inside the translate modal
+        // skip anything inside the translate modal
         if (parent.closest("[data-translate-modal='1']")) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -198,7 +198,7 @@ function getTranslatableTextNodes(): Text[] {
 
         return NodeFilter.FILTER_ACCEPT;
       },
-    } as any,
+    } as NodeFilter,
     false
   );
 
