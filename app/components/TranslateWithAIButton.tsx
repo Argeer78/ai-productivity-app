@@ -426,14 +426,17 @@ export default function TranslateWithAIButton() {
     : null;
 
   const groupedByRegion = !filteredLanguages
-    ? (REGION_ORDER.map((region) => {
-        const items = LANGUAGES.filter(
-          (l) => l.region === region
-        ).sort((a, b) => a.label.localeCompare(b.label));
-        if (!items.length) return null;
-        return { region, items };
-      }).filter(Boolean) as { region: Region; items: Language[] }[])
-    : [];
+  ? REGION_ORDER.map((region) => {
+      const items = LANGUAGES
+        .filter((l) => l.region === region)
+        .sort((a, b) => a.label.localeCompare(b.label));
+
+      if (!items.length) return null;
+      return { region, items };
+    }).filter(
+      (g): g is { region: string; items: Language[] } => g !== null
+    )
+  : [];
 
   // ----- render -----
   return (
