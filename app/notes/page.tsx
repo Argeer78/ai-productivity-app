@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
@@ -14,28 +14,54 @@ function getTodayString() {
   return new Date().toISOString().split("T")[0];
 }
 
+type SupabaseUser = {
+  id: string;
+  email?: string | null;
+} | null;
+
+type Note = {
+  id: string;
+  user_id: string;
+  title: string | null;
+  content: string | null;
+  ai_result?: string | null;
+  created_at: string | null;
+};
+
+type AiMode = "summarize" | "bullets" | "rewrite";
+
 export default function NotesPage() {
   const { track } = useAnalytics();
 
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<SupabaseUser>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  const [notes, setNotes] = useState([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-
+ // ✅ NEW: date picker state (default to today)
+const [noteDate, setNoteDate] = useState<string>(() =>
+  new Date().toISOString().split("T")[0]
+);
   const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState("");
-  const [aiLoading, setAiLoading] = useState(null);
+  const [aiLoading, setAiLoading] = useState<string | null>(null);
 
   const [aiCountToday, setAiCountToday] = useState(0);
-  const [plan, setPlan] = useState("free");
+  const [plan, setPlan] = useState<"free" | "pro">("free");
   const [billingLoading, setBillingLoading] = useState(false);
 
-  const [copiedNoteId, setCopiedNoteId] = useState(null);
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
 
-  function handleShareNote(note) {
+  // NEW: edit state
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [savingEditId, setSavingEditId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  function handleShareNote(note: Note) {
     if (!note || !note.content) return;
 
     const textToCopy = `${note.content}\n\n— shared from AI Productivity Hub`;
@@ -48,7 +74,9 @@ export default function NotesPage() {
           setTimeout(() => setCopiedNoteId(null), 2000);
           try {
             track("note_shared");
-          } catch {}
+          } catch {
+            // ignore analytics errors
+          }
         })
         .catch((err) => {
           console.error("Failed to copy note:", err);
@@ -56,7 +84,7 @@ export default function NotesPage() {
     }
   }
 
-  function handleAskAssistantAboutNote(note) {
+  function handleAskAssistantAboutNote(note: Note) {
     if (typeof window === "undefined" || !note) return;
 
     const c = note.content || "";
@@ -72,7 +100,11 @@ export default function NotesPage() {
           },
         })
       );
-      track("ask_ai_from_note");
+      try {
+        track("ask_ai_from_note");
+      } catch {
+        // ignore analytics errors
+      }
     } catch (e) {
       console.error(e);
     }
@@ -84,7 +116,7 @@ export default function NotesPage() {
       try {
         const { data, error } = await supabase.auth.getUser();
         if (error) console.error(error);
-        setUser(data?.user ?? null);
+        setUser((data?.user as any) ?? null);
       } catch (err) {
         console.error(err);
       } finally {
@@ -106,7 +138,7 @@ export default function NotesPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
+      if (error && (error as any).code !== "PGRST116") {
         throw error;
       }
 
@@ -124,9 +156,9 @@ export default function NotesPage() {
           .single();
 
         if (insertError) throw insertError;
-        setPlan(inserted.plan || "free");
+        setPlan((inserted?.plan as "free" | "pro") || "free");
       } else {
-        setPlan(data.plan || "free");
+        setPlan((data.plan as "free" | "pro") || "free");
       }
     } catch (err) {
       console.error(err);
@@ -149,7 +181,7 @@ export default function NotesPage() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setNotes(data || []);
+      setNotes((data || []) as Note[]);
     } catch (err) {
       console.error(err);
       setError("Failed to load notes.");
@@ -172,7 +204,7 @@ export default function NotesPage() {
         .eq("usage_date", today)
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
+      if (error && (error as any).code !== "PGRST116") {
         throw error;
       }
 
@@ -193,57 +225,70 @@ export default function NotesPage() {
       setAiCountToday(0);
       setPlan("free");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
 
-  // 5) Save note
-  async function handleSaveNote(e) {
-    e.preventDefault();
-    setError("");
+  // 5) Save new note
+ async function handleSaveNote(e: React.FormEvent) {
+  e.preventDefault();
+  setError("");
 
-    if (!user) {
-      setError("You must be logged in to save notes.");
-      return;
-    }
-
-    if (!title.trim() && !content.trim()) {
-      setError("Please enter a title or content.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const { error } = await supabase.from("notes").insert([
-        {
-          title,
-          content,
-          user_id: user.id,
-        },
-      ]);
-
-      if (error) throw error;
-
-      setTitle("");
-      setContent("");
-      await fetchNotes();
-
-      // ✅ track note_created AFTER successful insert
-      try {
-        track("note_created");
-      } catch {}
-    } catch (err) {
-      console.error(err);
-      setError("Failed to save note.");
-    } finally {
-      setLoading(false);
-    }
+  if (!user) {
+    setError("You must be logged in to save notes.");
+    return;
   }
 
+  if (!title.trim() && !content.trim()) {
+    setError("Please enter a title or content.");
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    // ✅ build an ISO date from the chosen noteDate
+    const createdAtIso = noteDate
+      ? new Date(`${noteDate}T00:00:00.000Z`).toISOString()
+      : new Date().toISOString();
+
+    const { error } = await supabase.from("notes").insert([
+      {
+        title,
+        content,
+        user_id: user.id,
+        created_at: createdAtIso, // ✅ use chosen date
+      },
+    ]);
+
+    if (error) throw error;
+
+    setTitle("");
+    setContent("");
+    // reset date back to today (optional)
+    setNoteDate(new Date().toISOString().split("T")[0]);
+
+    await fetchNotes();
+
+    try {
+      track("note_created");
+    } catch {
+      // ignore analytics errors
+    }
+  } catch (err) {
+    console.error(err);
+    setError("Failed to save note.");
+  } finally {
+    setLoading(false);
+  }
+}
+
   // 6) Increment AI usage
-  async function incrementAiUsage() {
+  async function incrementAiUsage(): Promise<number> {
+    if (!user) return aiCountToday;
+
     const today = getTodayString();
 
     const { data, error } = await supabase
@@ -253,7 +298,7 @@ export default function NotesPage() {
       .eq("usage_date", today)
       .maybeSingle();
 
-    if (error && error.code !== "PGRST116") {
+    if (error && (error as any).code !== "PGRST116") {
       throw error;
     }
 
@@ -282,7 +327,11 @@ export default function NotesPage() {
   }
 
   // 7) AI call
-  async function handleAI(noteId, noteContent, mode = "summarize") {
+  async function handleAI(
+    noteId: string,
+    noteContent: string | null,
+    mode: AiMode = "summarize"
+  ) {
     if (!user) {
       setError("You must be logged in to use AI.");
       return;
@@ -316,7 +365,7 @@ export default function NotesPage() {
         throw new Error("No AI result returned.");
       }
 
-      const aiText = data.result;
+      const aiText: string = data.result;
 
       const { error: updateError } = await supabase
         .from("notes")
@@ -335,7 +384,9 @@ export default function NotesPage() {
           plan,
           usedToday: newCount,
         });
-      } catch {}
+      } catch {
+        // ignore analytics errors
+      }
     } catch (err) {
       console.error(err);
       setError("AI request or saving result failed.");
@@ -344,7 +395,82 @@ export default function NotesPage() {
     }
   }
 
-  // 8) Stripe checkout start (optional upgrade from notes)
+  // 8) Edit note
+  function startEdit(note: Note) {
+    setEditingNoteId(note.id);
+    setEditTitle(note.title || "");
+    setEditContent(note.content || "");
+  }
+
+  function cancelEdit() {
+    setEditingNoteId(null);
+    setEditTitle("");
+    setEditContent("");
+  }
+
+  async function saveEdit(noteId: string) {
+    if (!user) return;
+    if (!editTitle.trim() && !editContent.trim()) {
+      setError("Please keep at least a title or some content.");
+      return;
+    }
+
+    try {
+      setSavingEditId(noteId);
+      setError("");
+
+      const { error } = await supabase
+        .from("notes")
+        .update({
+          title: editTitle,
+          content: editContent,
+        })
+        .eq("id", noteId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      await fetchNotes();
+      cancelEdit();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to update note.");
+    } finally {
+      setSavingEditId(null);
+    }
+  }
+
+  // 9) Delete note
+  async function handleDelete(noteId: string) {
+    if (!user) return;
+
+    const confirmed = window.confirm(
+      "Delete this note? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(noteId);
+      setError("");
+
+      const { error } = await supabase
+        .from("notes")
+        .delete()
+        .eq("id", noteId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    } catch (err) {
+      console.error(err);
+      setError("Failed to delete note.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  // 10) Stripe checkout start (optional upgrade from notes)
   async function startCheckout() {
     if (!user) return;
     setBillingLoading(true);
@@ -371,7 +497,7 @@ export default function NotesPage() {
     }
   }
 
-  // 9) Logout
+  // 11) Logout
   async function handleLogout() {
     try {
       await supabase.auth.signOut();
@@ -445,6 +571,19 @@ export default function NotesPage() {
               onChange={(e) => setTitle(e.target.value)}
             />
 
+{/* ✅ Tiny date picker */}
+  <div className="flex items-center gap-2 text-[11px] text-slate-400">
+    <span className="whitespace-nowrap">Note date:</span>
+    <input
+      type="date"
+      value={noteDate}
+      onChange={(e) => setNoteDate(e.target.value)}
+      className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+    />
+    <span className="text-[10px] text-slate-500">
+      Used for sorting & display.
+    </span>
+  </div>
             <textarea
               placeholder="Write your note here..."
               className="w-full min-h-[120px] px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
@@ -510,84 +649,159 @@ export default function NotesPage() {
           )}
 
           <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
-            {notes.map((note) => (
-              <article
-                key={note.id}
-                className="border border-slate-800 rounded-xl p-3 bg-slate-950/60"
-              >
-                <h3 className="font-semibold text-sm mb-1">
-                  {note.title || "Untitled note"}
-                </h3>
+            {notes.map((note) => {
+              const isEditing = editingNoteId === note.id;
 
-                {note.content && (
-                  <p className="text-xs text-slate-300 whitespace-pre-wrap">
-                    {note.content}
-                  </p>
-                )}
+              return (
+                <article
+                  key={note.id}
+                  className="border border-slate-800 rounded-xl p-3 bg-slate-950/60"
+                >
+                  {/* VIEW MODE */}
+                  {!isEditing && (
+                    <>
+                      <h3 className="font-semibold text-sm mb-1">
+                        {note.title || "Untitled note"}
+                      </h3>
 
-                <p className="mt-2 text-[11px] text-slate-500">
-                  {note.created_at
-                    ? new Date(note.created_at).toLocaleString()
-                    : ""}
-                </p>
+                      {note.content && (
+                        <p className="text-xs text-slate-300 whitespace-pre-wrap">
+                          {note.content}
+                        </p>
+                      )}
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    onClick={() =>
-                      handleAI(note.id, note.content, "summarize")
-                    }
-                    disabled={aiLoading === note.id || remaining === 0}
-                    className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    {aiLoading === note.id
-                      ? "Summarizing..."
-                      : "✨ Summarize"}
-                  </button>
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        {note.created_at
+                          ? new Date(note.created_at).toLocaleString()
+                          : ""}
+                      </p>
 
-                  <button
-                    onClick={() =>
-                      handleAI(note.id, note.content, "bullets")
-                    }
-                    disabled={aiLoading === note.id || remaining === 0}
-                    className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    📋 Bullets
-                  </button>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          onClick={() =>
+                            handleAI(note.id, note.content, "summarize")
+                          }
+                          disabled={
+                            aiLoading === note.id || remaining === 0
+                          }
+                          className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          {aiLoading === note.id
+                            ? "Summarizing..."
+                            : "✨ Summarize"}
+                        </button>
 
-                  <button
-                    onClick={() =>
-                      handleAI(note.id, note.content, "rewrite")
-                    }
-                    disabled={aiLoading === note.id || remaining === 0}
-                    className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    ✍️ Rewrite
-                  </button>
+                        <button
+                          onClick={() =>
+                            handleAI(note.id, note.content, "bullets")
+                          }
+                          disabled={
+                            aiLoading === note.id || remaining === 0
+                          }
+                          className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          📋 Bullets
+                        </button>
 
-                  <button
-                    onClick={() => handleShareNote(note)}
-                    className="text-[11px] px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
-                  >
-                    {copiedNoteId === note.id ? "✅ Copied" : "Share (copy)"}
-                  </button>
+                        <button
+                          onClick={() =>
+                            handleAI(note.id, note.content, "rewrite")
+                          }
+                          disabled={
+                            aiLoading === note.id || remaining === 0
+                          }
+                          className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          ✍️ Rewrite
+                        </button>
 
-                  <button
-                    onClick={() => handleAskAssistantAboutNote(note)}
-                    className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
-                  >
-                    🤖 Ask AI about this
-                  </button>
-                </div>
+                        <button
+                          onClick={() => handleShareNote(note)}
+                          className="text-[11px] px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+                        >
+                          {copiedNoteId === note.id
+                            ? "✅ Copied"
+                            : "Share (copy)"}
+                        </button>
 
-                {note.ai_result && (
-                  <div className="mt-3 text-xs text-slate-200 border-t border-slate-800 pt-2 whitespace-pre-wrap">
-                    <strong>AI Result (saved):</strong>
-                    <br />
-                    {note.ai_result}
-                  </div>
-                )}
-              </article>
-            ))}
+                        <button
+                          onClick={() => handleAskAssistantAboutNote(note)}
+                          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
+                        >
+                          🤖 Ask AI about this
+                        </button>
+
+                        {/* Edit + Delete */}
+                        <button
+                          onClick={() => startEdit(note)}
+                          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
+                        >
+                          ✏️ Edit
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(note.id)}
+                          disabled={deletingId === note.id}
+                          className="px-2 py-1 rounded-lg border border-red-500/70 text-[11px] text-red-300 hover:bg-red-900/30 disabled:opacity-60"
+                        >
+                          {deletingId === note.id
+                            ? "Deleting..."
+                            : "🗑 Delete"}
+                        </button>
+                      </div>
+
+                      {note.ai_result && (
+                        <div className="mt-3 text-xs text-slate-200 border-t border-slate-800 pt-2 whitespace-pre-wrap">
+                          <strong>AI Result (saved):</strong>
+                          <br />
+                          {note.ai_result}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* EDIT MODE */}
+                  {isEditing && (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm"
+                        placeholder="Note title"
+                      />
+                      <textarea
+                        value={editContent}
+                        onChange={(e) =>
+                          setEditContent(e.target.value)
+                        }
+                        className="w-full min-h-[100px] px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm"
+                        placeholder="Edit your note..."
+                      />
+                      <div className="flex flex-wrap gap-2 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => saveEdit(note.id)}
+                          disabled={savingEditId === note.id}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white"
+                        >
+                          {savingEditId === note.id
+                            ? "Saving..."
+                            : "Save changes"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-900"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
 
           <div className="mt-4 text-[11px] text-slate-400 flex gap-3">

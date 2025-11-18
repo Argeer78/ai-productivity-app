@@ -2,395 +2,614 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
-import FeedbackForm from "@/app/components/FeedbackForm";
-import { useAnalytics } from "@/lib/analytics";
+import AppHeader from "@/app/components/AppHeader";
 
-type Task = {
+type TaskRow = {
   id: string;
+  user_id: string;
   title: string | null;
   description: string | null;
-  is_done: boolean;
-  due_date: string | null;
-  created_at: string | null;
+  completed: boolean | null;
+  due_date: string | null; // ISO string in DB
+  created_at: string;
 };
 
+type MiniDatePickerProps = {
+  value: string; // "yyyy-mm-dd" or ""
+  onChange: (val: string) => void;
+};
+
+function getDaysInMonth(year: number, month: number) {
+  // month is 0-based
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function pad(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function toYmd(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate()
+  )}`;
+}
+
+/**
+ * A tiny inline calendar for picking dates.
+ * Uses local month navigation and returns a "yyyy-mm-dd" string.
+ */
+function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
+  const [open, setOpen] = useState(false);
+
+  // derive initial display month from value or today
+  const baseDate = value
+    ? new Date(value + "T00:00:00")
+    : new Date(); // today
+
+  const [year, setYear] = useState(baseDate.getFullYear());
+  const [month, setMonth] = useState(baseDate.getMonth()); // 0-11
+
+  function goPrevMonth() {
+    setMonth((prev) => {
+      if (prev === 0) {
+        setYear((y) => y - 1);
+        return 11;
+      }
+      return prev - 1;
+    });
+  }
+
+  function goNextMonth() {
+    setMonth((prev) => {
+      if (prev === 11) {
+        setYear((y) => y + 1);
+        return 0;
+      }
+      return prev + 1;
+    });
+  }
+
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  const firstDay = new Date(year, month, 1).getDay(); // 0 = Sun
+  const daysInMonth = getDaysInMonth(year, month);
+
+  const weeks: (number | null)[][] = [];
+  let currentDay = 1 - firstDay;
+  // build 6 rows max
+  for (let w = 0; w < 6; w++) {
+    const week: (number | null)[] = [];
+    for (let d = 0; d < 7; d++) {
+      if (currentDay < 1 || currentDay > daysInMonth) {
+        week.push(null);
+      } else {
+        week.push(currentDay);
+      }
+      currentDay++;
+    }
+    weeks.push(week);
+  }
+
+  const selectedYmd = value || "";
+
+  function handleSelectDay(day: number | null) {
+    if (!day) return;
+    const date = new Date(year, month, day);
+    const ymd = toYmd(date);
+    onChange(ymd);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative inline-block text-[11px] text-slate-200">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-slate-100 hover:bg-slate-900"
+      >
+        <span>{selectedYmd || "Pick date"}</span>
+        <span className="text-[10px] opacity-70">📅</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1 w-52 rounded-xl border border-slate-800 bg-slate-950 shadow-xl p-2">
+          <div className="flex items-center justify-between mb-1 text-[11px]">
+            <button
+              type="button"
+              onClick={goPrevMonth}
+              className="px-1 text-slate-300 hover:text-slate-100"
+            >
+              ‹
+            </button>
+            <span className="font-semibold text-slate-100">
+              {monthNames[month]} {year}
+            </span>
+            <button
+              type="button"
+              onClick={goNextMonth}
+              className="px-1 text-slate-300 hover:text-slate-100"
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-0.5 text-[10px] text-slate-400 mb-1">
+            <span>Su</span>
+            <span>Mo</span>
+            <span>Tu</span>
+            <span>We</span>
+            <span>Th</span>
+            <span>Fr</span>
+            <span>Sa</span>
+          </div>
+
+          <div className="grid grid-cols-7 gap-0.5 text-[11px]">
+            {weeks.map((week, wi) =>
+              week.map((day, di) => {
+                if (!day) {
+                  return (
+                    <span
+                      key={`${wi}-${di}`}
+                      className="h-6 text-center text-slate-700"
+                    >
+                      {/* empty cell */}
+                    </span>
+                  );
+                }
+
+                const thisYmd = toYmd(new Date(year, month, day));
+                const isSelected = thisYmd === selectedYmd;
+
+                return (
+                  <button
+                    key={`${wi}-${di}`}
+                    type="button"
+                    onClick={() => handleSelectDay(day)}
+                    className={`h-6 rounded-md text-center ${
+                      isSelected
+                        ? "bg-indigo-600 text-white"
+                        : "text-slate-100 hover:bg-slate-800"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TasksPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loadingList, setLoadingList] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ useAnalytics must be *inside* the component
-  const { track } = useAnalytics();
+  // new task form
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newDueDate, setNewDueDate] = useState<string>(""); // yyyy-mm-dd
 
-  // 1) Load current user
+  const [savingNew, setSavingNew] = useState(false);
+  const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+
+  // Load user
   useEffect(() => {
     async function loadUser() {
       try {
         const { data, error } = await supabase.auth.getUser();
-        if (error) console.error(error);
+        if (error) {
+          console.error("[tasks] getUser error", error);
+        }
         setUser(data?.user ?? null);
       } catch (err) {
-        console.error(err);
+        console.error("[tasks] getUser exception", err);
       } finally {
         setCheckingUser(false);
       }
     }
-
     loadUser();
   }, []);
 
-  // 2) Fetch tasks for this user
-  async function fetchTasks() {
+  // Load tasks for logged-in user
+  useEffect(() => {
     if (!user) return;
 
-    try {
-      setLoadingList(true);
+    async function loadTasks() {
+      setLoading(true);
       setError("");
+
+      try {
+        const { data, error } = await supabase
+          .from("tasks")
+          .select(
+            "id, user_id, title, description, completed, due_date, created_at"
+          )
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("[tasks] loadTasks error", error);
+          setError("Failed to load tasks.");
+          setTasks([]);
+          return;
+        }
+
+        setTasks((data || []) as TaskRow[]);
+      } catch (err) {
+        console.error("[tasks] loadTasks exception", err);
+        setError("Failed to load tasks.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadTasks();
+  }, [user]);
+
+  async function handleAddTask(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+
+    const title = newTitle.trim();
+    const description = newDescription.trim();
+    if (!title && !description) return;
+
+    setSavingNew(true);
+    setError("");
+
+    try {
+      const dueDateIso =
+        newDueDate.trim() !== ""
+          ? new Date(newDueDate + "T00:00:00").toISOString()
+          : null;
 
       const { data, error } = await supabase
         .from("tasks")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("is_done", { ascending: true })
-        .order("created_at", { ascending: true });
+        .insert([
+          {
+            user_id: user.id,
+            title: title || null,
+            description: description || null,
+            completed: false, // ✅ correct column
+            due_date: dueDateIso,
+          },
+        ])
+        .select(
+          "id, user_id, title, description, completed, due_date, created_at"
+        )
+        .single();
 
-      if (error) throw error;
-
-      setTasks((data || []) as Task[]);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load tasks.");
-    } finally {
-      setLoadingList(false);
-    }
-  }
-
-  useEffect(() => {
-    if (user) {
-      fetchTasks();
-    } else {
-      setTasks([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  // 3) Create a new task
-  async function handleCreateTask(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-
-    if (!user) {
-      setError("You must be logged in to create tasks.");
-      return;
-    }
-
-    if (!title.trim()) {
-      setError("Please enter a task title.");
-      return;
-    }
-
-    try {
-      setCreating(true);
-
-      const { error } = await supabase.from("tasks").insert([
-        {
-          user_id: user.id,
-          title,
-          description: description.trim() || null,
-          due_date: dueDate || null,
-        },
-      ]);
-
-      if (error) throw error;
-
-      // ✅ track AFTER successful insert
-      try {
-        track("task_created");
-      } catch {
-        // ignore analytics errors
+      if (error) {
+        console.error("[tasks] insert error", error);
+        setError("Failed to add task.");
+        return;
       }
 
-      setTitle("");
-      setDescription("");
-      setDueDate("");
-      fetchTasks();
+      if (data) {
+        setTasks((prev) => [data as TaskRow, ...prev]);
+      }
+
+      setNewTitle("");
+      setNewDescription("");
+      setNewDueDate("");
     } catch (err) {
-      console.error(err);
-      setError("Failed to create task.");
+      console.error("[tasks] insert exception", err);
+      setError("Failed to add task.");
     } finally {
-      setCreating(false);
+      setSavingNew(false);
     }
   }
 
-  // 4) Toggle complete / incomplete
-  async function toggleTaskDone(task: Task) {
+  async function toggleDone(task: TaskRow) {
     if (!user) return;
-    setUpdatingId(task.id);
+
+    const newDone = !task.completed;
+    setSavingTaskId(task.id);
     setError("");
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("tasks")
-        .update({ is_done: !task.is_done })
+        .update({ completed: newDone }) // ✅ correct column
         .eq("id", task.id)
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .select(
+          "id, user_id, title, description, completed, due_date, created_at"
+        )
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("[tasks] toggleDone error", error);
+        setError("Could not update task.");
+        return;
+      }
 
-      fetchTasks();
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? ((data as TaskRow) || t) : t))
+      );
     } catch (err) {
-      console.error(err);
-      setError("Failed to update task.");
+      console.error("[tasks] toggleDone exception", err);
+      setError("Could not update task.");
     } finally {
-      setUpdatingId(null);
+      setSavingTaskId(null);
     }
   }
 
-  // 5) Delete a task
-  async function deleteTask(taskId: string) {
+  async function handleUpdateTask(task: TaskRow, updates: Partial<TaskRow>) {
     if (!user) return;
-    setDeletingId(taskId);
+
+    setSavingTaskId(task.id);
+    setError("");
+
+    try {
+      const { data, error } = await supabase
+        .from("tasks")
+        .update({
+          title: updates.title ?? task.title,
+          description: updates.description ?? task.description,
+          due_date: updates.due_date ?? task.due_date,
+        })
+        .eq("id", task.id)
+        .eq("user_id", user.id)
+        .select(
+          "id, user_id, title, description, completed, due_date, created_at"
+        )
+        .single();
+
+      if (error) {
+        console.error("[tasks] update error", error);
+        setError("Could not save task.");
+        return;
+      }
+
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? ((data as TaskRow) || t) : t))
+      );
+    } catch (err) {
+      console.error("[tasks] update exception", err);
+      setError("Could not save task.");
+    } finally {
+      setSavingTaskId(null);
+    }
+  }
+
+  async function handleDeleteTask(task: TaskRow) {
+    if (!user) return;
+    if (!window.confirm("Delete this task?")) return;
+
+    setDeletingTaskId(task.id);
     setError("");
 
     try {
       const { error } = await supabase
         .from("tasks")
         .delete()
-        .eq("id", taskId)
+        .eq("id", task.id)
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("[tasks] delete error", error);
+        setError("Could not delete task.");
+        return;
+      }
 
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
     } catch (err) {
-      console.error(err);
-      setError("Failed to delete task.");
+      console.error("[tasks] delete exception", err);
+      setError("Could not delete task.");
     } finally {
-      setDeletingId(null);
+      setDeletingTaskId(null);
     }
   }
 
-  function handleAskAssistantAboutTask(task: Task) {
-    if (typeof window === "undefined" || !task) return;
-
-    const pieces = [
-      task.title || "",
-      task.description || "",
-      task.due_date ? `Due date: ${task.due_date}` : "",
-    ].filter(Boolean);
-
-    const content = pieces.join("\n");
-    if (!content.trim()) return;
-
-    window.dispatchEvent(
-      new CustomEvent("ai-assistant-context", {
-        detail: {
-          content,
-          hint:
-            "Help me prioritize this task and suggest the next 3 small steps.",
-        },
-      })
-    );
-  }
-
-  // Checking session
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Checking your session...</p>
+        <p className="text-sm text-slate-300">Checking your session…</p>
       </main>
     );
   }
 
-  // Not logged in
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
-        <h1 className="text-2xl font-bold mb-3">Tasks</h1>
-        <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
-          You&apos;re not logged in. Log in or create a free account to manage
-          your tasks.
-        </p>
-        <Link
-          href="/auth"
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
-        >
-          Go to login / signup
-        </Link>
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+        <AppHeader active="tasks" />
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <h1 className="text-2xl font-bold mb-3">Tasks</h1>
+          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+            Log in or create a free account to track your tasks.
+          </p>
+          <Link
+            href="/auth"
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+          >
+            Go to login / signup
+          </Link>
+        </div>
       </main>
     );
   }
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Top bar */}
       <AppHeader active="tasks" />
-
-      {/* Content */}
       <div className="flex-1">
-        <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 grid md:grid-cols-[1.1fr,0.9fr] gap-6">
-          {/* Left: create task */}
-          <section className="border border-slate-800 rounded-2xl bg-slate-900/70 p-4">
-            <h1 className="text-xl md:text-2xl font-bold mb-3">Tasks</h1>
-            <p className="text-xs text-slate-400 mb-4">
-              Create tasks, mark them as done, and keep track of what matters.
+        <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
+          <h1 className="text-2xl md:text-3xl font-bold mb-3">Tasks</h1>
+          <p className="text-xs md:text-sm text-slate-400 mb-4">
+            Capture tasks, check them off, and keep track of your progress.
+          </p>
+
+          {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
+
+          {/* New task form */}
+          <form
+            onSubmit={handleAddTask}
+            className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3 text-sm"
+          >
+            <p className="text-[11px] font-semibold text-slate-300">
+              Add a new task
             </p>
 
-            {error && (
-              <div className="mb-3 text-sm text-red-400">{error}</div>
-            )}
+            <input
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Task title…"
+              className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 mb-2"
+            />
 
-            <form
-              onSubmit={handleCreateTask}
-              className="flex flex-col gap-3 text-sm"
-            >
-              <input
-                type="text"
-                placeholder="Task title"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
+            <textarea
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              placeholder="Optional description or notes…"
+              className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 mb-2 min-h-[60px]"
+            />
 
-              <textarea
-                placeholder="Optional details..."
-                className="w-full min-h-[80px] px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-
-              <div className="flex flex-col sm:flex-row gap-3 items-center">
-                <div className="flex-1 w-full">
-                  <label className="block text-[11px] text-slate-400 mb-1">
-                    Due date (optional)
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                  />
-                </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 text-xs text-slate-300">
+                <span className="text-[11px]">Due date</span>
+                {/* ✅ mini calendar for new task */}
+                <MiniDatePicker
+                  value={newDueDate}
+                  onChange={(val) => setNewDueDate(val)}
+                />
               </div>
 
               <button
                 type="submit"
-                disabled={creating}
-                className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 transition text-sm mt-1"
+                disabled={savingNew}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs"
               >
-                {creating ? "Adding task..." : "Add task"}
-              </button>
-            </form>
-
-            <div className="mt-5 text-xs text-slate-400 flex gap-3">
-              <Link href="/notes" className="hover:text-indigo-300">
-                ← Go to Notes
-              </Link>
-              <Link href="/dashboard" className="hover:text-indigo-300">
-                Open Dashboard
-              </Link>
-            </div>
-          </section>
-
-          {/* Right: task list */}
-          <section className="border border-slate-800 rounded-2xl bg-slate-900/70 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold">Your tasks</h2>
-              <button
-                onClick={fetchTasks}
-                disabled={loadingList}
-                className="text-xs px-3 py-1 rounded-lg border border-slate-600 hover:bg-slate-800 disabled:opacity-60"
-              >
-                {loadingList ? "Refreshing..." : "Refresh"}
+                {savingNew ? "Adding…" : "Add task"}
               </button>
             </div>
+          </form>
 
-            {tasks.length === 0 && !loadingList && (
-              <p className="text-slate-400 text-sm">
-                No tasks yet. Add your first task on the left.
-              </p>
-            )}
+          {/* Task list */}
+          {loading ? (
+            <p className="text-sm text-slate-300">Loading tasks…</p>
+          ) : tasks.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No tasks yet. Add your first one above.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {tasks.map((task) => {
+                const isSaving = savingTaskId === task.id;
+                const isDeleting = deletingTaskId === task.id;
+                const dueDateValue = task.due_date
+                  ? task.due_date.slice(0, 10)
+                  : "";
 
-            <div className="flex flex-col gap-3 max-h-[480px] overflow-y-auto pr-1 text-sm">
-              {tasks.map((task) => (
-                <article
-                  key={task.id}
-                  className="border border-slate-800 rounded-xl bg-slate-950/70 p-3 flex gap-3"
-                >
-                  <button
-                    onClick={() => toggleTaskDone(task)}
-                    disabled={updatingId === task.id}
-                    className="mt-1 h-5 w-5 rounded-full border border-slate-600 flex items-center justify-center text-[10px] hover:bg-slate-800 disabled:opacity-60"
+                return (
+                  <div
+                    key={task.id}
+                    className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 text-sm"
                   >
-                    {task.is_done ? "✓" : ""}
-                  </button>
-
-                  <div className="flex-1">
-                    <h3
-                      className={`font-semibold text-xs mb-1 ${
-                        task.is_done ? "line-through text-slate-500" : ""
-                      }`}
-                    >
-                      {task.title || "Untitled task"}
-                    </h3>
-                    {task.description && (
-                      <p
-                        className={`text-[11px] whitespace-pre-wrap ${
-                          task.is_done ? "text-slate-500" : "text-slate-300"
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleDone(task)}
+                        disabled={isSaving}
+                        className={`mt-1 h-4 w-4 flex-shrink-0 rounded-full border ${
+                          task.completed
+                            ? "border-emerald-400 bg-emerald-500/80"
+                            : "border-slate-600 bg-slate-950"
                         }`}
-                      >
-                        {task.description}
-                      </p>
-                    )}
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-                      {task.due_date && (
-                        <span className="px-2 py-0.5 rounded-full border border-slate-700">
-                          Due: {task.due_date}
-                        </span>
-                      )}
-                      {task.created_at && (
-                        <span>
-                          Created:{" "}
-                          {new Date(task.created_at).toLocaleString()}
-                        </span>
-                      )}
+                        aria-label="Toggle done"
+                      />
+
+                      <div className="flex-1 space-y-2">
+                        {/* Editable title */}
+                        <input
+                          type="text"
+                          defaultValue={task.title || ""}
+                          onBlur={(e) =>
+                            handleUpdateTask(task, {
+                              title: e.target.value,
+                            })
+                          }
+                          className="w-full bg-transparent border-none outline-none text-sm text-slate-100 placeholder:text-slate-500"
+                          placeholder="(untitled task)"
+                        />
+
+                        {/* Editable description */}
+                        <textarea
+                          defaultValue={task.description || ""}
+                          onBlur={(e) =>
+                            handleUpdateTask(task, {
+                              description: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-2 py-1 text-xs text-slate-100 min-h-[48px]"
+                          placeholder="Details or notes…"
+                        />
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                          <div className="flex items-center gap-2">
+                            <span>Due:</span>
+                            {/* ✅ mini calendar for existing task */}
+                            <MiniDatePicker
+                              value={dueDateValue}
+                              onChange={(ymd) => {
+                                const iso = new Date(
+                                  ymd + "T00:00:00"
+                                ).toISOString();
+                                handleUpdateTask(task, {
+                                  due_date: iso,
+                                });
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] text-slate-500">
+                              Created:{" "}
+                              {new Date(
+                                task.created_at
+                              ).toLocaleDateString()}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTask(task)}
+                              disabled={isDeleting}
+                              className="text-[11px] text-red-400 hover:text-red-300"
+                            >
+                              {isDeleting ? "Deleting…" : "Delete"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex flex-col items-end gap-1">
-                    <button
-                      onClick={() => deleteTask(task.id)}
-                      disabled={deletingId === task.id}
-                      className="self-start text-[11px] text-slate-500 hover:text-red-400 disabled:opacity-60"
-                    >
-                      {deletingId === task.id ? "..." : "Delete"}
-                    </button>
-
-                    <button
-                      onClick={() => handleAskAssistantAboutTask(task)}
-                      className="text-[11px] text-slate-500 hover:text-indigo-300"
-                    >
-                      🤖 Ask AI
-                    </button>
-                  </div>
-                </article>
-              ))}
+                );
+              })}
             </div>
-          </section>
+          )}
         </div>
-        <FeedbackForm user={user} source="tasks" />
       </div>
     </main>
   );
