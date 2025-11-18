@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
 import { useAnalytics } from "@/lib/analytics";
 import AppHeader from "@/app/components/AppHeader";
+import SetupBanner from "@/app/components/SetupBanner";
 
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 50;
@@ -57,7 +58,7 @@ function getStreakConfig(streak: number) {
 }
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
   const [plan, setPlan] = useState<"free" | "pro">("free");
@@ -91,7 +92,8 @@ export default function DashboardPage() {
   // Weekly goal state
   const [weeklyGoalId, setWeeklyGoalId] = useState<string | null>(null);
   const [weeklyGoalText, setWeeklyGoalText] = useState<string>("");
-  const [weeklyGoalCompleted, setWeeklyGoalCompleted] = useState(false);
+  const [weeklyGoalCompleted, setWeeklyGoalCompleted] =
+    useState<boolean>(false);
   const [weeklyGoalSaving, setWeeklyGoalSaving] = useState(false);
   const [weeklyGoalMarking, setWeeklyGoalMarking] = useState(false);
 
@@ -253,7 +255,7 @@ export default function DashboardPage() {
             .single();
 
           if (insertError) throw insertError;
-          setPlan((inserted.plan as "free" | "pro") || "free");
+          setPlan((inserted?.plan as "free" | "pro") || "free");
         } else {
           setPlan((profile.plan as "free" | "pro") || "free");
         }
@@ -352,37 +354,70 @@ export default function DashboardPage() {
           setRecentNotes(notes || []);
         }
 
-        // Notes / tasks in last 7 days (date-only to avoid timestamp parsing issues)
-const sevenDaysAgoDate = new Date();
-sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 6);
-const sevenDateStr = sevenDaysAgoDate.toISOString().split("T")[0];
+        // 6) Recent tasks
+        const { data: tasks, error: tasksError } = await supabase
+          .from("tasks")
+          .select("id, title, completed, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
 
-// Notes created in the last 7 days
-const { count: notes7Count, error: notes7Err } = await supabase
-  .from("notes")
-  .select("id", { count: "exact", head: false })
-  .eq("user_id", user.id)
-  .gte("created_at", sevenDateStr)
-  .limit(0);
+        if (tasksError && tasksError.code !== "PGRST116") {
+          console.error("Dashboard: tasks error", tasksError);
+          setRecentTasks([]);
+        } else {
+          setRecentTasks(tasks || []);
+        }
 
-if (notes7Err) {
-  console.error("[dashboard] notes7 count error", notes7Err);
-}
-setWeekNotesCreated(notes7Count || 0);
+        // 7) Notes / tasks in last 7 days
 
-// Tasks completed in the last 7 days
+        // Notes created in the last 7 days (date-only)
+        const sevenDaysAgoDate = new Date();
+        sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 6);
+        const sevenDateStr =
+          sevenDaysAgoDate.toISOString().split("T")[0];
+
+        const {
+          count: notes7Count,
+          error: notes7Err,
+        } = await supabase
+          .from("notes")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("created_at", sevenDateStr);
+
+        if (notes7Err && (notes7Err as any).code !== "PGRST116") {
+          console.error("[dashboard] notes7 count error", notes7Err);
+          setWeekNotesCreated(0);
+        } else {
+          setWeekNotesCreated(notes7Count ?? 0);
+        }
+
+        // ✅ Tasks completed in the last 7 days
 const sevenDaysAgoTs = new Date();
 sevenDaysAgoTs.setDate(sevenDaysAgoTs.getDate() - 6);
-const sevenIso = sevenDaysAgoTs.toISOString(); // full ISO with time
 
-const { data: tasks7Rows, error: tasks7Err } = await supabase
+// Use *date-only* string to avoid 400 errors if created_at is DATE
+const sevenDateOnly = sevenDaysAgoTs.toISOString().split("T")[0];
+
+const {
+  data: tasks7Rows,
+  error: tasks7Err,
+} = await supabase
   .from("tasks")
   .select("id")
   .eq("user_id", user.id)
   .eq("completed", true)
-  .gte("created_at", sevenIso);
+  .gte("created_at", sevenDateOnly);
 
-        // 7) Weekly goal of the week (latest)
+if (tasks7Err && (tasks7Err as any).code !== "PGRST116") {
+  console.error("[dashboard] tasks7 error", tasks7Err);
+  setWeekTasksCompleted(0);
+} else {
+  setWeekTasksCompleted(tasks7Rows?.length || 0);
+}
+
+        // 8) Weekly goal of the week (latest)
         const { data: goalRow, error: goalError } = await supabase
           .from("weekly_goals")
           .select("id, goal_text, week_start, completed")
@@ -413,18 +448,6 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
     loadData();
   }, [user]);
 
-  async function handleLogout() {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setPlan("free");
-      setAiCountToday(0);
-      window.location.href = "/";
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
   async function startCheckout() {
     if (!user) return;
     setBillingLoading(true);
@@ -444,7 +467,9 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
         data = JSON.parse(text);
       } catch (e) {
         console.error("Non-JSON response from /api/stripe/checkout:", text);
-        setError("Server returned an invalid response. Check your API route.");
+        setError(
+          "Server returned an invalid response. Check your API route."
+        );
         return;
       }
 
@@ -627,16 +652,17 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-
       <AppHeader active="dashboard" />
-    
 
       {/* Content */}
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
+          {/* ✅ Finish setup banner */}
+          <SetupBanner userId={user.id} />
+
           {showBanner && (
             <div
-              className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${streakCfg.gradient} text-white shadow-md animate-fadeIn`}
+              className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${streakCfg.gradient} text-white shadow-md`}
             >
               <div>
                 <p className="font-semibold text-sm md:text-base">
@@ -644,7 +670,9 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
                   <span className="font-bold">{streak}-day</span>{" "}
                   productivity streak.
                 </p>
-                <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
+                <p className="text-xs opacity-90">
+                  {streakCfg.subtitle}
+                </p>
               </div>
             </div>
           )}
@@ -692,7 +720,9 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
           )}
 
           {loadingData ? (
-            <p className="text-slate-300 text-sm">Loading your data...</p>
+            <p className="text-slate-300 text-sm">
+              Loading your data...
+            </p>
           ) : (
             <>
               {/* Top stats grid */}
@@ -729,25 +759,25 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
                       {dailyLimit} calls/day
                     </span>
                   </p>
-                  {plan === "pro" && (
-    <Link
-      href="/weekly-reports"
-      className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
-    >
-      📅 View Weekly Reports →
-    </Link>
-  )}
 
-  {/* Free users: upsell */}
-  {plan === "free" && (
-    <Link
-      href="/dashboard#pricing"
-      className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
-    >
-      🔒 Unlock Weekly Reports with Pro →
-    </Link>
-  )}
-</div>
+                  {plan === "pro" && (
+                    <Link
+                      href="/weekly-reports"
+                      className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
+                    >
+                      📅 View Weekly Reports →
+                    </Link>
+                  )}
+
+                  {plan === "free" && (
+                    <Link
+                      href="/dashboard#pricing"
+                      className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
+                    >
+                      🔒 Unlock Weekly Reports with Pro →
+                    </Link>
+                  )}
+                </div>
 
                 {/* Usage + Productivity Score card */}
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
@@ -822,23 +852,23 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
                   </div>
 
                   <p className="text-[11px] text-slate-400 mt-2">
-  {remaining > 0 ? (
-    `${remaining} AI calls left today.`
-  ) : plan === "pro" ? (
-    "You reached today’s Pro limit for today."
-  ) : (
-    <>
-      You reached today’s limit on the free plan.{" "}
-      <Link
-        href="/dashboard#pricing"
-        className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
-      >
-        Upgrade to Pro
-      </Link>{" "}
-      for a higher daily AI limit.
-    </>
-  )}
-</p>
+                    {remaining > 0 ? (
+                      `${remaining} AI calls left today.`
+                    ) : plan === "pro" ? (
+                      "You reached today’s Pro limit for today."
+                    ) : (
+                      <>
+                        You reached today’s limit on the free plan.{" "}
+                        <Link
+                          href="/dashboard#pricing"
+                          className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                        >
+                          Upgrade to Pro
+                        </Link>{" "}
+                        for a higher daily AI limit.
+                      </>
+                    )}
+                  </p>
 
                   <p className="text-[11px] text-slate-400 mt-1">
                     Usage streak:{" "}
@@ -960,10 +990,10 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
                       on track.
                     </p>
                     <p className="text-[11px] text-slate-500 mb-3">
-  This is a Pro feature. Upgrade to unlock AI-powered weekly
-  goals, progress tracking in your weekly report emails,
-  and higher AI limits.
-</p>
+                      This is a Pro feature. Upgrade to unlock AI-powered
+                      weekly goals, progress tracking in your weekly report
+                      emails, and higher AI limits.
+                    </p>
 
                     <Link
                       href="/dashboard#pricing"
@@ -988,7 +1018,9 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
                       <button
                         type="button"
                         onClick={() => saveWeeklyGoal(false)}
-                        disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
+                        disabled={
+                          weeklyGoalSaving || !weeklyGoalText.trim()
+                        }
                         className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs"
                       >
                         {weeklyGoalSaving ? "Saving..." : "Save goal"}
@@ -996,7 +1028,9 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
                       <button
                         type="button"
                         onClick={() => saveWeeklyGoal(true)}
-                        disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
+                        disabled={
+                          weeklyGoalSaving || !weeklyGoalText.trim()
+                        }
                         className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs disabled:opacity-60"
                       >
                         {weeklyGoalSaving
@@ -1048,7 +1082,8 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
                           key={n.id}
                           className="text-[12px] text-slate-200 line-clamp-2"
                         >
-                          {n.content?.slice(0, 160) || "(empty note)"}
+                          {n.content?.slice(0, 160) ||
+                            "(empty note)"}
                         </li>
                       ))}
                     </ul>
@@ -1084,7 +1119,9 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
                                 : "bg-slate-500"
                             }`}
                           />
-                          <span>{t.title || "(untitled task)"}</span>
+                          <span>
+                            {t.title || "(untitled task)"}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -1140,67 +1177,85 @@ const { data: tasks7Rows, error: tasks7Err } = await supabase
               🗓 Daily Planner
             </Link>
             <Link
-  href="/weekly-reports"
-  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
->
-  📅 Weekly Reports
-</Link>
+              href="/weekly-reports"
+              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+            >
+              📅 Weekly Reports
+            </Link>
           </div>
-{plan === "free" && (
-  <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
-    <span className="font-semibold text-xs">What you unlock with Pro:</span>
-    <span>📈 Higher daily AI limit</span>
-    <span>📬 Weekly AI email report</span>
-    <span>✅ Goal of the Week with AI refinement</span>
-    <span>🏅 Full AI wins history</span>
-  </div>
-)}
 
           {plan === "free" && (
-  <section
-    id="pricing"
-    className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-5 text-xs md:text-sm max-w-xl"
-  >
-    <p className="text-indigo-100 font-semibold mb-1 text-sm md:text-base">
-      Unlock AI Productivity Hub Pro
-    </p>
-    <p className="text-indigo-100 mb-3">
-      Ideal if you&apos;re using the app most days and keep hitting the free AI limit.
-    </p>
+            <>
+              <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
+                <span className="font-semibold text-xs">
+                  What you unlock with Pro:
+                </span>
+                <span>📈 Higher daily AI limit</span>
+                <span>📬 Weekly AI email report</span>
+                <span>✅ Goal of the Week with AI refinement</span>
+                <span>🏅 Full AI wins history</span>
+              </div>
 
-    {/* Simple “pricing row” – edit price text to match your Stripe plan */}
-    <div className="flex items-baseline gap-2 mb-3">
-      <p className="text-2xl font-bold text-indigo-100">
-        €9.99<span className="text-base font-normal text-indigo-200">/month</span>
-      </p>
-      <p className="text-[11px] text-indigo-200/80">
-        Billed via secure Stripe checkout
-      </p>
-    </div>
+              <section
+                id="pricing"
+                className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-5 text-xs md:text-sm max-w-xl"
+              >
+                <p className="text-indigo-100 font-semibold mb-1 text-sm md:text-base">
+                  Unlock AI Productivity Hub Pro
+                </p>
+                <p className="text-indigo-100 mb-3">
+                  Ideal if you&apos;re using the app most days and keep
+                  hitting the free AI limit.
+                </p>
 
-    <ul className="space-y-1.5 text-[11px] text-indigo-100/90 mb-4">
-      <li>• 10× higher daily AI limit (notes, planner, assistant, summaries)</li>
-      <li>• Weekly AI email reports with wins, stats & focus suggestions</li>
-      <li>• Weekly goal coaching (set + mark your single focus goal)</li>
-      <li>• Access to Pro-only AI templates</li>
-      <li>• Priority for new features & improvements</li>
-    </ul>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <p className="text-2xl font-bold text-indigo-100">
+                    €9.99
+                    <span className="text-base font-normal text-indigo-200">
+                      /month
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-indigo-200/80">
+                    Billed via secure Stripe checkout
+                  </p>
+                </div>
 
-    <button
-      onClick={startCheckout}
-      disabled={billingLoading}
-      className="w-full justify-center px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium disabled:opacity-60 text-sm"
-    >
-      {billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}
-    </button>
+                <ul className="space-y-1.5 text-[11px] text-indigo-100/90 mb-4">
+                  <li>
+                    • 10× higher daily AI limit (notes, planner, assistant,
+                    summaries)
+                  </li>
+                  <li>
+                    • Weekly AI email reports with wins, stats & focus
+                    suggestions
+                  </li>
+                  <li>
+                    • Weekly goal coaching (set + mark your single focus
+                    goal)
+                  </li>
+                  <li>• Access to Pro-only AI templates</li>
+                  <li>• Priority for new features & improvements</li>
+                </ul>
 
-    <p className="mt-2 text-[11px] text-indigo-100/70">
-      Cancel any time from Settings → Manage subscription (Stripe).
-    </p>
-  </section>
-)}
+                <button
+                  onClick={startCheckout}
+                  disabled={billingLoading}
+                  className="w-full justify-center px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium disabled:opacity-60 text-sm"
+                >
+                  {billingLoading
+                    ? "Opening Stripe..."
+                    : "Upgrade to Pro"}
+                </button>
 
+                <p className="mt-2 text-[11px] text-indigo-100/70">
+                  Cancel any time from Settings → Manage subscription
+                  (Stripe).
+                </p>
+              </section>
+            </>
+          )}
         </div>
+
         <FeedbackForm user={user} source="dashboard" />
       </div>
     </main>

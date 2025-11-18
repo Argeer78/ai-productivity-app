@@ -3,16 +3,14 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
-import { LanguageProvider } from "@/app/components/LanguageProvider";
 import AIAssistant from "@/app/components/AIAssistant";
-import ServiceWorkerRegistrar from "@/app/components/ServiceWorkerRegistrar";
-import OnboardingFlow from "@/app/components/OnboardingFlow";
+import { LanguageProvider } from "@/app/components/LanguageProvider";
+import ServiceWorkerRegistrar from "./components/ServiceWorkerRegistrar";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title:
-    "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
+  title: "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
   description:
     "AI Productivity Hub is a simple, focused workspace for notes, tasks, daily score tracking, weekly reports and travel planning – all powered by AI.",
   openGraph: {
@@ -30,10 +28,11 @@ export const metadata: Metadata = {
       "Stay organized with notes, tasks, daily success score, weekly reports and an AI travel planner in one clean app.",
     images: ["/og-image.png"],
   },
-  themeColor: "#020617",
+  // ❌ DO NOT put themeColor here anymore
   manifest: "/manifest.webmanifest",
 };
 
+// ✅ themeColor lives here now
 export const viewport: Viewport = {
   themeColor: "#020617",
 };
@@ -54,8 +53,6 @@ export default function RootLayout({
       <body className={`${inter.className} bg-slate-950 text-slate-100`}>
         <LanguageProvider>
           <ServiceWorkerRegistrar />
-          {/* 👇 New onboarding flow – shows once per browser */}
-          <OnboardingFlow />
           {children}
           <AIAssistant />
         </LanguageProvider>

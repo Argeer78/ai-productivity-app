@@ -413,7 +413,7 @@ ${trimmed}
             </div>
             <div className="border border-slate-800 rounded-2xl bg-slate-900/60 p-3">
               <p className="text-slate-400 mb-1">
-                Success streak (score ≥ 60)
+                Success streak (score = 60)
               </p>
               <p className="text-xl font-semibold">
                 {scoreStreak} day{scoreStreak === 1 ? "" : "s"}
@@ -555,7 +555,7 @@ ${trimmed}
                   disabled={savingScore}
                   className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-xs"
                 >
-                  {savingScore ? "Saving..." : "Save today&apos;s score"}
+                  {savingScore ? "Saving..." : "Save today's score"}
                 </button>
               </div>
 
