@@ -155,6 +155,7 @@ export default function AIChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           threadId: activeThreadId,
+          userId: user.id,
           category,
           userMessage: text,
         }),

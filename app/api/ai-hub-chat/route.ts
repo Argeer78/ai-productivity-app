@@ -1,107 +1,154 @@
+// app/api/ai-hub-chat/route.ts
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient"; // if you have a special server client, use that instead
 import OpenAI from "openai";
+import { supabase } from "@/lib/supabaseClient";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
+type RequestBody = {
+  threadId?: string | null;
+  category?: string | null;
+  userMessage: string;
+};
+
+type HistoryMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+// Helper: generate a short title from the first user message
+async function generateTitleFromMessage(message: string): Promise<string> {
+  const fallback =
+    message.trim().length > 0
+      ? message.trim().slice(0, 60)
+      : "New conversation";
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      max_tokens: 20,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are helping name chat conversations. " +
+            "Return a very short (3–6 words) descriptive title. " +
+            "Do not use quotes or punctuation at the start/end.",
+        },
+        { role: "user", content: message },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim() || fallback;
+
+    const cleaned = raw.replace(/^["“”']+|["“”']+$/g, "").trim();
+    return cleaned || fallback;
+  } catch (err) {
+    console.error("[ai-hub-chat] title generation error", err);
+    return fallback;
+  }
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => null) as {
-      threadId?: string | null;
-      category?: string | null;
-      userMessage: string;
-    } | null;
+    const body = (await req.json().catch(() => null)) as RequestBody | null;
 
     if (!body || !body.userMessage?.trim()) {
       return NextResponse.json(
-        { error: "Missing userMessage" },
+        { ok: false, error: "Missing userMessage" },
         { status: 400 }
       );
     }
 
-    const supa = supabase; // or createServerSupabaseClient if you use cookies
+    const supa = supabase;
+    let userId: string | null = null;
 
-    // 1) Get user from Supabase auth (server-side)
-    const {
-      data: { user },
-      error: userErr,
-    } = await supa.auth.getUser();
-
-    if (userErr || !user) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
+    // Try to get current user (but allow anonymous usage)
+    try {
+      const { data, error } = await supa.auth.getUser();
+      if (!error && data?.user) {
+        userId = data.user.id;
+      } else if (error) {
+        console.warn("[ai-hub-chat] getUser error", error);
+      }
+    } catch (err) {
+      console.error("[ai-hub-chat] getUser exception", err);
     }
 
-    const userId = user.id;
-    let threadId = body.threadId || null;
+    let threadId: string | null = body.threadId ?? null;
 
-    // 2) If no threadId, create a new thread with a tentative title
-    if (!threadId) {
-      const tentativeTitle = body.userMessage.slice(0, 60) || "New conversation";
+    // If logged in & no thread yet -> create one with auto title
+    if (userId && !threadId) {
+      const title = await generateTitleFromMessage(body.userMessage);
 
-      const { data: thread, error: threadErr } = await supa
+      const { data: threadRow, error: threadErr } = await supa
         .from("ai_chat_threads")
         .insert([
           {
             user_id: userId,
-            title: tentativeTitle,
+            title,
             category: body.category || null,
           },
         ])
-        .select("id, title")
+        .select("id")
         .single();
 
-      if (threadErr || !thread) {
+      if (threadErr) {
         console.error("[ai-hub-chat] create thread error", threadErr);
-        return NextResponse.json(
-          { error: "Failed to create conversation" },
-          { status: 500 }
+      } else if (threadRow) {
+        threadId = threadRow.id;
+      }
+    }
+
+    // Build history for context if we have a user & thread
+    const historyMessages: HistoryMessage[] = [];
+
+    if (userId && threadId) {
+      const { data: history, error: historyErr } = await supa
+        .from("ai_chat_messages")
+        .select("role, content")
+        .eq("thread_id", threadId)
+        .order("created_at", { ascending: true })
+        .limit(20);
+
+      if (historyErr) {
+        console.error("[ai-hub-chat] history error", historyErr);
+      } else if (history) {
+        historyMessages.push(
+          ...(history as { role: "user" | "assistant"; content: string }[])
         );
       }
-
-      threadId = thread.id;
     }
 
-    // 3) Fetch last N messages to give context (e.g., last 15)
-    const { data: history, error: historyErr } = await supa
-      .from("ai_chat_messages")
-      .select("role, content")
-      .eq("thread_id", threadId)
-      .order("created_at", { ascending: true })
-      .limit(15);
-
-    if (historyErr) {
-      console.error("[ai-hub-chat] history error", historyErr);
-    }
-
-    const messages: { role: "user" | "assistant" | "system"; content: string }[] =
-      (history || []).map((m: any) => ({
+    // Build messages for OpenAI
+    const messagesForOpenAI: {
+      role: "system" | "user" | "assistant";
+      content: string;
+    }[] = [
+      {
+        role: "system",
+        content:
+          "You are the AI coach in a productivity app called AI Productivity Hub. " +
+          "Be friendly, concise, and practical. Help with planning, focus, mindset, " +
+          "and general questions. Use clear formatting and short paragraphs.",
+      },
+      ...historyMessages.map((m) => ({
         role: m.role,
         content: m.content,
-      }));
+      })),
+      {
+        role: "user",
+        content: body.userMessage,
+      },
+    ];
 
-    // Add system prompt
-    messages.unshift({
-      role: "system",
-      content:
-        "You are the AI coach in a productivity app called AI Productivity Hub. " +
-        "Be friendly, concise, and practical. Help with planning, focus, mindset, and general questions.",
-    });
-
-    // Add new user message
-    messages.push({
-      role: "user",
-      content: body.userMessage,
-    });
-
-    // 4) Call OpenAI
+    // Call OpenAI
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages,
+      messages: messagesForOpenAI,
       temperature: 0.6,
       max_tokens: 600,
     });
@@ -110,39 +157,53 @@ export async function POST(req: Request) {
       completion.choices[0]?.message?.content?.trim() ||
       "Sorry, I couldn't generate a response.";
 
-    // 5) Save both messages
-    const { error: insertErr } = await supa.from("ai_chat_messages").insert([
-      {
-        thread_id: threadId,
-        user_id: userId,
-        role: "user",
-        content: body.userMessage,
-      },
-      {
-        thread_id: threadId,
-        user_id: userId,
-        role: "assistant",
-        content: assistantMessage,
-      },
-    ]);
+    // If we have a logged-in user + thread, persist the messages
+    if (userId && threadId) {
+      const { error: insertErr } = await supa.from("ai_chat_messages").insert([
+        {
+          thread_id: threadId,
+          user_id: userId,
+          role: "user",
+          content: body.userMessage,
+        },
+        {
+          thread_id: threadId,
+          user_id: userId,
+          role: "assistant",
+          content: assistantMessage,
+        },
+      ]);
 
-    if (insertErr) {
-      console.error("[ai-hub-chat] insert messages error", insertErr);
-      // We still return the answer to the user, just warn
+      if (insertErr) {
+        console.error("[ai-hub-chat] insert messages error", insertErr);
+      }
+
+      const { error: updateThreadErr } = await supa
+        .from("ai_chat_threads")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", threadId)
+        .eq("user_id", userId);
+
+      if (updateThreadErr) {
+        console.error(
+          "[ai-hub-chat] update thread timestamp error",
+          updateThreadErr
+        );
+      }
     }
 
-    // 6) Optionally, refine the title on first message only
-    // You can extend this to use another small OpenAI call.
-
-    return NextResponse.json({
-      ok: true,
-      threadId,
-      assistantMessage,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        threadId,
+        assistantMessage,
+      },
+      { status: 200 }
+    );
   } catch (err) {
     console.error("[ai-hub-chat] route error", err);
     return NextResponse.json(
-      { error: "Unexpected server error" },
+      { ok: false, error: "Unexpected server error" },
       { status: 500 }
     );
   }
