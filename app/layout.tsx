@@ -3,12 +3,10 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
-import AIAssistant from "@/app/components/AIAssistant";
 import { LanguageProvider } from "@/app/components/LanguageProvider";
-import ServiceWorkerRegistrar from "./components/ServiceWorkerRegistrar";
-// If you created this earlier for the “install app” prompt, keep it.
-// If not, remove this import & <PwaInstallPrompt /> below.
-import PwaInstallPrompt from "./components/PwaInstallPrompt";
+import AIAssistant from "@/app/components/AIAssistant";
+import ServiceWorkerRegistrar from "@/app/components/ServiceWorkerRegistrar";
+import OnboardingFlow from "@/app/components/OnboardingFlow";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,8 +30,8 @@ export const metadata: Metadata = {
       "Stay organized with notes, tasks, daily success score, weekly reports and an AI travel planner in one clean app.",
     images: ["/og-image.png"],
   },
-  manifest: "/manifest.webmanifest",
   themeColor: "#020617",
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
@@ -47,22 +45,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-slate-950 text-slate-100`}>
+      <head>
         <PlausibleProvider
           domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
           trackLocalhost={false}
-        >
-          {/* PWA service worker + install prompt */}
+        />
+      </head>
+      <body className={`${inter.className} bg-slate-950 text-slate-100`}>
+        <LanguageProvider>
           <ServiceWorkerRegistrar />
-          {/* Remove this if you didn’t actually create the component */}
-          <PwaInstallPrompt />
-
-          {/* App providers + UI */}
-          <LanguageProvider>
-            {children}
-            <AIAssistant />
-          </LanguageProvider>
-        </PlausibleProvider>
+          {/* 👇 New onboarding flow – shows once per browser */}
+          <OnboardingFlow />
+          {children}
+          <AIAssistant />
+        </LanguageProvider>
       </body>
     </html>
   );
