@@ -13,6 +13,7 @@ export default function AuthPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   function resetState(nextMode: Mode) {
     setMode(nextMode);
@@ -191,15 +192,23 @@ export default function AuthPage() {
             onChange={(e) => setEmail(e.target.value)}
           />
 
-          {mode !== "forgot" && (
-            <input
-              type="password"
-              placeholder="Password (min 6 chars)"
-              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          )}
+         <div className="relative">
+  <input
+    type={showPassword ? "text" : "password"}
+    placeholder="Password (min 8 chars)"
+    className="w-full px-3 py-2 pr-9 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+  />
+  <button
+    type="button"
+    onClick={() => setShowPassword((v) => !v)}
+    className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-200 text-xs"
+    aria-label={showPassword ? "Hide password" : "Show password"}
+  >
+    {showPassword ? "🙈" : "👁️"}
+  </button>
+</div>
 
           <button
             type="submit"
