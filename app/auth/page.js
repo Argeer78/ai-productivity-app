@@ -4,8 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthPage() {
-  // "login" | "signup" | "forgot"
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login"); // "login" or "signup"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -17,44 +16,11 @@ export default function AuthPage() {
     setError("");
     setMessage("");
 
-    if (!email) {
-      setError("Please enter an email address.");
+    if (!email || !password) {
+      setError("Please enter email and password.");
       return;
     }
 
-    // 🔐 Forgot password: send reset email
-    if (mode === "forgot") {
-      try {
-        setLoading(true);
-
-        const redirectTo =
-          typeof window !== "undefined"
-            ? `${window.location.origin}/auth/update-password`
-            : undefined;
-
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo,
-        });
-
-        if (error) throw error;
-
-        setMessage(
-          "If an account exists with that email, a reset link has been sent."
-        );
-      } catch (err) {
-        console.error(err);
-        setError(err.message || "Failed to send reset email.");
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    // For login / signup, we also need a password
-    if (!password) {
-      setError("Please enter a password.");
-      return;
-    }
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
@@ -78,10 +44,10 @@ export default function AuthPage() {
         });
         if (error) throw error;
 
-        setMessage("Logged in! Redirecting to your dashboard...");
+        setMessage("Logged in! Redirecting to your notes...");
         // simple redirect
         setTimeout(() => {
-          window.location.href = "/dashboard";
+          window.location.href = "/notes";
         }, 800);
       }
     } catch (err) {
@@ -92,19 +58,42 @@ export default function AuthPage() {
     }
   }
 
-  const title =
-    mode === "login"
-      ? "Log in"
-      : mode === "signup"
-      ? "Sign up"
-      : "Reset password";
+  // 🔐 Google OAuth login
+  async function handleGoogleLogin() {
+    setError("");
+    setMessage("");
+
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          // where users land AFTER Google login completes
+          redirectTo:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/dashboard`
+              : undefined,
+        },
+      });
+
+      if (error) throw error;
+      // Supabase will redirect automatically.
+    } catch (err) {
+      console.error("[auth] Google login error", err);
+      setError(err.message || "Google login failed.");
+      setLoading(false); // only clear loading if we didn't redirect
+    }
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4">
       <div className="w-full max-w-md border border-slate-800 rounded-2xl p-6 bg-slate-900/70 shadow-lg">
-        <h1 className="text-2xl font-bold mb-4 text-center">{title}</h1>
+        <h1 className="text-2xl font-bold mb-4 text-center">
+          {mode === "login" ? "Log in" : "Sign up"}
+        </h1>
 
-        {/* mode switch (login / signup) */}
+        {/* Mode toggle */}
         <div className="flex justify-center gap-3 mb-4 text-sm">
           <button
             className={`px-3 py-1 rounded-full border ${
@@ -136,6 +125,7 @@ export default function AuthPage() {
           </button>
         </div>
 
+        {/* Error & success messages */}
         {error && (
           <div className="mb-3 text-sm text-red-400">{error}</div>
         )}
@@ -145,6 +135,29 @@ export default function AuthPage() {
           </div>
         )}
 
+        {/* ✅ Google login button */}
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-sm mb-4 disabled:opacity-60"
+        >
+          <span className="text-lg">🟦</span>
+          <span>
+            {loading ? "Connecting to Google…" : "Continue with Google"}
+          </span>
+        </button>
+
+        {/* Divider */}
+        <div className="flex items-center my-3">
+          <div className="flex-1 h-px bg-slate-800" />
+          <span className="px-2 text-[10px] uppercase tracking-wide text-slate-500">
+            or use email
+          </span>
+          <div className="flex-1 h-px bg-slate-800" />
+        </div>
+
+        {/* Email/password form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             type="email"
@@ -154,69 +167,44 @@ export default function AuthPage() {
             onChange={(e) => setEmail(e.target.value)}
           />
 
-          {/* Hide password input in forgot mode */}
-          {mode !== "forgot" && (
-            <input
-              type="password"
-              placeholder="Password (min 6 chars)"
-              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          )}
+          <input
+            type="password"
+            placeholder="Password (min 6 chars)"
+            className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-          {/* Forgot password link (in login mode) */}
+          {/* Forgot password link */}
           {mode === "login" && (
-            <button
-              type="button"
-              onClick={() => {
-                setMode("forgot");
-                setPassword("");
-                setMessage("");
-                setError("");
-              }}
-              className="text-xs text-indigo-300 hover:text-indigo-200 self-start"
-            >
-              Forgot your password?
-            </button>
-          )}
-
-          {/* Back from forgot -> login */}
-          {mode === "forgot" && (
-            <button
-              type="button"
-              onClick={() => {
-                setMode("login");
-                setMessage("");
-                setError("");
-              }}
-              className="text-xs text-indigo-300 hover:text-indigo-200 self-start"
-            >
-              ← Back to log in
-            </button>
+            <div className="text-right">
+              <a
+                href="/forgot-password"
+                className="text-[11px] text-indigo-300 hover:text-indigo-200"
+              >
+                Forgot your password?
+              </a>
+            </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 inline-flex items-center justify-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-sm font-medium w-full"
+            className="mt-2 inline-flex items-center justify-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-sm font-medium"
           >
             {loading
               ? mode === "login"
                 ? "Logging in..."
-                : mode === "signup"
-                ? "Signing up..."
-                : "Sending reset link..."
+                : "Signing up..."
               : mode === "login"
               ? "Log in"
-              : mode === "signup"
-              ? "Sign up"
-              : "Send reset email"}
+              : "Sign up"}
           </button>
         </form>
 
         <p className="mt-4 text-xs text-slate-400 text-center">
-          After logging in, you&apos;ll be redirected to your dashboard.
+          After logging in, you&apos;ll be redirected to your notes or
+          dashboard.
         </p>
 
         <div className="mt-4 text-center">
