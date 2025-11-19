@@ -1,16 +1,13 @@
-// app/api/admin/reset-password/route.ts
+// app/admin/reset-password/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!; // NOT public
+// Make sure these are set in your env
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+// Service-role client (server only!)
+const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
 export async function POST(req: Request) {
   try {
@@ -26,16 +23,17 @@ export async function POST(req: Request) {
     }
 
     const redirectTo = process.env.NEXT_PUBLIC_SITE_URL
-      ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/update-password`
+      ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset`
       : undefined;
 
-    const { error } = await adminClient.auth.admin.resetPasswordForEmail(
+    // ✅ In v2, use auth.resetPasswordForEmail (NOT auth.admin.resetPasswordForEmail)
+    const { error } = await adminClient.auth.resetPasswordForEmail(
       body.email,
       { redirectTo }
     );
 
     if (error) {
-      console.error("[api/admin/reset-password] supabase error", error);
+      console.error("[admin reset-password] supabase error", error);
       return NextResponse.json(
         { ok: false, error: error.message },
         { status: 400 }
@@ -44,9 +42,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (err) {
-    console.error("[api/admin/reset-password] exception", err);
+    console.error("[admin reset-password] route error", err);
     return NextResponse.json(
-      { ok: false, error: "Server error while sending reset email" },
+      { ok: false, error: "Unexpected server error" },
       { status: 500 }
     );
   }
