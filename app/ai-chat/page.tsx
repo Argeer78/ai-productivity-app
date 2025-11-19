@@ -139,7 +139,7 @@ export default function AIChatPage() {
     loadMessages();
   }, [user, activeThreadId]);
 
-  // 4) Send message
+  // 4) Send message (AI call + DB writes on client)
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     if (!user) {
@@ -153,14 +153,19 @@ export default function AIChatPage() {
     setError("");
 
     try {
+      // Build history for AI from existing messages
+      const historyForModel = messages.slice(-15).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
       const res = await fetch("/api/ai-hub-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          threadId: activeThreadId,
-          userId: user.id, // extra, but harmless if API ignores it
-          category,
           userMessage: text,
+          category,
+          history: historyForModel,
         }),
       });
 
@@ -173,57 +178,121 @@ export default function AIChatPage() {
         return;
       }
 
-      const threadId = data.threadId as string;
       const assistantMessage = data.assistantMessage as string;
+      const titleFromServer = (data.title as string | null) || null;
 
-      // If it was a new thread, refresh sidebar
-      if (!activeThreadId || activeThreadId !== threadId) {
-        setActiveThreadId(threadId);
+      const nowIso = new Date().toISOString();
 
-        const { data: tData, error: tErr } = await supabase
+      // Optimistic UI
+      const localUserMsg: ChatMessage = {
+        id: `local-user-${nowIso}`,
+        role: "user",
+        content: text,
+        created_at: nowIso,
+      };
+      const localAssistantMsg: ChatMessage = {
+        id: `local-assistant-${nowIso}`,
+        role: "assistant",
+        content: assistantMessage,
+        created_at: nowIso,
+      };
+
+      setMessages((prev) => [...prev, localUserMsg, localAssistantMsg]);
+      setInput("");
+
+      // DB writes
+      if (!activeThreadId) {
+        // New conversation: create thread + messages
+        const fallbackTitle =
+          titleFromServer ||
+          text.split("\n")[0].slice(0, 80).trim() ||
+          "New conversation";
+
+        const { data: threadData, error: threadError } = await supabase
           .from("ai_chat_threads")
+          .insert({
+            user_id: user.id,
+            title: fallbackTitle,
+            category: category || null,
+          })
           .select("id, title, category, created_at, updated_at")
-          .eq("id", threadId)
-          .maybeSingle();
+          .single();
 
-        if (!tErr && tData) {
-          setThreads((prev) => {
-            const filtered = prev.filter((t) => t.id !== threadId);
-            return [tData as ThreadRow, ...filtered];
-          });
+        if (threadError || !threadData) {
+          console.error("[ai-chat] create thread error", threadError);
+          setError(
+            "Failed to save conversation, but you can continue chatting."
+          );
+          return;
+        }
+
+        const newThread = threadData as ThreadRow;
+        setActiveThreadId(newThread.id);
+        setThreads((prev) => [newThread, ...prev]);
+
+        const { error: msgErr } = await supabase
+          .from("ai_chat_messages")
+          .insert([
+            {
+              thread_id: newThread.id,
+              user_id: user.id,
+              role: "user",
+              content: text,
+            },
+            {
+              thread_id: newThread.id,
+              user_id: user.id,
+              role: "assistant",
+              content: assistantMessage,
+            },
+          ]);
+
+        if (msgErr) {
+          console.error("[ai-chat] insert messages error", msgErr);
         }
       } else {
-        // Move existing thread to top
+        // Existing conversation: append messages + bump updated_at
+        const threadId = activeThreadId;
+
+        const { error: msgErr } = await supabase
+          .from("ai_chat_messages")
+          .insert([
+            {
+              thread_id: threadId,
+              user_id: user.id,
+              role: "user",
+              content: text,
+            },
+            {
+              thread_id: threadId,
+              user_id: user.id,
+              role: "assistant",
+              content: assistantMessage,
+            },
+          ]);
+
+        if (msgErr) {
+          console.error("[ai-chat] insert messages error", msgErr);
+        }
+
+        const { error: threadErr } = await supabase
+          .from("ai_chat_threads")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", threadId)
+          .eq("user_id", user.id);
+
+        if (threadErr) {
+          console.error("[ai-chat] update thread timestamp error", threadErr);
+        }
+
+        // Move updated thread to top of sidebar
         setThreads((prev) => {
-          const found = prev.find((t) => t.id === threadId);
-          if (!found) return prev;
-          const others = prev.filter((t) => t.id !== threadId);
-          return [
-            { ...found, updated_at: new Date().toISOString() },
-            ...others,
-          ];
+          const updated = prev.find((t) => t.id === threadId);
+          if (!updated) return prev;
+          const rest = prev.filter((t) => t.id !== threadId);
+          return [updated, ...rest];
         });
       }
-
-      // Update local messages instantly (optimistic)
-      const nowIso = new Date().toISOString();
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `local-user-${nowIso}`,
-          role: "user",
-          content: text,
-          created_at: nowIso,
-        },
-        {
-          id: `local-assistant-${nowIso}`,
-          role: "assistant",
-          content: assistantMessage,
-          created_at: nowIso,
-        },
-      ]);
-
-      setInput("");
     } catch (err) {
       console.error("[ai-chat] send exception", err);
       setError("Network error while sending message.");
@@ -232,89 +301,105 @@ export default function AIChatPage() {
     }
   }
 
-  // 5) Delete thread
+  // 5) Delete thread (direct via Supabase)
   async function handleDeleteThread(threadId: string) {
-  if (!threadId) return;
-  if (!user) return;
-  if (!window.confirm("Delete this chat? This cannot be undone.")) return;
+    if (!user) return;
+    if (!threadId) return;
+    if (!window.confirm("Delete this chat? This cannot be undone.")) return;
 
-  setThreadActionId(threadId);
+    setThreadActionId(threadId);
+    setError("");
 
-  try {
-    const res = await fetch("/api/ai-hub-chat/thread", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ threadId, userId: user.id }),
-    });
+    try {
+      // Optional: delete messages first (safe if no cascade)
+      const { error: msgErr } = await supabase
+        .from("ai_chat_messages")
+        .delete()
+        .eq("thread_id", threadId)
+        .eq("user_id", user.id);
 
-    const data = await res.json().catch(() => ({} as any));
+      if (msgErr) {
+        console.error("[ai-chat] delete messages error", msgErr);
+      }
 
-    if (!res.ok || !data?.ok) {
-      console.error("[ai-chat] delete thread error", data);
-      alert(data?.error || "Failed to delete chat.");
-      return;
+      const { error: threadErr } = await supabase
+        .from("ai_chat_threads")
+        .delete()
+        .eq("id", threadId)
+        .eq("user_id", user.id);
+
+      if (threadErr) {
+        console.error("[ai-chat] delete thread error", threadErr);
+        alert("Failed to delete chat.");
+        return;
+      }
+
+      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      setActiveThreadId((current) =>
+        current === threadId ? null : current
+      );
+      setMessages((prev) =>
+        activeThreadId === threadId ? [] : prev
+      );
+    } catch (err) {
+      console.error("[ai-chat] delete thread exception", err);
+      alert("Failed to delete chat due to a network error.");
+    } finally {
+      setThreadActionId(null);
     }
-
-    setThreads((prev) => prev.filter((t) => t.id !== threadId));
-
-    setActiveThreadId((current) =>
-      current === threadId ? null : current
-    );
-    setMessages((prev) => (activeThreadId === threadId ? [] : prev));
-  } catch (err) {
-    console.error("[ai-chat] delete thread exception", err);
-    alert("Failed to delete chat due to a network error.");
-  } finally {
-    setThreadActionId(null);
   }
-}
 
-  // 6) Rename thread
+  // 6) Rename thread (client-side via Supabase)
   async function handleRenameThread(thread: ThreadRow) {
-  const currentTitle = thread.title || "Untitled chat";
-  const newTitle = window.prompt("New title for this chat:", currentTitle);
+    if (!user) return;
 
-  if (!newTitle || newTitle.trim() === currentTitle.trim()) {
-    return;
-  }
+    const currentTitle = thread.title || "Untitled chat";
+    const newTitle = window.prompt("New title for this chat:", currentTitle);
 
-  setThreadActionId(thread.id);
-
-  try {
-    const res = await fetch("/api/ai-hub-chat/rename-thread", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        threadId: thread.id,
-        title: newTitle,
-        userId: user.id,
-      }),
-    });
-
-    const data = await res.json().catch(() => ({} as any));
-
-    if (!res.ok || !data?.ok) {
-      console.error("[ai-chat] rename thread error", data);
-      alert(data?.error || "Failed to rename chat.");
+    if (!newTitle || newTitle.trim() === currentTitle.trim()) {
       return;
     }
 
-    const updated = data.thread as ThreadRow;
+    setThreadActionId(thread.id);
+    setError("");
 
-    setThreads((prev) =>
-      prev.map((t) =>
-        t.id === thread.id ? { ...t, title: updated.title } : t
-      )
-    );
-  } catch (err) {
-    console.error("[ai-chat] rename thread exception", err);
-    alert("Failed to rename chat due to a network error.");
-  } finally {
-    setThreadActionId(null);
+    try {
+      const { data, error } = await supabase
+        .from("ai_chat_threads")
+        .update({
+          title: newTitle.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", thread.id)
+        .eq("user_id", user.id)
+        .select("id, title, category, created_at, updated_at")
+        .maybeSingle();
+
+      if (error) {
+        console.error("[ai-chat] rename thread error", error);
+        alert("Failed to rename chat.");
+        return;
+      }
+
+      if (!data) {
+        alert("Chat not found or not accessible.");
+        return;
+      }
+
+      const updated = data as ThreadRow;
+
+      setThreads((prev) =>
+        prev.map((t) => (t.id === thread.id ? updated : t))
+      );
+    } catch (err) {
+      console.error("[ai-chat] rename thread exception", err);
+      alert("Failed to rename chat due to a network error.");
+    } finally {
+      setThreadActionId(null);
+    }
   }
-}
 
-function startNewChat() {
+  function startNewChat() {
     setActiveThreadId(null);
     setMessages([]);
     setInput("");
@@ -372,16 +457,16 @@ function startNewChat() {
 
           <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
             {loadingThreads ? (
-              <p className="p-2 text-slate-400 text-[11px]">
+              <p className="p-3 text-slate-400 text-[11px]">
                 Loading conversations…
               </p>
             ) : threads.length === 0 ? (
-              <p className="p-2 text-slate-500 text-[11px]">
+              <p className="p-3 text-slate-500 text-[11px]">
                 No conversations yet. Start a new chat on the right.
               </p>
             ) : (
               threads.map((thread) => {
-                const isActive = thread.id === activeThreadId;
+                const isActive = activeThreadId === thread.id;
                 const isBusy = threadActionId === thread.id;
 
                 return (
@@ -468,7 +553,9 @@ function startNewChat() {
               <div className="text-[12px] text-slate-400 mt-4">
                 <p className="mb-1">Start by asking something like:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>“Help me plan my week around work and personal goals.”</li>
+                  <li>
+                    “Help me plan my week around work and personal goals.”
+                  </li>
                   <li>“Turn my todo list into 3 clear priorities.”</li>
                   <li>“I feel overwhelmed — where should I start today?”</li>
                 </ul>
