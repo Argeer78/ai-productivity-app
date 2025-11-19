@@ -5,60 +5,58 @@ import { supabase } from "@/lib/supabaseClient";
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => null)) as
-      | { threadId?: string; title?: string }
+      | { threadId?: string; title?: string; userId?: string }
       | null;
 
-    if (!body?.threadId || !body?.title?.trim()) {
+    const { threadId, title, userId } = body || {};
+
+    if (!threadId || !title?.trim() || !userId) {
       return NextResponse.json(
-        { ok: false, error: "Missing threadId or title" },
+        { ok: false, error: "Missing threadId, title, or userId" },
         { status: 400 }
       );
     }
 
-    const newTitle = body.title.trim().slice(0, 100);
-
+    const newTitle = title.trim();
     const supa = supabase;
-    const {
-      data: { user },
-      error: userErr,
-    } = await supa.auth.getUser();
 
-    if (userErr || !user) {
-      return NextResponse.json(
-        { ok: false, error: "Not authenticated" },
-        { status: 401 }
-      );
-    }
-
-    const userId = user.id;
-
-    const { data, error: updateErr } = await supa
+    const { data, error } = await supa
       .from("ai_chat_threads")
       .update({
         title: newTitle,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", body.threadId)
+      .eq("id", threadId)
       .eq("user_id", userId)
-      .select("id, title, category, updated_at")
-      .single();
+      .select("id, title, category, created_at, updated_at")
+      .maybeSingle();
 
-    if (updateErr) {
-      console.error("[ai-hub-chat] rename thread error", updateErr);
+    if (error) {
+      console.error("[ai-hub-chat/rename-thread] update error", error);
       return NextResponse.json(
-        { ok: false, error: "Could not rename thread" },
+        { ok: false, error: "Failed to rename chat." },
         { status: 500 }
       );
     }
 
+    if (!data) {
+      return NextResponse.json(
+        { ok: false, error: "Chat not found or not owned by user." },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
-      { ok: true, thread: data },
+      {
+        ok: true,
+        thread: data,
+      },
       { status: 200 }
     );
   } catch (err) {
-    console.error("[ai-hub-chat] rename route error", err);
+    console.error("[ai-hub-chat/rename-thread] POST route error", err);
     return NextResponse.json(
-      { ok: false, error: "Unexpected server error" },
+      { ok: false, error: "Unexpected server error while renaming chat." },
       { status: 500 }
     );
   }

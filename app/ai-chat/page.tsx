@@ -234,86 +234,87 @@ export default function AIChatPage() {
 
   // 5) Delete thread
   async function handleDeleteThread(threadId: string) {
-    if (!threadId) return;
-    if (!window.confirm("Delete this chat? This cannot be undone.")) return;
+  if (!threadId) return;
+  if (!user) return;
+  if (!window.confirm("Delete this chat? This cannot be undone.")) return;
 
-    setThreadActionId(threadId);
+  setThreadActionId(threadId);
 
-    try {
-      const res = await fetch("/api/ai-hub-chat/thread", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId }),
-      });
+  try {
+    const res = await fetch("/api/ai-hub-chat/thread", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId, userId: user.id }),
+    });
 
-      const data = await res.json().catch(() => ({} as any));
+    const data = await res.json().catch(() => ({} as any));
 
-      if (!res.ok || !data?.ok) {
-        console.error("[ai-chat] delete thread error", data);
-        alert(data?.error || "Failed to delete chat.");
-        return;
-      }
-
-      setThreads((prev) => prev.filter((t) => t.id !== threadId));
-
-      setActiveThreadId((current) =>
-        current === threadId ? null : current
-      );
-
-      setMessages((prev) =>
-        activeThreadId === threadId ? [] : prev
-      );
-    } catch (err) {
-      console.error("[ai-chat] delete thread exception", err);
-      alert("Failed to delete chat due to a network error.");
-    } finally {
-      setThreadActionId(null);
-    }
-  }
-
-  // 6) Rename thread
-  async function handleRenameThread(thread: ThreadRow) {
-    const currentTitle = thread.title || "Untitled chat";
-    const newTitle = window.prompt("New title for this chat:", currentTitle);
-
-    if (!newTitle || newTitle.trim() === currentTitle.trim()) {
+    if (!res.ok || !data?.ok) {
+      console.error("[ai-chat] delete thread error", data);
+      alert(data?.error || "Failed to delete chat.");
       return;
     }
 
-    setThreadActionId(thread.id);
+    setThreads((prev) => prev.filter((t) => t.id !== threadId));
 
-    try {
-      const res = await fetch("/api/ai-hub-chat/rename-thread", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          threadId: thread.id,
-          title: newTitle.trim(),
-        }),
-      });
+    setActiveThreadId((current) =>
+      current === threadId ? null : current
+    );
+    setMessages((prev) => (activeThreadId === threadId ? [] : prev));
+  } catch (err) {
+    console.error("[ai-chat] delete thread exception", err);
+    alert("Failed to delete chat due to a network error.");
+  } finally {
+    setThreadActionId(null);
+  }
+}
 
-      const data = await res.json().catch(() => ({} as any));
+  // 6) Rename thread
+  async function handleRenameThread(thread: ThreadRow) {
+  const currentTitle = thread.title || "Untitled chat";
+  const newTitle = window.prompt("New title for this chat:", currentTitle);
 
-      if (!res.ok || !data?.ok) {
-        console.error("[ai-chat] rename thread error", data);
-        alert(data?.error || "Failed to rename chat.");
-        return;
-      }
-
-      setThreads((prev) =>
-        prev.map((t) =>
-          t.id === thread.id ? { ...t, title: newTitle.trim() } : t
-        )
-      );
-    } catch (err) {
-      console.error("[ai-chat] rename thread exception", err);
-      alert("Failed to rename chat due to a network error.");
-    } finally {
-      setThreadActionId(null);
-    }
+  if (!newTitle || newTitle.trim() === currentTitle.trim()) {
+    return;
   }
 
-  function startNewChat() {
+  setThreadActionId(thread.id);
+
+  try {
+    const res = await fetch("/api/ai-hub-chat/rename-thread", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        threadId: thread.id,
+        title: newTitle,
+        userId: user.id,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({} as any));
+
+    if (!res.ok || !data?.ok) {
+      console.error("[ai-chat] rename thread error", data);
+      alert(data?.error || "Failed to rename chat.");
+      return;
+    }
+
+    const updated = data.thread as ThreadRow;
+
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === thread.id ? { ...t, title: updated.title } : t
+      )
+    );
+  } catch (err) {
+    console.error("[ai-chat] rename thread exception", err);
+    alert("Failed to rename chat due to a network error.");
+  } finally {
+    setThreadActionId(null);
+  }
+}
+
+function startNewChat() {
     setActiveThreadId(null);
     setMessages([]);
     setInput("");
