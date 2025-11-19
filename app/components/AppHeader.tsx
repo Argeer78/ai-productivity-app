@@ -277,6 +277,9 @@ export default function AppHeader({ active }: HeaderProps) {
             <Link href="/planner" className={navLinkBase}>
               Planner
             </Link>
+            <Link href="/ai-chat" className={navLinkBase}>
+              AI Hub Chat
+            </Link>
             <Link href="/templates" className={navLinkBase}>
               Templates
             </Link>
