@@ -1,46 +1,73 @@
 // app/api/ui-translations/[lang]/route.ts
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { NextResponse, type NextRequest } from "next/server";
+
+// Simple demo translations – replace with Supabase later if you like
+const TRANSLATIONS: Record<string, Record<string, string>> = {
+  en: {
+    "nav.dashboard": "Dashboard",
+    "nav.notes": "Notes",
+    "nav.tasks": "Tasks",
+    "nav.planner": "Planner",
+    "nav.aiChat": "AI Hub Chat",
+    "nav.templates": "Templates",
+    "nav.dailySuccess": "Daily Success",
+    "nav.weeklyReports": "Weekly Reports",
+    "nav.travel": "Travel Planner",
+    "nav.myTrips": "My Trips",
+    "nav.feedback": "Feedback",
+    "nav.changelog": "What’s new",
+    "nav.settings": "Settings",
+    "nav.admin": "Admin",
+  },
+  el: {
+    "nav.dashboard": "Πίνακας ελέγχου",
+    "nav.notes": "Σημειώσεις",
+    "nav.tasks": "Εργασίες",
+    "nav.planner": "Πλάνο",
+    "nav.aiChat": "AI Hub Chat",
+    "nav.templates": "Πρότυπα",
+    "nav.dailySuccess": "Daily Success",
+    "nav.weeklyReports": "Εβδομαδιαίες αναφορές",
+    "nav.travel": "Travel Planner",
+    "nav.myTrips": "Τα ταξίδια μου",
+    "nav.feedback": "Ανατροφοδότηση",
+    "nav.changelog": "Τι νέο υπάρχει",
+    "nav.settings": "Ρυθμίσεις",
+    "nav.admin": "Διαχειριστής",
+  },
+};
 
 export async function GET(
-  _req: Request,
-  context: { params: { lang: string } }
+  _req: NextRequest,
+  context: { params: Promise<{ lang: string }> }
 ) {
   try {
-    const lang = context.params.lang?.toLowerCase();
-    if (!lang) {
-      return NextResponse.json(
-        { ok: false, error: "Missing lang param" },
-        { status: 400 }
-      );
-    }
+    // NOTE: with your Next version, params is a Promise
+    const { lang } = await context.params;
 
-    const { data, error } = await supabaseAdmin
-      .from("ui_translations")
-      .select("key, text")
-      .eq("language_code", lang);
+    const code = (lang || "en").toLowerCase();
 
-    if (error) {
-      console.error("[ui-translations] get error", error);
-      return NextResponse.json(
-        { ok: false, error: "Failed to load translations" },
-        { status: 500 }
-      );
-    }
-
-    const map: Record<string, string> = {};
-    for (const row of data || []) {
-      map[row.key] = row.text;
-    }
+    const translations =
+      TRANSLATIONS[code] ||
+      TRANSLATIONS[code.split("-")[0]] ||
+      TRANSLATIONS.en ||
+      {};
 
     return NextResponse.json(
-      { ok: true, languageCode: lang, translations: map },
+      {
+        ok: true,
+        languageCode: code,
+        translations,
+      },
       { status: 200 }
     );
   } catch (err) {
-    console.error("[ui-translations] get route error", err);
+    console.error("[ui-translations] GET error", err);
     return NextResponse.json(
-      { ok: false, error: "Unexpected server error" },
+      {
+        ok: false,
+        error: "Failed to load UI translations",
+      },
       { status: 500 }
     );
   }
