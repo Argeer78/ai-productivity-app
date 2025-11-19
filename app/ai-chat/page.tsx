@@ -48,6 +48,9 @@ export default function AIChatPage() {
   const [error, setError] = useState("");
   const [threadActionId, setThreadActionId] = useState<string | null>(null);
 
+  // 👇 NEW: mobile threads drawer toggle
+  const [showMobileThreads, setShowMobileThreads] = useState(false);
+
   // 1) Load user
   useEffect(() => {
     async function loadUser() {
@@ -311,7 +314,6 @@ export default function AIChatPage() {
     setError("");
 
     try {
-      // Optional: delete messages first (safe if no cascade)
       const { error: msgErr } = await supabase
         .from("ai_chat_messages")
         .delete()
@@ -440,7 +442,7 @@ export default function AIChatPage() {
       <AppHeader active="explore" />
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar: threads */}
+        {/* Sidebar: threads (desktop) */}
         <aside className="hidden md:flex flex-col w-64 border-r border-slate-800 bg-slate-950/80">
           <div className="p-3 border-b border-slate-800 flex items-center justify-between gap-2">
             <p className="text-xs font-semibold text-slate-200">
@@ -519,7 +521,7 @@ export default function AIChatPage() {
         </aside>
 
         {/* Main chat area */}
-        <section className="flex-1 flex flex-col">
+        <section className="flex-1 flex flex-col relative">
           <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
             <div>
               <h1 className="text-base md:text-lg font-semibold">
@@ -529,13 +531,28 @@ export default function AIChatPage() {
                 A general-purpose AI coach for planning, ideas and questions.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={startNewChat}
-              className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
-            >
-              + New chat
-            </button>
+
+            <div className="flex items-center gap-2">
+              {/* Mobile: history button */}
+              <button
+                type="button"
+                onClick={() => setShowMobileThreads(true)}
+                className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+              >
+                History
+              </button>
+
+              {/* Mobile: new chat */}
+              <button
+                type="button"
+                onClick={startNewChat}
+                className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+              >
+                + New chat
+              </button>
+
+              {/* Desktop: new chat is in sidebar, so hide here */}
+            </div>
           </div>
 
           {/* Error */}
@@ -621,6 +638,99 @@ export default function AIChatPage() {
               </button>
             </div>
           </form>
+
+          {/* Mobile history drawer */}
+          {showMobileThreads && (
+            <div className="fixed inset-0 z-50 md:hidden">
+              {/* backdrop */}
+              <div
+                className="absolute inset-0 bg-black/60"
+                onClick={() => setShowMobileThreads(false)}
+              />
+              {/* panel */}
+              <div className="absolute inset-y-0 left-0 w-[80%] max-w-xs bg-slate-950 border-r border-slate-800 flex flex-col">
+                <div className="p-3 border-b border-slate-800 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-slate-200">
+                    Conversation history
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowMobileThreads(false)}
+                    className="text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
+                  {loadingThreads ? (
+                    <p className="p-3 text-slate-400 text-[11px]">
+                      Loading conversations…
+                    </p>
+                  ) : threads.length === 0 ? (
+                    <p className="p-3 text-slate-500 text-[11px]">
+                      No conversations yet. Start a new chat.
+                    </p>
+                  ) : (
+                    threads.map((thread) => {
+                      const isActive = activeThreadId === thread.id;
+                      const isBusy = threadActionId === thread.id;
+
+                      return (
+                        <div
+                          key={thread.id}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer ${
+                            isActive
+                              ? "bg-slate-800 text-slate-50"
+                              : "hover:bg-slate-800/60 text-slate-200"
+                          }`}
+                          onClick={() => {
+                            setActiveThreadId(thread.id);
+                            setShowMobileThreads(false);
+                          }}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate font-medium">
+                              {thread.title || "New conversation"}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {thread.category || "General"}
+                            </p>
+                          </div>
+
+                          <div
+                            className="flex items-center gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleRenameThread(thread)}
+                              disabled={isBusy}
+                              className="p-1 rounded hover:bg-slate-700 text-[11px]"
+                              title="Rename chat"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteThread(thread.id)}
+                              disabled={isBusy}
+                              className="p-1 rounded hover:bg-slate-700 text-[11px] text-red-400"
+                              title="Delete chat"
+                            >
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </main>
