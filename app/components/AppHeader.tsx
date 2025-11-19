@@ -22,14 +22,21 @@ type HeaderProps = {
     | "explore"
     | "changelog"
     | "my-trips"
-    | "travel";
+    | "travel"
+    | "ai-chat";
 };
 
-const LATEST_CHANGELOG_AT = "2025-02-15T00:00:00Z";
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
+
+  // Just calling this keeps it wired to your LanguageProvider.
+  // You can expand later to show a language picker or label.
+  const languageCtx = useLanguage() as any;
+  const currentLangLabel: string | null =
+    languageCtx?.label || languageCtx?.language || null;
+
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -83,6 +90,7 @@ export default function AppHeader({ active }: HeaderProps) {
     "travel",
     "changelog",
     "admin",
+    "ai-chat",
   ].includes(active || "");
 
   async function handleLogout() {
@@ -125,12 +133,16 @@ export default function AppHeader({ active }: HeaderProps) {
 
           {/* Apps dropdown */}
           <button
+            type="button"
             onClick={() => setAppsOpen((v) => !v)}
             className={`${navLinkBase} ml-2 flex items-center gap-1 border border-slate-700 bg-slate-900/40 ${
               appsActive ? "bg-slate-800 text-slate-50" : ""
             }`}
           >
-            Apps <span className="text-[11px] opacity-80">{appsOpen ? "▲" : "▼"}</span>
+            Apps{" "}
+            <span className="text-[11px] opacity-80">
+              {appsOpen ? "▲" : "▼"}
+            </span>
           </button>
         </nav>
 
@@ -155,6 +167,13 @@ export default function AppHeader({ active }: HeaderProps) {
         <div className="hidden md:flex items-center gap-2">
           <TranslateWithAIButton />
 
+          {/* Optional: show current language label if your LanguageProvider exposes it */}
+          {currentLangLabel && (
+            <span className="px-2 py-1 rounded-lg border border-slate-700 text-[10px] text-slate-300">
+              {currentLangLabel}
+            </span>
+          )}
+
           <Link
             href="/settings"
             className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
@@ -164,6 +183,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
           {userEmail ? (
             <button
+              type="button"
               onClick={handleLogout}
               className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
             >
@@ -245,6 +265,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
           {userEmail ? (
             <button
+              type="button"
               onClick={handleLogout}
               className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] flex-shrink-0"
             >

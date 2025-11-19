@@ -1,14 +1,21 @@
+// app/components/AppShell.tsx
 "use client";
 
+import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import AIAssistant from "@/app/components/AIAssistant";
 import { LanguageProvider } from "@/app/components/LanguageProvider";
 import ServiceWorkerRegistrar from "@/app/components/ServiceWorkerRegistrar";
+import AIAssistant from "@/app/components/AIAssistant";
+import { UiI18nProvider } from "@/app/components/UiI18nProvider";
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+type AppShellProps = {
+  children: ReactNode;
+};
+
+export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
 
-  // Routes where the floating assistant should be hidden
+  // Hide the floating assistant on AI Chat page
   const hideAssistantOnRoutes = ["/ai-chat"];
   const shouldHideAssistant = hideAssistantOnRoutes.some((p) =>
     pathname.startsWith(p)
@@ -16,9 +23,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <LanguageProvider>
-      <ServiceWorkerRegistrar />
-      {children}
-      {!shouldHideAssistant && <AIAssistant />}
+      <UiI18nProvider>
+        <ServiceWorkerRegistrar />
+        {children}
+        {!shouldHideAssistant && <AIAssistant />}
+      </UiI18nProvider>
     </LanguageProvider>
   );
 }

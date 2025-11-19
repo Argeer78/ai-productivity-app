@@ -22,8 +22,14 @@ type TranslationResponse = {
 };
 
 // Hard limits for page translation to control cost & speed
-const MAX_NODES_PER_PAGE = 60;
-const MAX_TOTAL_CHARS = 8000;
+const MAX_NODES_PER_PAGE = 45;
+const MAX_TOTAL_CHARS = 5000;
+
+// Per-request batch limits (for progressive translation)
+const MAX_BATCH_NODES = 15;
+const MAX_BATCH_CHARS = 1800;
+
+const VISIBLE_NODE_MULTIPLIER = 1.5; // how far below viewport we still consider "important"
 const SEPARATOR = "\n\n----\n\n";
 
 // Collect text nodes, skipping the translation modal itself
@@ -173,7 +179,9 @@ export default function TranslateWithAIButton() {
         }),
       });
 
-      const data = (await res.json().catch(() => null)) as TranslationResponse | null;
+      const data = (await res.json().catch(() => null)) as
+        | TranslationResponse
+        | null;
 
       if (!res.ok || !data?.translation) {
         if (res.status === 413) {
@@ -206,10 +214,13 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation (with hard caps for cost/speed) -----
-  async function translatePageWithLang(lang: Language, opts?: { auto?: boolean }) {
+  // ----- page translation (progressive chunks) -----
+  async function translatePageWithLang(
+    lang: Language,
+    opts?: { auto?: boolean }
+  ) {
     setErrorMsg("");
-    setTranslatedText("");
+    setTranslatedText("Preparing page for translation…");
     setLoading(true);
 
     try {
@@ -221,103 +232,169 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      const textNodes: Text[] = [];
-      let totalChars = 0;
+      // 1️⃣ Prioritize "above the fold" text for speed
+      let nodesToUse: Text[] = allNodes;
 
-      for (const node of allNodes) {
-        if (textNodes.length >= MAX_NODES_PER_PAGE) break;
+      if (typeof window !== "undefined") {
+        const vh = window.innerHeight || 800;
+
+        const visibleOrNear = allNodes.filter((node) => {
+          const el = node.parentElement;
+          if (!el) return false;
+          const rect = el.getBoundingClientRect();
+          // anything up to ~1.5x viewport height down is considered important
+          return rect.top < vh * VISIBLE_NODE_MULTIPLIER;
+        });
+
+        if (visibleOrNear.length > 10) {
+          nodesToUse = visibleOrNear;
+        }
+      }
+
+      // 2️⃣ Apply global caps (nodes + characters)
+      const selectedNodes: Text[] = [];
+      let globalChars = 0;
+
+      for (const node of nodesToUse) {
+        if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
 
         const text = node.textContent || "";
         const len = text.length;
 
         if (len < 3) continue;
-        if (totalChars + len > MAX_TOTAL_CHARS) break;
+        if (globalChars + len > MAX_TOTAL_CHARS) break;
 
-        textNodes.push(node);
-        totalChars += len;
+        selectedNodes.push(node);
+        globalChars += len;
       }
 
-      if (!textNodes.length) {
+      if (!selectedNodes.length) {
         setErrorMsg("Not enough text to translate on this page.");
         setLoading(false);
         return;
       }
 
-      const joined = textNodes.map((n) => n.textContent || "").join(SEPARATOR);
+      const totalSnippets = selectedNodes.length;
+      const totalChars = selectedNodes.reduce(
+        (sum, n) => sum + ((n.textContent || "").length || 0),
+        0
+      );
 
-      const res = await fetch("/api/ai-translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: joined,
-          targetLang: lang.code,
-        }),
-      });
+      // 3️⃣ Build batches
+      type Batch = { nodes: Text[]; charCount: number };
+      const batches: Batch[] = [];
+      let currentNodes: Text[] = [];
+      let currentChars = 0;
 
-      const data = (await res.json().catch(() => null)) as TranslationResponse | null;
+      for (const node of selectedNodes) {
+        const text = node.textContent || "";
+        const len = text.length;
 
-      if (!res.ok || !data?.translation) {
-        if (res.status === 413) {
-          console.warn("[translate-page] payload too long", data);
-          setErrorMsg(
-            "This page is very long. Some sections were skipped because they exceed the translation limit."
-          );
-          return;
+        const wouldExceedNodes =
+          currentNodes.length >= MAX_BATCH_NODES && currentNodes.length > 0;
+        const wouldExceedChars =
+          currentChars + len > MAX_BATCH_CHARS && currentChars > 0;
+
+        if (wouldExceedNodes || wouldExceedChars) {
+          batches.push({ nodes: currentNodes, charCount: currentChars });
+          currentNodes = [];
+          currentChars = 0;
         }
 
-        if (res.status === 429) {
-          console.warn("[translate-page] rate limited", data);
-          setErrorMsg(
-            data?.error ||
-              "AI translation is temporarily rate-limited. Please try again in a few seconds."
-          );
-          return;
-        }
+        currentNodes.push(node);
+        currentChars += len;
+      }
 
-        console.error("[translate-page] server error", res.status, data);
-        setErrorMsg(
-          data?.error || `Failed to translate page (status ${res.status}).`
-        );
+      if (currentNodes.length) {
+        batches.push({ nodes: currentNodes, charCount: currentChars });
+      }
+
+      if (!batches.length) {
+        setErrorMsg("There was nothing suitable to translate on this page.");
+        setLoading(false);
         return;
       }
 
-      const parts = String(data.translation).split(SEPARATOR);
+      let translatedSnippets = 0;
+      let translatedChars = 0;
 
-      if (parts.length !== textNodes.length) {
-        console.error(
-          "[translate-page] mismatch",
-          "nodes:",
-          textNodes.length,
-          "parts:",
-          parts.length
-        );
-        const m = Math.min(parts.length, textNodes.length);
-        for (let i = 0; i < m; i++) {
-          textNodes[i].textContent = parts[i];
+      // 4️⃣ Process batches sequentially, applying each as we go
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+
+        const joined = batch.nodes
+          .map((n) => n.textContent || "")
+          .join(SEPARATOR);
+
+        const res = await fetch("/api/ai-translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: joined,
+            targetLang: lang.code,
+          }),
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | { translation?: string; error?: string }
+          | null;
+
+        if (!res.ok || !data?.translation) {
+          if (res.status === 413) {
+            console.warn("[translate-page] batch payload too long", data);
+            setErrorMsg(
+              "This page is very long. Some sections were skipped because they exceed the translation limit."
+            );
+            break;
+          }
+
+          if (res.status === 429) {
+            console.warn("[translate-page] rate limited", data);
+            setErrorMsg(
+              data?.error ||
+                "AI translation is temporarily rate-limited. Some parts may be untranslated."
+            );
+            break;
+          }
+
+          console.error("[translate-page] server error", res.status, data);
+          setErrorMsg(
+            data?.error ||
+              `Failed to translate part of the page (status ${res.status}).`
+          );
+          break;
         }
-        setErrorMsg(
-          `Page translated to ${lang.label}, but some parts may remain in the original language.`
-        );
-      } else {
-        for (let i = 0; i < textNodes.length; i++) {
-          textNodes[i].textContent = parts[i];
+
+        const parts = String(data.translation).split(SEPARATOR);
+        const m = Math.min(parts.length, batch.nodes.length);
+
+        for (let j = 0; j < m; j++) {
+          batch.nodes[j].textContent = parts[j];
         }
+
+        translatedSnippets += m;
+        translatedChars += batch.charCount;
+
+        const isLastBatch = i === batches.length - 1;
+
         setTranslatedText(
-          `Translated about ${textNodes.length} snippets (${totalChars} characters) to ${lang.label}.`
+          isLastBatch
+            ? `Translated ${translatedSnippets} snippets (~${translatedChars} characters) to ${lang.label}.`
+            : `Translated ${translatedSnippets}/${totalSnippets} snippets so far…`
         );
       }
 
+      // 5️⃣ Persist preference + auto-mode flag
       if (typeof window !== "undefined") {
         window.localStorage.setItem(LS_PREF_LANG, lang.code);
         window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
 
-        // only persist auto-mode if requested
         if (opts?.auto) {
           window.localStorage.setItem(LS_AUTO_MODE, "1");
         }
       }
 
-      // mark that we applied for this path, useful for auto-mode
+      // 6️⃣ Remember that we translated this path in this session
       if (pathname) {
         setAutoAppliedPath(pathname);
       }
@@ -425,7 +502,7 @@ export default function TranslateWithAIButton() {
       ).sort((a, b) => a.label.localeCompare(b.label))
     : null;
 
-       const groupedByRegion =
+  const groupedByRegion =
     !filteredLanguages
       ? (REGION_ORDER.map((region) => {
           const items = LANGUAGES

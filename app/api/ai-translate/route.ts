@@ -1,151 +1,85 @@
+// app/api/ai-translate/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const apiKey = process.env.OPENAI_API_KEY;
-
-if (!apiKey) {
-  console.warn(
-    "[ai-translate] OPENAI_API_KEY is not set. Translation API will fail."
-  );
-}
-
-const openai = apiKey ? new OpenAI({ apiKey }) : null;
-
-// Keep this comfortably below model context so a single call doesn't blow up
-const MAX_INPUT_CHARS = 6000;
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => null);
+    const body = (await req.json().catch(() => null)) as
+      | { text?: string; targetLang?: string }
+      | null;
 
-    if (!body || typeof body !== "object") {
+    if (!body || !body.text || !body.targetLang) {
       return NextResponse.json(
-        { error: "Invalid JSON body." },
+        { translation: null, error: "Missing text or targetLang" },
         { status: 400 }
       );
     }
 
-    const { text, targetLang } = body as {
-      text?: string;
-      targetLang?: string;
-    };
+    const text = String(body.text).trim();
+    const targetLang = String(body.targetLang).trim();
 
-    if (!targetLang || typeof targetLang !== "string") {
+    if (!text) {
       return NextResponse.json(
-        { error: "Missing targetLang." },
-        { status: 400 }
+        { translation: "", error: null },
+        { status: 200 }
       );
     }
 
-    if (!text || typeof text !== "string" || !text.trim()) {
-      return NextResponse.json(
-        { error: "Missing text to translate." },
-        { status: 400 }
-      );
-    }
-
-    if (!openai) {
-      return NextResponse.json(
-        { error: "OPENAI_API_KEY not configured on server." },
-        { status: 500 }
-      );
-    }
-
-    const trimmed = text.trim();
-
-    // 🧯 Guard against insanely long payloads
-    if (trimmed.length > MAX_INPUT_CHARS) {
-      return NextResponse.json(
+    // Call OpenAI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.3,
+      max_tokens: 4096,
+      messages: [
         {
-          error:
-            `Text too long for a single translation call. ` +
-            `Got ~${trimmed.length} characters, max allowed is ${MAX_INPUT_CHARS}. ` +
-            `Please split the text into smaller chunks.`,
+          role: "system",
+          content:
+            "You are a translation engine. " +
+            "Translate the user text into the requested target language. " +
+            "Return only the translated text, no explanations.",
         },
-        { status: 413 }
-      );
-    }
-
-    const systemPrompt = `You are a pure translation engine.
-
-Translate ALL user text into the target language: "${targetLang}".
-
-Rules:
-- Preserve meaning, tone, punctuation and formatting as closely as possible.
-- Do NOT explain, comment, add emojis or extra sentences.
-- Only return the translated text.
-
-SPECIAL CASE – MULTI-SEGMENT INPUT:
-Sometimes the user text may contain multiple segments joined with the EXACT delimiter:
-
-\\n\\n----\\n\\n
-
-When that happens:
-- Treat each segment independently.
-- Do NOT add, remove, move, or rename delimiters.
-- Do NOT merge or split segments.
-- Output the same number of segments in the same order,
-  joined by the SAME delimiter string.
-`;
-
-    let completion;
-    try {
-      completion = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: trimmed },
-        ],
-        // low temperature = more deterministic, fewer weird formats
-        temperature: 0.1,
-        max_tokens: 2000,
-      });
-    } catch (err: any) {
-      const code = err?.status || err?.code;
-
-      // Rate limit – common cause of random 500s
-      if (code === 429) {
-        console.error("[ai-translate] OpenAI rate-limited", err);
-        return NextResponse.json(
-          {
-            error:
-              "AI translation is temporarily rate-limited. Please wait a few seconds and try again.",
-          },
-          { status: 429 }
-        );
-      }
-
-      console.error("[ai-translate] OpenAI error", err);
-      return NextResponse.json(
         {
-          error:
-            "Upstream AI provider error while translating. Please try again in a moment.",
+          role: "user",
+          content: `Target language: ${targetLang}\n\nText:\n${text}`,
         },
-        { status: 502 }
-      );
-    }
+      ],
+    });
 
     const translation =
-      completion.choices?.[0]?.message?.content?.trim() || "";
+      completion.choices[0]?.message?.content?.trim() || "";
 
-    if (!translation) {
-      console.error("[ai-translate] empty translation result", completion);
-      return NextResponse.json(
-        { error: "No translation generated." },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ translation });
-  } catch (err: any) {
-    console.error("[ai-translate] route error", err);
     return NextResponse.json(
       {
-        error:
-          err?.message ||
-          "Server error while translating. Check server logs for details.",
+        translation,
+        error: null,
       },
-      { status: 500 }
+      { status: 200 }
+    );
+  } catch (err: any) {
+    console.error("[ai-translate] error", err);
+
+    // If OpenAI returned a rate limit or similar, map to 429
+    const msg = typeof err?.message === "string" ? err.message : "Unknown error";
+
+    const isRateLimit =
+      msg.toLowerCase().includes("rate") &&
+      msg.toLowerCase().includes("limit");
+
+    const status = isRateLimit ? 429 : 500;
+
+    return NextResponse.json(
+      {
+        translation: null,
+        error:
+          isRateLimit
+            ? "AI translation is being rate-limited. Please try again in a few seconds."
+            : "Translation service temporarily unavailable.",
+      },
+      { status }
     );
   }
 }
