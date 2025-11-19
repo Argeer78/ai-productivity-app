@@ -31,6 +31,14 @@ const CATEGORIES = [
   "Ideas",
 ];
 
+// ✅ Same limits as notes dashboard
+const FREE_DAILY_LIMIT = 5;
+const PRO_DAILY_LIMIT = 50;
+
+function getTodayString() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function AIChatPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -48,8 +56,15 @@ export default function AIChatPage() {
   const [error, setError] = useState("");
   const [threadActionId, setThreadActionId] = useState<string | null>(null);
 
+  // 👇 NEW: plan & AI usage
+  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [aiCountToday, setAiCountToday] = useState(0);
+
   // 👇 NEW: mobile threads drawer toggle
   const [showMobileThreads, setShowMobileThreads] = useState(false);
+
+  const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+  const remaining = Math.max(dailyLimit - aiCountToday, 0);
 
   // 1) Load user
   useEffect(() => {
@@ -67,7 +82,116 @@ export default function AIChatPage() {
     loadUser();
   }, []);
 
-  // 2) Load threads
+  // 2) Load plan & AI usage when user changes
+  useEffect(() => {
+    if (!user) {
+      setPlan("free");
+      setAiCountToday(0);
+      return;
+    }
+
+    async function loadPlan() {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("plan")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (error && error.code !== "PGRST116") {
+          console.error("[ai-chat] loadPlan error", error);
+          return;
+        }
+
+        if (data?.plan === "pro") {
+          setPlan("pro");
+        } else {
+          setPlan("free");
+        }
+      } catch (err) {
+        console.error("[ai-chat] loadPlan exception", err);
+      }
+    }
+
+    async function loadAiUsage() {
+      try {
+        const today = getTodayString();
+        const { data, error } = await supabase
+          .from("ai_usage")
+          .select("count")
+          .eq("user_id", user.id)
+          .eq("usage_date", today)
+          .maybeSingle();
+
+        if (error && error.code !== "PGRST116") {
+          console.error("[ai-chat] loadAiUsage error", error);
+          return;
+        }
+
+        setAiCountToday(data?.count || 0);
+      } catch (err) {
+        console.error("[ai-chat] loadAiUsage exception", err);
+      }
+    }
+
+    loadPlan();
+    loadAiUsage();
+  }, [user]);
+
+  // Helper: increment ai_usage count
+  async function incrementAiUsage() {
+    if (!user) return;
+
+    const today = getTodayString();
+
+    try {
+      const { data, error } = await supabase
+        .from("ai_usage")
+        .select("id, count")
+        .eq("user_id", user.id)
+        .eq("usage_date", today)
+        .maybeSingle();
+
+      if (error && error.code !== "PGRST116") {
+        console.error("[ai-chat] incrementAiUsage select error", error);
+        return;
+      }
+
+      if (!data) {
+        const { error: insertError } = await supabase.from("ai_usage").insert([
+          {
+            user_id: user.id,
+            usage_date: today,
+            count: 1,
+          },
+        ]);
+
+        if (insertError) {
+          console.error("[ai-chat] incrementAiUsage insert error", insertError);
+          return;
+        }
+
+        setAiCountToday(1);
+      } else {
+        const newCount = (data.count || 0) + 1;
+        const { error: updateError } = await supabase
+          .from("ai_usage")
+          .update({ count: newCount })
+          .eq("id", data.id);
+
+        if (updateError) {
+          console.error("[ai-chat] incrementAiUsage update error", updateError);
+          return;
+        }
+
+        setAiCountToday(newCount);
+      }
+    } catch (err) {
+      console.error("[ai-chat] incrementAiUsage exception", err);
+    }
+  }
+
+  // 3) Load threads
   useEffect(() => {
     if (!user) return;
     async function loadThreads() {
@@ -104,7 +228,7 @@ export default function AIChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // 3) Load messages for active thread
+  // 4) Load messages for active thread
   useEffect(() => {
     if (!user || !activeThreadId) {
       setMessages([]);
@@ -142,15 +266,24 @@ export default function AIChatPage() {
     loadMessages();
   }, [user, activeThreadId]);
 
-  // 4) Send message (AI call + DB writes on client)
+  // 5) Send message (AI call + DB writes on client)
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     if (!user) {
       setError("You must be logged in to chat with AI.");
       return;
     }
+
     const text = input.trim();
     if (!text) return;
+
+    // ✅ Enforce daily limit
+    if (remaining <= 0) {
+      setError(
+        `You reached your daily AI limit for the ${plan} plan (${dailyLimit} replies).`
+      );
+      return;
+    }
 
     setSending(true);
     setError("");
@@ -296,6 +429,9 @@ export default function AIChatPage() {
           return [updated, ...rest];
         });
       }
+
+      // ✅ Count this AI usage
+      await incrementAiUsage();
     } catch (err) {
       console.error("[ai-chat] send exception", err);
       setError("Network error while sending message.");
@@ -304,7 +440,7 @@ export default function AIChatPage() {
     }
   }
 
-  // 5) Delete thread (direct via Supabase)
+  // 6) Delete thread (direct via Supabase)
   async function handleDeleteThread(threadId: string) {
     if (!user) return;
     if (!threadId) return;
@@ -351,7 +487,7 @@ export default function AIChatPage() {
     }
   }
 
-  // 6) Rename thread (client-side via Supabase)
+  // 7) Rename thread (client-side via Supabase)
   async function handleRenameThread(thread: ThreadRow) {
     if (!user) return;
 
@@ -532,26 +668,35 @@ export default function AIChatPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Mobile: history button */}
-              <button
-                type="button"
-                onClick={() => setShowMobileThreads(true)}
-                className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
-              >
-                History
-              </button>
+            <div className="flex flex-col items-end gap-1">
+              {/* Usage indicator */}
+              <span className="text-[10px] text-slate-400">
+                AI replies today:{" "}
+                <span className="font-semibold text-slate-200">
+                  {aiCountToday}/{dailyLimit}
+                </span>{" "}
+                ({plan})
+              </span>
 
-              {/* Mobile: new chat */}
-              <button
-                type="button"
-                onClick={startNewChat}
-                className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
-              >
-                + New chat
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Mobile: history button */}
+                <button
+                  type="button"
+                  onClick={() => setShowMobileThreads(true)}
+                  className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+                >
+                  History
+                </button>
 
-              {/* Desktop: new chat is in sidebar, so hide here */}
+                {/* Mobile: new chat */}
+                <button
+                  type="button"
+                  onClick={startNewChat}
+                  className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+                >
+                  + New chat
+                </button>
+              </div>
             </div>
           </div>
 
@@ -604,7 +749,7 @@ export default function AIChatPage() {
             onSubmit={handleSend}
             className="border-t border-slate-800 px-3 py-2 flex flex-col gap-2"
           >
-            <div className="flex items-center gap-2 text-[11px] text-slate-300">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
               <span className="hidden md:inline">Category:</span>
               <select
                 value={category}
@@ -631,10 +776,14 @@ export default function AIChatPage() {
               />
               <button
                 type="submit"
-                disabled={sending || !input.trim()}
+                disabled={sending || !input.trim() || remaining <= 0}
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-[13px]"
               >
-                {sending ? "Sending…" : "Send"}
+                {sending
+                  ? "Sending…"
+                  : remaining <= 0
+                  ? "Limit reached"
+                  : "Send"}
               </button>
             </div>
           </form>
