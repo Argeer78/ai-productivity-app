@@ -46,6 +46,7 @@ export default function AIChatPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [threadActionId, setThreadActionId] = useState<string | null>(null);
 
   // 1) Load user
   useEffect(() => {
@@ -97,6 +98,7 @@ export default function AIChatPage() {
       }
     }
     loadThreads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // 3) Load messages for active thread
@@ -137,6 +139,7 @@ export default function AIChatPage() {
     loadMessages();
   }, [user, activeThreadId]);
 
+  // 4) Send message
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     if (!user) {
@@ -155,7 +158,7 @@ export default function AIChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           threadId: activeThreadId,
-          userId: user.id,
+          userId: user.id, // extra, but harmless if API ignores it
           category,
           userMessage: text,
         }),
@@ -189,6 +192,17 @@ export default function AIChatPage() {
             return [tData as ThreadRow, ...filtered];
           });
         }
+      } else {
+        // Move existing thread to top
+        setThreads((prev) => {
+          const found = prev.find((t) => t.id === threadId);
+          if (!found) return prev;
+          const others = prev.filter((t) => t.id !== threadId);
+          return [
+            { ...found, updated_at: new Date().toISOString() },
+            ...others,
+          ];
+        });
       }
 
       // Update local messages instantly (optimistic)
@@ -215,6 +229,87 @@ export default function AIChatPage() {
       setError("Network error while sending message.");
     } finally {
       setSending(false);
+    }
+  }
+
+  // 5) Delete thread
+  async function handleDeleteThread(threadId: string) {
+    if (!threadId) return;
+    if (!window.confirm("Delete this chat? This cannot be undone.")) return;
+
+    setThreadActionId(threadId);
+
+    try {
+      const res = await fetch("/api/ai-hub-chat/thread", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadId }),
+      });
+
+      const data = await res.json().catch(() => ({} as any));
+
+      if (!res.ok || !data?.ok) {
+        console.error("[ai-chat] delete thread error", data);
+        alert(data?.error || "Failed to delete chat.");
+        return;
+      }
+
+      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+
+      setActiveThreadId((current) =>
+        current === threadId ? null : current
+      );
+
+      setMessages((prev) =>
+        activeThreadId === threadId ? [] : prev
+      );
+    } catch (err) {
+      console.error("[ai-chat] delete thread exception", err);
+      alert("Failed to delete chat due to a network error.");
+    } finally {
+      setThreadActionId(null);
+    }
+  }
+
+  // 6) Rename thread
+  async function handleRenameThread(thread: ThreadRow) {
+    const currentTitle = thread.title || "Untitled chat";
+    const newTitle = window.prompt("New title for this chat:", currentTitle);
+
+    if (!newTitle || newTitle.trim() === currentTitle.trim()) {
+      return;
+    }
+
+    setThreadActionId(thread.id);
+
+    try {
+      const res = await fetch("/api/ai-hub-chat/rename-thread", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId: thread.id,
+          title: newTitle.trim(),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({} as any));
+
+      if (!res.ok || !data?.ok) {
+        console.error("[ai-chat] rename thread error", data);
+        alert(data?.error || "Failed to rename chat.");
+        return;
+      }
+
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === thread.id ? { ...t, title: newTitle.trim() } : t
+        )
+      );
+    } catch (err) {
+      console.error("[ai-chat] rename thread exception", err);
+      alert("Failed to rename chat due to a network error.");
+    } finally {
+      setThreadActionId(null);
     }
   }
 
@@ -274,43 +369,63 @@ export default function AIChatPage() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto text-xs">
+          <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
             {loadingThreads ? (
-              <p className="p-3 text-slate-400 text-[11px]">
+              <p className="p-2 text-slate-400 text-[11px]">
                 Loading conversations…
               </p>
             ) : threads.length === 0 ? (
-              <p className="p-3 text-slate-500 text-[11px]">
+              <p className="p-2 text-slate-500 text-[11px]">
                 No conversations yet. Start a new chat on the right.
               </p>
             ) : (
-              threads.map((t) => {
-                const active = t.id === activeThreadId;
+              threads.map((thread) => {
+                const isActive = thread.id === activeThreadId;
+                const isBusy = threadActionId === thread.id;
+
                 return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setActiveThreadId(t.id)}
-                    className={`w-full text-left px-3 py-2 border-b border-slate-900/40 text-[11px] ${
-                      active
-                        ? "bg-slate-900 text-slate-50"
-                        : "hover:bg-slate-900/60 text-slate-200"
+                  <div
+                    key={thread.id}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer ${
+                      isActive
+                        ? "bg-slate-800 text-slate-50"
+                        : "hover:bg-slate-800/60 text-slate-200"
                     }`}
+                    onClick={() => setActiveThreadId(thread.id)}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold truncate">
-                        {t.title || "Untitled chat"}
-                      </span>
-                      {t.category && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300">
-                          {t.category}
-                        </span>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate font-medium">
+                        {thread.title || "New conversation"}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {thread.category || "General"}
+                      </p>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      {new Date(t.updated_at).toLocaleString()}
-                    </p>
-                  </button>
+
+                    <div
+                      className="flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleRenameThread(thread)}
+                        disabled={isBusy}
+                        className="p-1 rounded hover:bg-slate-700 text-[11px]"
+                        title="Rename chat"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteThread(thread.id)}
+                        disabled={isBusy}
+                        className="p-1 rounded hover:bg-slate-700 text-[11px] text-red-400"
+                        title="Delete chat"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
                 );
               })
             )}
@@ -350,9 +465,7 @@ export default function AIChatPage() {
               </p>
             ) : messages.length === 0 ? (
               <div className="text-[12px] text-slate-400 mt-4">
-                <p className="mb-1">
-                  Start by asking something like:
-                </p>
+                <p className="mb-1">Start by asking something like:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>“Help me plan my week around work and personal goals.”</li>
                   <li>“Turn my todo list into 3 clear priorities.”</li>
