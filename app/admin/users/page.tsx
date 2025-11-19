@@ -25,6 +25,8 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [resettingEmail, setResettingEmail] = useState<string | null>(null);
+
   // ---- Load current user & verify admin ----
   useEffect(() => {
     async function loadUser() {
@@ -56,16 +58,13 @@ export default function AdminUsersPage() {
       try {
         const { data, error } = await supabase
           .from("profiles")
-          // 👇 only select columns we are sure exist
           .select("id, email, plan, created_at, is_admin")
           .order("created_at", { ascending: false })
           .limit(200);
 
         if (error) {
           console.error("[admin/users] profiles list error", error);
-          setError(
-            error.message || "Failed to load users."
-          );
+          setError(error.message || "Failed to load users.");
           return;
         }
 
@@ -80,6 +79,44 @@ export default function AdminUsersPage() {
 
     loadUsers();
   }, [authorized]);
+
+  // ---- Admin: send password reset email ----
+  async function handleSendReset(email: string | null) {
+    if (!email) {
+      alert("This user has no email stored in profiles.");
+      return;
+    }
+
+    const ok = window.confirm(
+      `Send a password reset email to ${email}?`
+    );
+    if (!ok) return;
+
+    setResettingEmail(email);
+
+    try {
+      const res = await fetch("/api/admin/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => ({} as any));
+
+      if (!res.ok || !data?.ok) {
+        console.error("[admin/users] reset-password error", data);
+        alert(data?.error || "Failed to send reset email.");
+        return;
+      }
+
+      alert("Password reset email sent successfully.");
+    } catch (err) {
+      console.error("[admin/users] reset-password exception", err);
+      alert("Network error while sending reset email.");
+    } finally {
+      setResettingEmail(null);
+    }
+  }
 
   // ---- Auth guards ----
   if (checkingUser) {
@@ -142,7 +179,7 @@ export default function AdminUsersPage() {
                 Users
               </h1>
               <p className="text-xs md:text-sm text-slate-400">
-                Read-only view of profiles (from <code>profiles</code> table).
+                Profiles from <code>profiles</code> table + admin tools.
               </p>
             </div>
             <Link
@@ -158,9 +195,7 @@ export default function AdminUsersPage() {
           )}
 
           {loading ? (
-            <p className="text-slate-300 text-sm">
-              Loading users…
-            </p>
+            <p className="text-slate-300 text-sm">Loading users…</p>
           ) : rows.length === 0 ? (
             <p className="text-slate-300 text-sm">
               No users found in profiles.
@@ -170,18 +205,23 @@ export default function AdminUsersPage() {
               <table className="w-full text-left text-[12px]">
                 <thead className="text-slate-400 bg-slate-900/80">
                   <tr>
+                    <th className="px-3 py-2">Email</th>
                     <th className="px-3 py-2">User ID</th>
                     <th className="px-3 py-2">Plan</th>
                     <th className="px-3 py-2">Admin</th>
                     <th className="px-3 py-2">Created at</th>
+                    <th className="px-3 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => (
                     <tr
                       key={row.id}
-                      className="border-t border-slate-800"
+                      className="border-t border-slate-800 align-top"
                     >
+                      <td className="px-3 py-2 text-slate-100 text-[11px] break-all">
+                        {row.email || "—"}
+                      </td>
                       <td className="px-3 py-2 font-mono text-[11px] text-slate-100 break-all">
                         {row.id}
                       </td>
@@ -203,6 +243,20 @@ export default function AdminUsersPage() {
                         {row.created_at
                           ? new Date(row.created_at).toLocaleString()
                           : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSendReset(row.email)}
+                          disabled={
+                            !row.email || resettingEmail === row.email
+                          }
+                          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] disabled:opacity-60"
+                        >
+                          {resettingEmail === row.email
+                            ? "Sending…"
+                            : "Reset password"}
+                        </button>
                       </td>
                     </tr>
                   ))}
