@@ -103,6 +103,8 @@ export default function DashboardPage() {
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
   const showBanner = streak >= 1;
   const streakCfg = getStreakConfig(streak);
+  const displayPlanLabel =
+  plan === "pro" || dailyLimit === PRO_DAILY_LIMIT ? "PRO" : "FREE";
 
   // 🌍 currency state for multi-currency checkout
   const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
@@ -682,19 +684,17 @@ export default function DashboardPage() {
             </div>
 
             <div className="mb-4 text-xs md:text-sm text-slate-300">
-              <p>
-                Plan:{" "}
-                <span className="font-semibold uppercase">{plan}</span> | AI
-                today:{" "}
-                <span className="font-semibold">
-                  {aiCountToday}/{dailyLimit}
-                </span>
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1">
-                This includes notes AI, the global assistant, summary, and
-                planner.
-              </p>
-            </div>
+  <p>
+    Plan:{" "}
+    <span className="font-semibold">{displayPlanLabel}</span> | AI today:{" "}
+    <span className="font-semibold">
+      {aiCountToday}/{dailyLimit}
+    </span>
+  </p>
+  <p className="text-[11px] text-slate-400 mt-1">
+    This includes notes AI, the global assistant, summary, and planner.
+  </p>
+</div>
 
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
