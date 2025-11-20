@@ -21,8 +21,8 @@ export async function POST(req: Request) {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
     const returnUrl =
-      process.env.NEXT_PUBLIC_APP_URL
-        ? `${process.env.NEXT_PUBLIC_APP_URL}/settings`
+      process.env.NEXT_PUBLIC_SITE_URL
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/settings`
         : "http://aiprod.app/settings";
 
     const params: Stripe.BillingPortal.SessionCreateParams = {
