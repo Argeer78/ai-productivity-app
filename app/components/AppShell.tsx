@@ -4,7 +4,7 @@
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { LanguageProvider } from "@/app/components/LanguageProvider";
-import ServiceWorkerRegistrar from "@/app/components/ServiceWorkerRegistrar";
+import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 import AIAssistant from "@/app/components/AIAssistant";
 import { UiI18nProvider } from "@/app/components/UiI18nProvider";
 
@@ -24,7 +24,7 @@ export default function AppShell({ children }: AppShellProps) {
   return (
     <LanguageProvider>
       <UiI18nProvider>
-        <ServiceWorkerRegistrar />
+        <ServiceWorkerRegister />
         {children}
         {!shouldHideAssistant && <AIAssistant />}
       </UiI18nProvider>

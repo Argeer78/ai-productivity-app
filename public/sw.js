@@ -1,15 +1,16 @@
 // public/sw.js
 
 self.addEventListener("install", (event) => {
-  // You can add pre-caching here if you want
+  // Take control immediately after install
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  self.clients.claim();
+  // Claim clients so it's active on first load
+  event.waitUntil(self.clients.claim());
 });
 
-// Optional: very simple network-first / fallback strategy
-self.addEventListener("fetch", (event) => {
-  // You can customize caching here – leaving minimal so it doesn't interfere
+// Minimal fetch handler (Chrome expects some fetch logic for PWA)
+self.addEventListener("fetch", () => {
+  // You can add caching logic here later if you want
 });
