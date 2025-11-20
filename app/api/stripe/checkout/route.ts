@@ -6,12 +6,10 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
 const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey, {
-      // use the version your stripe package expects
       apiVersion: "2025-10-29.clover",
     })
   : null;
 
-// Multi-currency price IDs
 const PRO_PRICE_IDS: Record<"eur" | "usd" | "gbp", string | undefined> = {
   eur: process.env.STRIPE_PRICE_EUR,
   usd: process.env.STRIPE_PRICE_USD,
@@ -29,11 +27,7 @@ export async function POST(req: Request) {
     }
 
     const body = (await req.json().catch(() => null)) as
-      | {
-          userId?: string;
-          email?: string;
-          currency?: string;
-        }
+      | { userId?: string; email?: string; currency?: string }
       | null;
 
     if (!body || !body.userId || !body.email || !body.currency) {
@@ -48,9 +42,13 @@ export async function POST(req: Request) {
     const priceId = PRO_PRICE_IDS[currency];
 
     if (!priceId) {
-      console.error(
-        `[stripe/checkout] No price configured for currency "${currency}".`
-      );
+      console.error("[stripe/checkout] env debug", {
+        eurSet: !!process.env.STRIPE_PRICE_EUR,
+        usdSet: !!process.env.STRIPE_PRICE_USD,
+        gbpSet: !!process.env.STRIPE_PRICE_GBP,
+        requestedCurrency: currency,
+      });
+
       return NextResponse.json(
         {
           ok: false,
@@ -67,12 +65,7 @@ export async function POST(req: Request) {
       mode: "subscription",
       payment_method_types: ["card"],
       customer_email: body.email,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${baseUrl}/dashboard?checkout=success`,
       cancel_url: `${baseUrl}/dashboard?checkout=cancelled`,
       metadata: {
@@ -83,7 +76,7 @@ export async function POST(req: Request) {
     });
 
     if (!session.url) {
-      console.error("[stripe/checkout] Session created without URL", session);
+      console.error("[stripe/checkout] Session without URL", session);
       return NextResponse.json(
         {
           ok: false,
@@ -97,10 +90,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("[stripe/checkout] Unexpected error", err);
     return NextResponse.json(
-      {
-        ok: false,
-        error: err?.message || "Unexpected server error.",
-      },
+      { ok: false, error: err?.message || "Unexpected server error." },
       { status: 500 }
     );
   }
