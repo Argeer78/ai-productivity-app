@@ -4,7 +4,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
 import AppShell from "@/app/components/AppShell";
-import { ServiceWorkerRegister } from "@/app/components/ServiceWorkerRegister"; // ✅ new
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,7 +26,7 @@ export const metadata: Metadata = {
       "Stay organized with notes, tasks, daily success score, weekly reports and an AI travel planner in one clean app.",
     images: ["/og-image.png"],
   },
-  manifest: "/manifest.webmanifest", // ✅ correct
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
@@ -48,8 +47,6 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} bg-slate-950 text-slate-100`}>
-       
-        {/* All app logic (language, assistant, etc.) */}
         <AppShell>{children}</AppShell>
       </body>
     </html>
