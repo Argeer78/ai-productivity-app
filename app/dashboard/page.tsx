@@ -104,6 +104,42 @@ export default function DashboardPage() {
   const showBanner = streak >= 1;
   const streakCfg = getStreakConfig(streak);
 
+  // 🌍 currency state for multi-currency checkout
+const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
+
+async function startCheckout(selectedCurrency: "eur" | "usd" | "gbp") {
+  if (!user) return;
+
+  setBillingLoading(true);
+  setError("");
+
+  try {
+    const res = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        email: user.email,
+        currency: selectedCurrency,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.url) {
+      console.error("[checkout] error payload", data);
+      setError(data?.error || "Could not start checkout.");
+      return;
+    }
+
+    window.location.href = data.url;
+  } catch (err) {
+    console.error("[checkout] exception", err);
+    setError("Network error while starting checkout.");
+  } finally {
+    setBillingLoading(false);
+  }
+}
   // Load the current user
   useEffect(() => {
     async function loadUser() {
@@ -370,8 +406,6 @@ export default function DashboardPage() {
         }
 
         // 7) Notes / tasks in last 7 days
-
-        // Notes created in the last 7 days (date-only)
         const sevenDaysAgoDate = new Date();
         sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 6);
         const sevenDateStr =
@@ -393,29 +427,27 @@ export default function DashboardPage() {
           setWeekNotesCreated(notes7Count ?? 0);
         }
 
-        // ✅ Tasks completed in the last 7 days
-const sevenDaysAgoTs = new Date();
-sevenDaysAgoTs.setDate(sevenDaysAgoTs.getDate() - 6);
+        // Tasks completed in the last 7 days
+        const sevenDaysAgoTs = new Date();
+        sevenDaysAgoTs.setDate(sevenDaysAgoTs.getDate() - 6);
+        const sevenDateOnly = sevenDaysAgoTs.toISOString().split("T")[0];
 
-// Use *date-only* string to avoid 400 errors if created_at is DATE
-const sevenDateOnly = sevenDaysAgoTs.toISOString().split("T")[0];
+        const {
+          data: tasks7Rows,
+          error: tasks7Err,
+        } = await supabase
+          .from("tasks")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("completed", true)
+          .gte("created_at", sevenDateOnly);
 
-const {
-  data: tasks7Rows,
-  error: tasks7Err,
-} = await supabase
-  .from("tasks")
-  .select("id")
-  .eq("user_id", user.id)
-  .eq("completed", true)
-  .gte("created_at", sevenDateOnly);
-
-if (tasks7Err && (tasks7Err as any).code !== "PGRST116") {
-  console.error("[dashboard] tasks7 error", tasks7Err);
-  setWeekTasksCompleted(0);
-} else {
-  setWeekTasksCompleted(tasks7Rows?.length || 0);
-}
+        if (tasks7Err && (tasks7Err as any).code !== "PGRST116") {
+          console.error("[dashboard] tasks7 error", tasks7Err);
+          setWeekTasksCompleted(0);
+        } else {
+          setWeekTasksCompleted(tasks7Rows?.length || 0);
+        }
 
         // 8) Weekly goal of the week (latest)
         const { data: goalRow, error: goalError } = await supabase
@@ -448,8 +480,10 @@ if (tasks7Err && (tasks7Err as any).code !== "PGRST116") {
     loadData();
   }, [user]);
 
+  // ✅ Multi-currency checkout handler (no args, uses `currency` state)
   async function startCheckout() {
     if (!user) return;
+
     setBillingLoading(true);
     setError("");
 
@@ -457,31 +491,25 @@ if (tasks7Err && (tasks7Err as any).code !== "PGRST116") {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, email: user.email }),
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.email,
+          currency, // "eur" | "usd" | "gbp"
+        }),
       });
 
-      const text = await res.text();
+      const data = await res.json().catch(() => null);
 
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error("Non-JSON response from /api/stripe/checkout:", text);
-        setError(
-          "Server returned an invalid response. Check your API route."
-        );
+      if (!res.ok || !data?.url) {
+        console.error("[checkout] error payload", data);
+        setError(data?.error || "Could not start checkout.");
         return;
       }
 
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        console.error("Checkout error payload:", data);
-        setError(data.error || "Failed to start checkout.");
-      }
+      window.location.href = data.url;
     } catch (err) {
-      console.error(err);
-      setError("Failed to start checkout.");
+      console.error("[checkout] exception", err);
+      setError("Network error while starting checkout.");
     } finally {
       setBillingLoading(false);
     }
@@ -1237,15 +1265,30 @@ if (tasks7Err && (tasks7Err as any).code !== "PGRST116") {
                   <li>• Priority for new features & improvements</li>
                 </ul>
 
-                <button
-                  onClick={startCheckout}
-                  disabled={billingLoading}
-                  className="w-full justify-center px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium disabled:opacity-60 text-sm"
-                >
-                  {billingLoading
-                    ? "Opening Stripe..."
-                    : "Upgrade to Pro"}
-                </button>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                  <select
+                    value={currency}
+                    onChange={(e) =>
+                      setCurrency(e.target.value as "eur" | "usd" | "gbp")
+                    }
+                    className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs mb-2 sm:mb-0"
+                  >
+                    <option value="eur">EUR €</option>
+                    <option value="usd">USD $</option>
+                    <option value="gbp">GBP £</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={startCheckout}
+                    disabled={billingLoading}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white disabled:opacity-60"
+                  >
+                    {billingLoading
+                      ? "Opening Stripe..."
+                      : `Upgrade to Pro (${currency.toUpperCase()})`}
+                  </button>
+                </div>
 
                 <p className="mt-2 text-[11px] text-indigo-100/70">
                   Cancel any time from Settings → Manage subscription
