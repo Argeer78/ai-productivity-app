@@ -6,14 +6,17 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
 const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey, {
+      // Use whatever version your `stripe` package expects
       apiVersion: "2025-10-29.clover",
     })
   : null;
 
-const PRO_PRICE_IDS: Record<"eur" | "usd" | "gbp", string | undefined> = {
-  eur: process.env.STRIPE_PRICE_EUR,
-  usd: process.env.STRIPE_PRICE_USD,
-  gbp: process.env.STRIPE_PRICE_GBP,
+// 🔐 These are NOT secrets – it’s okay to keep them in code.
+// 👉 Replace the placeholder strings with your REAL live price IDs from Stripe.
+const PRO_PRICE_IDS: Record<"eur" | "usd" | "gbp", string> = {
+  eur: "price_1SSGYXIaVkwgnHGjQvoIBucm", // e.g. price_1SSGYXIaVkwgnHGjQvoIBucm
+  usd: "price_1SVJ2fIaVkwgnHGjMwjCOjSj", // e.g. price_1ABCDEF... (USD recurring)
+  gbp: "price_1SVJ3bIaVkwgnHGjXFE3Mm1y", // e.g. price_1SVJ3bIaVkwgnHGjXFE3Mm1y
 };
 
 export async function POST(req: Request) {
@@ -21,7 +24,7 @@ export async function POST(req: Request) {
     if (!stripe) {
       console.error("[stripe/checkout] Missing STRIPE_SECRET_KEY");
       return NextResponse.json(
-        { ok: false, error: "Stripe not configured on server." },
+        { ok: false, error: "Stripe is not configured on the server." },
         { status: 500 }
       );
     }
@@ -39,16 +42,18 @@ export async function POST(req: Request) {
     }
 
     const currency = body.currency.toLowerCase() as "eur" | "usd" | "gbp";
+
+    if (!["eur", "usd", "gbp"].includes(currency)) {
+      return NextResponse.json(
+        { ok: false, error: `Unsupported currency "${body.currency}".` },
+        { status: 400 }
+      );
+    }
+
     const priceId = PRO_PRICE_IDS[currency];
 
     if (!priceId) {
-      console.error("[stripe/checkout] env debug", {
-        eurSet: !!process.env.STRIPE_PRICE_EUR,
-        usdSet: !!process.env.STRIPE_PRICE_USD,
-        gbpSet: !!process.env.STRIPE_PRICE_GBP,
-        requestedCurrency: currency,
-      });
-
+      console.error("[stripe/checkout] No price for currency", currency);
       return NextResponse.json(
         {
           ok: false,
@@ -65,7 +70,12 @@ export async function POST(req: Request) {
       mode: "subscription",
       payment_method_types: ["card"],
       customer_email: body.email,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
       success_url: `${baseUrl}/dashboard?checkout=success`,
       cancel_url: `${baseUrl}/dashboard?checkout=cancelled`,
       metadata: {
@@ -76,17 +86,20 @@ export async function POST(req: Request) {
     });
 
     if (!session.url) {
-      console.error("[stripe/checkout] Session without URL", session);
+      console.error("[stripe/checkout] session missing URL", session);
       return NextResponse.json(
         {
           ok: false,
-          error: "Stripe checkout session created without a redirect URL.",
+          error: "Stripe did not return a checkout URL.",
         },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ ok: true, url: session.url }, { status: 200 });
+    return NextResponse.json(
+      { ok: true, url: session.url },
+      { status: 200 }
+    );
   } catch (err: any) {
     console.error("[stripe/checkout] Unexpected error", err);
     return NextResponse.json(
