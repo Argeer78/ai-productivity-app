@@ -105,41 +105,42 @@ export default function DashboardPage() {
   const streakCfg = getStreakConfig(streak);
 
   // 🌍 currency state for multi-currency checkout
-const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
+  const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
 
-async function startCheckout(selectedCurrency: "eur" | "usd" | "gbp") {
-  if (!user) return;
+  async function startCheckout(selectedCurrency: "eur" | "usd" | "gbp") {
+    if (!user) return;
 
-  setBillingLoading(true);
-  setError("");
+    setBillingLoading(true);
+    setError("");
 
-  try {
-    const res = await fetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: user.id,
-        email: user.email,
-        currency: selectedCurrency,
-      }),
-    });
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.email,
+          currency: selectedCurrency,
+        }),
+      });
 
-    const data = await res.json().catch(() => null);
+      const data = await res.json().catch(() => null);
 
-    if (!res.ok || !data?.url) {
-      console.error("[checkout] error payload", data);
-      setError(data?.error || "Could not start checkout.");
-      return;
+      if (!res.ok || !data?.url) {
+        console.error("[checkout] error payload", data);
+        setError(data?.error || "Could not start checkout.");
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch (err) {
+      console.error("[checkout] exception", err);
+      setError("Network error while starting checkout.");
+    } finally {
+      setBillingLoading(false);
     }
-
-    window.location.href = data.url;
-  } catch (err) {
-    console.error("[checkout] exception", err);
-    setError("Network error while starting checkout.");
-  } finally {
-    setBillingLoading(false);
   }
-}
+
   // Load the current user
   useEffect(() => {
     async function loadUser() {
@@ -479,41 +480,6 @@ async function startCheckout(selectedCurrency: "eur" | "usd" | "gbp") {
 
     loadData();
   }, [user]);
-
-  // ✅ Multi-currency checkout handler (no args, uses `currency` state)
-  async function startCheckout() {
-    if (!user) return;
-
-    setBillingLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          email: user.email,
-          currency, // "eur" | "usd" | "gbp"
-        }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data?.url) {
-        console.error("[checkout] error payload", data);
-        setError(data?.error || "Could not start checkout.");
-        return;
-      }
-
-      window.location.href = data.url;
-    } catch (err) {
-      console.error("[checkout] exception", err);
-      setError("Network error while starting checkout.");
-    } finally {
-      setBillingLoading(false);
-    }
-  }
 
   async function saveWeeklyGoal(refineWithAI: boolean) {
     if (!user) return;
@@ -1280,7 +1246,7 @@ async function startCheckout(selectedCurrency: "eur" | "usd" | "gbp") {
 
                   <button
                     type="button"
-                    onClick={startCheckout}
+                    onClick={() => startCheckout(currency)}
                     disabled={billingLoading}
                     className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white disabled:opacity-60"
                   >
