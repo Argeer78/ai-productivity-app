@@ -7,7 +7,7 @@ import { LanguageProvider } from "@/app/components/LanguageProvider";
 import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 import AIAssistant from "@/app/components/AIAssistant";
 import { UiI18nProvider } from "@/app/components/UiI18nProvider";
-
+import PwaInstallPrompt from "@/app/components/PwaInstallPrompt";
 type AppShellProps = {
   children: ReactNode;
 };
@@ -27,6 +27,7 @@ export default function AppShell({ children }: AppShellProps) {
         <ServiceWorkerRegister />
         {children}
         {!shouldHideAssistant && <AIAssistant />}
+        <PwaInstallPrompt />
       </UiI18nProvider>
     </LanguageProvider>
   );
