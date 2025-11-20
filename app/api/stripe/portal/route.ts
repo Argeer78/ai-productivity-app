@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const returnUrl =
       process.env.NEXT_PUBLIC_APP_URL
         ? `${process.env.NEXT_PUBLIC_APP_URL}/settings`
-        : "http://localhost:3000/settings";
+        : "http://aiprod.app/settings";
 
     const params: Stripe.BillingPortal.SessionCreateParams = {
       customer: customerId,

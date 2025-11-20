@@ -16,6 +16,9 @@ export default function WeeklyReportsPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
   const [plan, setPlan] = useState<"free" | "pro">("free");
+  const isPro = plan === "pro";
+  const planLabelUpper = isPro ? "PRO" : "FREE";
+
   const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -136,13 +139,15 @@ export default function WeeklyReportsPage() {
             </Link>
           </div>
 
-          {/* Plan pill */}
-          <div className="mb-4">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60 text-[11px]">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              Plan: <span className="font-semibold uppercase">{plan}</span>
-            </span>
-          </div>
+          {/* Plan pill – only show for Free plan */}
+{plan !== "pro" && (
+  <div className="mb-4">
+    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60 text-[11px]">
+      <span className="h-2 w-2 rounded-full bg-emerald-400" />
+      Plan: <span className="font-semibold uppercase">FREE</span>
+    </span>
+  </div>
+)}
 
           {error && (
             <p className="text-xs text-red-400 mb-3">{error}</p>

@@ -63,8 +63,12 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🔑 Use env first, then the request origin, then fallback to localhost
+    const origin = req.headers.get("origin") || "";
     const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      origin ||
+      "http://localhost:3000";
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",

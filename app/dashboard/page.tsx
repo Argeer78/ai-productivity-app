@@ -26,8 +26,7 @@ function getStreakConfig(streak: number) {
     return {
       emoji: "🏆",
       title: "Legendary streak!",
-      subtitle:
-        "You’ve been consistently productive for 30+ days. That’s huge.",
+      subtitle: "You’ve been consistently productive for 30+ days. That’s huge.",
       gradient: "from-amber-400 via-pink-500 to-indigo-600",
     };
   }
@@ -51,8 +50,7 @@ function getStreakConfig(streak: number) {
   return {
     emoji: "🎉",
     title: "Nice streak!",
-    subtitle:
-      "You’re building a habit. A few more days and it becomes automatic.",
+    subtitle: "You’re building a habit. A few more days and it becomes automatic.",
     gradient: "from-indigo-600 to-purple-600",
   };
 }
@@ -92,8 +90,7 @@ export default function DashboardPage() {
   // Weekly goal state
   const [weeklyGoalId, setWeeklyGoalId] = useState<string | null>(null);
   const [weeklyGoalText, setWeeklyGoalText] = useState<string>("");
-  const [weeklyGoalCompleted, setWeeklyGoalCompleted] =
-    useState<boolean>(false);
+  const [weeklyGoalCompleted, setWeeklyGoalCompleted] = useState<boolean>(false);
   const [weeklyGoalSaving, setWeeklyGoalSaving] = useState(false);
   const [weeklyGoalMarking, setWeeklyGoalMarking] = useState(false);
 
@@ -103,8 +100,11 @@ export default function DashboardPage() {
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
   const showBanner = streak >= 1;
   const streakCfg = getStreakConfig(streak);
-  const displayPlanLabel =
-  plan === "pro" || dailyLimit === PRO_DAILY_LIMIT ? "PRO" : "FREE";
+
+  // single source of truth for plan labels
+  const isPro = plan === "pro";
+  const planLabelUpper = isPro ? "PRO" : "FREE";
+  const planLabelNice = isPro ? "Pro" : "Free";
 
   // 🌍 currency state for multi-currency checkout
   const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
@@ -666,9 +666,7 @@ export default function DashboardPage() {
                   <span className="font-bold">{streak}-day</span>{" "}
                   productivity streak.
                 </p>
-                <p className="text-xs opacity-90">
-                  {streakCfg.subtitle}
-                </p>
+                <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
               </div>
             </div>
           )}
@@ -683,26 +681,29 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="mb-4 text-xs md:text-sm text-slate-300">
-  <p>
-    Plan:{" "}
-    <span className="font-semibold">{displayPlanLabel}</span> | AI today:{" "}
-    <span className="font-semibold">
-      {aiCountToday}/{dailyLimit}
-    </span>
-  </p>
-  <p className="text-[11px] text-slate-400 mt-1">
-    This includes notes AI, the global assistant, summary, and planner.
-  </p>
-</div>
+            {/* Top plan text (uses unified label) */}
+            {plan === "free" && (
+  <div className="mb-4 text-xs md:text-sm text-slate-300">
+    <p>
+      Plan:{" "}
+      <span className="font-semibold">FREE</span> | AI today:{" "}
+      <span className="font-semibold">
+        {aiCountToday}/{dailyLimit}
+      </span>
+    </p>
+    <p className="text-[11px] text-slate-400 mt-1">
+      This includes notes AI, the global assistant, summary, and planner.
+    </p>
+  </div>
+)}
 
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
-                Plan:{" "}
-                <span className="font-semibold">
-                  {plan.toUpperCase()}
-                </span>
-              </span>
+  Plan:{" "}
+  <span className="font-semibold">
+    {planLabelUpper}
+  </span>
+</span>
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
                 AI today: {aiCountToday}/{dailyLimit}
               </span>
@@ -714,9 +715,7 @@ export default function DashboardPage() {
           )}
 
           {loadingData ? (
-            <p className="text-slate-300 text-sm">
-              Loading your data...
-            </p>
+            <p className="text-slate-300 text-sm">Loading your data...</p>
           ) : (
             <>
               {/* Top stats grid */}
@@ -740,10 +739,10 @@ export default function DashboardPage() {
                     PLAN
                   </p>
                   <p className="text-slate-100 mb-1 text-sm">
-                    {plan === "pro" ? "Pro" : "Free"}
+                    {planLabelNice}
                   </p>
                   <p className="text-[11px] text-slate-400 mb-2">
-                    {plan === "pro"
+                    {isPro
                       ? "Higher daily AI limits and more room to experiment."
                       : "Good for trying the app and light daily use."}
                   </p>
@@ -754,7 +753,7 @@ export default function DashboardPage() {
                     </span>
                   </p>
 
-                  {plan === "pro" && (
+                  {isPro && (
                     <Link
                       href="/weekly-reports"
                       className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
@@ -763,7 +762,7 @@ export default function DashboardPage() {
                     </Link>
                   )}
 
-                  {plan === "free" && (
+                  {!isPro && (
                     <Link
                       href="/dashboard#pricing"
                       className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
@@ -848,7 +847,7 @@ export default function DashboardPage() {
                   <p className="text-[11px] text-slate-400 mt-2">
                     {remaining > 0 ? (
                       `${remaining} AI calls left today.`
-                    ) : plan === "pro" ? (
+                    ) : isPro ? (
                       "You reached today’s Pro limit for today."
                     ) : (
                       <>
@@ -977,7 +976,7 @@ export default function DashboardPage() {
                   GOAL OF THE WEEK
                 </p>
 
-                {plan !== "pro" ? (
+                {!isPro ? (
                   <>
                     <p className="text-[13px] text-slate-200 mb-1">
                       Set a clear weekly focus goal and let AI help you stay
@@ -1012,9 +1011,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => saveWeeklyGoal(false)}
-                        disabled={
-                          weeklyGoalSaving || !weeklyGoalText.trim()
-                        }
+                        disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
                         className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs"
                       >
                         {weeklyGoalSaving ? "Saving..." : "Save goal"}
@@ -1022,9 +1019,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => saveWeeklyGoal(true)}
-                        disabled={
-                          weeklyGoalSaving || !weeklyGoalText.trim()
-                        }
+                        disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
                         className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs disabled:opacity-60"
                       >
                         {weeklyGoalSaving
@@ -1066,8 +1061,7 @@ export default function DashboardPage() {
                   </p>
                   {recentNotes.length === 0 ? (
                     <p className="text-[12px] text-slate-500">
-                      No notes yet. Create your first note from the Notes
-                      page.
+                      No notes yet. Create your first note from the Notes page.
                     </p>
                   ) : (
                     <ul className="space-y-2">
@@ -1076,8 +1070,7 @@ export default function DashboardPage() {
                           key={n.id}
                           className="text-[12px] text-slate-200 line-clamp-2"
                         >
-                          {n.content?.slice(0, 160) ||
-                            "(empty note)"}
+                          {n.content?.slice(0, 160) || "(empty note)"}
                         </li>
                       ))}
                     </ul>
@@ -1108,14 +1101,10 @@ export default function DashboardPage() {
                         >
                           <span
                             className={`h-2 w-2 rounded-full ${
-                              t.completed
-                                ? "bg-emerald-400"
-                                : "bg-slate-500"
+                              t.completed ? "bg-emerald-400" : "bg-slate-500"
                             }`}
                           />
-                          <span>
-                            {t.title || "(untitled task)"}
-                          </span>
+                          <span>{t.title || "(untitled task)"}</span>
                         </li>
                       ))}
                     </ul>
@@ -1178,7 +1167,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {plan === "free" && (
+          {!isPro && (
             <>
               <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
                 <span className="font-semibold text-xs">
@@ -1257,8 +1246,7 @@ export default function DashboardPage() {
                 </div>
 
                 <p className="mt-2 text-[11px] text-indigo-100/70">
-                  Cancel any time from Settings → Manage subscription
-                  (Stripe).
+                  Cancel any time from Settings → Manage subscription (Stripe).
                 </p>
               </section>
             </>
