@@ -4,15 +4,7 @@ import Stripe from "stripe";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-if (!stripeSecretKey) {
-  console.error("[stripe/checkout] STRIPE_SECRET_KEY is missing");
-}
-
-const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, {
-      apiVersion: "2024-06-20",
-    })
-  : null;
+const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 
 type SupportedCurrency = "eur" | "usd" | "gbp";
 
