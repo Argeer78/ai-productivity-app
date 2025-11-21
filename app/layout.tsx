@@ -9,11 +9,9 @@ import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://aiprod.app"),
   title: "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
   description:
     "AI Productivity Hub is a simple, focused workspace for notes, tasks, daily score tracking, weekly reports and travel planning – all powered by AI.",
-  manifest: "/manifest.webmanifest",
   openGraph: {
     title: "AI Productivity Hub",
     description:
@@ -43,14 +41,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* 👇 This is the key line */}
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="theme-color" content="#020617" />
+      </head>
       <body className={`${inter.className} bg-[#020617] text-slate-100`}>
         <PlausibleProvider
           domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
           trackLocalhost={false}
-        >
-          <ServiceWorkerRegister />
-          <AppShell>{children}</AppShell>
-        </PlausibleProvider>
+        />
+        <ServiceWorkerRegister />
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
