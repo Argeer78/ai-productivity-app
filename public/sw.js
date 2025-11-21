@@ -1,26 +1,16 @@
-// Full-featured service worker for AI Productivity Hub
-// - Offline fallback page
-// - Caching for Next.js static assets
-// - Basic image caching
+// Simple service worker for AI Productivity Hub
+// - Caches offline.html
+// - Network-first for navigations with offline fallback
+// - Basic cache for same-origin GET requests
 
-// Load Workbox from CDN
-importScripts("https://storage.googleapis.com/workbox-cdn/releases/6.5.4/workbox-sw.js");
+const CACHE_NAME = "aiprod-cache-v1";
+const OFFLINE_URL = "/offline.html";
 
-// Optional: reduce noisy logs in production
-if (workbox) {
-  workbox.setConfig({ debug: false });
-}
-
-const OFFLINE_CACHE = "aiprod-offline-v1";
-const STATIC_CACHE = "aiprod-static-v1";
-const IMAGE_CACHE = "aiprod-images-v1";
-const OFFLINE_PAGE = "/offline.html";
-
-// Install: pre-cache the offline page
+// Install: cache the offline page
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(OFFLINE_CACHE).then((cache) => {
-      return cache.addAll([OFFLINE_PAGE]);
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll([OFFLINE_URL]);
     })
   );
   self.skipWaiting();
@@ -28,43 +18,36 @@ self.addEventListener("install", (event) => {
 
 // Activate: clean up old caches
 self.addEventListener("activate", (event) => {
-  const currentCaches = [OFFLINE_CACHE, STATIC_CACHE, IMAGE_CACHE];
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => !currentCaches.includes(key))
-            .map((key) => caches.delete(key))
-        )
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
       )
+    )
   );
   self.clients.claim();
 });
 
-// 1) Handle navigation requests with Network First + offline fallback
+// Fetch handler
 self.addEventListener("fetch", (event) => {
-  if (event.request.mode === "navigate") {
+  const { request } = event;
+
+  // 1) Handle navigations (page loads)
+  if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
         try {
-          // Use any preload response if available
-          const preloadResp = await event.preloadResponse;
-          if (preloadResp) {
-            return preloadResp;
-          }
-
           // Try network first
-          const networkResp = await fetch(event.request);
-          return networkResp;
-        } catch (error) {
-          // If offline or network fails, use offline.html
-          const cache = await caches.open(OFFLINE_CACHE);
-          const cachedResp = await cache.match(OFFLINE_PAGE);
-          if (cachedResp) return cachedResp;
+          const networkResponse = await fetch(request);
+          return networkResponse;
+        } catch (err) {
+          // If offline, show offline page
+          const cache = await caches.open(CACHE_NAME);
+          const cachedResponse = await cache.match(OFFLINE_URL);
+          if (cachedResponse) return cachedResponse;
 
-          // As a last resort, fall back to a basic Response
           return new Response("You are offline.", {
             status: 503,
             headers: { "Content-Type": "text/plain" },
@@ -72,49 +55,36 @@ self.addEventListener("fetch", (event) => {
         }
       })()
     );
+    return;
+  }
+
+  // 2) For same-origin GET requests, use cache-first with network fallback
+  if (
+    request.method === "GET" &&
+    request.url.startsWith(self.location.origin)
+  ) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+
+        return fetch(request)
+          .then((response) => {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+            return response;
+          })
+          .catch(() => {
+            // If request is for an image, we could return a placeholder here.
+            return new Response("", { status: 408 });
+          });
+      })
+    );
   }
 });
 
-// Enable navigation preload if supported
-if (self.registration && self.registration.navigationPreload) {
-  self.addEventListener("activate", (event) => {
-    event.waitUntil(self.registration.navigationPreload.enable());
-  });
-}
-
-// 2) Cache Next.js static assets (/_next/static/*) with StaleWhileRevalidate
-if (workbox) {
-  workbox.routing.registerRoute(
-    ({ url }) => url.pathname.startsWith("/_next/static/"),
-    new workbox.strategies.StaleWhileRevalidate({
-      cacheName: STATIC_CACHE,
-      plugins: [
-        new workbox.expiration.ExpirationPlugin({
-          maxEntries: 60,
-          maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
-        }),
-      ],
-    })
-  );
-
-  // 3) Cache images (PNG, JPG, SVG, ICO) with StaleWhileRevalidate
-  workbox.routing.registerRoute(
-    ({ request, url }) =>
-      request.destination === "image" ||
-      url.pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico)$/i),
-    new workbox.strategies.StaleWhileRevalidate({
-      cacheName: IMAGE_CACHE,
-      plugins: [
-        new workbox.expiration.ExpirationPlugin({
-          maxEntries: 60,
-          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-        }),
-      ],
-    })
-  );
-}
-
-// Support for manual skipWaiting messages (optional)
+// Support skipWaiting via postMessage
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
