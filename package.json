@@ -13,7 +13,7 @@
     "date-fns": "^4.1.0",
     "next": "16.0.1",
     "next-plausible": "^3.12.5",
-    "openai": "^6.8.1",
+    "openai": "^6.9.1",
     "react": "19.2.0",
     "react-datepicker": "^8.9.0",
     "react-dom": "19.2.0",
