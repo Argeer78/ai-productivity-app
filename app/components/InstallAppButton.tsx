@@ -1,63 +1,133 @@
 // app/components/InstallAppButton.tsx
 "use client";
 
-import { useState } from "react";
-import { usePwaInstall } from "@/app/hooks/usePwaInstall";
+import { useEffect, useState } from "react";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
+function isIosStandalone() {
+  if (typeof window === "undefined") return false;
+  const ua = window.navigator.userAgent.toLowerCase();
+  const isIos = /iphone|ipad|ipod/.test(ua);
+  const standalone = (window.navigator as any).standalone === true;
+  return isIos && standalone;
+}
+
+function isIosSafari() {
+  if (typeof window === "undefined") return false;
+  const ua = window.navigator.userAgent.toLowerCase();
+  const isIos = /iphone|ipad|ipod/.test(ua);
+  const isSafari = /safari/.test(ua) && !/crios|fxios|chromium|chrome/.test(ua);
+  return isIos && isSafari;
+}
 
 export default function InstallAppButton() {
-  const { canInstall, isStandalone, isIosSafari, install } = usePwaInstall();
-  const [showIosHint, setShowIosHint] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [showIosHelp, setShowIosHelp] = useState(false);
+  const [ready, setReady] = useState(false);
 
-  // If app is already installed, hide the button entirely
-  if (isStandalone) return null;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-  // iOS Safari: show “how to install” help instead of a real prompt
-  if (isIosSafari) {
-    return (
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setShowIosHint((v) => !v)}
-          className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-400"
-        >
-          Install app
-        </button>
-        {showIosHint && (
-          <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-[11px] text-slate-200 shadow-lg">
-            <p className="font-semibold mb-1">Add to Home Screen</p>
-            <p>
-              In Safari, tap the{" "}
-              <span className="font-semibold">Share</span> icon, then choose{" "}
-              <span className="font-semibold">Add to Home Screen</span>.
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
+    // Detect already-installed PWA
+    const isStandalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true;
+    setInstalled(isStandalone);
 
-  // Other browsers: use native install prompt when available.
-  // If `canInstall` is false, you can either hide the button or keep it disabled.
-  const disabled = !canInstall;
+    function handleBeforeInstallPrompt(e: Event) {
+      e.preventDefault();
+      const bip = e as BeforeInstallPromptEvent;
+      setDeferredPrompt(bip);
+      setReady(true);
+    }
+
+    function handleAppInstalled() {
+      setInstalled(true);
+      setDeferredPrompt(null);
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
 
   async function handleClick() {
-    if (!canInstall) return;
-    await install();
+    // If already installed, do nothing
+    if (installed) return;
+
+    if (deferredPrompt) {
+      try {
+        await deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        console.log("[PWA] userChoice", choice);
+        setDeferredPrompt(null);
+      } catch (err) {
+        console.error("[PWA] install error", err);
+      }
+      return;
+    }
+
+    // No prompt available: if iOS Safari, show help
+    if (isIosSafari()) {
+      setShowIosHelp(true);
+      return;
+    }
+
+    // On other platforms with no prompt: just do nothing
+    console.log("[PWA] No install prompt available on this platform.");
   }
 
+  // If already installed, hide the button completely
+  if (installed) return null;
+
+  // Show button even if not "ready", so iOS can get the help popup
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={disabled}
-      className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-400 disabled:opacity-50 disabled:hover:border-slate-700"
-      title={
-        disabled
-          ? "App will be installable after you use it a bit."
-          : "Install AI Productivity Hub"
-      }
-    >
-      Install app
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] flex-shrink-0"
+      >
+        Install app
+      </button>
+
+      {showIosHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-slate-950 border border-slate-700 rounded-2xl p-4 max-w-xs text-xs text-slate-100">
+            <p className="font-semibold mb-2">Install on iPhone</p>
+            <p className="mb-2 text-slate-300">
+              1. Tap the <strong>Share</strong> button in Safari.
+            </p>
+            <p className="mb-2 text-slate-300">
+              2. Scroll down and tap{" "}
+              <strong>&quot;Add to Home Screen&quot;</strong>.
+            </p>
+            <p className="mb-3 text-slate-300">
+              3. Confirm to create the app shortcut.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowIosHelp(false)}
+              className="mt-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-[11px]"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
