@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import InstallAppButton from "@/app/components/InstallAppButton";
+
 type HeaderProps = {
   active?:
     | "dashboard"
@@ -31,8 +32,6 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
 
-  // Just calling this keeps it wired to your LanguageProvider.
-  // You can expand later to show a language picker or label.
   const languageCtx = useLanguage() as any;
   const currentLangLabel: string | null =
     languageCtx?.label || languageCtx?.language || null;
@@ -107,7 +106,7 @@ export default function AppHeader({ active }: HeaderProps) {
   }
 
   return (
-    <header className="relative z-40 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+    <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
       {/* === TOP BAR (LOGO + MENU + EMAIL MOBILE) === */}
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         {/* Logo */}
@@ -166,9 +165,10 @@ export default function AppHeader({ active }: HeaderProps) {
         {/* Desktop user actions */}
         <div className="hidden md:flex items-center gap-2">
           <TranslateWithAIButton />
-         {/* 👇 New: always-visible install button */}
-  <InstallAppButton />
-          {/* Optional: show current language label if your LanguageProvider exposes it */}
+
+          {/* Always-visible PWA install button */}
+          <InstallAppButton />
+
           {currentLangLabel && (
             <span className="px-2 py-1 rounded-lg border border-slate-700 text-[10px] text-slate-300">
               {currentLangLabel}
@@ -252,12 +252,14 @@ export default function AppHeader({ active }: HeaderProps) {
         )}
       </div>
 
-      {/* === MOBILE SECOND ROW: TRANSLATE + SETTINGS + LOGOUT === */}
+      {/* === MOBILE SECOND ROW: TRANSLATE + INSTALL + SETTINGS + LOGOUT === */}
       <div className="md:hidden border-t border-slate-800 bg-slate-950/95">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2 overflow-x-auto">
           <TranslateWithAIButton />
-{/* 👇 New: always-visible install button */}
-  <InstallAppButton />
+
+          {/* Mobile install button */}
+          <InstallAppButton />
+
           <Link
             href="/settings"
             className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] flex-shrink-0"
