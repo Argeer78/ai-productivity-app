@@ -6,6 +6,7 @@
   "start_url": "/?mode=app",
   "scope": "/",
   "display": "standalone",
+  "prefer_related_applications": false,
   "background_color": "#020617",
   "theme_color": "#020617",
   "orientation": "portrait",
