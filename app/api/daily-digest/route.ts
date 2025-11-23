@@ -1,8 +1,8 @@
 // app/api/daily-digest/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { renderDailyDigestEmail } from "@/lib/emailTemplates";
 import { Resend } from "resend";
+import { renderDailyDigestEmail } from "@/lib/emailTemplates";
 
 export const runtime = "nodejs";
 
@@ -10,26 +10,31 @@ const resend = new Resend(process.env.RESEND_API_KEY || "");
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
 
+// Small helper if you ever want throttling later
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function POST(req: Request) {
-  // 1) Verify CRON_SECRET
-  const incoming = req.headers.get("authorization") || "";
+  // 1) Auth check with CRON_SECRET
+  const authHeader = req.headers.get("authorization") || "";
   const expected = `Bearer ${process.env.CRON_SECRET}`;
 
   if (!process.env.CRON_SECRET) {
-    console.error("[daily-digest] CRON_SECRET is NOT set");
+    console.error("[daily-digest] CRON_SECRET is not set");
     return NextResponse.json(
       { ok: false, error: "Server misconfigured" },
       { status: 500 }
     );
   }
 
-  if (incoming !== expected) {
+  if (authHeader !== expected) {
     console.warn("[daily-digest] Unauthorized request");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // 2) Load subscribed users
+    // 2) Load all subscribed profiles
     const { data: profiles, error } = await supabaseAdmin
       .from("profiles")
       .select("id, email, ai_tone, focus_area, daily_digest_enabled")
@@ -37,46 +42,59 @@ export async function POST(req: Request) {
       .not("email", "is", null);
 
     if (error) {
-      console.error("[daily-digest] DB error:", error);
+      console.error("[daily-digest] profiles query error", error);
       return NextResponse.json(
-        { ok: false, error: "Failed to load profiles" },
+        { ok: false, error: "DB error loading profiles" },
         { status: 500 }
       );
     }
 
     if (!profiles || profiles.length === 0) {
-      console.log("[daily-digest] No daily digest subscribers");
+      console.log("[daily-digest] No subscribers found");
       return NextResponse.json({
         ok: true,
-        message: "No subscribers.",
+        message: "No subscribers for daily digest.",
       });
     }
 
     let attempted = 0;
     let sent = 0;
 
-    // 3) Process each subscriber
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    // 3) Loop over subscribed users and send emails
     for (const profile of profiles) {
-      const email = profile.email;
+      const email = profile.email as string | null;
       if (!email) continue;
 
       attempted++;
 
-      // Build a minimal text body for the template
-      const plainBody = `
-Daily Productivity Digest
---------------------------
-Example score: 70/100
-Example wins: Focus session, inbox zero, planning
-Focus: Deep work 9–11am
-      `.trim();
+      // --- 3a) Build a simple daily summary text (fullBody) ---
+      const focus = profile.focus_area || "your most important work";
+      const tone = profile.ai_tone || "friendly";
 
-      // 4) Get branded HTML + text
+      const fullBody = [
+        "Hi there 👋",
+        "",
+        `Here’s your daily AI Productivity Hub digest for ${todayStr}:`,
+        "",
+        `• Tone: ${tone}`,
+        `• Focus area: ${focus}`,
+        "",
+        "Tomorrow, try:",
+        "• Planning your top 3 priorities before you start.",
+        "• One deep-work block (60–90 minutes) with no notifications.",
+        "• Writing one quick note about what you finished.",
+        "",
+        "You can change your daily digest settings anytime in the app.",
+      ].join("\n");
+
+      // --- 3b) Get branded HTML + text using the shared template ---
       const { text, html } = renderDailyDigestEmail(fullBody);
 
-      // 5) Send email
+      // --- 3c) Send email via Resend ---
       try {
-        await resend.emails.send({
+        const res = await resend.emails.send({
           from: FROM_EMAIL,
           to: email,
           subject: "Your Daily AI Productivity Digest",
@@ -87,25 +105,29 @@ Focus: Deep work 9–11am
           },
         });
 
+        console.log("[daily-digest] sent to", email, res?.id || "");
         sent++;
-      } catch (sendErr) {
-        console.error("[daily-digest] Error sending to:", email, sendErr);
+      } catch (sendErr: any) {
+        console.error(
+          "[daily-digest] Resend error for",
+          email,
+          sendErr?.message || sendErr
+        );
+        // don't throw → continue to next user
       }
 
-      // Throttle to avoid 429 (Resend max 2 req/sec)
-      await new Promise((res) => setTimeout(res, 600));
+      // Optional: throttle slightly if needed
+      // await delay(300);
     }
 
     return NextResponse.json({
       ok: true,
-      attempted,
-      sent,
-      totalSubscribers: profiles.length,
+      message: `Daily digest processed for ${profiles.length} profiles, attempted ${attempted}, sent ${sent}.`,
     });
   } catch (err: any) {
-    console.error("[daily-digest] Fatal error", err);
+    console.error("[daily-digest] handler error", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Internal error" },
+      { ok: false, error: "Internal error in daily digest." },
       { status: 500 }
     );
   }

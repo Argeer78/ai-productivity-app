@@ -1,116 +1,48 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 
-type UiTranslationsMap = Record<string, string>;
+const LS_UI_LANG = "ui_lang";
+
+type UiLang = string; // or a union of supported codes
 
 type UiI18nContextValue = {
-  lang: string;
-  setLang: (lang: string) => void;
-  t: (key: string, fallback?: string) => string;
-  ready: boolean;
+  lang: UiLang;
+  setLang: (lang: UiLang) => void;
 };
 
 const UiI18nContext = createContext<UiI18nContextValue | undefined>(undefined);
 
-const LS_UI_LANG = "aiprod_ui_lang";
+export function UiI18nProvider({ children }: { children: React.ReactNode }) {
+  const [lang, setLang] = useState<UiLang>(() => {
+    if (typeof window === "undefined") return "en";
 
-export function UiI18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<string>("en");
-  const [map, setMap] = useState<UiTranslationsMap>({});
-  const [ready, setReady] = useState(false);
-
-  // Load lang from localStorage or browser
-  useEffect(() => {
-    if (typeof window === "undefined") return;
     try {
       const saved = window.localStorage.getItem(LS_UI_LANG);
-      if (saved) {
-        setLangState(saved);
-      } else if (navigator.language) {
+      if (saved) return saved;
+
+      if (navigator.language) {
         const base = navigator.language.split("-")[0].toLowerCase();
-        setLangState(base || "en");
-      }
-    } catch (err) {
-      console.error("[UiI18n] failed to init language", err);
-    }
-  }, []);
-
-  // Fetch translations when lang changes
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTranslations() {
-      setReady(false);
-
-      try {
-        const res = await fetch(`/api/ui-i18n?lang=${encodeURIComponent(lang)}`);
-        const data = (await res.json().catch(() => null)) as
-          | { ok?: boolean; translations?: UiTranslationsMap; error?: string }
-          | null;
-
-        if (!res.ok || !data?.ok || !data.translations) {
-          console.warn(
-            "[UiI18n] failed to load translations",
-            data || { status: res.status }
-          );
-          if (!cancelled) {
-            setMap({});
-            setReady(true);
-          }
-          return;
-        }
-
-        if (!cancelled) {
-          setMap(data.translations || {});
-          setReady(true);
-        }
-      } catch (err) {
-        console.error("[UiI18n] error loading translations", err);
-        if (!cancelled) {
-          setMap({});
-          setReady(true);
-        }
-      }
-    }
-
-    loadTranslations();
-    return () => {
-      cancelled = true;
-    };
-  }, [lang]);
-
-  function setLang(newLang: string) {
-    setLangState(newLang);
-    try {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(LS_UI_LANG, newLang);
+        return base || "en";
       }
     } catch {
       // ignore
     }
-  }
+    return "en";
+  });
 
-  function t(key: string, fallback?: string): string {
-    if (map[key]) return map[key];
-    return fallback ?? key;
-  }
-
-  const value: UiI18nContextValue = {
-    lang,
-    setLang,
-    t,
-    ready,
-  };
+  // persist when lang changes (this is fine; no warning)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(LS_UI_LANG, lang);
+    } catch {
+      // ignore
+    }
+  }, [lang]);
 
   return (
-    <UiI18nContext.Provider value={value}>
+    <UiI18nContext.Provider value={{ lang, setLang }}>
       {children}
     </UiI18nContext.Provider>
   );
@@ -118,8 +50,6 @@ export function UiI18nProvider({ children }: { children: ReactNode }) {
 
 export function useUiI18n() {
   const ctx = useContext(UiI18nContext);
-  if (!ctx) {
-    throw new Error("useUiI18n must be used inside UiI18nProvider");
-  }
+  if (!ctx) throw new Error("useUiI18n must be used inside UiI18nProvider");
   return ctx;
 }
