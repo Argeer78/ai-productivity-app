@@ -278,13 +278,13 @@ export async function GET() {
         // Save plain text version
         const fullBodyText = fullBody;
 
-        // HTML version (branded & safer for spam filters)
-        const escapedBody = fullBody.replace(/</g, "&lt;");
-        const fullBodyHtml = `
+        // HTML version (simpler + safer)
+const escapedBody = fullBody.replace(/</g, "&lt;");
+const fullBodyHtml = `
 <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#020617; background:#f1f5f9; padding:24px;">
   <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;padding:24px;border:1px solid #e2e8f0;">
-    <h1 style="font-size:20px;margin:0 0 12px 0;">AI Productivity Hub – Weekly Report</h1>
-    <p style="font-size:14px;margin:0 0 12px 0;">Here’s your weekly snapshot for the last 7 days.</p>
+    <h1 style="font-size:20px;margin:0 0 12px 0;">Your Weekly AI Productivity Summary</h1>
+    <p style="font-size:14px;margin:0 0 12px 0;">Here’s your weekly snapshot for the last 7 days in AI Productivity Hub.</p>
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;" />
 
     <pre style="white-space:pre-wrap;font-size:13px;line-height:1.5;color:#0f172a;margin:0 0 16px 0;">
@@ -292,10 +292,8 @@ ${escapedBody}
     </pre>
 
     <p style="font-size:14px;margin:16px 0 8px 0;">
-      🔍 View your stats and history in your
-      <a href="https://aiprod.app/dashboard" style="color:#4f46e5;text-decoration:none;">dashboard</a>
-      and
-      <a href="https://aiprod.app/weekly-reports" style="color:#4f46e5;text-decoration:none;">Weekly Reports</a>.
+      You can review your weekly stats here:<br/>
+      <a href="https://aiprod.app/weekly-reports" style="color:#4f46e5;text-decoration:none;">https://aiprod.app/weekly-reports</a>
     </p>
 
     <p style="font-size:13px;margin:12px 0 0 0;">
@@ -304,8 +302,7 @@ ${escapedBody}
   </div>
 
   <p style="font-size:11px;color:#64748b;margin:12px auto 0 auto;max-width:600px;">
-    You receive this email because weekly reports are enabled in your AI Productivity Hub account.
-    You can <a href="https://aiprod.app/settings" style="color:#4f46e5;">change your email preferences here</a>.
+    You’re receiving this email because weekly reports are enabled in your AI Productivity Hub account.
   </p>
 </div>
 `.trim();
