@@ -27,11 +27,14 @@ function AdminEmailTestPanel() {
     setStatus(null);
 
     try {
-      const res = await fetch("/api/admin-test-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetEmail: targetEmail.trim(), kind }),
-      });
+     const res = await fetch("/api/admin-test-email", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET}`,
+  },
+  body: JSON.stringify({ targetEmail, kind }),
+});
 
       const data = await res.json().catch(() => ({} as any));
 
