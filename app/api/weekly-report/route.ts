@@ -12,7 +12,12 @@ const openai = new OpenAI({
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
 
-// ✅ helper to avoid Resend rate limits (2 req/sec)
+// Small helper for sleep
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Wrapper: handle Resend 429 rate limit with retries
 async function sendWithRateLimit(
   args: Parameters<typeof resend.emails.send>[0]
 ) {
@@ -25,14 +30,13 @@ async function sendWithRateLimit(
     } catch (err: any) {
       const status = err?.statusCode || err?.response?.statusCode;
 
-      // 429 = rate limit exceeded
       if (status === 429) {
         attempt += 1;
-        const delayMs = 800 * attempt; // 0.8s, 1.6s, 2.4s
+        const delayMs = 800 * attempt; // 0.8s, then 1.6s, then 2.4s
         console.warn(
           `[weekly-report] 429 from Resend, retrying in ${delayMs}ms (attempt ${attempt})`
         );
-        await new Promise((r) => setTimeout(r, delayMs));
+        await delay(delayMs);
         continue;
       }
 
@@ -42,11 +46,6 @@ async function sendWithRateLimit(
   }
 
   throw new Error("Resend rate limit exceeded after retries");
-}
-
-// small helper for spacing sends between users
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Last 7 days including today
@@ -65,7 +64,7 @@ export async function GET() {
   try {
     const { startDate, endDate } = getWeekRangeDateStrings();
 
-    // Pro users who turned on weekly reports
+    // Only pro users with weekly reports enabled
     const { data: users, error: usersError } = await supabaseAdmin
       .from("profiles")
       .select("id, email, plan, weekly_report_enabled")
@@ -112,13 +111,14 @@ export async function GET() {
         const topNotes = notesList.slice(0, 3);
 
         // ----- 2) Tasks completed this week -----
-        const { data: completedTasks, error: tasksError } = await supabaseAdmin
-          .from("tasks")
-          .select("id, title, description, created_at")
-          .eq("user_id", userId)
-          .eq("completed", true)
-          .gte("created_at", `${startDate}T00:00:00Z`)
-          .order("created_at", { ascending: false });
+        const { data: completedTasks, error: tasksError } =
+          await supabaseAdmin
+            .from("tasks")
+            .select("id, title, description, created_at")
+            .eq("user_id", userId)
+            .eq("completed", true)
+            .gte("created_at", `${startDate}T00:00:00Z`)
+            .order("created_at", { ascending: false });
 
         if (tasksError) {
           console.error("[weekly-report] tasks error:", tasksError);
@@ -146,8 +146,7 @@ export async function GET() {
           (sum, row) => sum + (row.count || 0),
           0
         );
-
-        const timeSavedMinutes = aiCalls * 3; // heuristic
+        const timeSavedMinutes = aiCalls * 3;
 
         // ----- 4) daily_scores this week -----
         const { data: scores, error: scoresError } = await supabaseAdmin
@@ -179,7 +178,25 @@ export async function GET() {
           scoreTrendLine = `Score trend this week: ${trendParts.join(" → ")}`;
         }
 
-        // ----- Build text sections -----
+        // ----- 5) Weekly goal (if any) -----
+        const { data: goalRow, error: goalError } = await supabaseAdmin
+          .from("weekly_goals")
+          .select("goal_text, completed, week_start")
+          .eq("user_id", userId)
+          .order("week_start", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let weeklyGoalLine = "No explicit weekly goal was set.";
+        if (goalError) {
+          console.error("[weekly-report] weekly_goals error:", goalError);
+        } else if (goalRow?.goal_text) {
+          weeklyGoalLine = `Weekly goal: "${goalRow.goal_text}"${
+            goalRow.completed ? " (marked as completed ✅)" : ""
+          }`;
+        }
+
+        // ----- Build summary text blocks -----
         const aiWinsBlock = [
           "Your AI Wins This Week:",
           `• Tasks completed: ${tasksCompletedCount}`,
@@ -208,24 +225,6 @@ export async function GET() {
             topNotesBlock += `• ${titleOrSnippet}\n`;
           });
           topNotesBlock = topNotesBlock.trimEnd();
-        }
-
-        // ----- 5) Weekly goal (if any) -----
-        const { data: goalRow, error: goalError } = await supabaseAdmin
-          .from("weekly_goals")
-          .select("goal_text, completed, week_start")
-          .eq("user_id", userId)
-          .order("week_start", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        let weeklyGoalLine = "No explicit weekly goal was set.";
-        if (goalError) {
-          console.error("[weekly-report] weekly_goals error:", goalError);
-        } else if (goalRow?.goal_text) {
-          weeklyGoalLine = `Weekly goal: "${goalRow.goal_text}"${
-            goalRow.completed ? " (marked as completed ✅)" : ""
-          }`;
         }
 
         // ----- Call OpenAI for reflection + focus -----
@@ -304,7 +303,6 @@ export async function GET() {
         const fullBody = lines.join("\n");
         const fullBodyText = fullBody;
 
-        // Simple HTML version
         const escapedBody = fullBody.replace(/</g, "&lt;");
         const fullBodyHtml = `
 <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#020617; background:#f1f5f9; padding:24px;">
@@ -353,7 +351,7 @@ ${escapedBody}
           );
         }
 
-        // ----- Send email via Resend (with rate-limit handling) -----
+        // ----- Send email via Resend with rate-limit handling -----
         try {
           const resendResult = await sendWithRateLimit({
             from: FROM_EMAIL,
@@ -371,8 +369,8 @@ ${escapedBody}
           console.error("[weekly-report] Resend error for", email, sendErr);
         }
 
-        // extra spacing between users
-        await delay(600);
+        // Small delay so we don’t hammer Resend if daily + weekly run close together
+        await delay(700);
       } catch (perUserErr) {
         console.error(
           "[weekly-report] Error while processing user",
