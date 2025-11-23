@@ -5,6 +5,35 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "");
+async function sendWithRateLimit(args: Parameters<typeof resend.emails.send>[0]) {
+  let attempt = 0;
+
+  while (attempt < 3) {
+    try {
+      const result = await resend.emails.send(args);
+      return result;
+    } catch (err: any) {
+      const status = err?.statusCode || err?.response?.statusCode;
+
+      // 429 = rate limit exceeded
+      if (status === 429) {
+        attempt += 1;
+        const delayMs = 800 * attempt; // 0.8s, then 1.6s, etc
+        console.warn(
+          `[weekly-report] 429 from Resend, retrying in ${delayMs}ms (attempt ${attempt})`
+        );
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+
+      // Any other error → rethrow
+      throw err;
+    }
+  }
+
+  throw new Error("Resend rate limit exceeded after retries");
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
 });
@@ -327,9 +356,9 @@ ${escapedBody}
           );
         }
 
-        // ----- Send email via Resend -----
+               // ----- Send email via Resend (with rate-limit handling) -----
         try {
-          const resendResult = await resend.emails.send({
+          const resendResult = await sendWithRateLimit({
             from: FROM_EMAIL,
             to: email,
             subject: "Your Weekly AI Productivity Report",
@@ -339,6 +368,15 @@ ${escapedBody}
               "List-Unsubscribe": "<https://aiprod.app/settings>",
             },
           });
+
+          console.log("[weekly-report] Resend result for", email, resendResult);
+        } catch (sendErr) {
+          console.error("[weekly-report] Resend error for", email, sendErr);
+          // don't throw so other users still process
+        }
+
+        // small delay so we don't hammer Resend when there are many users
+        await new Promise((r) => setTimeout(r, 600));
 
           console.log("[weekly-report] Resend result for", email, resendResult);
 
