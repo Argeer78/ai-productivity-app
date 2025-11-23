@@ -1,30 +1,20 @@
 // app/api/admin-test-email/route.ts
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import {
+  renderDailyDigestEmail,
+  renderWeeklyReportEmail,
+  renderSimpleTestEmail,
+} from "@/lib/emailTemplates";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "");
-const ADMIN_SECRET = process.env.NEXT_PUBLIC_ADMIN_KEY || ""; // must match the header from client
+const resend = new Resend(process.env.RESEND_API_KEY!);
+const ADMIN_SECRET = process.env.CRON_SECRET || ""; // or a dedicated ADMIN_KEY if you prefer
 
 export async function POST(req: Request) {
   try {
-    // --- security check ---
-    const headerKey = req.headers.get("x-admin-key");
-
-    if (!ADMIN_SECRET) {
-      console.error("[admin-test-email] ADMIN key not configured");
-      return NextResponse.json(
-        { ok: false, error: "Server admin key missing" },
-        { status: 500 }
-      );
-    }
-
-    if (!headerKey || headerKey !== ADMIN_SECRET) {
-      console.warn("[admin-test-email] Unauthorized attempt");
-      return NextResponse.json(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    // optional: protect with CRON_SECRET or NEXT_PUBLIC_ADMIN_KEY via header
+    // const auth = req.headers.get("x-admin-key");
+    // if (!auth || auth !== process.env.NEXT_PUBLIC_ADMIN_KEY) { ... }
 
     const { targetEmail, kind } = await req.json();
 
@@ -36,36 +26,30 @@ export async function POST(req: Request) {
     }
 
     let subject = "";
+    let text = "";
     let html = "";
 
-    if (kind === "simple") {
-      subject = "Test email from AI Productivity Hub";
-      html = `<p>This is a simple deliverability test email from <b>AI Productivity Hub</b>.</p>`;
-    } else if (kind === "daily") {
+    if (kind === "daily") {
       subject = "Daily Digest • Test Email";
-      html = `
-        <h2>AI Productivity Hub – Daily Digest (Test)</h2>
-        <p>This is a <b>test daily digest</b> to verify email delivery.</p>
-        <ul>
-          <li>Example score: 70/100</li>
-          <li>Example wins: Finished project outline, gym, inbox zero 🎯</li>
-          <li>Focus tomorrow: Deep work 9–11am</li>
-        </ul>
-      `;
+      const tpl = renderDailyDigestEmail(
+        "This is a test daily digest from AI Productivity Hub.\n\nExample:\n• Score: 72/100\n• 3 key wins\n• Focus suggestion for tomorrow."
+      );
+      text = tpl.text;
+      html = tpl.html;
     } else if (kind === "weekly") {
       subject = "Weekly Report • Test Email";
-      html = `
-        <h2>AI Productivity Hub – Weekly Report (Test)</h2>
-        <p>This is a <b>test weekly report</b> to verify email delivery.</p>
-        <ul>
-          <li>Avg. score this week: 68/100</li>
-          <li>Top themes: Consistent mornings, 3 finished tasks/day</li>
-          <li>Suggested focus: Protect 3 deep work blocks</li>
-        </ul>
-      `;
+      const tpl = renderWeeklyReportEmail(
+        "This is a test weekly report from AI Productivity Hub.\n\nExample:\n• Avg. score: 68/100\n• 12 tasks completed\n• Reflection + focus suggestions for next week."
+      );
+      text = tpl.text;
+      html = tpl.html;
     } else {
       subject = "Test email from AI Productivity Hub";
-      html = `<p>This is a generic test email.</p>`;
+      const tpl = renderSimpleTestEmail(
+        "This is a simple deliverability test email from AI Productivity Hub."
+      );
+      text = tpl.text;
+      html = tpl.html;
     }
 
     const fromAddress =
@@ -75,7 +59,11 @@ export async function POST(req: Request) {
       from: fromAddress,
       to: targetEmail,
       subject,
+      text,
       html,
+      headers: {
+        "List-Unsubscribe": "<https://aiprod.app/settings>",
+      },
     });
 
     console.log("[admin-test-email] sendResult:", sendResult);

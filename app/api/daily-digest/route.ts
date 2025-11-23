@@ -72,7 +72,7 @@ Focus: Deep work 9–11am
       `.trim();
 
       // 4) Get branded HTML + text
-      const { text, html } = renderDailyDigestEmail(plainBody);
+      const { text, html } = renderDailyDigestEmail(fullBody);
 
       // 5) Send email
       try {
