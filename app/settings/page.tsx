@@ -46,9 +46,6 @@ export default function SettingsPage() {
     useState<boolean>(true);
   const [plan, setPlan] = useState<"free" | "pro">("free");
 
-  const [testingEmail, setTestingEmail] = useState(false);
-  const [testEmailMessage, setTestEmailMessage] = useState("");
-
   // Onboarding-related state
   const [onboardingUseCase, setOnboardingUseCase] = useState("");
   const [onboardingWeeklyFocus, setOnboardingWeeklyFocus] = useState("");
@@ -207,47 +204,6 @@ export default function SettingsPage() {
       setError("Something went wrong while saving.");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleSendTestEmail() {
-    if (!user?.email) {
-      setTestEmailMessage("No email found on your profile.");
-      return;
-    }
-
-    setTestingEmail(true);
-    setTestEmailMessage("");
-
-    try {
-      try {
-        track("test_email_clicked");
-      } catch {
-        // ignore analytics failures
-      }
-
-      const res = await fetch("/api/test-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
-      });
-
-      const data = await res.json().catch(() => ({} as any));
-
-      if (!res.ok || !data?.ok) {
-        setTestEmailMessage(
-          data?.error || "Failed to send test email. Please try again."
-        );
-      } else {
-        setTestEmailMessage(
-          "Test email sent. Check your inbox (and spam folder)."
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      setTestEmailMessage("Network error while sending test email.");
-    } finally {
-      setTestingEmail(false);
     }
   }
 
@@ -525,27 +481,6 @@ export default function SettingsPage() {
               >
                 {saving ? "Saving..." : "Save settings"}
               </button>
-
-              {/* Test email button */}
-              <div className="pt-4 border-t border-slate-800 mt-4">
-                <p className="text-[11px] text-slate-400 mb-2">
-                  Send yourself a quick test email to confirm that email
-                  delivery from AI Productivity Hub is working.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleSendTestEmail}
-                  disabled={testingEmail}
-                  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm disabled:opacity-60"
-                >
-                  {testingEmail ? "Sending..." : "Send test email"}
-                </button>
-                {testEmailMessage && (
-                  <p className="mt-2 text-[11px] text-slate-400">
-                    {testEmailMessage}
-                  </p>
-                )}
-              </div>
 
               {/* Manage subscription (Stripe Portal) */}
               <div className="pt-4 border-t border-slate-800 mt-4">
