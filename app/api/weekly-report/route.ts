@@ -1,11 +1,21 @@
-// app/api/weekly-report/route.ts  (or wherever this lives)
+// app/api/weekly-report/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "");
-async function sendWithRateLimit(args: Parameters<typeof resend.emails.send>[0]) {
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || "",
+});
+
+const FROM_EMAIL =
+  process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+
+// ✅ helper to avoid Resend rate limits (2 req/sec)
+async function sendWithRateLimit(
+  args: Parameters<typeof resend.emails.send>[0]
+) {
   let attempt = 0;
 
   while (attempt < 3) {
@@ -18,7 +28,7 @@ async function sendWithRateLimit(args: Parameters<typeof resend.emails.send>[0])
       // 429 = rate limit exceeded
       if (status === 429) {
         attempt += 1;
-        const delayMs = 800 * attempt; // 0.8s, then 1.6s, etc
+        const delayMs = 800 * attempt; // 0.8s, 1.6s, 2.4s
         console.warn(
           `[weekly-report] 429 from Resend, retrying in ${delayMs}ms (attempt ${attempt})`
         );
@@ -34,14 +44,7 @@ async function sendWithRateLimit(args: Parameters<typeof resend.emails.send>[0])
   throw new Error("Resend rate limit exceeded after retries");
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "",
-});
-
-const FROM_EMAIL =
-  process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
-
-// ✅ simple helper to avoid Resend rate limit (2 req/sec)
+// small helper for spacing sends between users
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -106,19 +109,16 @@ export async function GET() {
           }[];
 
         const notesCount = notesList.length;
-
-        // Top 3 recent notes to highlight
         const topNotes = notesList.slice(0, 3);
 
         // ----- 2) Tasks completed this week -----
-        const { data: completedTasks, error: tasksError } =
-          await supabaseAdmin
-            .from("tasks")
-            .select("id, title, description, created_at")
-            .eq("user_id", userId)
-            .eq("completed", true)
-            .gte("created_at", `${startDate}T00:00:00Z`)
-            .order("created_at", { ascending: false });
+        const { data: completedTasks, error: tasksError } = await supabaseAdmin
+          .from("tasks")
+          .select("id, title, description, created_at")
+          .eq("user_id", userId)
+          .eq("completed", true)
+          .gte("created_at", `${startDate}T00:00:00Z`)
+          .order("created_at", { ascending: false });
 
         if (tasksError) {
           console.error("[weekly-report] tasks error:", tasksError);
@@ -147,8 +147,7 @@ export async function GET() {
           0
         );
 
-        // simple heuristic: ~3 minutes saved per AI call
-        const timeSavedMinutes = aiCalls * 3;
+        const timeSavedMinutes = aiCalls * 3; // heuristic
 
         // ----- 4) daily_scores this week -----
         const { data: scores, error: scoresError } = await supabaseAdmin
@@ -303,13 +302,11 @@ export async function GET() {
         lines.push("Keep going — small consistent wins add up. 💪");
 
         const fullBody = lines.join("\n");
-
-        // Save plain text version
         const fullBodyText = fullBody;
 
-        // HTML version (simpler + safer)
-const escapedBody = fullBody.replace(/</g, "&lt;");
-const fullBodyHtml = `
+        // Simple HTML version
+        const escapedBody = fullBody.replace(/</g, "&lt;");
+        const fullBodyHtml = `
 <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#020617; background:#f1f5f9; padding:24px;">
   <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;padding:24px;border:1px solid #e2e8f0;">
     <h1 style="font-size:20px;margin:0 0 12px 0;">Your Weekly AI Productivity Summary</h1>
@@ -356,7 +353,7 @@ ${escapedBody}
           );
         }
 
-               // ----- Send email via Resend (with rate-limit handling) -----
+        // ----- Send email via Resend (with rate-limit handling) -----
         try {
           const resendResult = await sendWithRateLimit({
             from: FROM_EMAIL,
@@ -372,20 +369,10 @@ ${escapedBody}
           console.log("[weekly-report] Resend result for", email, resendResult);
         } catch (sendErr) {
           console.error("[weekly-report] Resend error for", email, sendErr);
-          // don't throw so other users still process
         }
 
-        // small delay so we don't hammer Resend when there are many users
-        await new Promise((r) => setTimeout(r, 600));
-
-          console.log("[weekly-report] Resend result for", email, resendResult);
-
-          // ✅ throttle to avoid 429 rate_limit_exceeded (2 req/sec)
-          await delay(600);
-        } catch (sendErr) {
-          console.error("[weekly-report] Resend error for", email, sendErr);
-          // do not throw so other users continue processing
-        }
+        // extra spacing between users
+        await delay(600);
       } catch (perUserErr) {
         console.error(
           "[weekly-report] Error while processing user",
