@@ -1,3 +1,4 @@
+// app/api/weekly-report/route.ts  (or wherever this lives)
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -10,6 +11,11 @@ const openai = new OpenAI({
 
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+
+// ✅ simple helper to avoid Resend rate limit (2 req/sec)
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Last 7 days including today
 function getWeekRangeDateStrings() {
@@ -81,7 +87,7 @@ export async function GET() {
             .from("tasks")
             .select("id, title, description, created_at")
             .eq("user_id", userId)
-            .eq("completed", true) // change to "is_done" if that's your column
+            .eq("completed", true)
             .gte("created_at", `${startDate}T00:00:00Z`)
             .order("created_at", { ascending: false });
 
@@ -338,6 +344,9 @@ ${escapedBody}
           });
 
           console.log("[weekly-report] Resend result for", email, resendResult);
+
+          // ✅ throttle to avoid 429 rate_limit_exceeded (2 req/sec)
+          await delay(600);
         } catch (sendErr) {
           console.error("[weekly-report] Resend error for", email, sendErr);
           // do not throw so other users continue processing
