@@ -1,30 +1,24 @@
 // app/api/admin-test-email/route.ts
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import {
-  renderDailyDigestEmail,
-  renderWeeklyReportEmail,
-} from "@/lib/emailTemplates";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "");
-const ADMIN_SECRET = process.env.CRON_SECRET || "";
-const FROM_EMAIL =
-  process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 export async function POST(req: Request) {
   try {
-    // ---- Security: only allow calls with correct Bearer token ----
-    const auth = req.headers.get("authorization");
-    if (!auth || auth !== `Bearer ${ADMIN_SECRET}`) {
+    // --- Basic admin key guard (no cookies) ---
+    const incomingKey = req.headers.get("x-admin-key") || "";
+    if (!ADMIN_KEY || incomingKey !== ADMIN_KEY) {
+      console.warn("[admin-test-email] Invalid admin key");
       return NextResponse.json(
         { ok: false, error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const body = await req.json();
-    const targetEmail: string = body?.targetEmail;
-    const kind: "simple" | "daily" | "weekly" = body?.kind || "simple";
+    const { targetEmail, kind, fromUserEmail } = await req.json();
 
     if (!targetEmail) {
       return NextResponse.json(
@@ -34,56 +28,69 @@ export async function POST(req: Request) {
     }
 
     let subject = "";
-    let bodyPlain = "";
+    let html = "";
 
     if (kind === "simple") {
       subject = "Test email from AI Productivity Hub";
-      bodyPlain = "This is a simple deliverability test email.";
+      html = `
+        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding:16px;">
+          <h2 style="margin-top:0;">AI Productivity Hub – Simple Test</h2>
+          <p>This is a simple deliverability test email from <b>AI Productivity Hub</b>.</p>
+          ${
+            fromUserEmail
+              ? `<p style="font-size:12px;color:#64748b;">Triggered by admin: ${fromUserEmail}</p>`
+              : ""
+          }
+        </div>
+      `;
     } else if (kind === "daily") {
       subject = "Daily Digest • Test Email";
-      bodyPlain = [
-        "AI Productivity Hub – Daily Digest (Test)",
-        "",
-        "This is a test daily digest to verify email delivery.",
-        "",
-        "Example stats:",
-        "• Example score: 70/100",
-        "• Example wins: Finished project outline, gym, inbox zero 🎯",
-        "• Focus for tomorrow: Deep work 9–11am",
-      ].join("\n");
+      html = `
+        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding:16px;">
+          <h2 style="margin-top:0;">AI Productivity Hub – Daily Digest (Test)</h2>
+          <p>This is a <b>test daily digest</b> to verify email delivery.</p>
+          <ul>
+            <li>Example score: 70/100</li>
+            <li>Example wins: Finished project outline, gym, inbox zero 🎯</li>
+            <li>Focus tomorrow: Deep work 9–11am</li>
+          </ul>
+          ${
+            fromUserEmail
+              ? `<p style="font-size:12px;color:#64748b;">Triggered by admin: ${fromUserEmail}</p>`
+              : ""
+          }
+        </div>
+      `;
     } else if (kind === "weekly") {
       subject = "Weekly Report • Test Email";
-      bodyPlain = [
-        "AI Productivity Hub – Weekly Report (Test)",
-        "",
-        "This is a test weekly report to verify email delivery.",
-        "",
-        "Example stats:",
-        "• Avg. score this week: 68/100",
-        "• Top themes: Consistent mornings, 3 finished tasks/day",
-        "• Suggested focus: Protect 3 deep work blocks",
-      ].join("\n");
+      html = `
+        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding:16px;">
+          <h2 style="margin-top:0;">AI Productivity Hub – Weekly Report (Test)</h2>
+          <p>This is a <b>test weekly report</b> to verify email delivery.</p>
+          <ul>
+            <li>Avg. score this week: 68/100</li>
+            <li>Top themes: Consistent mornings, 3 finished tasks/day</li>
+            <li>Suggested focus: Protect 3 deep work blocks</li>
+          </ul>
+          ${
+            fromUserEmail
+              ? `<p style="font-size:12px;color:#64748b;">Triggered by admin: ${fromUserEmail}</p>`
+              : ""
+          }
+        </div>
+      `;
     } else {
-      // fallback
       subject = "Test email from AI Productivity Hub";
-      bodyPlain = "This is a generic test email.";
+      html = `<p>This is a generic test email.</p>`;
     }
 
-    // ---- Use branded templates for daily/weekly; simple stays basic ----
-    let text = bodyPlain;
-    let html = `<p>${bodyPlain.replace(/\n/g, "<br />")}</p>`;
-
-    if (kind === "daily") {
-      ({ text, html } = renderDailyDigestEmail(bodyPlain));
-    } else if (kind === "weekly") {
-      ({ text, html } = renderWeeklyReportEmail(bodyPlain));
-    }
+    const fromAddress =
+      process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
 
     const sendResult = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromAddress,
       to: targetEmail,
       subject,
-      text,
       html,
       headers: {
         "List-Unsubscribe": "<https://aiprod.app/settings>",

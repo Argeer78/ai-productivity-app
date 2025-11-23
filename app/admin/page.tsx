@@ -31,9 +31,13 @@ function AdminEmailTestPanel() {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET}`,
+    "X-Admin-Key": process.env.NEXT_PUBLIC_ADMIN_KEY || "",
   },
-  body: JSON.stringify({ targetEmail, kind }),
+  body: JSON.stringify({
+    targetEmail: targetEmail.trim(),
+    kind,
+    fromUserEmail: user?.email ?? null, // optional, if you pass user into the panel
+  }),
 });
 
       const data = await res.json().catch(() => ({} as any));
