@@ -95,18 +95,19 @@ export async function POST(req: Request) {
       // --- 3c) Send email via Resend ---
       try {
         const res = await resend.emails.send({
-          from: FROM_EMAIL,
-          to: email,
-          subject: "Your Daily AI Productivity Digest",
-          text,
-          html,
-          headers: {
-            "List-Unsubscribe": "<https://aiprod.app/settings>",
-          },
-        });
+  from: FROM_EMAIL,
+  to: email,
+  subject: "Your Daily AI Productivity Digest",
+  text,
+  html,
+  headers: {
+    "List-Unsubscribe": "<https://aiprod.app/settings>",
+  },
+});
 
-        console.log("[daily-digest] sent to", email, res?.id || "");
-        sent++;
+console.log("[daily-digest] sent to", email);
+sent++;
+
       } catch (sendErr: any) {
         console.error(
           "[daily-digest] Resend error for",
