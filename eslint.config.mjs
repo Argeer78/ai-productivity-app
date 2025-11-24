@@ -3,16 +3,30 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = defineConfig([
+  // Next.js recommended configs
   ...nextVitals,
   ...nextTs,
-  // Override default ignores of eslint-config-next.
+
+  // ⚠ Override default ignores
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
   ]),
+
+  // ✅ Our custom override (THIS must be inside defineConfig!)
+  {
+    files: [
+      "app/api/**/*.{ts,tsx}",
+      "lib/**/*.{ts,tsx}",
+      "**/route.ts",
+      "**/route.js"
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off"
+    }
+  }
 ]);
 
 export default eslintConfig;

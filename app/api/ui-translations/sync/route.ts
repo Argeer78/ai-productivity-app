@@ -9,9 +9,27 @@ const openai = new OpenAI({
 });
 
 const SEPARATOR = "\n\n----\n\n";
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || process.env.CRON_SECRET || "";
 
 export async function POST(req: Request) {
   try {
+    if (!ADMIN_KEY) {
+      console.error("[ui-translations/sync] ADMIN_KEY missing");
+      return NextResponse.json(
+        { ok: false, error: "Admin key not configured" },
+        { status: 500 }
+      );
+    }
+
+    const headerKey = req.headers.get("x-admin-key") || "";
+    if (headerKey !== ADMIN_KEY) {
+      console.warn("[ui-translations/sync] Unauthorized access");
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = (await req.json().catch(() => null)) as
       | { languageCode?: string }
       | null;

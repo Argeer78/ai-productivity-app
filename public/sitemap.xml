@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Main marketing & core app pages -->
+  <url>
+    <loc>https://aiprod.app/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/dashboard</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/daily-success</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/notes</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/tasks</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/planner</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/ai-chat</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/explore</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/my-trips</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/travel</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/templates</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/weekly-reports</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/weekly-history</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/feedback</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <!-- Auth & billing (optional for sitemap, but included here) -->
+  <url>
+    <loc>https://aiprod.app/auth</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/auth/reset</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.2</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/auth/update-password</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.2</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/billing/cancel</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.2</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/billing/success</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.2</priority>
+  </url>
+
+  <!-- Legal / policy pages -->
+  <url>
+    <loc>https://aiprod.app/privacy-policy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/terms</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/legal/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/legal/terms</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/cookies</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <url>
+    <loc>https://aiprod.app/delete-account</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <!-- Marketing / info -->
+  <url>
+    <loc>https://aiprod.app/changelog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+</urlset>

@@ -8,13 +8,27 @@ import {
 } from "@/lib/emailTemplates";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
-const ADMIN_SECRET = process.env.CRON_SECRET || ""; // or a dedicated ADMIN_KEY if you prefer
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || process.env.CRON_SECRET || "";
 
 export async function POST(req: Request) {
   try {
-    // optional: protect with CRON_SECRET or NEXT_PUBLIC_ADMIN_KEY via header
-    // const auth = req.headers.get("x-admin-key");
-    // if (!auth || auth !== process.env.NEXT_PUBLIC_ADMIN_KEY) { ... }
+    // ✅ Enforce admin key
+    if (!ADMIN_KEY) {
+      console.error("[admin-test-email] ADMIN_KEY is not configured");
+      return NextResponse.json(
+        { ok: false, error: "Admin key not configured" },
+        { status: 500 }
+      );
+    }
+
+    const headerKey = req.headers.get("x-admin-key") || "";
+    if (headerKey !== ADMIN_KEY) {
+      console.warn("[admin-test-email] Unauthorized access");
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
 
     const { targetEmail, kind } = await req.json();
 

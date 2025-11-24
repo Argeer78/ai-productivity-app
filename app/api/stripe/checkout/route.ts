@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     const baseUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
       origin ||
-      "http://localhost:3000";
+      "https://aiprod.app";
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",

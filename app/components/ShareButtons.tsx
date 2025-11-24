@@ -21,7 +21,9 @@ track("share_clicked", { network: "native" });
   const appUrl =
     url ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "https://ai-productivity-app.vercel.app");
+    (typeof window !== "undefined"
+  ? window.location.origin
+  : process.env.NEXT_PUBLIC_APP_URL || "https://aiprod.app");
 
   const shareData: ShareData = {
     title,

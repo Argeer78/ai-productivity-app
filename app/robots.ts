@@ -1,15 +1,21 @@
 import type { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL || "https://ai-productivity-app.vercel.app";
+  const base = process.env.NEXT_PUBLIC_APP_URL || "https://aiprod.app";
 
   return {
     rules: {
       userAgent: "*",
       allow: "/",
-      // Block auth & API routes from indexing:
-      disallow: ["/auth", "/api/"],
+      // Block internal/sensitive stuff from indexing:
+      disallow: [
+        "/auth",
+        "/api/",
+        "/admin",
+        "/billing",
+        "/settings",
+        "/feedback", // optional
+      ],
     },
     sitemap: `${base}/sitemap.xml`,
   };
