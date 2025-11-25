@@ -16,8 +16,8 @@ type TaskRow = {
   created_at: string;
   completed_at: string | null;
   category: string | null;
-  time_from: string | null; // ⬅️ NEW
-  time_to: string | null;   // ⬅️ NEW
+  time_from: string | null;
+  time_to: string | null;
 };
 
 type MiniDatePickerProps = {
@@ -202,6 +202,9 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
   );
 }
 
+// 24h time dropdown options (00:00 - 23:00)
+const TIME_OPTIONS = Array.from({ length: 24 }, (_, h) => `${pad(h)}:00`);
+
 // Category list & colors
 const TASK_CATEGORIES = [
   "Work",
@@ -225,10 +228,71 @@ const categoryColors: Record<string, string> = {
   Other: "bg-slate-500/10 text-slate-300 border-slate-500/30",
 };
 
-// 24h time options: 00:00, 01:00, ..., 23:00
-const timeOptions = Array.from({ length: 24 }, (_, h) =>
-  `${h.toString().padStart(2, "0")}:00`
-);
+// Single-task share text
+function getTaskShareText(task: TaskRow): string {
+  const lines: string[] = [];
+
+  lines.push(`Task: ${task.title || "(untitled task)"}`);
+
+  if (task.category) {
+    lines.push(`Category: ${task.category}`);
+  }
+
+  if (task.due_date) {
+    const date = new Date(task.due_date);
+    const dateStr = date.toLocaleDateString();
+    lines.push(`When: ${dateStr}`);
+  }
+
+  if (task.time_from || task.time_to) {
+    const from = task.time_from || "--:--";
+    const to = task.time_to || "--:--";
+    lines.push(`Time: ${from}–${to}`);
+  }
+
+  if (task.description) {
+    lines.push("");
+    lines.push("Notes:");
+    lines.push(task.description);
+  }
+
+  lines.push("");
+  lines.push("— Shared from AI Productivity Hub");
+
+  return lines.join("\n");
+}
+
+// Multi-task share text (for today / selected)
+function getTasksShareText(tasks: TaskRow[], header: string): string {
+  const lines: string[] = [];
+
+  lines.push(header);
+  lines.push("");
+
+  tasks.forEach((task, idx) => {
+    lines.push(`${idx + 1}. ${task.title || "(untitled task)"}`);
+    if (task.category) {
+      lines.push(`   Category: ${task.category}`);
+    }
+    if (task.due_date) {
+      const date = new Date(task.due_date);
+      lines.push(`   When: ${date.toLocaleDateString()}`);
+    }
+    if (task.time_from || task.time_to) {
+      const from = task.time_from || "--:--";
+      const to = task.time_to || "--:--";
+      lines.push(`   Time: ${from}–${to}`);
+    }
+    if (task.description) {
+      lines.push(`   Notes: ${task.description}`);
+    }
+    lines.push("");
+  });
+
+  lines.push("— Shared from AI Productivity Hub");
+
+  return lines.join("\n");
+}
 
 export default function TasksPage() {
   const [user, setUser] = useState<any | null>(null);
@@ -243,8 +307,8 @@ export default function TasksPage() {
   const [newDescription, setNewDescription] = useState("");
   const [newDueDate, setNewDueDate] = useState<string>(""); // yyyy-mm-dd
   const [newCategory, setNewCategory] = useState<string>(""); // category name
-  const [newTimeFrom, setNewTimeFrom] = useState<string>(""); // ⬅️ NEW
-  const [newTimeTo, setNewTimeTo] = useState<string>(""); // ⬅️ NEW
+  const [newTimeFrom, setNewTimeFrom] = useState<string>("");
+  const [newTimeTo, setNewTimeTo] = useState<string>("");
 
   const [savingNew, setSavingNew] = useState(false);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
@@ -257,6 +321,16 @@ export default function TasksPage() {
 
   // category filter
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // share UI state
+  const [sharingTaskId, setSharingTaskId] = useState<string | null>(null);
+  const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
+
+  // bulk selection
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+
+  // today's date for bulk sharing
+  const todayYmd = new Date().toISOString().slice(0, 10);
 
   // Load user
   useEffect(() => {
@@ -414,50 +488,50 @@ export default function TasksPage() {
   }
 
   async function handleUpdateTask(task: TaskRow, updates: Partial<TaskRow>) {
-  if (!user) return;
+    if (!user) return;
 
-  setSavingTaskId(task.id);
-  setError("");
+    setSavingTaskId(task.id);
+    setError("");
 
-  try {
-    // Build a clean payload without undefined
-    const payload: Record<string, unknown> = {
-      title: updates.title ?? task.title,
-      description: updates.description ?? task.description,
-      due_date: updates.due_date ?? task.due_date,
-      category:
-        updates.category !== undefined ? updates.category : task.category,
-      time_from:
-        updates.time_from !== undefined ? updates.time_from : task.time_from,
-      time_to: updates.time_to !== undefined ? updates.time_to : task.time_to,
-    };
+    try {
+      const { data, error } = await supabase
+        .from("tasks")
+        .update({
+          title: updates.title ?? task.title,
+          description: updates.description ?? task.description,
+          due_date: updates.due_date ?? task.due_date,
+          category:
+            updates.category !== undefined ? updates.category : task.category,
+          time_from:
+            updates.time_from !== undefined
+              ? updates.time_from
+              : task.time_from,
+          time_to:
+            updates.time_to !== undefined ? updates.time_to : task.time_to,
+        })
+        .eq("id", task.id)
+        .eq("user_id", user.id)
+        .select(
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
+        )
+        .single();
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .update(payload)
-      .eq("id", task.id)
-      .eq("user_id", user.id)
-      .select(
-        "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
-      )
-      .single();
+      if (error) {
+        console.error("[tasks] update error", error);
+        setError("Could not save task.");
+        return;
+      }
 
-    if (error) {
-      console.error("[tasks] update error raw", error, JSON.stringify(error));
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? ((data as TaskRow) || t) : t))
+      );
+    } catch (err) {
+      console.error("[tasks] update exception", err);
       setError("Could not save task.");
-      return;
+    } finally {
+      setSavingTaskId(null);
     }
-
-    setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? ((data as TaskRow) || t) : t))
-    );
-  } catch (err) {
-    console.error("[tasks] update exception", err);
-    setError("Could not save task.");
-  } finally {
-    setSavingTaskId(null);
   }
-}
 
   async function handleDeleteTask(task: TaskRow) {
     if (!user) return;
@@ -480,11 +554,115 @@ export default function TasksPage() {
       }
 
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      // also remove from selection if needed
+      setSelectedTaskIds((prev) => prev.filter((id) => id !== task.id));
     } catch (err) {
       console.error("[tasks] delete exception", err);
       setError("Could not delete task.");
     } finally {
       setDeletingTaskId(null);
+    }
+  }
+
+  // selection toggle
+  function toggleSelected(taskId: string) {
+    setSelectedTaskIds((prev) =>
+      prev.includes(taskId)
+        ? prev.filter((id) => id !== taskId)
+        : [...prev, taskId]
+    );
+  }
+
+  // share handlers for single task
+  function handleShareCopy(task: TaskRow) {
+    const text = getTaskShareText(task);
+
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          setCopiedTaskId(task.id);
+          setTimeout(() => setCopiedTaskId(null), 2000);
+        })
+        .catch((err) => {
+          console.error("Failed to copy:", err);
+        });
+    }
+  }
+
+  function handleShareWhatsApp(task: TaskRow) {
+    const text = encodeURIComponent(getTaskShareText(task));
+    const url = `https://wa.me/?text=${text}`;
+    if (typeof window !== "undefined") {
+      window.open(url, "_blank");
+    }
+  }
+
+  function handleShareViber(task: TaskRow) {
+    const text = encodeURIComponent(getTaskShareText(task));
+    const url = `viber://forward?text=${text}`;
+    if (typeof window !== "undefined") {
+      window.open(url, "_blank");
+    }
+  }
+
+  function handleShareEmail(task: TaskRow) {
+    const subject = encodeURIComponent(
+      `Task: ${task.title || "Shared task from AI Productivity Hub"}`
+    );
+    const body = encodeURIComponent(getTaskShareText(task));
+    const url = `mailto:?subject=${subject}&body=${body}`;
+    if (typeof window !== "undefined") {
+      window.location.href = url;
+    }
+  }
+
+  // bulk: today's tasks vs selected tasks (copy-only)
+  function handleBulkCopy(mode: "today" | "selected") {
+    let list: TaskRow[];
+
+    if (mode === "today") {
+      list = tasks.filter((t) => {
+        const created = t.created_at?.slice(0, 10) === todayYmd;
+        const due = t.due_date && t.due_date.slice(0, 10) === todayYmd;
+        return created || due;
+      });
+    } else {
+      list = tasks.filter((t) => selectedTaskIds.includes(t.id));
+    }
+
+    if (list.length === 0) {
+      if (mode === "today") {
+        alert("No tasks for today to share.");
+      } else {
+        alert("No tasks selected to share.");
+      }
+      return;
+    }
+
+    const header =
+      mode === "today"
+        ? `Today's tasks (${todayYmd})`
+        : `Selected tasks (${list.length})`;
+
+    const text = getTasksShareText(list, header);
+
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          alert(
+            mode === "today"
+              ? "Today's tasks copied to clipboard."
+              : "Selected tasks copied to clipboard."
+          );
+        })
+        .catch((err) => {
+          console.error("Bulk copy failed", err);
+          alert("Failed to copy tasks to clipboard.");
+        });
+    } else {
+      alert("Clipboard not available. Please copy manually.");
     }
   }
 
@@ -593,29 +771,28 @@ export default function TasksPage() {
                 </select>
               </div>
 
-              {/* Time from / to (optional) */}
-              <div className="flex items-center gap-2 text-xs text-slate-300">
-                <span className="text-[11px]">Time</span>
+              <div className="flex items-center gap-2 text-xs text-slate-300 flex-wrap">
+                <span className="text-[11px]">Time (optional)</span>
                 <select
                   value={newTimeFrom}
                   onChange={(e) => setNewTimeFrom(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                  className="rounded-xl bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
                 >
                   <option value="">From</option>
-                  {timeOptions.map((t) => (
+                  {TIME_OPTIONS.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
                   ))}
                 </select>
-                <span className="text-[11px]">to</span>
+                <span>–</span>
                 <select
                   value={newTimeTo}
                   onChange={(e) => setNewTimeTo(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                  className="rounded-xl bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
                 >
                   <option value="">To</option>
-                  {timeOptions.map((t) => (
+                  {TIME_OPTIONS.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -635,7 +812,7 @@ export default function TasksPage() {
 
           {/* View mode + Category filter */}
           {tasks.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-3 items-center text-[11px]">
+            <div className="mb-3 flex flex-wrap gap-3 items-center text-[11px]">
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 mr-1">View:</span>
                 <button
@@ -692,6 +869,41 @@ export default function TasksPage() {
             </div>
           )}
 
+          {/* Bulk selection + share */}
+          {tasks.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <div className="flex items-center gap-2 text-slate-400">
+                <span>Selected: {selectedTaskIds.length}</span>
+                {selectedTaskIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTaskIds([])}
+                    className="px-2 py-1 rounded-full border border-slate-600 hover:bg-slate-800"
+                  >
+                    Clear selection
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-slate-400">
+                <span>Share:</span>
+                <button
+                  type="button"
+                  onClick={() => handleBulkCopy("today")}
+                  className="px-3 py-1 rounded-full border border-slate-600 hover:bg-slate-800"
+                >
+                  Copy today&apos;s tasks
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkCopy("selected")}
+                  className="px-3 py-1 rounded-full border border-slate-600 hover:bg-slate-800"
+                >
+                  Copy selected tasks
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Task list */}
           {loading ? (
             <p className="text-sm text-slate-300">Loading tasks…</p>
@@ -719,36 +931,52 @@ export default function TasksPage() {
                 const catClass =
                   categoryColors[cat] || categoryColors["Other"];
 
+                const isSelected = selectedTaskIds.includes(task.id);
+
                 return (
                   <div
                     key={task.id}
                     className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 text-sm"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="flex items-center gap-2 mt-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleDone(task)}
-                          disabled={isSaving}
-                          title={
-                            task.completed
-                              ? "Mark as not completed"
-                              : "Mark as completed"
-                          }
-                          className={`h-4 w-4 flex-shrink-0 rounded-full border transition ${
-                            task.completed
-                              ? "border-emerald-400 bg-emerald-500/80"
-                              : "border-slate-600 bg-slate-950 hover:border-slate-400"
-                          }`}
-                          aria-label="Toggle done"
-                        />
-                        <span className="text-[10px] text-slate-400">
-                          {task.completed ? "Completed" : "Mark as done"}
-                        </span>
+                      {/* Left: done toggle + selection */}
+                      <div className="flex flex-col gap-2 mt-1">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleDone(task)}
+                            disabled={isSaving}
+                            title={
+                              task.completed
+                                ? "Mark as not completed"
+                                : "Mark as completed"
+                            }
+                            className={`h-4 w-4 flex-shrink-0 rounded-full border transition ${
+                              task.completed
+                                ? "border-emerald-400 bg-emerald-500/80"
+                                : "border-slate-600 bg-slate-950 hover:border-slate-400"
+                            }`}
+                            aria-label="Toggle done"
+                          />
+                          <span className="text-[10px] text-slate-400">
+                            {task.completed ? "Completed" : "Mark as done"}
+                          </span>
+                        </div>
+
+                        <label className="flex items-center gap-1 text-[10px] text-slate-400">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelected(task.id)}
+                            className="h-3 w-3 rounded border-slate-500 bg-slate-900"
+                          />
+                          <span>Select</span>
+                        </label>
                       </div>
 
+                      {/* Right: main content */}
                       <div className="flex-1 space-y-2">
-                        {/* Top row: title + category pill */}
+                        {/* Top row: title + category */}
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <input
                             type="text"
@@ -790,7 +1018,7 @@ export default function TasksPage() {
                           </div>
                         </div>
 
-                        {/* Editable description */}
+                        {/* Description */}
                         <textarea
                           defaultValue={task.description || ""}
                           onBlur={(e) =>
@@ -802,8 +1030,9 @@ export default function TasksPage() {
                           placeholder="Details or notes…"
                         />
 
+                        {/* Bottom row: due / time / created / completed + share + delete */}
                         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                             <div className="flex items-center gap-2">
                               <span>Due:</span>
                               <MiniDatePicker
@@ -819,37 +1048,36 @@ export default function TasksPage() {
                               />
                             </div>
 
-                            {/* Time range per task */}
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span>Time:</span>
                               <select
-                                value={task.time_from || ""}
+                                defaultValue={task.time_from || ""}
                                 onChange={(e) =>
                                   handleUpdateTask(task, {
                                     time_from: e.target.value || null,
                                   })
                                 }
-                                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                                className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-1 text-[11px] text-slate-100"
                               >
                                 <option value="">From</option>
-                                {timeOptions.map((t) => (
+                                {TIME_OPTIONS.map((t) => (
                                   <option key={t} value={t}>
                                     {t}
                                   </option>
                                 ))}
                               </select>
-                              <span>to</span>
+                              <span>–</span>
                               <select
-                                value={task.time_to || ""}
+                                defaultValue={task.time_to || ""}
                                 onChange={(e) =>
                                   handleUpdateTask(task, {
                                     time_to: e.target.value || null,
                                   })
                                 }
-                                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                                className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-1 text-[11px] text-slate-100"
                               >
                                 <option value="">To</option>
-                                {timeOptions.map((t) => (
+                                {TIME_OPTIONS.map((t) => (
                                   <option key={t} value={t}>
                                     {t}
                                   </option>
@@ -859,7 +1087,9 @@ export default function TasksPage() {
 
                             <span className="text-[10px] text-slate-500">
                               Created:{" "}
-                              {new Date(task.created_at).toLocaleString()}
+                              {new Date(
+                                task.created_at
+                              ).toLocaleString()}
                             </span>
 
                             {completedAt && (
@@ -869,14 +1099,73 @@ export default function TasksPage() {
                             )}
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTask(task)}
-                            disabled={isDeleting}
-                            className="text-[11px] text-red-400 hover:text-red-300"
-                          >
-                            {isDeleting ? "Deleting…" : "Delete"}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {/* Share menu */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSharingTaskId((prev) =>
+                                    prev === task.id ? null : task.id
+                                  )
+                                }
+                                className="text-[11px] px-2 py-1 rounded-lg border border-slate-600 hover:bg-slate-800"
+                              >
+                                {copiedTaskId === task.id
+                                  ? "✅ Copied"
+                                  : "Share"}
+                              </button>
+
+                              {sharingTaskId === task.id && (
+                                <div className="absolute right-0 mt-1 w-40 rounded-xl border border-slate-800 bg-slate-950 shadow-xl p-2 text-[11px] z-10">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleShareCopy(task)}
+                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
+                                  >
+                                    📋 Copy text
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleShareWhatsApp(task)
+                                    }
+                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
+                                  >
+                                    💬 WhatsApp
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleShareViber(task)
+                                    }
+                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
+                                  >
+                                    📲 Viber
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleShareEmail(task)
+                                    }
+                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
+                                  >
+                                    ✉️ Email
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Delete */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTask(task)}
+                              disabled={isDeleting}
+                              className="text-[11px] text-red-400 hover:text-red-300"
+                            >
+                              {isDeleting ? "Deleting…" : "Delete"}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
