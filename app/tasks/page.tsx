@@ -16,6 +16,8 @@ type TaskRow = {
   created_at: string;
   completed_at: string | null;
   category: string | null;
+  time_from: string | null; // ⬅️ NEW
+  time_to: string | null;   // ⬅️ NEW
 };
 
 type MiniDatePickerProps = {
@@ -223,6 +225,11 @@ const categoryColors: Record<string, string> = {
   Other: "bg-slate-500/10 text-slate-300 border-slate-500/30",
 };
 
+// 24h time options: 00:00, 01:00, ..., 23:00
+const timeOptions = Array.from({ length: 24 }, (_, h) =>
+  `${h.toString().padStart(2, "0")}:00`
+);
+
 export default function TasksPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -236,6 +243,8 @@ export default function TasksPage() {
   const [newDescription, setNewDescription] = useState("");
   const [newDueDate, setNewDueDate] = useState<string>(""); // yyyy-mm-dd
   const [newCategory, setNewCategory] = useState<string>(""); // category name
+  const [newTimeFrom, setNewTimeFrom] = useState<string>(""); // ⬅️ NEW
+  const [newTimeTo, setNewTimeTo] = useState<string>(""); // ⬅️ NEW
 
   const [savingNew, setSavingNew] = useState(false);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
@@ -279,7 +288,7 @@ export default function TasksPage() {
         const { data, error } = await supabase
           .from("tasks")
           .select(
-            "id, user_id, title, description, completed, due_date, created_at, completed_at, category"
+            "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
           )
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
@@ -331,10 +340,12 @@ export default function TasksPage() {
             due_date: dueDateIso,
             completed_at: null,
             category: newCategory || null,
+            time_from: newTimeFrom || null,
+            time_to: newTimeTo || null,
           },
         ])
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
         )
         .single();
 
@@ -352,6 +363,8 @@ export default function TasksPage() {
       setNewDescription("");
       setNewDueDate("");
       setNewCategory("");
+      setNewTimeFrom("");
+      setNewTimeTo("");
     } catch (err) {
       console.error("[tasks] insert exception", err);
       setError("Failed to add task.");
@@ -379,7 +392,7 @@ export default function TasksPage() {
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
         )
         .single();
 
@@ -401,44 +414,50 @@ export default function TasksPage() {
   }
 
   async function handleUpdateTask(task: TaskRow, updates: Partial<TaskRow>) {
-    if (!user) return;
+  if (!user) return;
 
-    setSavingTaskId(task.id);
-    setError("");
+  setSavingTaskId(task.id);
+  setError("");
 
-    try {
-      const { data, error } = await supabase
-        .from("tasks")
-        .update({
-          title: updates.title ?? task.title,
-          description: updates.description ?? task.description,
-          due_date: updates.due_date ?? task.due_date,
-          category:
-            updates.category !== undefined ? updates.category : task.category,
-        })
-        .eq("id", task.id)
-        .eq("user_id", user.id)
-        .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category"
-        )
-        .single();
+  try {
+    // Build a clean payload without undefined
+    const payload: Record<string, unknown> = {
+      title: updates.title ?? task.title,
+      description: updates.description ?? task.description,
+      due_date: updates.due_date ?? task.due_date,
+      category:
+        updates.category !== undefined ? updates.category : task.category,
+      time_from:
+        updates.time_from !== undefined ? updates.time_from : task.time_from,
+      time_to: updates.time_to !== undefined ? updates.time_to : task.time_to,
+    };
 
-      if (error) {
-        console.error("[tasks] update error", error);
-        setError("Could not save task.");
-        return;
-      }
+    const { data, error } = await supabase
+      .from("tasks")
+      .update(payload)
+      .eq("id", task.id)
+      .eq("user_id", user.id)
+      .select(
+        "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
+      )
+      .single();
 
-      setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? ((data as TaskRow) || t) : t))
-      );
-    } catch (err) {
-      console.error("[tasks] update exception", err);
+    if (error) {
+      console.error("[tasks] update error raw", error, JSON.stringify(error));
       setError("Could not save task.");
-    } finally {
-      setSavingTaskId(null);
+      return;
     }
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? ((data as TaskRow) || t) : t))
+    );
+  } catch (err) {
+    console.error("[tasks] update exception", err);
+    setError("Could not save task.");
+  } finally {
+    setSavingTaskId(null);
   }
+}
 
   async function handleDeleteTask(task: TaskRow) {
     if (!user) return;
@@ -569,6 +588,36 @@ export default function TasksPage() {
                   {TASK_CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Time from / to (optional) */}
+              <div className="flex items-center gap-2 text-xs text-slate-300">
+                <span className="text-[11px]">Time</span>
+                <select
+                  value={newTimeFrom}
+                  onChange={(e) => setNewTimeFrom(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                >
+                  <option value="">From</option>
+                  {timeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px]">to</span>
+                <select
+                  value={newTimeTo}
+                  onChange={(e) => setNewTimeTo(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                >
+                  <option value="">To</option>
+                  {timeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
                     </option>
                   ))}
                 </select>
@@ -770,11 +819,47 @@ export default function TasksPage() {
                               />
                             </div>
 
+                            {/* Time range per task */}
+                            <div className="flex items-center gap-1">
+                              <span>Time:</span>
+                              <select
+                                value={task.time_from || ""}
+                                onChange={(e) =>
+                                  handleUpdateTask(task, {
+                                    time_from: e.target.value || null,
+                                  })
+                                }
+                                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                              >
+                                <option value="">From</option>
+                                {timeOptions.map((t) => (
+                                  <option key={t} value={t}>
+                                    {t}
+                                  </option>
+                                ))}
+                              </select>
+                              <span>to</span>
+                              <select
+                                value={task.time_to || ""}
+                                onChange={(e) =>
+                                  handleUpdateTask(task, {
+                                    time_to: e.target.value || null,
+                                  })
+                                }
+                                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                              >
+                                <option value="">To</option>
+                                {timeOptions.map((t) => (
+                                  <option key={t} value={t}>
+                                    {t}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
                             <span className="text-[10px] text-slate-500">
                               Created:{" "}
-                              {new Date(
-                                task.created_at
-                              ).toLocaleString()}
+                              {new Date(task.created_at).toLocaleString()}
                             </span>
 
                             {completedAt && (
