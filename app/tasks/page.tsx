@@ -214,6 +214,11 @@ export default function TasksPage() {
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
+  // view mode: active / completed / all
+  const [viewMode, setViewMode] = useState<"active" | "completed" | "all">(
+    "active"
+  );
+
   // Load user
   useEffect(() => {
     async function loadUser() {
@@ -452,6 +457,14 @@ export default function TasksPage() {
     );
   }
 
+  // filter tasks based on view mode
+  const filteredTasks = tasks.filter((task) => {
+    const done = !!task.completed;
+    if (viewMode === "active") return !done;
+    if (viewMode === "completed") return done;
+    return true; // "all"
+  });
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <AppHeader active="tasks" />
@@ -508,6 +521,46 @@ export default function TasksPage() {
             </div>
           </form>
 
+          {/* View mode toggle */}
+          {tasks.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2 text-[11px]">
+              <span className="text-slate-500 mr-1">View:</span>
+              <button
+                type="button"
+                onClick={() => setViewMode("active")}
+                className={`rounded-full px-3 py-1 border text-xs ${
+                  viewMode === "active"
+                    ? "bg-slate-800 border-slate-500 text-slate-50"
+                    : "bg-slate-900 border-slate-700 text-slate-300"
+                }`}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("completed")}
+                className={`rounded-full px-3 py-1 border text-xs ${
+                  viewMode === "completed"
+                    ? "bg-slate-800 border-slate-500 text-slate-50"
+                    : "bg-slate-900 border-slate-700 text-slate-300"
+                }`}
+              >
+                History
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("all")}
+                className={`rounded-full px-3 py-1 border text-xs ${
+                  viewMode === "all"
+                    ? "bg-slate-800 border-slate-500 text-slate-50"
+                    : "bg-slate-900 border-slate-700 text-slate-300"
+                }`}
+              >
+                All
+              </button>
+            </div>
+          )}
+
           {/* Task list */}
           {loading ? (
             <p className="text-sm text-slate-300">Loading tasks…</p>
@@ -515,9 +568,13 @@ export default function TasksPage() {
             <p className="text-sm text-slate-400">
               No tasks yet. Add your first one above.
             </p>
+          ) : filteredTasks.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No tasks in this view. Try switching filters above.
+            </p>
           ) : (
             <div className="space-y-3">
-              {tasks.map((task) => {
+              {filteredTasks.map((task) => {
                 const isSaving = savingTaskId === task.id;
                 const isDeleting = deletingTaskId === task.id;
                 const dueDateValue = task.due_date
@@ -530,17 +587,24 @@ export default function TasksPage() {
                     className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 text-sm"
                   >
                     <div className="flex items-start gap-3">
-                      <button
-                        type="button"
-                        onClick={() => toggleDone(task)}
-                        disabled={isSaving}
-                        className={`mt-1 h-4 w-4 flex-shrink-0 rounded-full border ${
-                          task.completed
-                            ? "border-emerald-400 bg-emerald-500/80"
-                            : "border-slate-600 bg-slate-950"
-                        }`}
-                        aria-label="Toggle done"
-                      />
+                     <div className="flex items-center gap-2 mt-1">
+  <button
+    type="button"
+    onClick={() => toggleDone(task)}
+    disabled={isSaving}
+    title={task.completed ? "Mark as not completed" : "Mark as completed"}
+    className={`h-4 w-4 flex-shrink-0 rounded-full border transition ${
+      task.completed
+        ? "border-emerald-400 bg-emerald-500/80"
+        : "border-slate-600 bg-slate-950 hover:border-slate-400"
+    }`}
+    aria-label="Toggle done"
+  />
+
+  <span className="text-[10px] text-slate-400">
+    {task.completed ? "Completed" : "Mark as done"}
+  </span>
+</div>
 
                       <div className="flex-1 space-y-2">
                         {/* Editable title */}
@@ -592,6 +656,11 @@ export default function TasksPage() {
                                 task.created_at
                               ).toLocaleDateString()}
                             </span>
+                            {task.completed && (
+                              <span className="text-[10px] text-emerald-400">
+                                Completed
+                              </span>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleDeleteTask(task)}
