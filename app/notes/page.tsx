@@ -26,9 +26,35 @@ type Note = {
   content: string | null;
   ai_result?: string | null;
   created_at: string | null;
+  category: string | null;
 };
 
 type AiMode = "summarize" | "bullets" | "rewrite";
+
+// Recommended categories for notes
+const NOTE_CATEGORIES = [
+  "Work",
+  "Personal",
+  "Ideas",
+  "Meeting Notes",
+  "Study",
+  "Journal",
+  "Planning",
+  "Research",
+  "Other",
+] as const;
+
+const noteCategoryColors: Record<string, string> = {
+  Work: "bg-indigo-500/15 text-indigo-300 border-indigo-500/40",
+  Personal: "bg-pink-500/15 text-pink-300 border-pink-500/40",
+  Ideas: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
+  "Meeting Notes": "bg-amber-500/15 text-amber-200 border-amber-500/40",
+  Study: "bg-blue-500/15 text-blue-300 border-blue-500/40",
+  Journal: "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/40",
+  Planning: "bg-cyan-500/15 text-cyan-300 border-cyan-500/40",
+  Research: "bg-sky-500/15 text-sky-300 border-sky-500/40",
+  Other: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+};
 
 export default function NotesPage() {
   const { track } = useAnalytics();
@@ -39,10 +65,13 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
- // ✅ NEW: date picker state (default to today)
-const [noteDate, setNoteDate] = useState<string>(() =>
-  new Date().toISOString().split("T")[0]
-);
+  // date picker state (default to today)
+  const [noteDate, setNoteDate] = useState<string>(() =>
+    new Date().toISOString().split("T")[0]
+  );
+  // NEW: category for new note
+  const [newCategory, setNewCategory] = useState<string>("");
+
   const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState("");
@@ -54,12 +83,16 @@ const [noteDate, setNoteDate] = useState<string>(() =>
 
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
 
-  // NEW: edit state
+  // edit state
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [editCategory, setEditCategory] = useState<string>("");
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // filter by category
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   function handleShareNote(note: Note) {
     if (!note || !note.content) return;
@@ -176,7 +209,7 @@ const [noteDate, setNoteDate] = useState<string>(() =>
 
       const { data, error } = await supabase
         .from("notes")
-        .select("*")
+        .select("id, user_id, title, content, ai_result, created_at, category")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -232,58 +265,59 @@ const [noteDate, setNoteDate] = useState<string>(() =>
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
 
   // 5) Save new note
- async function handleSaveNote(e: React.FormEvent) {
-  e.preventDefault();
-  setError("");
+  async function handleSaveNote(e: FormEvent) {
+    e.preventDefault();
+    setError("");
 
-  if (!user) {
-    setError("You must be logged in to save notes.");
-    return;
-  }
+    if (!user) {
+      setError("You must be logged in to save notes.");
+      return;
+    }
 
-  if (!title.trim() && !content.trim()) {
-    setError("Please enter a title or content.");
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    // ✅ build an ISO date from the chosen noteDate
-    const createdAtIso = noteDate
-      ? new Date(`${noteDate}T00:00:00.000Z`).toISOString()
-      : new Date().toISOString();
-
-    const { error } = await supabase.from("notes").insert([
-      {
-        title,
-        content,
-        user_id: user.id,
-        created_at: createdAtIso, // ✅ use chosen date
-      },
-    ]);
-
-    if (error) throw error;
-
-    setTitle("");
-    setContent("");
-    // reset date back to today (optional)
-    setNoteDate(new Date().toISOString().split("T")[0]);
-
-    await fetchNotes();
+    if (!title.trim() && !content.trim()) {
+      setError("Please enter a title or content.");
+      return;
+    }
 
     try {
-      track("note_created");
-    } catch {
-      // ignore analytics errors
+      setLoading(true);
+
+      // build an ISO date from the chosen noteDate
+      const createdAtIso = noteDate
+        ? new Date(`${noteDate}T00:00:00.000Z`).toISOString()
+        : new Date().toISOString();
+
+      const { error } = await supabase.from("notes").insert([
+        {
+          title,
+          content,
+          user_id: user.id,
+          created_at: createdAtIso,
+          category: newCategory || null,
+        },
+      ]);
+
+      if (error) throw error;
+
+      setTitle("");
+      setContent("");
+      setNoteDate(new Date().toISOString().split("T")[0]);
+      setNewCategory("");
+
+      await fetchNotes();
+
+      try {
+        track("note_created");
+      } catch {
+        // ignore analytics errors
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save note.");
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-    setError("Failed to save note.");
-  } finally {
-    setLoading(false);
   }
-}
 
   // 6) Increment AI usage
   async function incrementAiUsage(): Promise<number> {
@@ -400,12 +434,14 @@ const [noteDate, setNoteDate] = useState<string>(() =>
     setEditingNoteId(note.id);
     setEditTitle(note.title || "");
     setEditContent(note.content || "");
+    setEditCategory(note.category || "");
   }
 
   function cancelEdit() {
     setEditingNoteId(null);
     setEditTitle("");
     setEditContent("");
+    setEditCategory("");
   }
 
   async function saveEdit(noteId: string) {
@@ -424,6 +460,7 @@ const [noteDate, setNoteDate] = useState<string>(() =>
         .update({
           title: editTitle,
           content: editContent,
+          category: editCategory || null,
         })
         .eq("id", noteId)
         .eq("user_id", user.id);
@@ -536,6 +573,14 @@ const [noteDate, setNoteDate] = useState<string>(() =>
     );
   }
 
+  // Filter notes by category (if any chosen)
+  const filteredNotes =
+    categoryFilter === "all"
+      ? notes
+      : notes.filter(
+          (n) => (n.category || "") === (categoryFilter === "" ? "" : categoryFilter)
+        );
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
       <AppHeader active="notes" />
@@ -571,19 +616,39 @@ const [noteDate, setNoteDate] = useState<string>(() =>
               onChange={(e) => setTitle(e.target.value)}
             />
 
-{/* ✅ Tiny date picker */}
-  <div className="flex items-center gap-2 text-[11px] text-slate-400">
-    <span className="whitespace-nowrap">Note date:</span>
-    <input
-      type="date"
-      value={noteDate}
-      onChange={(e) => setNoteDate(e.target.value)}
-      className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
-    />
-    <span className="text-[10px] text-slate-500">
-      Used for sorting & display.
-    </span>
-  </div>
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+              {/* date picker */}
+              <div className="flex items-center gap-2">
+                <span className="whitespace-nowrap">Note date:</span>
+                <input
+                  type="date"
+                  value={noteDate}
+                  onChange={(e) => setNoteDate(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                />
+                <span className="text-[10px] text-slate-500">
+                  Used for sorting & display.
+                </span>
+              </div>
+
+              {/* category for new note */}
+              <div className="flex items-center gap-2">
+                <span>Category:</span>
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                >
+                  <option value="">None</option>
+                  {NOTE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <textarea
               placeholder="Write your note here..."
               className="w-full min-h-[120px] px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
@@ -631,26 +696,49 @@ const [noteDate, setNoteDate] = useState<string>(() =>
 
         {/* Notes list */}
         <section className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 gap-3">
             <h2 className="text-lg font-semibold">Your notes</h2>
-            <button
-              onClick={fetchNotes}
-              disabled={loadingList}
-              className="text-sm px-3 py-1 rounded-lg border border-slate-600 hover:bg-slate-800 disabled:opacity-60"
-            >
-              {loadingList ? "Refreshing..." : "Refresh"}
-            </button>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="text-slate-400 hidden sm:inline">
+                Filter:
+              </span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+              >
+                <option value="all">All categories</option>
+                {NOTE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                <option value="">No category</option>
+              </select>
+
+              <button
+                onClick={fetchNotes}
+                disabled={loadingList}
+                className="text-sm px-3 py-1 rounded-lg border border-slate-600 hover:bg-slate-800 disabled:opacity-60"
+              >
+                {loadingList ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
           </div>
 
-          {notes.length === 0 && !loadingList && (
+          {filteredNotes.length === 0 && !loadingList && (
             <p className="text-slate-400 text-sm">
-              No notes yet. Create your first note on the left.
+              No notes in this view. Try changing the filter or create your
+              first note on the left.
             </p>
           )}
 
           <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
-            {notes.map((note) => {
+            {filteredNotes.map((note) => {
               const isEditing = editingNoteId === note.id;
+              const cat = note.category || "";
+              const catClass =
+                noteCategoryColors[cat] || noteCategoryColors["Other"];
 
               return (
                 <article
@@ -660,9 +748,18 @@ const [noteDate, setNoteDate] = useState<string>(() =>
                   {/* VIEW MODE */}
                   {!isEditing && (
                     <>
-                      <h3 className="font-semibold text-sm mb-1">
-                        {note.title || "Untitled note"}
-                      </h3>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <h3 className="font-semibold text-sm">
+                          {note.title || "Untitled note"}
+                        </h3>
+                        {note.category && (
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${catClass}`}
+                          >
+                            {note.category}
+                          </span>
+                        )}
+                      </div>
 
                       {note.content && (
                         <p className="text-xs text-slate-300 whitespace-pre-wrap">
@@ -763,13 +860,28 @@ const [noteDate, setNoteDate] = useState<string>(() =>
                   {/* EDIT MODE */}
                   {isEditing && (
                     <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm"
-                        placeholder="Note title"
-                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm"
+                          placeholder="Note title"
+                        />
+                        <select
+                          value={editCategory}
+                          onChange={(e) => setEditCategory(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                        >
+                          <option value="">No category</option>
+                          {NOTE_CATEGORIES.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <textarea
                         value={editContent}
                         onChange={(e) =>

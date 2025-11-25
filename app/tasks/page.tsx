@@ -15,6 +15,7 @@ type TaskRow = {
   due_date: string | null; // ISO string in DB
   created_at: string;
   completed_at: string | null;
+  category: string | null;
 };
 
 type MiniDatePickerProps = {
@@ -199,6 +200,29 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
   );
 }
 
+// Category list & colors
+const TASK_CATEGORIES = [
+  "Work",
+  "Personal",
+  "Health",
+  "Study",
+  "Errands",
+  "Home",
+  "Travel",
+  "Other",
+] as const;
+
+const categoryColors: Record<string, string> = {
+  Work: "bg-indigo-500/15 text-indigo-300 border-indigo-500/40",
+  Personal: "bg-pink-500/15 text-pink-300 border-pink-500/40",
+  Health: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
+  Study: "bg-yellow-500/15 text-yellow-200 border-yellow-500/40",
+  Errands: "bg-cyan-500/15 text-cyan-300 border-cyan-500/40",
+  Home: "bg-slate-500/15 text-slate-200 border-slate-500/40",
+  Travel: "bg-blue-500/15 text-blue-300 border-blue-500/40",
+  Other: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+};
+
 export default function TasksPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -211,6 +235,7 @@ export default function TasksPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newDueDate, setNewDueDate] = useState<string>(""); // yyyy-mm-dd
+  const [newCategory, setNewCategory] = useState<string>(""); // category name
 
   const [savingNew, setSavingNew] = useState(false);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
@@ -220,6 +245,9 @@ export default function TasksPage() {
   const [viewMode, setViewMode] = useState<"active" | "completed" | "all">(
     "active"
   );
+
+  // category filter
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // Load user
   useEffect(() => {
@@ -251,7 +279,7 @@ export default function TasksPage() {
         const { data, error } = await supabase
           .from("tasks")
           .select(
-            "id, user_id, title, description, completed, due_date, created_at, completed_at"
+            "id, user_id, title, description, completed, due_date, created_at, completed_at, category"
           )
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
@@ -302,10 +330,11 @@ export default function TasksPage() {
             completed: false,
             due_date: dueDateIso,
             completed_at: null,
+            category: newCategory || null,
           },
         ])
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category"
         )
         .single();
 
@@ -322,6 +351,7 @@ export default function TasksPage() {
       setNewTitle("");
       setNewDescription("");
       setNewDueDate("");
+      setNewCategory("");
     } catch (err) {
       console.error("[tasks] insert exception", err);
       setError("Failed to add task.");
@@ -349,7 +379,7 @@ export default function TasksPage() {
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category"
         )
         .single();
 
@@ -383,11 +413,13 @@ export default function TasksPage() {
           title: updates.title ?? task.title,
           description: updates.description ?? task.description,
           due_date: updates.due_date ?? task.due_date,
+          category:
+            updates.category !== undefined ? updates.category : task.category,
         })
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category"
         )
         .single();
 
@@ -465,12 +497,19 @@ export default function TasksPage() {
     );
   }
 
-  // filter tasks based on view mode
+  // filter tasks based on view mode + category
   const filteredTasks = tasks.filter((task) => {
     const done = !!task.completed;
-    if (viewMode === "active") return !done;
-    if (viewMode === "completed") return done;
-    return true; // "all"
+
+    const passesView =
+      viewMode === "active" ? !done : viewMode === "completed" ? done : true;
+
+    const passesCategory =
+      categoryFilter === "all"
+        ? true
+        : (task.category || "") === categoryFilter;
+
+    return passesView && passesCategory;
   });
 
   return (
@@ -519,6 +558,22 @@ export default function TasksPage() {
                 />
               </div>
 
+              <div className="flex items-center gap-2 text-xs text-slate-300">
+                <span className="text-[11px]">Category</span>
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  className="rounded-xl bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
+                >
+                  <option value="">None</option>
+                  {TASK_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <button
                 type="submit"
                 disabled={savingNew}
@@ -529,43 +584,62 @@ export default function TasksPage() {
             </div>
           </form>
 
-          {/* View mode toggle */}
+          {/* View mode + Category filter */}
           {tasks.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-2 text-[11px]">
-              <span className="text-slate-500 mr-1">View:</span>
-              <button
-                type="button"
-                onClick={() => setViewMode("active")}
-                className={`rounded-full px-3 py-1 border text-xs ${
-                  viewMode === "active"
-                    ? "bg-slate-800 border-slate-500 text-slate-50"
-                    : "bg-slate-900 border-slate-700 text-slate-300"
-                }`}
-              >
-                Active
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("completed")}
-                className={`rounded-full px-3 py-1 border text-xs ${
-                  viewMode === "completed"
-                    ? "bg-slate-800 border-slate-500 text-slate-50"
-                    : "bg-slate-900 border-slate-700 text-slate-300"
-                }`}
-              >
-                History
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("all")}
-                className={`rounded-full px-3 py-1 border text-xs ${
-                  viewMode === "all"
-                    ? "bg-slate-800 border-slate-500 text-slate-50"
-                    : "bg-slate-900 border-slate-700 text-slate-300"
-                }`}
-              >
-                All
-              </button>
+            <div className="mb-4 flex flex-wrap gap-3 items-center text-[11px]">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 mr-1">View:</span>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("active")}
+                  className={`rounded-full px-3 py-1 border text-xs ${
+                    viewMode === "active"
+                      ? "bg-slate-800 border-slate-500 text-slate-50"
+                      : "bg-slate-900 border-slate-700 text-slate-300"
+                  }`}
+                >
+                  Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("completed")}
+                  className={`rounded-full px-3 py-1 border text-xs ${
+                    viewMode === "completed"
+                      ? "bg-slate-800 border-slate-500 text-slate-50"
+                      : "bg-slate-900 border-slate-700 text-slate-300"
+                  }`}
+                >
+                  History
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("all")}
+                  className={`rounded-full px-3 py-1 border text-xs ${
+                    viewMode === "all"
+                      ? "bg-slate-800 border-slate-500 text-slate-50"
+                      : "bg-slate-900 border-slate-700 text-slate-300"
+                  }`}
+                >
+                  All
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500">Category:</span>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="rounded-full px-3 py-1 bg-slate-900 border border-slate-700 text-[11px] text-slate-100"
+                >
+                  <option value="all">All</option>
+                  {TASK_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                  <option value="">No category</option>
+                </select>
+              </div>
             </div>
           )}
 
@@ -591,6 +665,10 @@ export default function TasksPage() {
                 const completedAt = task.completed_at
                   ? new Date(task.completed_at)
                   : null;
+
+                const cat = task.category || "";
+                const catClass =
+                  categoryColors[cat] || categoryColors["Other"];
 
                 return (
                   <div
@@ -621,18 +699,47 @@ export default function TasksPage() {
                       </div>
 
                       <div className="flex-1 space-y-2">
-                        {/* Editable title */}
-                        <input
-                          type="text"
-                          defaultValue={task.title || ""}
-                          onBlur={(e) =>
-                            handleUpdateTask(task, {
-                              title: e.target.value,
-                            })
-                          }
-                          className="w-full bg-transparent border-none outline-none text-sm text-slate-100 placeholder:text-slate-500"
-                          placeholder="(untitled task)"
-                        />
+                        {/* Top row: title + category pill */}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <input
+                            type="text"
+                            defaultValue={task.title || ""}
+                            onBlur={(e) =>
+                              handleUpdateTask(task, {
+                                title: e.target.value,
+                              })
+                            }
+                            className="flex-1 bg-transparent border-none outline-none text-sm text-slate-100 placeholder:text-slate-500"
+                            placeholder="(untitled task)"
+                          />
+
+                          <div className="flex items-center gap-2">
+                            <select
+                              defaultValue={task.category || ""}
+                              onChange={(e) =>
+                                handleUpdateTask(task, {
+                                  category: e.target.value || null,
+                                })
+                              }
+                              className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-1 text-[11px] text-slate-100"
+                            >
+                              <option value="">No category</option>
+                              {TASK_CATEGORIES.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                            </select>
+
+                            {task.category && (
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${catClass}`}
+                              >
+                                {task.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
                         {/* Editable description */}
                         <textarea
