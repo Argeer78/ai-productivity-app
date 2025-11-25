@@ -1,5 +1,6 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
@@ -13,6 +14,7 @@ type TaskRow = {
   completed: boolean | null;
   due_date: string | null; // ISO string in DB
   created_at: string;
+  completed_at: string | null;
 };
 
 type MiniDatePickerProps = {
@@ -249,7 +251,7 @@ export default function TasksPage() {
         const { data, error } = await supabase
           .from("tasks")
           .select(
-            "id, user_id, title, description, completed, due_date, created_at"
+            "id, user_id, title, description, completed, due_date, created_at, completed_at"
           )
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
@@ -273,7 +275,7 @@ export default function TasksPage() {
     loadTasks();
   }, [user]);
 
-  async function handleAddTask(e: React.FormEvent) {
+  async function handleAddTask(e: FormEvent) {
     e.preventDefault();
     if (!user) return;
 
@@ -297,12 +299,13 @@ export default function TasksPage() {
             user_id: user.id,
             title: title || null,
             description: description || null,
-            completed: false, // ✅ correct column
+            completed: false,
             due_date: dueDateIso,
+            completed_at: null,
           },
         ])
         .select(
-          "id, user_id, title, description, completed, due_date, created_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at"
         )
         .single();
 
@@ -335,13 +338,18 @@ export default function TasksPage() {
     setError("");
 
     try {
+      const updates: Partial<TaskRow> = {
+        completed: newDone,
+        completed_at: newDone ? new Date().toISOString() : null,
+      };
+
       const { data, error } = await supabase
         .from("tasks")
-        .update({ completed: newDone }) // ✅ correct column
+        .update(updates)
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at"
         )
         .single();
 
@@ -379,7 +387,7 @@ export default function TasksPage() {
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at"
         )
         .single();
 
@@ -504,7 +512,7 @@ export default function TasksPage() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 text-xs text-slate-300">
                 <span className="text-[11px]">Due date</span>
-                {/* ✅ mini calendar for new task */}
+                {/* mini calendar for new task */}
                 <MiniDatePicker
                   value={newDueDate}
                   onChange={(val) => setNewDueDate(val)}
@@ -580,6 +588,9 @@ export default function TasksPage() {
                 const dueDateValue = task.due_date
                   ? task.due_date.slice(0, 10)
                   : "";
+                const completedAt = task.completed_at
+                  ? new Date(task.completed_at)
+                  : null;
 
                 return (
                   <div
@@ -587,24 +598,27 @@ export default function TasksPage() {
                     className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 text-sm"
                   >
                     <div className="flex items-start gap-3">
-                     <div className="flex items-center gap-2 mt-1">
-  <button
-    type="button"
-    onClick={() => toggleDone(task)}
-    disabled={isSaving}
-    title={task.completed ? "Mark as not completed" : "Mark as completed"}
-    className={`h-4 w-4 flex-shrink-0 rounded-full border transition ${
-      task.completed
-        ? "border-emerald-400 bg-emerald-500/80"
-        : "border-slate-600 bg-slate-950 hover:border-slate-400"
-    }`}
-    aria-label="Toggle done"
-  />
-
-  <span className="text-[10px] text-slate-400">
-    {task.completed ? "Completed" : "Mark as done"}
-  </span>
-</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleDone(task)}
+                          disabled={isSaving}
+                          title={
+                            task.completed
+                              ? "Mark as not completed"
+                              : "Mark as completed"
+                          }
+                          className={`h-4 w-4 flex-shrink-0 rounded-full border transition ${
+                            task.completed
+                              ? "border-emerald-400 bg-emerald-500/80"
+                              : "border-slate-600 bg-slate-950 hover:border-slate-400"
+                          }`}
+                          aria-label="Toggle done"
+                        />
+                        <span className="text-[10px] text-slate-400">
+                          {task.completed ? "Completed" : "Mark as done"}
+                        </span>
+                      </div>
 
                       <div className="flex-1 space-y-2">
                         {/* Editable title */}
@@ -633,43 +647,44 @@ export default function TasksPage() {
                         />
 
                         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
-                          <div className="flex items-center gap-2">
-                            <span>Due:</span>
-                            {/* ✅ mini calendar for existing task */}
-                            <MiniDatePicker
-                              value={dueDateValue}
-                              onChange={(ymd) => {
-                                const iso = new Date(
-                                  ymd + "T00:00:00"
-                                ).toISOString();
-                                handleUpdateTask(task, {
-                                  due_date: iso,
-                                });
-                              }}
-                            />
-                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <div className="flex items-center gap-2">
+                              <span>Due:</span>
+                              <MiniDatePicker
+                                value={dueDateValue}
+                                onChange={(ymd) => {
+                                  const iso = new Date(
+                                    ymd + "T00:00:00"
+                                  ).toISOString();
+                                  handleUpdateTask(task, {
+                                    due_date: iso,
+                                  });
+                                }}
+                              />
+                            </div>
 
-                          <div className="flex items-center gap-3">
                             <span className="text-[10px] text-slate-500">
                               Created:{" "}
                               {new Date(
                                 task.created_at
-                              ).toLocaleDateString()}
+                              ).toLocaleString()}
                             </span>
-                            {task.completed && (
+
+                            {completedAt && (
                               <span className="text-[10px] text-emerald-400">
-                                Completed
+                                Completed: {completedAt.toLocaleString()}
                               </span>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTask(task)}
-                              disabled={isDeleting}
-                              className="text-[11px] text-red-400 hover:text-red-300"
-                            >
-                              {isDeleting ? "Deleting…" : "Delete"}
-                            </button>
                           </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTask(task)}
+                            disabled={isDeleting}
+                            className="text-[11px] text-red-400 hover:text-red-300"
+                          >
+                            {isDeleting ? "Deleting…" : "Delete"}
+                          </button>
                         </div>
                       </div>
                     </div>
