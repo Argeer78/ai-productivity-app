@@ -60,7 +60,17 @@ export async function POST(req: Request) {
     let attempted = 0;
     let sent = 0;
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    // We'll treat "today" in UTC for now
+    const now = new Date();
+    const todayDate = now.toISOString().split("T")[0];
+
+    const startOfToday = new Date(now);
+    startOfToday.setUTCHours(0, 0, 0, 0);
+    const startOfTodayIso = startOfToday.toISOString();
+
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setUTCDate(startOfTomorrow.getUTCDate() + 1);
+    const startOfTomorrowIso = startOfTomorrow.toISOString();
 
     // 3) Loop over subscribed users and send emails
     for (const profile of profiles) {
@@ -69,45 +79,126 @@ export async function POST(req: Request) {
 
       attempted++;
 
-      // --- 3a) Build a simple daily summary text (fullBody) ---
+      // --- 3a) Load unfinished tasks for this user (due today + overdue) ---
+      const userId = profile.id as string;
+
+      // Tasks due today (not completed)
+      const { data: tasksDueToday, error: tasksTodayError } =
+        await supabaseAdmin
+          .from("tasks")
+          .select("id, title, description, due_date, completed")
+          .eq("user_id", userId)
+          .eq("completed", false)
+          .gte("due_date", startOfTodayIso)
+          .lt("due_date", startOfTomorrowIso);
+
+      if (tasksTodayError) {
+        console.error(
+          "[daily-digest] tasksDueToday error for",
+          email,
+          tasksTodayError
+        );
+      }
+
+      // Overdue tasks (not completed, due_date before today)
+      const { data: overdueTasks, error: overdueError } = await supabaseAdmin
+        .from("tasks")
+        .select("id, title, description, due_date, completed")
+        .eq("user_id", userId)
+        .eq("completed", false)
+        .lt("due_date", startOfTodayIso);
+
+      if (overdueError) {
+        console.error(
+          "[daily-digest] overdueTasks error for",
+          email,
+          overdueError
+        );
+      }
+
+      const safeTasksDueToday = tasksDueToday || [];
+      const safeOverdueTasks = overdueTasks || [];
+
+      // Optional: keep lists short
+      const maxPerSection = 10;
+      const tasksDueTodayShort = safeTasksDueToday.slice(0, maxPerSection);
+      const overdueTasksShort = safeOverdueTasks.slice(0, maxPerSection);
+
+      // --- 3b) Build daily summary text (fullBody) including tasks ---
       const focus = profile.focus_area || "your most important work";
       const tone = profile.ai_tone || "friendly";
 
-      const fullBody = [
-        "Hi there 👋",
-        "",
-        `Here’s your daily AI Productivity Hub digest for ${todayStr}:`,
-        "",
-        `• Tone: ${tone}`,
-        `• Focus area: ${focus}`,
-        "",
-        "Tomorrow, try:",
-        "• Planning your top 3 priorities before you start.",
-        "• One deep-work block (60–90 minutes) with no notifications.",
-        "• Writing one quick note about what you finished.",
-        "",
-        "You can change your daily digest settings anytime in the app.",
-      ].join("\n");
+      const lines: string[] = [];
 
-      // --- 3b) Get branded HTML + text using the shared template ---
+      lines.push("Hi there 👋", "");
+      lines.push(
+        `Here’s your daily AI Productivity Hub digest for ${todayDate}:`,
+        ""
+      );
+      lines.push(`• Tone: ${tone}`);
+      lines.push(`• Focus area: ${focus}`);
+      lines.push("");
+
+      // Tasks section: due today
+      if (tasksDueTodayShort.length > 0) {
+        lines.push("Today's tasks (not completed):");
+        for (const t of tasksDueTodayShort) {
+          const title = (t.title as string | null) || "(untitled task)";
+          const dueDateStr =
+            (t.due_date as string | null)?.slice(0, 10) || todayDate;
+          lines.push(`• ${title} (due ${dueDateStr})`);
+        }
+        lines.push("");
+      }
+
+      // Tasks section: overdue
+      if (overdueTasksShort.length > 0) {
+        lines.push("Overdue tasks (still open):");
+        for (const t of overdueTasksShort) {
+          const title = (t.title as string | null) || "(untitled task)";
+          const dueDateStr =
+            (t.due_date as string | null)?.slice(0, 10) || "unknown date";
+          lines.push(`• ${title} (was due ${dueDateStr})`);
+        }
+        lines.push("");
+      }
+
+      if (tasksDueTodayShort.length === 0 && overdueTasksShort.length === 0) {
+        lines.push(
+          "No tasks due today or overdue. Great moment to plan your next priorities in the Tasks page. ✅",
+          ""
+        );
+      }
+
+      lines.push("Tomorrow, you might try:");
+      lines.push("• Planning your top 3 priorities before you start.");
+      lines.push(
+        "• One deep-work block (60–90 minutes) with no notifications."
+      );
+      lines.push("• Writing one quick note about what you finished.");
+      lines.push("");
+      lines.push("You can change your daily digest settings anytime in the app.");
+
+      const fullBody = lines.join("\n");
+
+      // --- 3c) Get branded HTML + text using the shared template ---
       const { text, html } = renderDailyDigestEmail(fullBody);
 
-      // --- 3c) Send email via Resend ---
+      // --- 3d) Send email via Resend ---
       try {
-        const res = await resend.emails.send({
-  from: FROM_EMAIL,
-  to: email,
-  subject: "Your Daily AI Productivity Digest",
-  text,
-  html,
-  headers: {
-    "List-Unsubscribe": "<https://aiprod.app/settings>",
-  },
-});
+        await resend.emails.send({
+          from: FROM_EMAIL,
+          to: email,
+          subject: "Your Daily AI Productivity Digest",
+          text,
+          html,
+          headers: {
+            "List-Unsubscribe": "<https://aiprod.app/settings>",
+          },
+        });
 
-console.log("[daily-digest] sent to", email);
-sent++;
-
+        console.log("[daily-digest] sent to", email);
+        sent++;
       } catch (sendErr: any) {
         console.error(
           "[daily-digest] Resend error for",
