@@ -1161,7 +1161,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {!isPro && (
+                    {!isPro && (
             <>
               <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
                 <span className="font-semibold text-xs">
@@ -1245,9 +1245,23 @@ export default function DashboardPage() {
               </section>
             </>
           )}
-        </div>
 
-        <FeedbackForm user={user} source="dashboard" />
+          {/* ✅ Centered feedback form inside the main container */}
+          <section className="mt-10 mb-8">
+            <div className="max-w-md mx-auto">
+              <h2 className="text-sm font-semibold text-slate-200 mb-1 text-center">
+                Send quick feedback
+              </h2>
+              <p className="text-[11px] text-slate-400 mb-3 text-center">
+                Tell me what’s working, what’s confusing, or what you’d love
+                to see next.
+              </p>
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <FeedbackForm user={user} />
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );

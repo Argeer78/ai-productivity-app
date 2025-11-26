@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
+import FeedbackForm from "@/app/components/FeedbackForm";
 
 type TaskRow = {
   id: string;
@@ -1173,6 +1174,22 @@ export default function TasksPage() {
                 );
               })}
             </div>
+          )}
+                    {/* ✅ Centered feedback form for Tasks page */}
+          {tasks.length > 0 && (
+            <section className="mt-10 mb-8">
+              <div className="max-w-md mx-auto">
+                <h2 className="text-sm font-semibold text-slate-200 mb-1 text-center">
+                  Send feedback about Tasks
+                </h2>
+                <p className="text-[11px] text-slate-400 mb-3 text-center">
+                  Spot a bug, missing feature, or something confusing? Let me know.
+                </p>
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                  <FeedbackForm user={user} />
+                </div>
+              </div>
+            </section>
           )}
         </div>
       </div>

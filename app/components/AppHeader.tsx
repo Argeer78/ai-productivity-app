@@ -106,7 +106,7 @@ export default function AppHeader({ active }: HeaderProps) {
   }
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+    <header className="relative z-50 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
       {/* === TOP BAR (LOGO + MENU + EMAIL MOBILE) === */}
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         {/* Logo */}
@@ -202,8 +202,8 @@ export default function AppHeader({ active }: HeaderProps) {
 
         {/* Apps dropdown (desktop) */}
         {appsOpen && (
-          <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-full mt-2 z-40">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/98 shadow-xl p-3 w-[380px]">
+  <div className="hidden md:block fixed left-1/2 -translate-x-1/2 top-14 mt-2 z-[80]">
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/98 shadow-xl p-3 w-[380px]">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <Link href="/dashboard" className={appsItemBase}>
                   Dashboard
