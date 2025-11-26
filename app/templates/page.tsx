@@ -137,8 +137,7 @@ export default function TemplatesPage() {
     window.dispatchEvent(
       new CustomEvent("ai-assistant-context", {
         detail: {
-          content:
-            safePrompt || `Use this template: "${safeTitle}".`,
+          content: safePrompt || `Use this template: "${safeTitle}".`,
           hint: `Use this template: "${safeTitle}". I may add extra details before sending.`,
         },
       })
@@ -232,6 +231,41 @@ export default function TemplatesPage() {
             </Link>
           </div>
 
+          {/* How to use templates */}
+          <div className="mb-5 rounded-2xl border border-slate-800 bg-slate-900/70 p-3 text-[11px] md:text-xs text-slate-300">
+            <h2 className="font-semibold text-slate-100 text-xs md:text-sm mb-1.5">
+              How to use these templates
+            </h2>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>
+                <span className="font-semibold">Browse or search</span> for a
+                template by category (Planning, Study, Writing, Work, Personal).
+              </li>
+              <li>
+                Click{" "}
+                <span className="font-semibold">“🤖 Use with Assistant”</span> to
+                send the template into the AI Hub Chat. You can tweak the text
+                or add extra details before you hit send.
+              </li>
+              <li>
+                Click <span className="font-semibold">“View / edit”</span> to
+                open the full template, see the exact prompt, and customize it
+                for your own workflow.
+              </li>
+              <li>
+                Templates marked{" "}
+                <span className="font-semibold text-amber-300">Pro</span> are
+                available for Pro users (or if it&apos;s a template you created
+                yourself).
+              </li>
+              <li>
+                The more you use a template, the higher it moves in{" "}
+                <span className="font-semibold">“Trending public templates”</span>{" "}
+                on the right side.
+              </li>
+            </ul>
+          </div>
+
           {/* Filters */}
           <div className="mb-5 flex flex-col md:flex-row md:items-center gap-3">
             {/* Search */}
@@ -262,9 +296,7 @@ export default function TemplatesPage() {
             </div>
           </div>
 
-          {error && (
-            <p className="text-xs text-red-400 mb-3">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
 
           {loading ? (
             <p className="text-slate-300 text-sm">Loading templates…</p>
@@ -282,8 +314,7 @@ export default function TemplatesPage() {
                       const isMine = user && t.user_id === user.id;
                       const isProTemplate = !!t.is_pro_only;
                       const isProUser = plan === "pro";
-                      const locked =
-                        isProTemplate && !isProUser && !isMine;
+                      const locked = isProTemplate && !isProUser && !isMine;
 
                       return (
                         <article
