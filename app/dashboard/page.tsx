@@ -1142,12 +1142,6 @@ export default function DashboardPage() {
               Go to Tasks
             </Link>
             <Link
-              href="/feedback"
-              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
-            >
-              💬 Feedback
-            </Link>
-            <Link
               href="/templates"
               className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
             >
