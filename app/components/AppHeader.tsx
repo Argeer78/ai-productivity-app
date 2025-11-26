@@ -235,12 +235,18 @@ export default function AppHeader({ active }: HeaderProps) {
                 <Link href="/travel" className={appsItemBase}>
                   Travel Planner
                 </Link>
-                <Link href="/feedback" className={appsItemBase}>
-                  Feedback
-                </Link>
+
+                {/* 👇 Feedback only for admin (desktop apps menu) */}
+                {isAdmin && (
+                  <Link href="/feedback" className={appsItemBase}>
+                    Feedback
+                  </Link>
+                )}
+
                 <Link href="/changelog" className={appsItemBase}>
                   What’s new
                 </Link>
+
                 {isAdmin && (
                   <Link href="/admin" className={appsItemBase}>
                     Admin
@@ -320,9 +326,14 @@ export default function AppHeader({ active }: HeaderProps) {
             <Link href="/my-trips" className={navLinkBase}>
               My Trips
             </Link>
-            <Link href="/feedback" className={navLinkBase}>
-              Feedback
-            </Link>
+
+            {/* 👇 Feedback only for admin (mobile menu) */}
+            {isAdmin && (
+              <Link href="/feedback" className={navLinkBase}>
+                Feedback
+              </Link>
+            )}
+
             <Link href="/changelog" className={navLinkBase}>
               What’s new
             </Link>
