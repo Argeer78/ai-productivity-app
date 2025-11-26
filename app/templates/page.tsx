@@ -5,6 +5,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "AI Templates – Ready-made prompts for work, study & life",
+  description:
+    "Use curated AI templates for planning, writing, learning, reflection and more. Reuse your favorite prompts and send them to the assistant in one click.",
+};
 
 type Template = {
   id: string;

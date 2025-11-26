@@ -5,6 +5,13 @@ import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "AI Hub Chat – Ask, plan, write & brainstorm with AI",
+  description:
+    "One focused AI chat hub for planning, writing, brainstorming, and problem-solving. Use saved templates or ask freely to move your work forward.",
+};
 
 type ThreadRow = {
   id: string;

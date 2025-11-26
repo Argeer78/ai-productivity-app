@@ -90,7 +90,6 @@ export default function HomePage() {
               <div className="mt-5">
                 <SocialShareBar
                   title="Check out this AI Productivity Hub"
-                  // url is optional; it can default to the current page URL
                 />
               </div>
             </div>
