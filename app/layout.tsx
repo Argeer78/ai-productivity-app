@@ -9,7 +9,9 @@ import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
+  metadataBase: new URL("https://aiprod.app"),
+  title:
+    "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
   description:
     "AI Productivity Hub is a simple, focused workspace for notes, tasks, daily score tracking, weekly reports and travel planning – all powered by AI.",
   openGraph: {
@@ -19,30 +21,30 @@ export const metadata: Metadata = {
     url: "https://aiprod.app",
     siteName: "AI Productivity Hub",
     type: "website",
-    images: ["/og-image.png"]
+    images: ["/og-image.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: "AI Productivity Hub",
     description:
       "Stay organized with notes, tasks, daily success score, weekly reports and an AI travel planner in one clean app.",
-    images: ["/og-image.png"]
-  }
+    images: ["/og-image.png"],
+  },
+  // No verification block needed since you used HTML file upload
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617"
+  themeColor: "#020617",
 };
 
 export default function RootLayout({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) {
   return (
     <html lang="en">
       <head>
-        {/* 👇 This is the key line */}
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#020617" />
       </head>
