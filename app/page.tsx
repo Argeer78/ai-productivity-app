@@ -348,7 +348,7 @@ export default function HomePage() {
 
           {/* Footer */}
           <footer className="border-t border-slate-900 pt-4 pb-2 text-[11px] text-slate-500 flex flex-wrap gap-3 justify-between">
-            <span>© {new Date().getFullYear()} AI Productivity Hub</span>
+            <span>© {new Date().getFullYear()} AI Productivity Hub — aiprod.app -Owner: AlphaSynth AI - Contact: assistant@aiprod.app</span>
             <div className="flex gap-3">
               <Link href="/changelog" className="hover:text-slate-300">
                 What&apos;s new
