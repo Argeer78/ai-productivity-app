@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import InstallAppButton from "@/app/components/InstallAppButton";
-
+import Image from "next/image";
 type HeaderProps = {
   active?:
     | "dashboard"
@@ -111,9 +111,14 @@ export default function AppHeader({ active }: HeaderProps) {
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-          <div className="h-7 w-7 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold">
-            AI
-          </div>
+          <Image
+            src="/icon-512.png"
+            alt="AI Productivity Hub logo"
+            width={28}
+            height={28}
+            className="rounded-xl"
+            priority
+          />
           <span className="text-sm font-semibold tracking-tight text-slate-100">
             AI Productivity Hub
           </span>
