@@ -61,7 +61,23 @@ function getWeekRangeDateStrings() {
   return { startDate, endDate };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const expectedSecret = process.env.CRON_SECRET;
+
+  if (!expectedSecret) {
+    console.error("[weekly-report] CRON_SECRET is not set");
+    return NextResponse.json(
+      { ok: false, error: "Server misconfigured: CRON_SECRET missing" },
+      { status: 500 }
+    );
+  }
+
+  const authHeader = req.headers.get("authorization") || "";
+  if (authHeader !== `Bearer ${expectedSecret}`) {
+    console.warn("[weekly-report] Unauthorized request");
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  
   try {
     const { startDate, endDate } = getWeekRangeDateStrings();
 
