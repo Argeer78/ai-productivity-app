@@ -1,5 +1,4 @@
 // app/api/cron-digest/route.ts
-
 export const dynamic = "force-dynamic"; // never cache cron responses
 
 export async function GET(request: Request) {
@@ -25,25 +24,29 @@ export async function GET(request: Request) {
   }
 
   try {
-    const resp = await fetch(
-      "https://moouqffemvtqzviozgsx.supabase.co/functions/v1/daily-digest",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    // 👇 Call your *Next.js* daily-digest route, NOT the Supabase Edge Function
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || "https://aiprod.app";
+
+    const resp = await fetch(`${baseUrl}/api/daily-digest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // pass the same secret so /api/daily-digest can verify
+        authorization: `Bearer ${expectedSecret}`,
+      },
+    });
 
     const text = await resp.text();
 
     if (!resp.ok) {
       console.error(
-        "[cron-digest] Supabase daily-digest failed:",
+        "[cron-digest] /api/daily-digest failed:",
         resp.status,
         text
       );
-      // Forward the Supabase error body to you so you can see it
       return new Response(
-        text || `daily-digest failed with status ${resp.status}`,
+        text || `/api/daily-digest failed with status ${resp.status}`,
         { status: 500 }
       );
     }
