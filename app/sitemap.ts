@@ -5,47 +5,56 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 const BASE_URL = "https://aiprod.app";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const now = new Date();
+
+  // 1) Static routes
   const routes: MetadataRoute.Sitemap = [
-    { url: `${BASE_URL}/`, lastModified: new Date() },
-    { url: `${BASE_URL}/dashboard`, lastModified: new Date() },
-    { url: `${BASE_URL}/daily-success`, lastModified: new Date() },
-    { url: `${BASE_URL}/notes`, lastModified: new Date() },
-    { url: `${BASE_URL}/tasks`, lastModified: new Date() },
-    { url: `${BASE_URL}/planner`, lastModified: new Date() },
-    { url: `${BASE_URL}/ai-chat`, lastModified: new Date() },
-    { url: `${BASE_URL}/explore`, lastModified: new Date() },
-    { url: `${BASE_URL}/my-trips`, lastModified: new Date() },
-    { url: `${BASE_URL}/travel`, lastModified: new Date() },
-    { url: `${BASE_URL}/templates`, lastModified: new Date() },
-    { url: `${BASE_URL}/weekly-reports`, lastModified: new Date() },
-    { url: `${BASE_URL}/weekly-history`, lastModified: new Date() },
-    { url: `${BASE_URL}/feedback`, lastModified: new Date() },
-    { url: `${BASE_URL}/auth`, lastModified: new Date() },
-    { url: `${BASE_URL}/privacy-policy`, lastModified: new Date() },
-    { url: `${BASE_URL}/terms`, lastModified: new Date() },
-    { url: `${BASE_URL}/cookies`, lastModified: new Date() },
-    { url: `${BASE_URL}/delete-account`, lastModified: new Date() },
-    { url: `${BASE_URL}/changelog`, lastModified: new Date() },
+    { url: `${BASE_URL}/`, lastModified: now },
+    { url: `${BASE_URL}/dashboard`, lastModified: now },
+    { url: `${BASE_URL}/daily-success`, lastModified: now },
+    { url: `${BASE_URL}/notes`, lastModified: now },
+    { url: `${BASE_URL}/tasks`, lastModified: now },
+    { url: `${BASE_URL}/planner`, lastModified: now },
+    { url: `${BASE_URL}/ai-chat`, lastModified: now },
+    { url: `${BASE_URL}/explore`, lastModified: now },
+    { url: `${BASE_URL}/my-trips`, lastModified: now },
+    { url: `${BASE_URL}/travel`, lastModified: now },
+    { url: `${BASE_URL}/templates`, lastModified: now },
+    { url: `${BASE_URL}/weekly-reports`, lastModified: now },
+    { url: `${BASE_URL}/weekly-history`, lastModified: now },
+    { url: `${BASE_URL}/feedback`, lastModified: now },
+    { url: `${BASE_URL}/auth`, lastModified: now },
+    { url: `${BASE_URL}/privacy-policy`, lastModified: now },
+    { url: `${BASE_URL}/terms`, lastModified: now },
+    { url: `${BASE_URL}/cookies`, lastModified: now },
+    { url: `${BASE_URL}/delete-account`, lastModified: now },
+    { url: `${BASE_URL}/changelog`, lastModified: now },
   ];
 
+  // 2) Dynamic public templates (created_at, not updated_at)
   try {
-    const { data: templates } = await supabaseAdmin
+    const { data: templates, error } = await supabaseAdmin
       .from("templates")
       .select("id, created_at, is_public")
       .eq("is_public", true)
+      .order("created_at", { ascending: false })
       .limit(100);
 
-    if (templates) {
+    if (error) {
+      console.error("Error fetching templates for sitemap:", error);
+    } else if (templates) {
       for (const t of templates) {
         routes.push({
           url: `${BASE_URL}/templates/${t.id}`,
-          lastModified: new Date(t.created_at),
+          lastModified: t.created_at ? new Date(t.created_at) : now,
         });
       }
     }
   } catch (err) {
-    console.error("Error fetching templates for sitemap:", err);
+    console.error("Exception while building template routes for sitemap:", err);
   }
+
+  // ✅ No weekly_reports query at all now
 
   return routes;
 }
