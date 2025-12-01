@@ -727,17 +727,18 @@ export default function TasksPage() {
             onSubmit={handleAddTask}
             className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3 text-sm"
           >
-            <p className="text-[11px] font-semibold text-slate-300">
+            <div className="text-[11px] font-semibold text-slate-300">
               Add a new task
-            </p>
-            <p className="text-[11px] font-semibold text-slate-300">
-<Link
-  href="/ai-task-creator"
-  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
->
-  🤖 AI Task Creator
-</Link>
-</p>
+            </div>
+            <div className="text-[11px] font-semibold text-slate-300">
+  <Link
+    href="/ai-task-creator"
+    className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
+  >
+    🤖 AI Task Creator
+  </Link>
+</div>
+
             <input
               type="text"
               value={newTitle}
