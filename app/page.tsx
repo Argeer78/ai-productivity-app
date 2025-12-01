@@ -212,69 +212,86 @@ export default function HomePage() {
 
           {/* PRICING */}
           <section id="pricing" className="mb-14">
-            <p className="text-xs font-semibold text-slate-400 mb-2">
-              PRICING
-            </p>
-            <h2 className="text-xl md:text-2xl font-bold mb-4">
-              Start free. Upgrade if it becomes part of your day.
-            </h2>
+  <p className="text-xs font-semibold text-slate-400 mb-2">
+    PRICING
+  </p>
+  <h2 className="text-xl md:text-2xl font-bold mb-4">
+    Start free. Upgrade when it becomes part of your day.
+  </h2>
 
-            <div className="grid md:grid-cols-2 gap-5 text-sm">
-              {/* Free */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-col">
-                <p className="text-xs font-semibold text-slate-400 mb-1">
-                  FREE
-                </p>
-                <p className="text-2xl font-bold mb-1">€0</p>
-                <p className="text-[12px] text-slate-300 mb-3">
-                  Great for trying the workflow, light daily usage, and basic
-                  AI assistance.
-                </p>
-                <ul className="text-[12px] text-slate-200 space-y-1.5 mb-4">
-                  <li>• Notes + AI helper</li>
-                  <li>• Tasks & Daily Success score</li>
-                  <li>• Basic templates</li>
-                  <li>• Limited daily AI calls</li>
-                  <li>• Travel planner (no saving trips)</li>
-                </ul>
-                <Link
-                  href={primaryCtaHref}
-                  className="mt-auto inline-flex justify-center px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium"
-                >
-                  {user ? "Open the app" : "Start for free"}
-                </Link>
-              </div>
+  <div className="grid md:grid-cols-2 gap-5 text-sm">
+    {/* FREE PLAN */}
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-col">
+      <p className="text-xs font-semibold text-slate-400 mb-1">FREE</p>
+      <p className="text-2xl font-bold mb-1">€0</p>
+      <p className="text-[12px] text-slate-300 mb-3">
+        Great for light usage, small daily planning, and basic AI help.
+      </p>
 
-              {/* Pro */}
-              <div className="rounded-2xl border border-indigo-500/70 bg-indigo-950/40 p-5 flex flex-col relative overflow-hidden">
-                <div className="absolute inset-x-0 -top-8 h-16 bg-gradient-to-r from-indigo-500/20 via-sky-400/10 to-fuchsia-500/20 blur-2xl pointer-events-none" />
-                <p className="relative text-xs font-semibold text-indigo-100 mb-1">
-                  PRO
-                </p>
-                <p className="relative text-2xl font-bold mb-1">
-                  €9.99 / month
-                </p>
-                <p className="relative text-[12px] text-indigo-100 mb-3">
-                  For people who actually use this daily and want room to
-                  experiment with AI.
-                </p>
-                <ul className="relative text-[12px] text-indigo-50 space-y-1.5 mb-4">
-                  <li>• Everything in Free</li>
-                  <li>• Higher daily AI limits</li>
-                  <li>• Weekly AI email report</li>
-                  <li>• Weekly goal tracking</li>
-                  <li>• Save & revisit trips</li>
-                  <li>• Priority for new features</li>
-                </ul>
-                <Link
-                  href={user ? "/dashboard" : "/auth"}
-                  className="relative mt-auto inline-flex justify-center px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-xs font-medium text-slate-900"
-                >
-                  {user ? "Manage your plan" : "Upgrade when you're ready"}
-                </Link>
-              </div>
-            </div>
-          </section>
+      <ul className="text-[12px] text-slate-200 space-y-1.5 mb-4">
+        <li>✔ Notes</li>
+        <li>✔ Tasks</li>
+        <li>✔ Daily Success Score</li>
+        <li>✔ Weekly Goals (manual)</li>
+        <li>✔ Travel Planner (basic)</li>
+        <li>✔ AI Chat (up to 20 messages/day)</li>
+        <li>✔ AI Notes & Suggestions (limited)</li>
+        <li>✔ Templates (basic)</li>
+        <li>✔ 3-day task history</li>
+        <li>✔ PWA install + Android app</li>
+        <li>✔ Sync across devices</li>
+        <li>✔ Multi-language UI</li>
+      </ul>
+
+      <Link
+        href={primaryCtaHref}
+        className="mt-auto inline-flex justify-center px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium"
+      >
+        {user ? "Open the app" : "Start for free"}
+      </Link>
+    </div>
+
+    {/* PRO PLAN */}
+    <div className="rounded-2xl border border-indigo-500/70 bg-indigo-950/40 p-5 flex flex-col relative overflow-hidden">
+      <div className="absolute inset-x-0 -top-8 h-16 bg-gradient-to-r from-indigo-500/20 via-blue-500/10 to-fuchsia-500/20 blur-2xl pointer-events-none" />
+
+      <p className="relative text-xs font-semibold text-indigo-100 mb-1">PRO</p>
+      <p className="relative text-2xl font-bold mb-1">€8.49 / month</p>
+      <p className="relative text-sm text-indigo-200 mb-1">
+        €79 / year (save 25%)
+      </p>
+
+      <p className="relative text-[12px] text-indigo-100 mb-3">
+        For people who actually use this daily — unlimited AI, deeper insights,
+        and all premium features.
+      </p>
+
+      <ul className="relative text-[12px] text-indigo-50 space-y-1.5 mb-4">
+        <li>🔥 Everything in Free</li>
+        <li>🔥 Unlimited AI messages (fair use)</li>
+        <li>🔥 Weekly AI Email Report</li>
+        <li>🔥 AI-powered Task Planning (daily & weekly)</li>
+        <li>🔥 AI-Generated Templates</li>
+        <li>🔥 Advanced Travel Planner</li>
+        <li>🔥 Unlimited Notes with AI Enhancements</li>
+        <li>🔥 Priority AI Speed</li>
+        <li>🔥 Full Task History</li>
+        <li>🔥 Unlimited Weekly Goals</li>
+        <li>🔥 Custom AI Tones & Personalization</li>
+        <li>🔥 20+ Productivity Templates Included</li>
+        <li>🔥 Unlock all Pro features on Web + Android</li>
+        <li>🔥 Early access to new features</li>
+      </ul>
+
+      <Link
+        href={user ? "/dashboard" : "/auth"}
+        className="relative mt-auto inline-flex justify-center px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-xs font-medium text-slate-900"
+      >
+        {user ? "Manage your plan" : "Upgrade when you're ready"}
+      </Link>
+    </div>
+  </div>
+</section>
 
           {/* FAQ */}
           <section className="mb-12">

@@ -9,8 +9,8 @@ import { useAnalytics } from "@/lib/analytics";
 import AppHeader from "@/app/components/AppHeader";
 import SetupBanner from "@/app/components/SetupBanner";
 
-const FREE_DAILY_LIMIT = 5;
-const PRO_DAILY_LIMIT = 50;
+const FREE_DAILY_LIMIT = 20;
+const PRO_DAILY_LIMIT = 2000;
 
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
@@ -55,6 +55,12 @@ function getStreakConfig(streak: number) {
   };
 }
 
+const MONTHLY_PRICE_BY_CURRENCY: Record<"eur" | "usd" | "gbp", string> = {
+  eur: "€8.49",
+  usd: "$8.99",
+  gbp: "£7.99",
+};
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -90,24 +96,26 @@ export default function DashboardPage() {
   // Weekly goal state
   const [weeklyGoalId, setWeeklyGoalId] = useState<string | null>(null);
   const [weeklyGoalText, setWeeklyGoalText] = useState<string>("");
-  const [weeklyGoalCompleted, setWeeklyGoalCompleted] = useState<boolean>(false);
+  const [weeklyGoalCompleted, setWeeklyGoalCompleted] =
+    useState<boolean>(false);
   const [weeklyGoalSaving, setWeeklyGoalSaving] = useState(false);
   const [weeklyGoalMarking, setWeeklyGoalMarking] = useState(false);
 
   const { track } = useAnalytics();
 
-  const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+  const isPro = plan === "pro";
+  const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
   const showBanner = streak >= 1;
   const streakCfg = getStreakConfig(streak);
 
   // single source of truth for plan labels
-  const isPro = plan === "pro";
   const planLabelUpper = isPro ? "PRO" : "FREE";
   const planLabelNice = isPro ? "Pro" : "Free";
 
   // 🌍 currency state for multi-currency checkout
   const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
+  const monthlyPriceLabel = MONTHLY_PRICE_BY_CURRENCY[currency];
 
   async function startCheckout(selectedCurrency: "eur" | "usd" | "gbp") {
     if (!user) return;
@@ -209,8 +217,7 @@ export default function DashboardPage() {
 
         if (last7.length > 0) {
           const avg =
-            last7.reduce((sum, r) => sum + (r.score || 0), 0) /
-            last7.length;
+            last7.reduce((sum, r) => sum + (r.score || 0), 0) / last7.length;
           setAvg7(Math.round(avg));
         } else {
           setAvg7(null);
@@ -340,9 +347,7 @@ export default function DashboardPage() {
 
         // AI usage streak (consecutive days with usage > 0)
         const activeDateSet = new Set(
-          historyList
-            .filter((h) => h.count > 0)
-            .map((h) => h.usage_date)
+          historyList.filter((h) => h.count > 0).map((h) => h.usage_date)
         );
 
         let streakCount = 0;
@@ -365,9 +370,7 @@ export default function DashboardPage() {
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
         const sevenStr = sevenDaysAgo.toISOString().split("T")[0];
 
-        const last7Usage = historyList.filter(
-          (h) => h.usage_date >= sevenStr
-        );
+        const last7Usage = historyList.filter((h) => h.usage_date >= sevenStr);
         const totalAiCalls7 = last7Usage.reduce(
           (sum, h) => sum + (h.count || 0),
           0
@@ -411,8 +414,7 @@ export default function DashboardPage() {
         // 7) Notes / tasks in last 7 days
         const sevenDaysAgoDate = new Date();
         sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 6);
-        const sevenDateStr =
-          sevenDaysAgoDate.toISOString().split("T")[0];
+        const sevenDateStr = sevenDaysAgoDate.toISOString().split("T")[0];
 
         const {
           count: notes7Count,
@@ -550,7 +552,7 @@ export default function DashboardPage() {
 
   async function generateSummary() {
     if (!user) return;
-    if (aiCountToday >= dailyLimit) {
+    if (!isPro && aiCountToday >= dailyLimit) {
       setSummaryError(
         "You’ve reached today’s AI limit on your current plan. Try again tomorrow or upgrade to Pro."
       );
@@ -681,31 +683,43 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            {/* Top plan text (uses unified label) */}
+            {/* Extra info for FREE plan */}
             {plan === "free" && (
-  <div className="mb-4 text-xs md:text-sm text-slate-300">
-    <p>
-      Plan:{" "}
-      <span className="font-semibold">FREE</span> | AI today:{" "}
-      <span className="font-semibold">
-        {aiCountToday}/{dailyLimit}
-      </span>
-    </p>
-    <p className="text-[11px] text-slate-400 mt-1">
-      This includes notes AI, the global assistant, summary, and planner.
-    </p>
-  </div>
-)}
+              <div className="mb-4 text-xs md:text-sm text-slate-300">
+                <p>
+                  Plan:{" "}
+                  <span className="font-semibold">FREE</span> | AI today:{" "}
+                  <span className="font-semibold">
+                    {aiCountToday}/{FREE_DAILY_LIMIT}
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  The free plan includes up to 20 AI calls per day shared
+                  across notes, the global assistant, summaries, and planner.
+                </p>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
-  Plan:{" "}
-  <span className="font-semibold">
-    {planLabelUpper}
-  </span>
-</span>
+                Plan: <span className="font-semibold">{planLabelUpper}</span>
+              </span>
               <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
-                AI today: {aiCountToday}/{dailyLimit}
+                {isPro ? (
+                  <>
+                    AI today:{" "}
+                    <span className="font-semibold">
+                      {aiCountToday} used (unlimited for normal use)
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    AI today:{" "}
+                    <span className="font-semibold">
+                      {aiCountToday}/{dailyLimit}
+                    </span>
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -743,13 +757,15 @@ export default function DashboardPage() {
                   </p>
                   <p className="text-[11px] text-slate-400 mb-2">
                     {isPro
-                      ? "Higher daily AI limits and more room to experiment."
-                      : "Good for trying the app and light daily use."}
+                      ? "Unlimited daily AI usage for normal use, plus access to more powerful planning tools."
+                      : "Good for trying the app and using AI lightly each day."}
                   </p>
                   <p className="text-[11px] text-slate-400">
                     Daily AI limit:{" "}
                     <span className="font-semibold">
-                      {dailyLimit} calls/day
+                      {isPro
+                        ? "Unlimited for normal use"
+                        : `${dailyLimit} calls/day`}
                     </span>
                   </p>
 
@@ -778,7 +794,18 @@ export default function DashboardPage() {
                     TODAY&apos;S AI USAGE
                   </p>
                   <p className="text-slate-100 mb-1 text-sm">
-                    {aiCountToday}/{dailyLimit} used
+                    {isPro ? (
+                      <>
+                        {aiCountToday} used{" "}
+                        <span className="text-slate-400 text-[11px]">
+                          (unlimited for normal use)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {aiCountToday}/{dailyLimit} used
+                      </>
+                    )}
                   </p>
                   <div className="h-2 rounded-full bg-slate-800 overflow-hidden mb-2">
                     <div
@@ -816,9 +843,7 @@ export default function DashboardPage() {
                         </p>
 
                         <p className="text-[13px] mb-1">
-                          <span className="text-slate-400">
-                            7-day avg:
-                          </span>{" "}
+                          <span className="text-slate-400">7-day avg:</span>{" "}
                           <span className="font-semibold">
                             {avg7 !== null ? `${avg7}` : "—"}
                           </span>
@@ -846,9 +871,13 @@ export default function DashboardPage() {
 
                   <p className="text-[11px] text-slate-400 mt-2">
                     {remaining > 0 ? (
-                      `${remaining} AI calls left today.`
+                      isPro ? (
+                        "Pro gives you effectively unlimited daily AI usage for normal workflows."
+                      ) : (
+                        `${remaining} AI calls left today.`
+                      )
                     ) : isPro ? (
-                      "You reached today’s Pro limit for today."
+                      "You reached today’s Pro safety limit. Try again tomorrow."
                     ) : (
                       <>
                         You reached today’s limit on the free plan.{" "}
@@ -858,7 +887,7 @@ export default function DashboardPage() {
                         >
                           Upgrade to Pro
                         </Link>{" "}
-                        for a higher daily AI limit.
+                        for unlimited daily AI (for normal use).
                       </>
                     )}
                   </p>
@@ -897,12 +926,14 @@ export default function DashboardPage() {
 
                   <button
                     onClick={generateSummary}
-                    disabled={summaryLoading || aiCountToday >= dailyLimit}
+                    disabled={
+                      summaryLoading || (!isPro && aiCountToday >= dailyLimit)
+                    }
                     className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs md:text-sm"
                   >
                     {summaryLoading
                       ? "Generating..."
-                      : aiCountToday >= dailyLimit
+                      : !isPro && aiCountToday >= dailyLimit
                       ? "Daily AI limit reached"
                       : "Generate summary"}
                   </button>
@@ -985,7 +1016,7 @@ export default function DashboardPage() {
                     <p className="text-[11px] text-slate-500 mb-3">
                       This is a Pro feature. Upgrade to unlock AI-powered
                       weekly goals, progress tracking in your weekly report
-                      emails, and higher AI limits.
+                      emails, and unlimited daily AI usage.
                     </p>
 
                     <Link
@@ -1161,90 +1192,128 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-                    {!isPro && (
-            <>
-              <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
-                <span className="font-semibold text-xs">
-                  What you unlock with Pro:
-                </span>
-                <span>📈 Higher daily AI limit</span>
-                <span>📬 Weekly AI email report</span>
-                <span>✅ Goal of the Week with AI refinement</span>
-                <span>🏅 Full AI wins history</span>
-              </div>
+          {/* 🔓 What you unlock with Pro */}
+{!isPro && plan !== "founder" && (
+  <>
+    <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
+      <span className="font-semibold text-xs">What you unlock with Pro:</span>
+      <span>📈 Higher daily AI limit</span>
+      <span>📬 Weekly AI email report</span>
+      <span>🎯 Weekly goal with AI refinement</span>
+      <span>✈️ Save unlimited trips</span>
+      <span>🧠 Premium templates</span>
+    </div>
 
-              <section
-                id="pricing"
-                className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-5 text-xs md:text-sm max-w-xl"
-              >
-                <p className="text-indigo-100 font-semibold mb-1 text-sm md:text-base">
-                  Unlock AI Productivity Hub Pro
-                </p>
-                <p className="text-indigo-100 mb-3">
-                  Ideal if you&apos;re using the app most days and keep
-                  hitting the free AI limit.
-                </p>
+    {/* 🟣 PRO PLAN */}
+    <section
+      id="pricing"
+      className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-5 text-xs md:text-sm max-w-xl mb-4"
+    >
+      <p className="text-indigo-100 font-semibold mb-1 text-sm md:text-base">
+        Upgrade to AI Productivity Hub PRO
+      </p>
+      <p className="text-indigo-100 mb-3">
+        For daily users who want higher limits and weekly insights.
+      </p>
 
-                <div className="flex items-baseline gap-2 mb-3">
-                  <p className="text-2xl font-bold text-indigo-100">
-                    €9.99
-                    <span className="text-base font-normal text-indigo-200">
-                      /month
-                    </span>
-                  </p>
-                  <p className="text-[11px] text-indigo-200/80">
-                    Billed via secure Stripe checkout
-                  </p>
-                </div>
+      <div className="flex items-baseline gap-2 mb-3">
+        <p className="text-2xl font-bold text-indigo-100">
+          €8.49
+          <span className="text-base font-normal text-indigo-200"> / month</span>
+        </p>
+        <p className="text-[11px] text-indigo-200/80">or save 25% yearly</p>
+      </div>
 
-                <ul className="space-y-1.5 text-[11px] text-indigo-100/90 mb-4">
-                  <li>
-                    • 10× higher daily AI limit (notes, planner, assistant,
-                    summaries)
-                  </li>
-                  <li>
-                    • Weekly AI email reports with wins, stats & focus
-                    suggestions
-                  </li>
-                  <li>
-                    • Weekly goal coaching (set + mark your single focus
-                    goal)
-                  </li>
-                  <li>• Access to Pro-only AI templates</li>
-                  <li>• Priority for new features & improvements</li>
-                </ul>
+      <ul className="space-y-1.5 text-[11px] text-indigo-100/90 mb-4">
+        <li>• Unlimited AI (2000 calls/day)</li>
+        <li>• Weekly AI email reports</li>
+        <li>• AI-powered Weekly Goals</li>
+        <li>• Save & revisit trip plans</li>
+        <li>• All premium templates</li>
+        <li>• Priority feature access</li>
+      </ul>
 
-                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                  <select
-                    value={currency}
-                    onChange={(e) =>
-                      setCurrency(e.target.value as "eur" | "usd" | "gbp")
-                    }
-                    className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs mb-2 sm:mb-0"
-                  >
-                    <option value="eur">EUR €</option>
-                    <option value="usd">USD $</option>
-                    <option value="gbp">GBP £</option>
-                  </select>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+        <select
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value as "eur" | "usd" | "gbp")}
+          className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs mb-2 sm:mb-0"
+        >
+          <option value="eur">EUR €</option>
+          <option value="usd">USD $</option>
+          <option value="gbp">GBP £</option>
+        </select>
 
-                  <button
-                    type="button"
-                    onClick={() => startCheckout(currency)}
-                    disabled={billingLoading}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white disabled:opacity-60"
-                  >
-                    {billingLoading
-                      ? "Opening Stripe..."
-                      : `Upgrade to Pro (${currency.toUpperCase()})`}
-                  </button>
-                </div>
+        <button
+          type="button"
+          onClick={() => startCheckout(currency, "pro")}
+          disabled={billingLoading}
+          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white disabled:opacity-60"
+        >
+          {billingLoading ? "Opening Stripe…" : `Upgrade to Pro (${currency.toUpperCase()})`}
+        </button>
+      </div>
 
-                <p className="mt-2 text-[11px] text-indigo-100/70">
-                  Cancel any time from Settings → Manage subscription (Stripe).
-                </p>
-              </section>
-            </>
-          )}
+      <p className="mt-2 text-[11px] text-indigo-100/70">
+        Cancel anytime via Stripe billing portal.
+      </p>
+    </section>
+
+    {/* 🎉 FOUNDER EARLY DISCOUNT */}
+    <section
+      className="rounded-2xl border border-emerald-500/60 bg-emerald-950/30 p-5 text-xs md:text-sm max-w-xl"
+    >
+      <p className="text-emerald-200 font-semibold mb-1 text-sm md:text-base">
+        🎉 Early Supporter Discount
+      </p>
+      <p className="text-emerald-100 mb-3">
+        Because you're early — lock in a permanent discount, forever.
+      </p>
+
+      <div className="flex items-baseline gap-2 mb-3">
+        <p className="text-2xl font-bold text-emerald-100">
+          €5.49
+          <span className="text-base font-normal text-emerald-200"> / month</span>
+        </p>
+        <p className="text-[11px] text-emerald-200/80">Founder price — never increases</p>
+      </div>
+
+      <ul className="space-y-1.5 text-[11px] text-emerald-100/90 mb-4">
+        <li>• Everything in Pro</li>
+        <li>• Locked-in lifetime price</li>
+        <li>• Unlimited AI (2000/day)</li>
+        <li>• Weekly reports & goals</li>
+        <li>• Premium templates</li>
+        <li>• Priority support</li>
+      </ul>
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+        <select
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value as "eur" | "usd" | "gbp")}
+          className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs mb-2 sm:mb-0"
+        >
+          <option value="eur">EUR €</option>
+          <option value="usd">USD $</option>
+          <option value="gbp">GBP £</option>
+        </select>
+
+        <button
+          type="button"
+          onClick={() => startCheckout(currency, "founder")}
+          disabled={billingLoading}
+          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-sm text-slate-900 disabled:opacity-60"
+        >
+          {billingLoading ? "Opening Stripe…" : `Get Founder Price (${currency.toUpperCase()})`}
+        </button>
+      </div>
+
+      <p className="mt-2 text-[11px] text-emerald-100/70">
+        Limited time. Price is yours forever once subscribed.
+      </p>
+    </section>
+  </>
+)}
 
           {/* ✅ Centered feedback form inside the main container */}
           <section className="mt-10 mb-8">

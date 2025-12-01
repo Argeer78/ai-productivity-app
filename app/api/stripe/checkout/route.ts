@@ -6,17 +6,33 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
 const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey, {
-      // Use whatever version your `stripe` package expects
-      apiVersion: "2025-10-29.clover",
+      // Align with Stripe dashboard API version if needed
+      apiVersion: "2024-06-20",
     })
   : null;
 
-// 🔐 These are NOT secrets – it’s okay to keep them in code.
-// 👉 Replace the placeholder strings with your REAL live price IDs from Stripe.
-const PRO_PRICE_IDS: Record<"eur" | "usd" | "gbp", string> = {
-  eur: "price_1SSGYXIaVkwgnHGjQvoIBucm", // e.g. price_1SSGYXIaVkwgnHGjQvoIBucm
-  usd: "price_1SVJ2fIaVkwgnHGjMwjCOjSj", // e.g. price_1ABCDEF... (USD recurring)
-  gbp: "price_1SVJ3bIaVkwgnHGjXFE3Mm1y", // e.g. price_1SVJ3bIaVkwgnHGjXFE3Mm1y
+type Currency = "eur" | "usd" | "gbp";
+type PlanType = "pro" | "yearly" | "founder";
+
+// ✅ Pro MONTHLY price IDs
+const PRO_PRICE_IDS: Record<Currency, string> = {
+  eur: "price_1SZXgJIaVkwgnHGjGepES6Vc",
+  usd: "price_1SZXxSIaVkwgnHGjm9SLuPfm",
+  gbp: "price_1SZXzNIaVkwgnHGjg4BdMcdJ",
+};
+
+// ✅ Pro YEARLY price IDs
+const YEARLY_PRICE_IDS: Record<Currency, string> = {
+  eur: "price_1SZXiIIaVkwgnHGjRoYLY1n3",
+  usd: "price_1SZY1DIaVkwgnHGjuNUXWjVB",
+  gbp: "price_1SZY2DIaVkwgnHGj51H10PI4",
+};
+
+// ✅ Founder MONTHLY price IDs
+const FOUNDER_PRICE_IDS: Record<Currency, string> = {
+  eur: "price_1SZXm9IaVkwgnHGjkj3mYYu7",
+  usd: "price_1SZXqYIaVkwgnHGjROTAO47Y",
+  gbp: "price_1SZXseIaVkwgnHGjdck8h4Qw",
 };
 
 export async function POST(req: Request) {
@@ -30,7 +46,12 @@ export async function POST(req: Request) {
     }
 
     const body = (await req.json().catch(() => null)) as
-      | { userId?: string; email?: string; currency?: string }
+      | {
+          userId?: string;
+          email?: string;
+          currency?: string;
+          plan?: string; // "pro" | "yearly" | "founder"
+        }
       | null;
 
     if (!body || !body.userId || !body.email || !body.currency) {
@@ -41,7 +62,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const currency = body.currency.toLowerCase() as "eur" | "usd" | "gbp";
+    const currency = body.currency.toLowerCase() as Currency;
 
     if (!["eur", "usd", "gbp"].includes(currency)) {
       return NextResponse.json(
@@ -50,25 +71,45 @@ export async function POST(req: Request) {
       );
     }
 
-    const priceId = PRO_PRICE_IDS[currency];
+    // 🔁 Normalize plan (default to "pro" monthly if missing/unknown)
+    const requestedPlan = (body.plan || "pro").toLowerCase();
+    let planType: PlanType;
+    if (requestedPlan === "founder") {
+      planType = "founder";
+    } else if (requestedPlan === "yearly") {
+      planType = "yearly";
+    } else {
+      planType = "pro";
+    }
+
+    // 🔗 Choose correct price ID based on planType + currency
+    let priceId: string | undefined;
+    if (planType === "founder") {
+      priceId = FOUNDER_PRICE_IDS[currency];
+    } else if (planType === "yearly") {
+      priceId = YEARLY_PRICE_IDS[currency];
+    } else {
+      priceId = PRO_PRICE_IDS[currency];
+    }
 
     if (!priceId) {
-      console.error("[stripe/checkout] No price for currency", currency);
+      console.error(
+        "[stripe/checkout] No price for currency/plan",
+        currency,
+        planType
+      );
       return NextResponse.json(
         {
           ok: false,
-          error: `No Stripe price configured for currency "${currency}".`,
+          error: `No Stripe price configured for plan "${planType}" and currency "${currency}".`,
         },
         { status: 500 }
       );
     }
 
-    // 🔑 Use env first, then the request origin, then fallback to localhost
     const origin = req.headers.get("origin") || "";
     const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      origin ||
-      "https://aiprod.app";
+      process.env.NEXT_PUBLIC_SITE_URL || origin || "https://aiprod.app";
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -84,7 +125,7 @@ export async function POST(req: Request) {
       cancel_url: `${baseUrl}/dashboard?checkout=cancelled`,
       metadata: {
         userId: body.userId,
-        plan: "pro",
+        plan: planType, // "pro" | "yearly" | "founder"
         currency,
       },
     });
