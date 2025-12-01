@@ -123,39 +123,43 @@ export default function DashboardPage() {
   const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
   const monthlyPriceLabel = MONTHLY_PRICE_BY_CURRENCY[currency];
 
-  async function startCheckout(selectedCurrency: "eur" | "usd" | "gbp") {
-    if (!user) return;
+  async function startCheckout(
+  selectedCurrency: "eur" | "usd" | "gbp",
+  selectedPlan: "pro" | "founder"
+) {
+  if (!user) return;
 
-    setBillingLoading(true);
-    setError("");
+  setBillingLoading(true);
+  setError("");
 
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          email: user.email,
-          currency: selectedCurrency,
-        }),
-      });
+  try {
+    const res = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        email: user.email,
+        currency: selectedCurrency,
+        plan: selectedPlan, // ← required
+      }),
+    });
 
-      const data = await res.json().catch(() => null);
+    const data = await res.json().catch(() => null);
 
-      if (!res.ok || !data?.url) {
-        console.error("[checkout] error payload", data);
-        setError(data?.error || "Could not start checkout.");
-        return;
-      }
-
-      window.location.href = data.url;
-    } catch (err) {
-      console.error("[checkout] exception", err);
-      setError("Network error while starting checkout.");
-    } finally {
-      setBillingLoading(false);
+    if (!res.ok || !data?.url) {
+      console.error("[checkout] error payload", data);
+      setError(data?.error || "Could not start checkout.");
+      return;
     }
+
+    window.location.href = data.url;
+  } catch (err) {
+    console.error("[checkout] exception", err);
+    setError("Network error while starting checkout.");
+  } finally {
+    setBillingLoading(false);
   }
+}
 
   // Load the current user
   useEffect(() => {
@@ -1199,7 +1203,7 @@ export default function DashboardPage() {
           </div>
 
           {/* 🔓 What you unlock with Pro */}
-{!isPro && plan !== "founder" && (
+{!isPro && (
   <>
     <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
       <span className="font-semibold text-xs">What you unlock with Pro:</span>
