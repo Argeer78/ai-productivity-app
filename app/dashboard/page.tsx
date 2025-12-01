@@ -61,6 +61,29 @@ const MONTHLY_PRICE_BY_CURRENCY: Record<"eur" | "usd" | "gbp", string> = {
   gbp: "£7.99",
 };
 
+const PRICE_LABELS = {
+  pro: {
+    monthly: {
+      eur: "€8.49",
+      usd: "$8.99",
+      gbp: "£7.99",
+    },
+    yearly: {
+      eur: "€74.00",
+      usd: "$79.00",
+      gbp: "£69.00",
+    },
+  },
+  founder: {
+    monthly: {
+      eur: "€5.49",
+      usd: "$5.99",
+      gbp: "£4.99",
+    },
+    // ❗ FOUNDER has no yearly, only monthly (or if you want yearly, add here)
+  },
+};
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -102,6 +125,7 @@ export default function DashboardPage() {
   const [weeklyGoalMarking, setWeeklyGoalMarking] = useState(false);
 
   const { track } = useAnalytics();
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
 
   const isPro = plan === "pro" || plan === "founder";
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
@@ -1215,59 +1239,95 @@ export default function DashboardPage() {
     </div>
 
     {/* 🟣 PRO PLAN */}
-    <section
-      id="pricing"
-      className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-5 text-xs md:text-sm max-w-xl mb-4"
+<section
+  id="pricing"
+  className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-5 text-xs md:text-sm max-w-xl mb-4"
+>
+  <p className="text-indigo-100 font-semibold mb-1 text-sm md:text-base">
+    Upgrade to AI Productivity Hub PRO
+  </p>
+  <p className="text-indigo-100 mb-3">
+    For daily users who want higher limits and weekly insights.
+  </p>
+
+  {/* PRICE SWITCHER */}
+  <div className="flex items-center gap-4 mb-4">
+    <button
+      onClick={() => setBillingPeriod("monthly")}
+      className={`px-3 py-1.5 rounded-xl text-xs ${
+        billingPeriod === "monthly"
+          ? "bg-indigo-600 text-white"
+          : "border border-slate-700 text-slate-300"
+      }`}
     >
-      <p className="text-indigo-100 font-semibold mb-1 text-sm md:text-base">
-        Upgrade to AI Productivity Hub PRO
-      </p>
-      <p className="text-indigo-100 mb-3">
-        For daily users who want higher limits and weekly insights.
-      </p>
+      Monthly
+    </button>
 
-      <div className="flex items-baseline gap-2 mb-3">
-        <p className="text-2xl font-bold text-indigo-100">
-          €8.49
-          <span className="text-base font-normal text-indigo-200"> / month</span>
-        </p>
-        <p className="text-[11px] text-indigo-200/80">or save 25% yearly</p>
-      </div>
+    <button
+      onClick={() => setBillingPeriod("yearly")}
+      className={`px-3 py-1.5 rounded-xl text-xs ${
+        billingPeriod === "yearly"
+          ? "bg-indigo-600 text-white"
+          : "border border-slate-700 text-slate-300"
+      }`}
+    >
+      Yearly — save 25%
+    </button>
+  </div>
 
-      <ul className="space-y-1.5 text-[11px] text-indigo-100/90 mb-4">
-        <li>• Unlimited AI (2000 calls/day)</li>
-        <li>• Weekly AI email reports</li>
-        <li>• AI-powered Weekly Goals</li>
-        <li>• Save & revisit trip plans</li>
-        <li>• All premium templates</li>
-        <li>• Priority feature access</li>
-      </ul>
+  {/* PRICE DISPLAY */}
+  <div className="flex items-baseline gap-2 mb-3">
+    <p className="text-2xl font-bold text-indigo-100">
+      {billingPeriod === "monthly"
+        ? PRICE_LABELS.pro.monthly[currency]
+        : PRICE_LABELS.pro.yearly[currency]}
+      <span className="text-base font-normal text-indigo-200">
+        {" "}
+        / {billingPeriod}
+      </span>
+    </p>
+  </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-        <select
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value as "eur" | "usd" | "gbp")}
-          className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs mb-2 sm:mb-0"
-        >
-          <option value="eur">EUR €</option>
-          <option value="usd">USD $</option>
-          <option value="gbp">GBP £</option>
-        </select>
+  {/* Benefits */}
+  <ul className="space-y-1.5 text-[11px] text-indigo-100/90 mb-4">
+    <li>• Unlimited AI (2000 calls/day)</li>
+    <li>• Weekly AI email reports</li>
+    <li>• AI-powered Weekly Goals</li>
+    <li>• Save & revisit trip plans</li>
+    <li>• All premium templates</li>
+    <li>• Priority feature access</li>
+  </ul>
 
-        <button
-          type="button"
-          onClick={() => startCheckout(currency, "pro")}
-          disabled={billingLoading}
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white disabled:opacity-60"
-        >
-          {billingLoading ? "Opening Stripe…" : `Upgrade to Pro (${currency.toUpperCase()})`}
-        </button>
-      </div>
+  {/* Checkout */}
+  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+    <select
+      value={currency}
+      onChange={(e) => setCurrency(e.target.value as "eur" | "usd" | "gbp")}
+      className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs mb-2 sm:mb-0"
+    >
+      <option value="eur">EUR €</option>
+      <option value="usd">USD $</option>
+      <option value="gbp">GBP £</option>
+    </select>
 
-      <p className="mt-2 text-[11px] text-indigo-100/70">
-        Cancel anytime via Stripe billing portal.
-      </p>
-    </section>
+    <button
+      type="button"
+      onClick={() => startCheckout(currency, billingPeriod === "yearly" ? "yearly" : "pro")}
+      disabled={billingLoading}
+      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white disabled:opacity-60"
+    >
+      {billingLoading
+        ? "Opening Stripe…"
+        : billingPeriod === "yearly"
+        ? `Go yearly (${currency.toUpperCase()})`
+        : `Upgrade monthly (${currency.toUpperCase()})`}
+    </button>
+  </div>
+
+  <p className="mt-2 text-[11px] text-indigo-100/70">
+    Cancel anytime via Stripe billing portal.
+  </p>
+</section>
 
     {/* 🎉 FOUNDER EARLY DISCOUNT */}
     <section
