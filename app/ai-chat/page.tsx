@@ -31,9 +31,9 @@ const CATEGORIES = [
   "Ideas",
 ];
 
-// ✅ Same limits as notes dashboard
-const FREE_DAILY_LIMIT = 5;
-const PRO_DAILY_LIMIT = 50;
+// ✅ Same limits as dashboard
+const FREE_DAILY_LIMIT = 20;
+const PRO_DAILY_LIMIT = 2000;
 
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
@@ -56,15 +56,18 @@ export default function AIChatPage() {
   const [error, setError] = useState("");
   const [threadActionId, setThreadActionId] = useState<string | null>(null);
 
-  // 👇 NEW: plan & AI usage
-  const [plan, setPlan] = useState<"free" | "pro">("free");
+  // Plan & AI usage
+  const [plan, setPlan] = useState<"free" | "pro" | "founder">("free");
   const [aiCountToday, setAiCountToday] = useState(0);
 
-  // 👇 NEW: mobile threads drawer toggle
+  // Mobile threads drawer toggle
   const [showMobileThreads, setShowMobileThreads] = useState(false);
 
-  const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
-  const remaining = Math.max(dailyLimit - aiCountToday, 0);
+  const isPro = plan === "pro" || plan === "founder";
+  const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+  const remaining = isPro
+    ? Infinity // effectively unlimited for normal use
+    : Math.max(dailyLimit - aiCountToday, 0);
 
   // 1) Load user
   useEffect(() => {
@@ -103,7 +106,9 @@ export default function AIChatPage() {
           return;
         }
 
-        if (data?.plan === "pro") {
+        if (data?.plan === "founder") {
+          setPlan("founder");
+        } else if (data?.plan === "pro") {
           setPlan("pro");
         } else {
           setPlan("free");
@@ -277,10 +282,10 @@ export default function AIChatPage() {
     const text = input.trim();
     if (!text) return;
 
-    // ✅ Enforce daily limit
-    if (remaining <= 0) {
+    // Enforce daily limit only for free
+    if (!isPro && remaining <= 0) {
       setError(
-        `You reached your daily AI limit for the ${plan} plan (${dailyLimit} replies).`
+        `You reached your daily AI limit for the free plan (${FREE_DAILY_LIMIT} replies).`
       );
       return;
     }
@@ -430,7 +435,7 @@ export default function AIChatPage() {
         });
       }
 
-      // ✅ Count this AI usage
+      // Count this AI usage
       await incrementAiUsage();
     } catch (err) {
       console.error("[ai-chat] send exception", err);
@@ -440,7 +445,7 @@ export default function AIChatPage() {
     }
   }
 
-  // 6) Delete thread (direct via Supabase)
+  // 6) Delete thread
   async function handleDeleteThread(threadId: string) {
     if (!user) return;
     if (!threadId) return;
@@ -487,7 +492,7 @@ export default function AIChatPage() {
     }
   }
 
-  // 7) Rename thread (client-side via Supabase)
+  // 7) Rename thread
   async function handleRenameThread(thread: ThreadRow) {
     if (!user) return;
 
@@ -555,7 +560,7 @@ export default function AIChatPage() {
   if (!user) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-        <AppHeader active="explore" />
+        <AppHeader active="ai-chat" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">AI Hub Chat</h1>
           <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
@@ -575,7 +580,7 @@ export default function AIChatPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <AppHeader active="explore" />
+      <AppHeader active="ai-chat" />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar: threads (desktop) */}
@@ -670,13 +675,23 @@ export default function AIChatPage() {
 
             <div className="flex flex-col items-end gap-1">
               {/* Usage indicator */}
-              <span className="text-[10px] text-slate-400">
-                AI replies today:{" "}
-                <span className="font-semibold text-slate-200">
-                  {aiCountToday}/{dailyLimit}
-                </span>{" "}
-                ({plan})
-              </span>
+              {isPro ? (
+                <span className="text-[10px] text-slate-400">
+                  AI replies today:{" "}
+                  <span className="font-semibold text-slate-200">
+                    {aiCountToday} (unlimited)
+                  </span>{" "}
+                  ({plan})
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-400">
+                  AI replies today:{" "}
+                  <span className="font-semibold text-slate-200">
+                    {aiCountToday}/{FREE_DAILY_LIMIT}
+                  </span>{" "}
+                  (free)
+                </span>
+              )}
 
               <div className="flex items-center gap-2">
                 {/* Mobile: history button */}
@@ -776,13 +791,15 @@ export default function AIChatPage() {
               />
               <button
                 type="submit"
-                disabled={sending || !input.trim() || remaining <= 0}
+                disabled={
+                  sending || !input.trim() || (!isPro && remaining <= 0)
+                }
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-[13px]"
               >
                 {sending
                   ? "Sending…"
-                  : remaining <= 0
-                  ? "Limit reached"
+                  : !isPro && remaining <= 0
+                  ? "Daily limit reached"
                   : "Send"}
               </button>
             </div>
