@@ -1343,9 +1343,10 @@ export default function DashboardPage() {
 
       <div className="flex items-baseline gap-2 mb-3">
         <p className="text-2xl font-bold text-emerald-100">
-          €5.49
-          <span className="text-base font-normal text-emerald-200"> / month</span>
-        </p>
+  {PRICE_LABELS.founder.monthly[currency]}
+  <span className="text-base font-normal text-emerald-200"> / month</span>
+</p>
+
         <p className="text-[11px] text-emerald-200/80">Founder price — never increases</p>
       </div>
 
