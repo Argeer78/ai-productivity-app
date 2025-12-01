@@ -724,20 +724,21 @@ export default function TasksPage() {
 
           {/* New task form */}
           <form
-            onSubmit={handleAddTask}
-            className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3 text-sm"
-          >
-            <div className="text-[11px] font-semibold text-slate-300">
-              Add a new task
-            </div>
-            <div className="text-[11px] font-semibold text-slate-300">
-  <Link
-    href="/ai-task-creator"
-    className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
-  >
-    🤖 AI Task Creator
-  </Link>
-</div>
+  onSubmit={handleAddTask}
+  className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3 text-sm"
+>
+  <div className="mb-2 flex items-center justify-between">
+    <p className="text-[11px] font-semibold text-slate-300">
+      Add a new task
+    </p>
+
+    <Link
+      href="/ai-task-creator"
+      className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-[11px]"
+    >
+      🤖 AI Task Creator
+    </Link>
+  </div>
 
             <input
               type="text"
