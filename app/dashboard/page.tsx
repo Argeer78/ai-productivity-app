@@ -65,7 +65,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [plan, setPlan] = useState<"free" | "pro" | "founder">("free");
   const [aiCountToday, setAiCountToday] = useState(0);
   const [loadingData, setLoadingData] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
@@ -103,15 +103,21 @@ export default function DashboardPage() {
 
   const { track } = useAnalytics();
 
-  const isPro = plan === "pro";
+  const isPro = plan === "pro" || plan === "founder";
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
   const showBanner = streak >= 1;
   const streakCfg = getStreakConfig(streak);
 
   // single source of truth for plan labels
-  const planLabelUpper = isPro ? "PRO" : "FREE";
-  const planLabelNice = isPro ? "Pro" : "Free";
+  const planLabelUpper =
+  plan === "founder" ? "FOUNDER" :
+  plan === "pro" ? "PRO" :
+  "FREE";
+  const planLabelNice =
+  plan === "founder" ? "Founder" :
+  plan === "pro" ? "Pro" :
+  "Free";
 
   // 🌍 currency state for multi-currency checkout
   const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
