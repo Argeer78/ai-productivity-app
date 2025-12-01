@@ -149,8 +149,9 @@ export default function DashboardPage() {
 
   async function startCheckout(
   selectedCurrency: "eur" | "usd" | "gbp",
-  selectedPlan: "pro" | "founder"
+  planType: "pro" | "yearly" | "founder" = "pro"
 ) {
+
   if (!user) return;
 
   setBillingLoading(true);
@@ -161,10 +162,10 @@ export default function DashboardPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId: user.id,
-        email: user.email,
-        currency: selectedCurrency,
-        plan: selectedPlan, // ← required
+  userId: user.id,
+  email: user.email,
+  currency: selectedCurrency,
+  plan: planType,
       }),
     });
 
