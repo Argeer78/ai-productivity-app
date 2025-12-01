@@ -1,11 +1,10 @@
-// app/layout.tsx
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
 import AppShell from "@/app/components/AppShell";
 import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
-import { ThemeProvider } from "./theme-provider";
+import { ThemeProvider } from "@/app/components/ThemeProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,7 +33,6 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // You can keep dark as primary; if you want you can later make this dynamic
   themeColor: "#020617",
 };
 
@@ -47,21 +45,18 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
-        {/* This meta is fine to keep; it's mostly for browser UI tinting */}
         <meta name="theme-color" content="#020617" />
       </head>
-      <body
-        className={`${inter.className} bg-slate-50 text-slate-900 dark:bg-[#020617] dark:text-slate-100`}
-      >
+      {/* 👇 body no longer hard-coded dark; theme is controlled by classes */}
+      <body className={inter.className}>
         <PlausibleProvider
           domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
           trackLocalhost={false}
-        >
-          <ThemeProvider>
-            <ServiceWorkerRegister />
-            <AppShell>{children}</AppShell>
-          </ThemeProvider>
-        </PlausibleProvider>
+        />
+        <ServiceWorkerRegister />
+        <ThemeProvider>
+          <AppShell>{children}</AppShell>
+        </ThemeProvider>
       </body>
     </html>
   );
