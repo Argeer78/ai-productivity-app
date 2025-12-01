@@ -6,6 +6,7 @@ import AppHeader from "@/app/components/AppHeader";
 import Link from "next/link";
 import { useAnalytics } from "@/lib/analytics";
 import { LANGUAGES, LS_PREF_LANG } from "@/lib/translateLanguages";
+import NotificationSettings from "@/app/components/NotificationSettings";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -386,28 +387,31 @@ export default function SettingsPage() {
               </div>
 
               {/* Daily digest toggle */}
-              <div className="pt-1 pb-2 border-b border-slate-800 mb-2">
-                <label className="flex items-start gap-3 text-xs text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={dailyDigestEnabled}
-                    onChange={(e) =>
-                      setDailyDigestEnabled(e.target.checked)
-                    }
-                    className="mt-[2px] h-4 w-4 rounded border-slate-600 bg-slate-950"
-                  />
-                  <span>
-                    <span className="font-semibold">
-                      Daily AI email digest
-                    </span>
-                    <br />
-                    <span className="text-[11px] text-slate-400">
-                      Once per day, AI will email you a short summary of
-                      recent notes and tasks, plus suggested next steps.
-                    </span>
-                  </span>
-                </label>
-              </div>
+<div className="pt-1 pb-2 border-b border-slate-800 mb-4">
+  <label className="flex items-start gap-3 text-xs text-slate-200">
+    <input
+      type="checkbox"
+      checked={dailyDigestEnabled}
+      onChange={(e) =>
+        setDailyDigestEnabled(e.target.checked)
+      }
+      className="mt-[2px] h-4 w-4 rounded border-slate-600 bg-slate-950"
+    />
+    <span>
+      <span className="font-semibold">
+        Daily AI email digest
+      </span>
+      <br />
+      <span className="text-[11px] text-slate-400">
+        Once per day, AI will email you a short summary of
+        recent notes and tasks, plus suggested next steps.
+      </span>
+    </span>
+  </label>
+</div>
+
+{/* Notification channels (email / push / etc) */}
+<NotificationSettings userId={user.id} />
 
               {/* AI tone */}
               <div>
