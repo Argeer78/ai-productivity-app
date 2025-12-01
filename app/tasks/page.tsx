@@ -730,7 +730,14 @@ export default function TasksPage() {
             <p className="text-[11px] font-semibold text-slate-300">
               Add a new task
             </p>
-
+            <p className="text-[11px] font-semibold text-slate-300">
+<Link
+  href="/ai-task-creator"
+  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+>
+  🤖 AI Task Creator
+</Link>
+</p>
             <input
               type="text"
               value={newTitle}
