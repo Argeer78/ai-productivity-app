@@ -1,13 +1,13 @@
+// app/settings/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
-import Link from "next/link";
 import { useAnalytics } from "@/lib/analytics";
 import { LANGUAGES, LS_PREF_LANG } from "@/lib/translateLanguages";
 import NotificationSettings from "@/app/components/NotificationSettings";
-import { useTheme } from "next-themes"; // 👈 NEW
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -20,7 +20,7 @@ const TONE_OPTIONS: { value: Tone; label: string }[] = [
   { value: "casual", label: "Casual" },
 ];
 
-// ✅ Precompute unique language options once (no hooks needed)
+// Precompute unique language options once
 const languageOptions = (() => {
   const seen = new Set<string>();
 
@@ -35,6 +35,7 @@ const languageOptions = (() => {
 export default function SettingsPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+
   const [preferredLangCode, setPreferredLangCode] = useState<string>("");
 
   const [tone, setTone] = useState<Tone>("balanced");
@@ -55,9 +56,6 @@ export default function SettingsPage() {
     useState<Reminder>("none");
 
   const { track } = useAnalytics();
-
-  // 🌗 THEME
-  const { theme, setTheme } = useTheme();
 
   // Load user
   useEffect(() => {
@@ -214,7 +212,7 @@ export default function SettingsPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex items-center justify-center">
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
         <p className="text-slate-300 text-sm">Checking your session...</p>
       </main>
     );
@@ -222,7 +220,7 @@ export default function SettingsPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
         <AppHeader active="settings" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Settings</h1>
@@ -241,7 +239,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <AppHeader active="settings" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
@@ -255,7 +253,7 @@ export default function SettingsPage() {
           ) : (
             <form
               onSubmit={handleSave}
-              className="space-y-6 rounded-2xl border border-slate-800 bg-slate-100/70 dark:bg-slate-900/60 p-4 text-sm"
+              className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm"
             >
               {error && (
                 <p className="text-xs text-red-400 mb-2">{error}</p>
@@ -266,54 +264,8 @@ export default function SettingsPage() {
                 </p>
               )}
 
-              {/* 🌗 THEME SECTION */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-100 dark:bg-slate-900/80 p-4 space-y-3">
-                <p className="text-[11px] font-semibold text-slate-200 dark:text-slate-200">
-                  Appearance
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Choose how the interface looks. This affects all pages.
-                </p>
-
-                <div className="flex flex-wrap gap-2 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setTheme("system")}
-                    className={`px-3 py-1.5 rounded-xl border text-xs ${
-                      theme === "system" || !theme
-                        ? "bg-slate-800 text-slate-50 border-slate-500"
-                        : "bg-slate-900 text-slate-200 border-slate-700"
-                    }`}
-                  >
-                    System
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme("light")}
-                    className={`px-3 py-1.5 rounded-xl border text-xs ${
-                      theme === "light"
-                        ? "bg-slate-800 text-slate-50 border-slate-500"
-                        : "bg-slate-900 text-slate-200 border-slate-700"
-                    }`}
-                  >
-                    Light
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme("dark")}
-                    className={`px-3 py-1.5 rounded-xl border text-xs ${
-                      theme === "dark"
-                        ? "bg-slate-800 text-slate-50 border-slate-500"
-                        : "bg-slate-900 text-slate-200 border-slate-700"
-                    }`}
-                  >
-                    Dark
-                  </button>
-                </div>
-              </div>
-
               {/* Onboarding & focus card */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-100 dark:bg-slate-900/70 p-4 space-y-3">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-[11px] font-semibold text-slate-200">
@@ -373,7 +325,7 @@ export default function SettingsPage() {
 
               {/* Weekly AI report card */}
               <div className="grid md:grid-cols-2 gap-5">
-                <div className="rounded-2xl border border-slate-800 bg-slate-100 dark:bg-slate-900/60 p-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
                   <p className="text-xs font-semibold text-slate-400 mb-1">
                     WEEKLY AI REPORT
                   </p>
@@ -486,7 +438,7 @@ export default function SettingsPage() {
 
               {/* Preferred translation language */}
               <div>
-                <label className="block text-xs font-offsetof text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Preferred translation language
                 </label>
                 <p className="text-[11px] text-slate-400 mb-2">
