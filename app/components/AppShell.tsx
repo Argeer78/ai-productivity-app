@@ -4,6 +4,7 @@
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { LanguageProvider } from "@/app/components/LanguageProvider";
+import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 import AIAssistant from "@/app/components/AIAssistant";
 import { UiI18nProvider } from "@/app/components/UiI18nProvider";
 import PwaInstallPrompt from "@/app/components/PwaInstallPrompt";
@@ -24,12 +25,10 @@ export default function AppShell({ children }: AppShellProps) {
   return (
     <LanguageProvider>
       <UiI18nProvider>
-        {/* Themed app wrapper */}
-        <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-          {children}
-          {!shouldHideAssistant && <AIAssistant />}
-          <PwaInstallPrompt />
-        </div>
+        <ServiceWorkerRegister />
+        {children}
+        {!shouldHideAssistant && <AIAssistant />}
+        <PwaInstallPrompt />
       </UiI18nProvider>
     </LanguageProvider>
   );
