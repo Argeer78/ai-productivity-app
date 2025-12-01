@@ -1,48 +1,298 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { verifyCronAuth } from "@/lib/verifyCron";
+"use client";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
-export async function GET(req: NextRequest) {
-  const authError = verifyCronAuth(req);
-  if (authError) return authError;
+type SettingsRow = {
+  daily_success_enabled: boolean;
+  daily_success_time: string; // "HH:MM:SS" from DB
+  evening_reflection_enabled: boolean;
+  evening_reflection_time: string;
+  task_reminders_enabled: boolean;
+  weekly_report_enabled: boolean;
+  timezone: string;
+};
 
-  try {
-    const now = new Date();
-    const hour = now.getUTCHours();
+type Props = {
+  userId: string;
+};
 
-    // Example: only run between 7 and 21 UTC
-    if (hour < 7 || hour > 21) {
-      return NextResponse.json({ ok: true, skipped: "outside time window" });
+const DEFAULT_SETTINGS: SettingsRow = {
+  daily_success_enabled: true,
+  daily_success_time: "09:00:00",
+  evening_reflection_enabled: true,
+  evening_reflection_time: "21:30:00",
+  task_reminders_enabled: true,
+  weekly_report_enabled: true,
+  timezone: "Europe/Athens",
+};
+
+export default function NotificationSettings({ userId }: Props) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const [settings, setSettings] = useState<SettingsRow>(DEFAULT_SETTINGS);
+
+  // Load settings (or create defaults)
+  useEffect(() => {
+    if (!userId) return;
+
+    async function load() {
+      setLoading(true);
+      setError("");
+      setMessage("");
+
+      try {
+        const { data, error } = await supabase
+          .from("user_notification_settings")
+          .select(
+            "daily_success_enabled, daily_success_time, evening_reflection_enabled, evening_reflection_time, task_reminders_enabled, weekly_report_enabled, timezone"
+          )
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (error && (error as any).code !== "PGRST116") {
+          console.error("[notifications] load error", error);
+          setError("Failed to load notification settings.");
+          return;
+        }
+
+        if (!data) {
+          // Insert defaults
+          const { error: insertError } = await supabase
+            .from("user_notification_settings")
+            .insert([{ user_id: userId }]);
+
+          if (insertError) {
+            console.error("[notifications] insert default error", insertError);
+            setError("Failed to initialize notification settings.");
+            return;
+          }
+
+          setSettings(DEFAULT_SETTINGS);
+        } else {
+          // Normalize time to HH:MM (strip seconds)
+          const normalizeTime = (t: string | null) =>
+            (t || "00:00:00").slice(0, 5);
+
+          setSettings({
+            daily_success_enabled: data.daily_success_enabled,
+            daily_success_time: normalizeTime(data.daily_success_time),
+            evening_reflection_enabled: data.evening_reflection_enabled,
+            evening_reflection_time: normalizeTime(
+              data.evening_reflection_time
+            ),
+            task_reminders_enabled: data.task_reminders_enabled,
+            weekly_report_enabled: data.weekly_report_enabled,
+            timezone: data.timezone,
+          });
+        }
+      } catch (err) {
+        console.error("[notifications] load exception", err);
+        setError("Failed to load notification settings.");
+      } finally {
+        setLoading(false);
+      }
     }
 
-    // Example: get users who want reminders
-    const { data: profiles, error } = await supabase
-      .from("profiles")
-      .select("id, email, onboarding_reminder")
-      .in("onboarding_reminder", ["daily", "weekly"]);
+    load();
+  }, [userId]);
 
-    if (error) throw error;
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    setMessage("");
 
-    for (const profile of profiles || []) {
-      // Logic example:
-      // - if daily: maybe 1 nudge per day at around a certain hour
-      // - if weekly: only nudge on a certain weekday
-      // - record last_nudged_at in a separate table to avoid spamming
+    try {
+      const payload = {
+        user_id: userId,
+        daily_success_enabled: settings.daily_success_enabled,
+        daily_success_time: settings.daily_success_time + ":00",
+        evening_reflection_enabled: settings.evening_reflection_enabled,
+        evening_reflection_time: settings.evening_reflection_time + ":00",
+        task_reminders_enabled: settings.task_reminders_enabled,
+        weekly_report_enabled: settings.weekly_report_enabled,
+        timezone: settings.timezone || "Europe/Athens",
+      };
 
-      // TODO: send email / push / etc.
+      const { error } = await supabase
+        .from("user_notification_settings")
+        .upsert(payload, { onConflict: "user_id" });
+
+      if (error) {
+        console.error("[notifications] save error", error);
+        setError("Failed to save notification settings.");
+        return;
+      }
+
+      setMessage("Saved! Your reminders will use these times.");
+    } catch (err) {
+      console.error("[notifications] save exception", err);
+      setError("Failed to save notification settings.");
+    } finally {
+      setSaving(false);
     }
-
-    return NextResponse.json({
-      ok: true,
-      processed: profiles?.length || 0,
-    });
-  } catch (err) {
-    console.error("[cron-notifications] error", err);
-    return new NextResponse("Internal error", { status: 500 });
   }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-300">
+        Loading notification settings…
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs md:text-sm space-y-3">
+      <h2 className="text-sm font-semibold text-slate-100">
+        Notifications & Reminders
+      </h2>
+      <p className="text-[11px] text-slate-400">
+        Control gentle reminders for your Daily Success score, evening
+        reflection and tasks. These will show up on your phone{" "}
+        <span className="font-semibold">
+          and on any connected smartwatch
+        </span>{" "}
+        (via normal notifications).
+      </p>
+
+      {error && <p className="text-[11px] text-red-400">{error}</p>}
+      {message && (
+        <p className="text-[11px] text-emerald-400">{message}</p>
+      )}
+
+      {/* Daily Success */}
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-slate-200">
+          <input
+            type="checkbox"
+            checked={settings.daily_success_enabled}
+            onChange={(e) =>
+              setSettings((prev) => ({
+                ...prev,
+                daily_success_enabled: e.target.checked,
+              }))
+            }
+            className="h-3 w-3 rounded border-slate-500 bg-slate-900"
+          />
+          <span>Morning Daily Success reminder</span>
+        </label>
+        <input
+          type="time"
+          value={settings.daily_success_time}
+          onChange={(e) =>
+            setSettings((prev) => ({
+              ...prev,
+              daily_success_time: e.target.value,
+            }))
+          }
+          className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
+        />
+      </div>
+
+      {/* Evening reflection */}
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-slate-200">
+          <input
+            type="checkbox"
+            checked={settings.evening_reflection_enabled}
+            onChange={(e) =>
+              setSettings((prev) => ({
+                ...prev,
+                evening_reflection_enabled: e.target.checked,
+              }))
+            }
+            className="h-3 w-3 rounded border-slate-500 bg-slate-900"
+          />
+          <span>Evening reflection reminder</span>
+        </label>
+        <input
+          type="time"
+          value={settings.evening_reflection_time}
+          onChange={(e) =>
+            setSettings((prev) => ({
+              ...prev,
+              evening_reflection_time: e.target.value,
+            }))
+          }
+          className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
+        />
+      </div>
+
+      {/* Task reminders */}
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-slate-200">
+          <input
+            type="checkbox"
+            checked={settings.task_reminders_enabled}
+            onChange={(e) =>
+              setSettings((prev) => ({
+                ...prev,
+                task_reminders_enabled: e.target.checked,
+              }))
+            }
+            className="h-3 w-3 rounded border-slate-500 bg-slate-900"
+          />
+          <span>Task reminders</span>
+        </label>
+        <p className="text-[11px] text-slate-500">
+          You&apos;ll get a nudge when tasks are due today.
+        </p>
+      </div>
+
+      {/* Weekly report */}
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-slate-200">
+          <input
+            type="checkbox"
+            checked={settings.weekly_report_enabled}
+            onChange={(e) =>
+              setSettings((prev) => ({
+                ...prev,
+                weekly_report_enabled: e.target.checked,
+              }))
+            }
+            className="h-3 w-3 rounded border-slate-500 bg-slate-900"
+          />
+          <span>Weekly report notification</span>
+        </label>
+        <p className="text-[11px] text-slate-500">
+          When your weekly AI report is ready, you&apos;ll get a notification.
+        </p>
+      </div>
+
+      {/* Timezone (simple text for now) */}
+      <div className="flex flex-col gap-1">
+        <label className="text-[11px] text-slate-400">
+          Timezone (for scheduling reminders)
+        </label>
+        <input
+          type="text"
+          value={settings.timezone}
+          onChange={(e) =>
+            setSettings((prev) => ({
+              ...prev,
+              timezone: e.target.value,
+            }))
+          }
+          className="max-w-xs rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
+          placeholder="e.g. Europe/Athens"
+        />
+        <p className="text-[10px] text-slate-500">
+          You can change this later. Use standard IANA names like &quot;Europe/Athens&quot; or &quot;America/New_York&quot;.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs"
+      >
+        {saving ? "Saving…" : "Save notification settings"}
+      </button>
+    </section>
+  );
 }
