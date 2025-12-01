@@ -5,10 +5,7 @@ import Stripe from "stripe";
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
 const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, {
-      // Align with Stripe dashboard API version if needed
-      apiVersion: "2024-06-20",
-    })
+  ? new Stripe(stripeSecretKey)
   : null;
 
 type Currency = "eur" | "usd" | "gbp";
