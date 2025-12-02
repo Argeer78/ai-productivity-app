@@ -256,8 +256,18 @@ export default function NotesPage() {
     return newCount;
   }
 
-  async function handleAI(noteId: string, noteContent: string | null, mode: AiMode) {
+  async function handleAI(
+    noteId: string,
+    noteContent: string | null,
+    mode: AiMode
+  ) {
     if (!noteContent?.trim()) return;
+
+    // ✅ Guard: make sure we have a user before using user.id
+    if (!user) {
+      setError("You need to be logged in to use AI on notes.");
+      return;
+    }
 
     if (remaining <= 0) {
       setError("Daily AI limit reached.");
@@ -283,7 +293,14 @@ export default function NotesPage() {
       .from("notes")
       .update({ ai_result: data.result })
       .eq("id", noteId)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id); // ✅ safe now because of the guard above
+
+    if (updateError) {
+      console.error("[notes] AI result update error", updateError);
+      setError("Failed to save AI result to this note.");
+      setAiLoading(null);
+      return;
+    }
 
     const used = await incrementAiUsage();
     await fetchNotes();
@@ -301,6 +318,10 @@ export default function NotesPage() {
   }
 
   async function saveEdit(id: string) {
+    if (!user) return;
+
+    setSavingEditId(id);
+
     await supabase
       .from("notes")
       .update({
@@ -309,8 +330,9 @@ export default function NotesPage() {
         category: editCategory || null,
       })
       .eq("id", id)
-      .eq("user_id", user!.id);
+      .eq("user_id", user.id);
 
+    setSavingEditId(null);
     cancelEdit();
     fetchNotes();
   }
@@ -323,11 +345,12 @@ export default function NotesPage() {
   }
 
   async function handleDelete(id: string) {
+    if (!user) return;
     if (!confirm("Delete this note?")) return;
 
     setDeletingId(id);
 
-    await supabase.from("notes").delete().eq("id", id).eq("user_id", user!.id);
+    await supabase.from("notes").delete().eq("id", id).eq("user_id", user.id);
 
     setNotes((prev) => prev.filter((n) => n.id !== id));
     setDeletingId(null);
@@ -651,7 +674,7 @@ export default function NotesPage() {
                         <button
                           onClick={() => saveEdit(note.id)}
                           disabled={savingEditId === note.id}
-                          className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs"
+                          className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
                         >
                           {savingEditId === note.id
                             ? "Saving..."
