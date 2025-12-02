@@ -279,7 +279,7 @@ export default function NotesPage() {
       return;
     }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("notes")
       .update({ ai_result: data.result })
       .eq("id", noteId)
