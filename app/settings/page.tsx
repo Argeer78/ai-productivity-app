@@ -8,11 +8,7 @@ import AppHeader from "@/app/components/AppHeader";
 import { useAnalytics } from "@/lib/analytics";
 import { LANGUAGES, LS_PREF_LANG } from "@/lib/translateLanguages";
 import NotificationSettings from "@/app/components/NotificationSettings";
-import {
-  useTheme,
-  THEME_OPTIONS,
-  type ThemeId,
-} from "@/app/components/ThemeProvider";
+import { useTheme, type ThemeId } from "@/app/components/ThemeProvider";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -59,8 +55,20 @@ export default function SettingsPage() {
   const [onboardingWeeklyFocus, setOnboardingWeeklyFocus] = useState("");
   const [onboardingReminder, setOnboardingReminder] =
     useState<Reminder>("none");
+  const { theme, setTheme } = useTheme();
 
   const { track } = useAnalytics();
+  const THEME_OPTIONS: { value: ThemeId; label: string }[] = [
+  { value: "default", label: "Default (Dark)" },
+  { value: "light", label: "Light" },
+  { value: "ocean", label: "Ocean" },
+  { value: "purple", label: "Purple neon" },
+  { value: "forest", label: "Forest" },
+  { value: "sunset", label: "Sunset" },
+  { value: "halloween", label: "Halloween 🎃" },
+  { value: "christmas", label: "Christmas 🎄" },
+  { value: "easter", label: "Easter 🐣" },
+];
 
   // 🔹 Theme context (from ThemeProvider)
   const { theme, setTheme } = useTheme();
@@ -433,53 +441,27 @@ export default function SettingsPage() {
               {/* Notification channels */}
               <NotificationSettings userId={user.id} />
 
-              {/* 🔹 App theme picker */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-2">
-                <p className="text-[11px] font-semibold text-slate-200">
-                  App theme
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  Choose how the workspace looks. Seasonal themes are just for fun — you
-                  can switch anytime.
-                </p>
-
-                <div className="mt-2 grid sm:grid-cols-2 gap-2">
-                  {THEME_OPTIONS.map((t) => {
-                    const isActive = theme === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setTheme(t.id)}
-                        className={`text-left rounded-xl border px-3 py-2 text-[11px] transition ${
-                          isActive
-                            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text-main)]"
-                            : "border-slate-700 bg-slate-950/60 text-slate-200 hover:border-slate-500 hover:bg-slate-900"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold">{t.label}</span>
-                          {t.seasonal && (
-                            <span className="text-[10px] text-amber-300">
-                              🎉 Seasonal
-                            </span>
-                          )}
-                        </div>
-                        {t.description && (
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            {t.description}
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <p className="text-[10px] text-slate-500 mt-2">
-                  Your theme is stored on this device and in your profile. You can change
-                  it anytime from Settings.
-                </p>
-              </div>
+              {/* App theme */}
+<div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-2">
+  <p className="text-xs font-semibold text-slate-300 mb-1">
+    App theme
+  </p>
+  <p className="text-[11px] text-slate-400 mb-2">
+    Change the overall look of the app. Some seasonal themes
+    (Halloween, Christmas, Easter) appear best around their holidays 🎉
+  </p>
+  <select
+    value={theme || "default"}
+    onChange={(e) => setTheme(e.target.value as ThemeId)}
+    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
+  >
+    {THEME_OPTIONS.map((opt) => (
+      <option key={opt.value} value={opt.value}>
+        {opt.label}
+      </option>
+    ))}
+  </select>
+</div>
 
               {/* AI tone */}
               <div>
