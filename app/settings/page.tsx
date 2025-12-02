@@ -33,6 +33,19 @@ const languageOptions = (() => {
   }).sort((a, b) => a.label.localeCompare(b.label));
 })();
 
+// Theme options for the picker
+const THEME_OPTIONS: { value: ThemeId; label: string }[] = [
+  { value: "default", label: "Dark (default)" },
+  { value: "light", label: "Light" },
+  { value: "ocean", label: "Ocean" },
+  { value: "purple", label: "Purple" },
+  { value: "forest", label: "Forest" },
+  { value: "sunset", label: "Sunset" },
+  { value: "halloween", label: "Halloween 🎃" },
+  { value: "christmas", label: "Christmas 🎄" },
+  { value: "easter", label: "Easter 🐣" },
+];
+
 export default function SettingsPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -57,20 +70,9 @@ export default function SettingsPage() {
     useState<Reminder>("none");
 
   const { track } = useAnalytics();
+
   // 🔹 Theme context (from ThemeProvider)
   const { theme, setTheme } = useTheme();
-
-  const THEME_OPTIONS: { value: ThemeId; label: string }[] = [
-  { value: "default", label: "Default (Dark)" },
-  { value: "light", label: "Light" },
-  { value: "ocean", label: "Ocean" },
-  { value: "purple", label: "Purple neon" },
-  { value: "forest", label: "Forest" },
-  { value: "sunset", label: "Sunset" },
-  { value: "halloween", label: "Halloween 🎃" },
-  { value: "christmas", label: "Christmas 🎄" },
-  { value: "easter", label: "Easter 🐣" },
-];
 
   // Load user
   useEffect(() => {
@@ -90,7 +92,7 @@ export default function SettingsPage() {
     loadUser();
   }, []);
 
-  // Load profile settings
+  // Load profile settings (but DO NOT override current theme — let ThemeProvider handle it)
   useEffect(() => {
     if (!user) return;
 
@@ -158,13 +160,9 @@ export default function SettingsPage() {
             );
           }
 
-          // 🔹 Theme from profile (if present)
-          if (data.ui_theme) {
-  const t = data.ui_theme as ThemeId;
-  if (THEME_OPTIONS.some((opt) => opt.value === t)) {
-    setTheme(t);
-  }
-}
+          // ⛔ Important: we do NOT call setTheme(data.ui_theme) here,
+          // so the theme you pick and what's in localStorage wins.
+        }
 
         // Preferred translation language from localStorage
         if (typeof window !== "undefined") {
@@ -182,7 +180,7 @@ export default function SettingsPage() {
     }
 
     loadProfile();
-  }, [user, setTheme]);
+  }, [user]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -204,7 +202,7 @@ export default function SettingsPage() {
           onboarding_weekly_focus:
             onboardingWeeklyFocus.trim() || null,
           onboarding_reminder: onboardingReminder || "none",
-          ui_theme: theme, // 🔹 persist selected theme
+          ui_theme: theme, // 👍 still persist for future, but we don’t force it on load
         })
         .eq("id", user.id);
 
@@ -439,7 +437,7 @@ export default function SettingsPage() {
               {/* Notification channels */}
               <NotificationSettings userId={user.id} />
 
-                            {/* Theme & appearance */}
+              {/* Theme & appearance */}
               <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -454,24 +452,14 @@ export default function SettingsPage() {
 
                 <div className="space-y-2 text-[11px]">
                   <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: "default", label: "Dark (default)" },
-                      { id: "light", label: "Light" },
-                      { id: "ocean", label: "Ocean" },
-                      { id: "purple", label: "Purple" },
-                      { id: "forest", label: "Forest" },
-                      { id: "sunset", label: "Sunset" },
-                      { id: "halloween", label: "Halloween" },
-                      { id: "christmas", label: "Christmas" },
-                      { id: "easter", label: "Easter" },
-                    ].map((t) => (
+                    {THEME_OPTIONS.map((t) => (
                       <button
-                        key={t.id}
+                        key={t.value}
                         type="button"
-                        onClick={() => setTheme(t.id as ThemeId)}
+                        onClick={() => setTheme(t.value)}
                         className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
-                          theme === t.id
-                            ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
+                          theme === t.value
+                            ? "border-indigo-400 bg-indigo-500/10 text-indigo-200"
                             : "border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-200"
                         }`}
                       >
@@ -482,7 +470,7 @@ export default function SettingsPage() {
 
                   <p className="text-[11px] text-slate-500">
                     Your choice is saved on this device. The default theme follows a dark
-                    style; Light is easier on bright environments. Seasonal themes
+                    style; Light is easier in bright environments. Seasonal themes
                     (Halloween, Christmas, Easter) add a bit of fun.
                   </p>
                 </div>
