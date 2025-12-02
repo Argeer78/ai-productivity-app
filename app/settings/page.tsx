@@ -55,9 +55,11 @@ export default function SettingsPage() {
   const [onboardingWeeklyFocus, setOnboardingWeeklyFocus] = useState("");
   const [onboardingReminder, setOnboardingReminder] =
     useState<Reminder>("none");
-  const { theme, setTheme } = useTheme();
 
   const { track } = useAnalytics();
+  // 🔹 Theme context (from ThemeProvider)
+  const { theme, setTheme } = useTheme();
+
   const THEME_OPTIONS: { value: ThemeId; label: string }[] = [
   { value: "default", label: "Default (Dark)" },
   { value: "light", label: "Light" },
@@ -69,9 +71,6 @@ export default function SettingsPage() {
   { value: "christmas", label: "Christmas 🎄" },
   { value: "easter", label: "Easter 🐣" },
 ];
-
-  // 🔹 Theme context (from ThemeProvider)
-  const { theme, setTheme } = useTheme();
 
   // Load user
   useEffect(() => {
@@ -423,7 +422,7 @@ export default function SettingsPage() {
                     onChange={(e) =>
                       setDailyDigestEnabled(e.target.checked)
                     }
-                    className="mt-[2px] h-4 w-4 rounded border-slate-600 bg-slate-950"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-950"
                   />
                   <span>
                     <span className="font-semibold">
@@ -441,27 +440,54 @@ export default function SettingsPage() {
               {/* Notification channels */}
               <NotificationSettings userId={user.id} />
 
-              {/* App theme */}
-<div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-2">
-  <p className="text-xs font-semibold text-slate-300 mb-1">
-    App theme
-  </p>
-  <p className="text-[11px] text-slate-400 mb-2">
-    Change the overall look of the app. Some seasonal themes
-    (Halloween, Christmas, Easter) appear best around their holidays 🎉
-  </p>
-  <select
-    value={theme || "default"}
-    onChange={(e) => setTheme(e.target.value as ThemeId)}
-    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
-  >
-    {THEME_OPTIONS.map((opt) => (
-      <option key={opt.value} value={opt.value}>
-        {opt.label}
-      </option>
-    ))}
-  </select>
-</div>
+                            {/* Theme & appearance */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-200">
+                      Theme & appearance
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Choose your app theme. Seasonal themes turn on extra colors.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-[11px]">
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: "default", label: "Dark (default)" },
+                      { id: "light", label: "Light" },
+                      { id: "ocean", label: "Ocean" },
+                      { id: "purple", label: "Purple" },
+                      { id: "forest", label: "Forest" },
+                      { id: "sunset", label: "Sunset" },
+                      { id: "halloween", label: "Halloween" },
+                      { id: "christmas", label: "Christmas" },
+                      { id: "easter", label: "Easter" },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTheme(t.id as ThemeId)}
+                        className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
+                          theme === t.id
+                            ? "border-(--accent) bg-(--accent-soft) text-(--accent)"
+                            : "border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-200"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-[11px] text-slate-500">
+                    Your choice is saved on this device. The default theme follows a dark
+                    style; Light is easier on bright environments. Seasonal themes
+                    (Halloween, Christmas, Easter) add a bit of fun.
+                  </p>
+                </div>
+              </div>
 
               {/* AI tone */}
               <div>

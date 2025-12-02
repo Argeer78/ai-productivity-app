@@ -46,6 +46,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#020617" />
       </head>
+      {/* ❗️No bg-slate classes here so themes can control colors */}
       <body className={inter.className}>
         <PlausibleProvider
           domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}

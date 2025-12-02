@@ -1,3 +1,4 @@
+// app/components/ThemeProvider.tsx
 "use client";
 
 import {
@@ -8,10 +9,8 @@ import {
   ReactNode,
 } from "react";
 
-const THEME_STORAGE_KEY = "aph-theme";
-
 export type ThemeId =
-  | "default"   // our normal dark
+  | "default"   // your base dark theme (:root)
   | "light"
   | "ocean"
   | "purple"
@@ -23,50 +22,86 @@ export type ThemeId =
 
 type ThemeContextValue = {
   theme: ThemeId;
-  setTheme: (theme: ThemeId) => void;
+  setTheme: (t: ThemeId) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-function applyTheme(next: ThemeId) {
+const STORAGE_KEY = "aph_theme";
+
+function applyTheme(theme: ThemeId) {
   if (typeof document === "undefined") return;
+
   const root = document.documentElement;
 
-  // "default" = use the base :root theme (no data-theme)
-  if (next === "default") {
+  if (theme === "default") {
     root.removeAttribute("data-theme");
   } else {
-    root.setAttribute("data-theme", next);
+    root.setAttribute("data-theme", theme);
   }
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeId>("default");
 
-  // On mount: read stored theme and apply
+   // Load initial theme from localStorage or system preference
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const stored = window.localStorage.getItem(
-      THEME_STORAGE_KEY
-    ) as ThemeId | null;
-
-    if (stored) {
-      setThemeState(stored);
-      applyTheme(stored);
-    } else {
-      // default theme
-      applyTheme("default");
+    const saved = window.localStorage.getItem(STORAGE_KEY) as ThemeId | null;
+    if (saved) {
+      setThemeState(saved);
+      applyTheme(saved);
+      return;
     }
+
+    // 🎃🎄🐣 Seasonal default (if user has NOT chosen anything yet)
+    const now = new Date();
+    const month = now.getMonth() + 1; // 1-12
+    const day = now.getDate();
+
+    let seasonal: ThemeId | null = null;
+
+    // Halloween: Oct 25–31
+    if (month === 10 && day >= 25 && day <= 31) {
+      seasonal = "halloween";
+    }
+    // Christmas: Dec 20–31
+    else if (month === 12 && day >= 20 && day <= 31) {
+      seasonal = "christmas";
+    }
+    // Easter-ish: March–April (simple heuristic)
+    else if (month === 3 || month === 4) {
+      seasonal = "easter";
+    }
+
+    if (seasonal) {
+      setThemeState(seasonal);
+      applyTheme(seasonal);
+      return;
+    }
+
+    // Fallback: system preference for default vs light
+    const prefersDark =
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+    const initial: ThemeId = prefersDark ? "default" : "light";
+    setThemeState(initial);
+    applyTheme(initial);
   }, []);
 
-  const setTheme = (next: ThemeId) => {
+   function setTheme(next: ThemeId) {
     setThemeState(next);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(THEME_STORAGE_KEY, next);
+      if (next === "default") {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, next);
+      }
     }
     applyTheme(next);
-  };
+  }
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
@@ -75,10 +110,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useTheme() {
+export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    throw new Error("useTheme must be used inside ThemeProvider");
+    throw new Error("useTheme must be used within <ThemeProvider>");
   }
   return ctx;
 }
