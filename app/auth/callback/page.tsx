@@ -11,43 +11,43 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function finishSignIn() {
+    async function handleCallback() {
       try {
-        if (typeof window === "undefined") return;
+        // Supabase can automatically detect the `code` in the URL
+        // when we call getUser()/getSession(), so we just poll a bit.
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const { data, error } = await supabase.auth.getUser();
 
-        const url = new URL(window.location.href);
-        const code = url.searchParams.get("code");
+          // (Optional) debug – safe to leave or remove
+          console.log("[auth/callback] attempt", attempt, {
+            hasUser: !!data?.user,
+            error,
+          });
 
-        // If Supabase sent a code, exchange it for a session
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            console.error("[auth/callback] exchangeCodeForSession error", error);
-            if (!cancelled) router.replace("/auth?error=oauth");
+          if (data?.user) {
+            if (!cancelled) {
+              router.replace("/dashboard");
+            }
             return;
           }
+
+          // wait a bit before trying again
+          await new Promise((res) => setTimeout(res, 500));
         }
 
-        // Verify we actually have a user
-        const { data, error } = await supabase.auth.getUser();
-        if (error) {
-          console.error("[auth/callback] getUser error", error);
-        }
-
-        if (cancelled) return;
-
-        if (data?.user) {
-          router.replace("/dashboard");
-        } else {
+        // If we get here, we never saw a user
+        if (!cancelled) {
           router.replace("/auth?error=auth");
         }
       } catch (err) {
         console.error("[auth/callback] unexpected error", err);
-        if (!cancelled) router.replace("/auth?error=unknown");
+        if (!cancelled) {
+          router.replace("/auth?error=unknown");
+        }
       }
     }
 
-    finishSignIn();
+    handleCallback();
 
     return () => {
       cancelled = true;
@@ -55,7 +55,7 @@ export default function AuthCallbackPage() {
   }, [router]);
 
   return (
-    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+    <main className="min-h-screen flex items-center justify-center bg-[var(--bg-body)] text-[var(--text-main)]">
       <p className="text-sm text-[var(--text-muted)]">Finishing sign-in…</p>
     </main>
   );
