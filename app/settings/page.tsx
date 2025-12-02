@@ -160,12 +160,11 @@ export default function SettingsPage() {
 
           // 🔹 Theme from profile (if present)
           if (data.ui_theme) {
-            const t = data.ui_theme as ThemeId;
-            if (THEME_OPTIONS.some((opt) => opt.id === t)) {
-              setTheme(t);
-            }
-          }
-        }
+  const t = data.ui_theme as ThemeId;
+  if (THEME_OPTIONS.some((opt) => opt.value === t)) {
+    setTheme(t);
+  }
+}
 
         // Preferred translation language from localStorage
         if (typeof window !== "undefined") {
