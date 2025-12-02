@@ -1,21 +1,24 @@
+// app/auth/callback/page.tsx
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     let cancelled = false;
 
     async function finishSignIn() {
       try {
-        // Newer Supabase + OAuth often returns a `code` (PKCE)
-        const code = searchParams.get("code");
+        if (typeof window === "undefined") return;
 
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+
+        // If Supabase sent a code, exchange it for a session
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) {
@@ -25,19 +28,18 @@ export default function AuthCallbackPage() {
           }
         }
 
+        // Verify we actually have a user
         const { data, error } = await supabase.auth.getUser();
         if (error) {
           console.error("[auth/callback] getUser error", error);
         }
 
-        if (!cancelled) {
-          if (data?.user) {
-            // ✅ Logged in – go to dashboard
-            router.replace("/dashboard");
-          } else {
-            // ❌ No user – back to auth
-            router.replace("/auth?error=auth");
-          }
+        if (cancelled) return;
+
+        if (data?.user) {
+          router.replace("/dashboard");
+        } else {
+          router.replace("/auth?error=auth");
         }
       } catch (err) {
         console.error("[auth/callback] unexpected error", err);
@@ -50,13 +52,11 @@ export default function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
-      <p className="text-sm text-[var(--text-muted)]">
-        Finishing sign-in…
-      </p>
+      <p className="text-sm text-[var(--text-muted)]">Finishing sign-in…</p>
     </main>
   );
 }
