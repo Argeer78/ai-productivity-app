@@ -112,20 +112,20 @@ export default function OnboardingPreferences() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-300">
+      <div className="rounded-2xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-card) 70%,transparent)] p-4 text-xs text-[var(--text-muted)]">
         Loading onboarding preferences…
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs md:text-sm space-y-3">
+    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-card) 70%,transparent)] p-4 text-xs md:text-sm space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-[11px] font-semibold text-slate-200">
+          <p className="text-[11px] font-semibold text-[var(--text-main)]">
             Onboarding & focus
           </p>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-[var(--text-muted)]">
             Help the app tailor AI prompts, reminders and weekly reports.
           </p>
         </div>
@@ -141,7 +141,7 @@ export default function OnboardingPreferences() {
       )}
 
       <div className="space-y-2">
-        <label className="block text-[11px] text-slate-300">
+        <label className="block text-[11px] text-[var(--text-main)]">
           Main way you plan to use this app
           <textarea
             value={values.onboarding_use_case ?? ""}
@@ -149,12 +149,12 @@ export default function OnboardingPreferences() {
               setValues((v) => ({ ...v, onboarding_use_case: e.target.value }))
             }
             placeholder="Example: I’m a solo founder using this for planning my week, journaling progress and drafting emails."
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100 resize-vertical"
+            className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] px-2 py-1.5 text-[11px] text-[var(--text-main)] resize-vertical"
             rows={2}
           />
         </label>
 
-        <label className="block text-[11px] text-slate-300">
+        <label className="block text-[11px] text-[var(--text-main)]">
           One important thing you want to make progress on each week
           <textarea
             value={values.onboarding_weekly_focus ?? ""}
@@ -165,12 +165,12 @@ export default function OnboardingPreferences() {
               }))
             }
             placeholder="Example: Shipping one small improvement to my product every week."
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100 resize-vertical"
+            className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] px-2 py-1.5 text-[11px] text-[var(--text-main)] resize-vertical"
             rows={2}
           />
         </label>
 
-        <label className="block text-[11px] text-slate-300">
+        <label className="block text-[11px] text-[var(--text-main)]">
           Light reminder cadence
           <select
             value={values.onboarding_reminder ?? "none"}
@@ -183,7 +183,7 @@ export default function OnboardingPreferences() {
                   | "weekly",
               }))
             }
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100"
+            className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] px-2 py-1.5 text-[11px] text-[var(--text-main)]"
           >
             <option value="none">No reminders</option>
             <option value="daily">Daily nudge email</option>

@@ -45,14 +45,14 @@ export default function SocialShare() {
   }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+    <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
       <span>Share this app:</span>
       <div className="flex flex-wrap gap-2">
         <a
           href={twitterUrl}
           target="_blank"
           rel="noreferrer"
-          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
         >
           X / Twitter
         </a>
@@ -60,21 +60,21 @@ export default function SocialShare() {
           href={linkedinUrl}
           target="_blank"
           rel="noreferrer"
-          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
         >
           LinkedIn
         </a>
         <button
           type="button"
           onClick={handleCopy}
-          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
         >
           {copied ? "✅ Copied!" : "Copy link"}
         </button>
         <button
           type="button"
           onClick={handleNativeShare}
-          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 hidden sm:inline"
+          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] hidden sm:inline"
         >
           📱 Share
         </button>

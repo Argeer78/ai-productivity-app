@@ -4,20 +4,26 @@
 import AppHeader from "@/app/components/AppHeader";
 
 export default function TermsPage() {
+  // You can also hardcode a date string if you prefer:
+  // const lastUpdated = "2025-01-15";
+  const lastUpdated = new Date().toISOString().split("T")[0];
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <AppHeader />
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+      <AppHeader active="settings" />
 
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-12 text-sm">
-          <h1 className="text-2xl md:text-3xl font-bold mb-3">
-            Terms of Use
-          </h1>
-          <p className="text-xs md:text-sm text-slate-400 mb-6">
-            Last updated: {new Date().toISOString().split("T")[0]}
-          </p>
+          <header className="mb-6">
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">
+              Terms of Use
+            </h1>
+            <p className="text-xs md:text-sm text-[var(--text-muted)]">
+              Last updated: {lastUpdated}
+            </p>
+          </header>
 
-          <div className="space-y-4 text-[13px] leading-relaxed text-slate-200">
+          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-4 sm:px-5 py-5 text-[13px] leading-relaxed text-[var(--text-main)] space-y-4">
             <p>
               By using AI Productivity Hub, you agree to these terms. If you
               do not agree, please do not use the service.
@@ -69,7 +75,7 @@ export default function TermsPage() {
             </p>
 
             <h2 className="text-sm font-semibold mt-4">
-              6. Paid plans & billing
+              6. Paid plans &amp; billing
             </h2>
             <p>
               If you upgrade to a paid plan, billing is handled securely by
@@ -107,13 +113,13 @@ export default function TermsPage() {
               there.
             </p>
 
-            <p className="text-[11px] text-slate-500 mt-4">
+            <p className="text-[11px] text-[var(--text-muted)] mt-4">
               This is a simple, human-readable terms page and does not
               replace proper legal review. For a commercial launch, consider
               asking a lawyer to review and adapt these terms for your
               specific situation.
             </p>
-          </div>
+          </section>
         </div>
       </div>
     </main>

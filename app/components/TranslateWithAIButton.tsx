@@ -521,7 +521,7 @@ export default function TranslateWithAIButton() {
       <button
         type="button"
         onClick={handleOpen}
-        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900/60 hover:bg-slate-900 text-[11px] text-slate-100"
+        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-card) 60%,transparent)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
       >
         <span>🌎 Translate with AI</span>
       </button>
@@ -536,20 +536,20 @@ export default function TranslateWithAIButton() {
               left: position.left,
               transform: "translateX(-50%)",
             }}
-            className="w-[95%] max-w-xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
+            className="w-[95%] max-w-xl rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-2xl"
           >
             {/* Header (draggable) */}
             <div
-              className="cursor-move flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900/80 rounded-t-2xl"
+              className="cursor-move flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] rounded-t-2xl"
               onMouseDown={startDrag}
             >
               <div className="flex items-center gap-2">
                 <span className="text-lg">🌎</span>
                 <div>
-                  <p className="text-xs font-semibold text-slate-100">
+                  <p className="text-xs font-semibold text-[var(--text-main)]">
                     Translate with AI
                   </p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-[var(--text-muted)]">
                     Select your language and translate text or the page.
                   </p>
                 </div>
@@ -557,7 +557,7 @@ export default function TranslateWithAIButton() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="text-slate-400 hover:text-slate-200 text-xs px-2 py-1 rounded-lg hover:bg-slate-800"
+                className="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xs px-2 py-1 rounded-lg hover:bg-[var(--bg-elevated)]"
               >
                 ✕
               </button>
@@ -567,7 +567,7 @@ export default function TranslateWithAIButton() {
             <div className="px-4 py-3 space-y-3 text-xs">
               {/* Language picker */}
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">
+                <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   Target language
                 </label>
                 <input
@@ -575,10 +575,10 @@ export default function TranslateWithAIButton() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search language (e.g. Spanish, 日本語, Português)…"
-                  className="w-full px-3 py-2 mb-2 rounded-xl bg-slate-950 border border-slate-700 text-[12px] text-slate-100"
+                  className="w-full px-3 py-2 mb-2 rounded-xl bg-[var(--bg-body)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-main)]"
                 />
 
-                <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/80 p-2 space-y-2">
+                <div className="max-h-52 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] p-2 space-y-2">
                   {filteredLanguages ? (
                     filteredLanguages.length ? (
                       filteredLanguages.map((lang) => {
@@ -593,21 +593,21 @@ export default function TranslateWithAIButton() {
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                               isSelected
                                 ? "bg-indigo-600 text-white"
-                                : "text-slate-100 hover:bg-slate-800/70"
+                                : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
                             }`}
                           >
                             <span className="flex items-center gap-2">
                               <span>{lang.flag}</span>
                               <span>{lang.label}</span>
                             </span>
-                            <span className="text-[10px] text-slate-300/80">
+                            <span className="text-[10px] text-[var(--text-muted)]">
                               {lang.code}
                             </span>
                           </button>
                         );
                       })
                     ) : (
-                      <p className="text-[11px] text-slate-500 px-1">
+                      <p className="text-[11px] text-[var(--text-muted)] px-1">
                         No languages found for “{search}”.
                       </p>
                     )
@@ -620,7 +620,7 @@ export default function TranslateWithAIButton() {
                             <span className="text-[10px] text-amber-300">
                               ⭐
                             </span>
-                            <span className="text-[10px] font-semibold text-slate-300">
+                            <span className="text-[10px] font-semibold text-[var(--text-main)]">
                               Most popular
                             </span>
                           </div>
@@ -637,14 +637,14 @@ export default function TranslateWithAIButton() {
                                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                                     isSelected
                                       ? "bg-indigo-600 text-white"
-                                      : "text-slate-100 hover:bg-slate-800/70"
+                                      : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
                                   }`}
                                 >
                                   <span className="flex items-center gap-2">
                                     <span>{lang.flag}</span>
                                     <span>{lang.label}</span>
                                   </span>
-                                  <span className="text-[10px] text-slate-300/80">
+                                  <span className="text-[10px] text-[var(--text-muted)]">
                                     {lang.code}
                                   </span>
                                 </button>
@@ -657,7 +657,7 @@ export default function TranslateWithAIButton() {
                       {/* Regions */}
                       {groupedByRegion.map((group) => (
                         <div key={group.region}>
-                          <p className="text-[10px] font-semibold text-slate-400 px-1 mb-1">
+                          <p className="text-[10px] font-semibold text-[var(--text-muted)] px-1 mb-1">
                             {group.region}
                           </p>
                           <div className="space-y-1 mb-2">
@@ -673,14 +673,14 @@ export default function TranslateWithAIButton() {
                                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                                     isSelected
                                       ? "bg-indigo-600 text-white"
-                                      : "text-slate-100 hover:bg-slate-800/70"
+                                      : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
                                   }`}
                                 >
                                   <span className="flex items-center gap-2">
                                     <span>{lang.flag}</span>
                                     <span>{lang.label}</span>
                                   </span>
-                                  <span className="text-[10px] text-slate-300/80">
+                                  <span className="text-[10px] text-[var(--text-muted)]">
                                     {lang.code}
                                   </span>
                                 </button>
@@ -696,14 +696,14 @@ export default function TranslateWithAIButton() {
 
               {/* Text to translate */}
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">
+                <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   Text to translate
                 </label>
                 <textarea
                   value={sourceText}
                   onChange={(e) => setSourceText(e.target.value)}
                   placeholder="Type or paste text, or select text on the page before opening."
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950/80 p-2 max-h-32 min-h-[80px] text-[11px] text-slate-200 resize-vertical"
+                  className="w-full rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] p-2 max-h-32 min-h-[80px] text-[11px] text-[var(--text-main)] resize-vertical"
                 />
               </div>
 
@@ -730,7 +730,7 @@ export default function TranslateWithAIButton() {
                     type="button"
                     onClick={handleTranslatePage}
                     disabled={loading || !selectedLang}
-                    className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-[11px] font-medium text-slate-100 disabled:opacity-60"
+                    className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] font-medium text-[var(--text-main)] disabled:opacity-60"
                   >
                     {loading ? "Working on page…" : "Translate this page"}
                   </button>
@@ -750,7 +750,7 @@ export default function TranslateWithAIButton() {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200"
+                  className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
                 >
                   Close
                 </button>
@@ -759,10 +759,10 @@ export default function TranslateWithAIButton() {
               {/* Result / status */}
               {translatedText && (
                 <div className="mt-2">
-                  <p className="text-[11px] text-slate-400 mb-1">
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
                     Translation status
                   </p>
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/90 p-2 max-h-52 overflow-y-auto text-[11px] text-slate-100 whitespace-pre-wrap">
+                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 90%,transparent)] p-2 max-h-52 overflow-y-auto text-[11px] text-[var(--text-main)] whitespace-pre-wrap">
                     {translatedText}
                   </div>
                 </div>

@@ -8,6 +8,7 @@ import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import InstallAppButton from "@/app/components/InstallAppButton";
 import Image from "next/image";
+
 type HeaderProps = {
   active?:
     | "dashboard"
@@ -50,9 +51,7 @@ export default function AppHeader({ active }: HeaderProps) {
         const { data } = await supabase.auth.getUser();
         const user = data?.user ?? null;
 
-        if (!cancelled) {
-          setUserEmail(user?.email ?? null);
-        }
+        if (!cancelled) setUserEmail(user?.email ?? null);
       } catch (err) {
         console.error("[AppHeader] loadUser err", err);
       } finally {
@@ -68,13 +67,16 @@ export default function AppHeader({ active }: HeaderProps) {
 
   const isAdmin = userEmail === ADMIN_EMAIL;
 
+  // Theme-aware nav classes
   const navLinkBase =
     "px-2 py-1.5 rounded-lg whitespace-nowrap transition-colors text-xs sm:text-sm";
-  const navLinkInactive = "text-slate-300 hover:bg-slate-900";
-  const navLinkActive = "bg-slate-800 text-slate-50";
+  const navLinkInactive =
+    "text-[var(--text-muted)] hover:bg-[var(--accent-soft)]";
+  const navLinkActive =
+    "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold";
 
   const appsItemBase =
-    "flex flex-col items-start justify-center px-3 py-2 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-900 text-xs";
+    "flex flex-col items-start justify-center px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--accent-soft)] text-xs text-[var(--text-main)]";
 
   const appsActive = [
     "notes",
@@ -105,9 +107,41 @@ export default function AppHeader({ active }: HeaderProps) {
     }
   }
 
+  // Mobile routes with nice labels + admin gating
+  const mobileRoutes: {
+    key: HeaderProps["active"];
+    label: string;
+    href: string;
+    adminOnly?: boolean;
+  }[] = [
+    { key: "dashboard", label: "Dashboard", href: "/dashboard" },
+    { key: "notes", label: "Notes", href: "/notes" },
+    { key: "tasks", label: "Tasks", href: "/tasks" },
+    { key: "planner", label: "Planner", href: "/planner" },
+    { key: "ai-chat", label: "AI Hub Chat", href: "/ai-chat" },
+    { key: "templates", label: "Templates", href: "/templates" },
+    { key: "daily-success", label: "Daily Success", href: "/daily-success" },
+    {
+      key: "weekly-reports",
+      label: "Weekly Reports",
+      href: "/weekly-reports",
+    },
+    { key: "travel", label: "Travel Planner", href: "/travel" },
+    { key: "my-trips", label: "My Trips", href: "/my-trips" },
+    {
+      key: "feedback",
+      label: "Feedback",
+      href: "/feedback",
+      adminOnly: true,
+    },
+    { key: "changelog", label: "What’s new", href: "/changelog" },
+    { key: "settings", label: "Settings", href: "/settings" },
+    { key: "admin", label: "Admin", href: "/admin", adminOnly: true },
+  ];
+
   return (
-    <header className="relative z-50 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-      {/* === TOP BAR (LOGO + MENU + EMAIL MOBILE) === */}
+    <header className="relative z-50 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/80 backdrop-blur">
+      {/* === TOP BAR === */}
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">
@@ -119,7 +153,7 @@ export default function AppHeader({ active }: HeaderProps) {
             className="rounded-xl"
             priority
           />
-          <span className="text-sm font-semibold tracking-tight text-slate-100">
+          <span className="text-sm font-semibold tracking-tight text-[var(--text-main)]">
             AI Productivity Hub
           </span>
         </Link>
@@ -139,8 +173,8 @@ export default function AppHeader({ active }: HeaderProps) {
           <button
             type="button"
             onClick={() => setAppsOpen((v) => !v)}
-            className={`${navLinkBase} ml-2 flex items-center gap-1 border border-slate-700 bg-slate-900/40 ${
-              appsActive ? "bg-slate-800 text-slate-50" : ""
+            className={`${navLinkBase} ml-2 flex items-center gap-1 border border-[var(--border-subtle)] bg-[var(--bg-card)] ${
+              appsActive ? "text-[var(--accent)] bg-[var(--accent-soft)]" : ""
             }`}
           >
             Apps{" "}
@@ -157,32 +191,30 @@ export default function AppHeader({ active }: HeaderProps) {
             setMobileOpen((v) => !v);
             setAppsOpen(false);
           }}
-          className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-700 hover:bg-slate-900 text-slate-200 text-xs ml-auto"
+          className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[var(--text-main)] text-xs ml-auto"
         >
           {mobileOpen ? "✕" : "☰"}
         </button>
 
-        {/* MOBILE EMAIL on top bar */}
-        <div className="md:hidden text-[10px] text-slate-300 truncate max-w-[90px]">
+        {/* MOBILE EMAIL */}
+        <div className="md:hidden text-[10px] text-[var(--text-muted)] truncate max-w-[90px]">
           {!loadingUser && userEmail}
         </div>
 
         {/* Desktop user actions */}
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2 text-[var(--text-main)]">
           <TranslateWithAIButton />
-
-          {/* Always-visible PWA install button */}
           <InstallAppButton />
 
           {currentLangLabel && (
-            <span className="px-2 py-1 rounded-lg border border-slate-700 text-[10px] text-slate-300">
+            <span className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)]">
               {currentLangLabel}
             </span>
           )}
 
           <Link
             href="/settings"
-            className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
+            className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
           >
             Settings
           </Link>
@@ -191,24 +223,24 @@ export default function AppHeader({ active }: HeaderProps) {
             <button
               type="button"
               onClick={handleLogout}
-              className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
+              className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
             >
               {loggingOut ? "…" : "Log out"}
             </button>
           ) : (
             <Link
               href="/auth"
-              className="px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
+              className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
             >
               Log in
             </Link>
           )}
         </div>
 
-        {/* Apps dropdown (desktop) */}
+        {/* Desktop Apps dropdown */}
         {appsOpen && (
-  <div className="hidden md:block fixed left-1/2 -translate-x-1/2 top-14 mt-2 z-[80]">
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/98 shadow-xl p-3 w-[380px]">
+          <div className="hidden md:block fixed left-1/2 -translate-x-1/2 top-14 mt-2 z-[80]">
+            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95 shadow-xl p-3 w-[380px]">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <Link href="/dashboard" className={appsItemBase}>
                   Dashboard
@@ -241,7 +273,6 @@ export default function AppHeader({ active }: HeaderProps) {
                   Travel Planner
                 </Link>
 
-                {/* 👇 Feedback only for admin (desktop apps menu) */}
                 {isAdmin && (
                   <Link href="/feedback" className={appsItemBase}>
                     Feedback
@@ -263,17 +294,15 @@ export default function AppHeader({ active }: HeaderProps) {
         )}
       </div>
 
-      {/* === MOBILE SECOND ROW: TRANSLATE + INSTALL + SETTINGS + LOGOUT === */}
-      <div className="md:hidden border-t border-slate-800 bg-slate-950/95">
+      {/* === MOBILE SECOND ROW === */}
+      <div className="md:hidden border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2 overflow-x-auto">
           <TranslateWithAIButton />
-
-          {/* Mobile install button */}
           <InstallAppButton />
 
           <Link
             href="/settings"
-            className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] flex-shrink-0"
+            className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
           >
             Settings
           </Link>
@@ -282,14 +311,14 @@ export default function AppHeader({ active }: HeaderProps) {
             <button
               type="button"
               onClick={handleLogout}
-              className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] flex-shrink-0"
+              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
             >
               {loggingOut ? "…" : "Log out"}
             </button>
           ) : (
             <Link
               href="/auth"
-              className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] flex-shrink-0"
+              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
             >
               Log in
             </Link>
@@ -297,59 +326,25 @@ export default function AppHeader({ active }: HeaderProps) {
         </div>
       </div>
 
-      {/* MOBILE NAV */}
+      {/* === MOBILE NAV === */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-slate-800 bg-slate-950/95">
-          <div className="px-4 py-3 flex flex-col gap-2 text-sm">
-            <Link href="/dashboard" className={navLinkBase}>
-              Dashboard
-            </Link>
-            <Link href="/notes" className={navLinkBase}>
-              Notes
-            </Link>
-            <Link href="/tasks" className={navLinkBase}>
-              Tasks
-            </Link>
-            <Link href="/planner" className={navLinkBase}>
-              Planner
-            </Link>
-            <Link href="/ai-chat" className={navLinkBase}>
-              AI Hub Chat
-            </Link>
-            <Link href="/templates" className={navLinkBase}>
-              Templates
-            </Link>
-            <Link href="/daily-success" className={navLinkBase}>
-              Daily Success
-            </Link>
-            <Link href="/weekly-reports" className={navLinkBase}>
-              Weekly Reports
-            </Link>
-            <Link href="/travel" className={navLinkBase}>
-              Travel Planner
-            </Link>
-            <Link href="/my-trips" className={navLinkBase}>
-              My Trips
-            </Link>
-
-            {/* 👇 Feedback only for admin (mobile menu) */}
-            {isAdmin && (
-              <Link href="/feedback" className={navLinkBase}>
-                Feedback
-              </Link>
-            )}
-
-            <Link href="/changelog" className={navLinkBase}>
-              What’s new
-            </Link>
-            <Link href="/settings" className={navLinkBase}>
-              Settings
-            </Link>
-            {isAdmin && (
-              <Link href="/admin" className={navLinkBase}>
-                Admin
-              </Link>
-            )}
+        <div className="md:hidden border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95">
+          <div className="px-4 py-3 flex flex-col gap-2 text-sm text-[var(--text-main)]">
+            {mobileRoutes.map((route) => {
+              if (route.adminOnly && !isAdmin) return null;
+              const isActive = active === route.key;
+              return (
+                <Link
+                  key={route.key}
+                  href={route.href}
+                  className={`${navLinkBase} ${
+                    isActive ? navLinkActive : navLinkInactive
+                  }`}
+                >
+                  {route.label}
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}

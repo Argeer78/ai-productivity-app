@@ -21,6 +21,8 @@ type WeeklyActionPlan = {
   created_at: string | null;
 };
 
+type PlanType = "free" | "pro" | "founder";
+
 type PageProps = {
   params: { id: string };
 };
@@ -32,7 +34,10 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [plan, setPlan] = useState<PlanType>("free");
+  const isPro = plan === "pro" || plan === "founder";
+  const planLabelUpper =
+    plan === "founder" ? "FOUNDER" : plan.toUpperCase();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -79,11 +84,16 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
           .maybeSingle();
 
         if (profileError && profileError.code !== "PGRST116") {
-          console.error("[weekly-report-detail] profile error", profileError);
+          console.error(
+            "[weekly-report-detail] profile error",
+            profileError
+          );
         }
 
-        if (profile?.plan === "pro") setPlan("pro");
-        else setPlan("free");
+        const rawPlan = (profile?.plan as PlanType | null) || "free";
+        const userPlan: PlanType =
+          rawPlan === "pro" || rawPlan === "founder" ? rawPlan : "free";
+        setPlan(userPlan);
 
         // Weekly report by id (only for this user)
         const { data: reportRow, error: reportError } = await supabase
@@ -94,7 +104,10 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
           .maybeSingle();
 
         if (reportError && reportError.code !== "PGRST116") {
-          console.error("[weekly-report-detail] weekly_reports error", reportError);
+          console.error(
+            "[weekly-report-detail] weekly_reports error",
+            reportError
+          );
           setError("Failed to load weekly report.");
           setReport(null);
           setLoading(false);
@@ -120,7 +133,10 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
           .maybeSingle();
 
         if (planLoadError && planLoadError.code !== "PGRST116") {
-          console.error("[weekly-report-detail] weekly_action_plans error", planLoadError);
+          console.error(
+            "[weekly-report-detail] weekly_action_plans error",
+            planLoadError
+          );
         }
 
         if (planRow) {
@@ -142,7 +158,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
 
   async function handleGenerateActionPlan() {
     if (!user || !report) return;
-    if (plan !== "pro") return;
+    if (!isPro) return;
 
     setPlanLoading(true);
     setPlanError("");
@@ -161,7 +177,10 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
       const data = await res.json().catch(() => ({} as any));
 
       if (!res.ok || !data?.ok) {
-        console.error("[weekly-report-detail] weekly-action-plan error", data);
+        console.error(
+          "[weekly-report-detail] weekly-action-plan error",
+          data
+        );
         setPlanError(
           data?.error ||
             "Could not generate weekly action plan. Please try again."
@@ -169,7 +188,6 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
         return;
       }
 
-      // Expecting data.plan.plan_text etc.
       if (data.plan) {
         setActionPlan({
           id: data.plan.id,
@@ -190,24 +208,26 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Checking your session...</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)] text-sm">
+          Checking your session...
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-        <AppHeader active="dashboard" />
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+        <AppHeader active="weekly-reports" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Weekly Reports</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             Log in or create a free account to view your weekly AI reports.
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
             Go to login / signup
           </Link>
@@ -218,10 +238,12 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-        <AppHeader active="dashboard" />
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+        <AppHeader active="weekly-reports" />
         <div className="flex-1 flex items-center justify-center px-4">
-          <p className="text-slate-300 text-sm">Loading weekly report...</p>
+          <p className="text-[var(--text-muted)] text-sm">
+            Loading weekly report...
+          </p>
         </div>
       </main>
     );
@@ -229,15 +251,15 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
 
   if (!report) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-        <AppHeader active="dashboard" />
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+        <AppHeader active="weekly-reports" />
         <div className="flex-1 flex flex-col items-center justify-center px-4">
-          <p className="text-slate-300 text-sm mb-3">
+          <p className="text-[var(--text-muted)] text-sm mb-3">
             {error || "Weekly report not found."}
           </p>
           <Link
             href="/weekly-reports"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
             ← Back to weekly reports
           </Link>
@@ -246,32 +268,51 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
     );
   }
 
-  const dateLabel = new Date(report.report_date).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  const dateLabel = new Date(report.report_date).toLocaleDateString(
+    undefined,
+    {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }
+  );
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <AppHeader active="dashboard" />
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+      <AppHeader active="weekly-reports" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10 text-sm">
+          {/* Header */}
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 Weekly Report
               </h1>
-              <p className="text-xs md:text-sm text-slate-400">
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 Week of {dateLabel}
               </p>
             </div>
             <Link
               href="/weekly-reports"
-              className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
               ← Back to weekly reports
             </Link>
+          </div>
+
+          {/* Plan pill */}
+          <div className="mb-4">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[11px] text-[var(--text-muted)]">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isPro ? "bg-emerald-400" : "bg-amber-400"
+                }`}
+              />
+              Plan:{" "}
+              <span className="font-semibold uppercase text-[var(--text-main)]">
+                {planLabelUpper}
+              </span>
+            </span>
           </div>
 
           {error && (
@@ -279,54 +320,56 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
           )}
 
           {/* Report summary */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 mb-6">
-            <p className="text-xs font-semibold text-slate-400 mb-2">
+          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-6">
+            <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
               WEEKLY SUMMARY
             </p>
-            <div className="text-[12px] text-slate-100 whitespace-pre-wrap">
+            <div className="text-[12px] text-[var(--text-main)] whitespace-pre-wrap">
               {report.summary || "This weekly report has no summary text."}
             </div>
           </section>
-{plan === "free" && (
-  <div className="mb-4 rounded-xl border border-indigo-500/40 bg-indigo-950/40 p-3 text-[11px] text-indigo-100">
-    Weekly AI email reports are a Pro feature.  
-    <Link
-      href="/dashboard#pricing"
-      className="underline underline-offset-2 text-indigo-300 hover:text-indigo-200 ml-1"
-    >
-      Upgrade to Pro
-    </Link>{" "}
-    to receive a summary in your inbox every week.
-  </div>
-)}
+
+          {/* Weekly email note – only for non-Pro/non-Founder */}
+          {!isPro && (
+            <div className="mb-4 rounded-xl border border-[var(--accent)]/40 bg-[var(--accent-soft)]/70 p-3 text-[11px] text-[var(--text-main)]">
+              Weekly AI email reports are a Pro feature.
+              <Link
+                href="/dashboard#pricing"
+                className="underline underline-offset-2 text-[var(--accent)] hover:opacity-90 ml-1"
+              >
+                Upgrade to Pro
+              </Link>{" "}
+              to receive a summary in your inbox every week.
+            </div>
+          )}
 
           {/* Weekly Action Plan */}
-          <section className="rounded-2xl border border-emerald-500/40 bg-emerald-950/30 p-4 mb-6">
-            <p className="text-xs font-semibold text-emerald-200 mb-2">
+          <section className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent-soft)]/70 p-4 mb-6">
+            <p className="text-xs font-semibold text-[var(--accent-strong,_var(--accent))] mb-2">
               WEEKLY ACTION PLAN (AI)
             </p>
 
             {planError && (
-              <p className="text-[11px] text-red-300 mb-2">{planError}</p>
+              <p className="text-[11px] text-red-400 mb-2">{planError}</p>
             )}
             {planSuccess && (
-              <p className="text-[11px] text-emerald-200 mb-2">
+              <p className="text-[11px] text-emerald-400 mb-2">
                 {planSuccess}
               </p>
             )}
 
-            {plan !== "pro" ? (
+            {!isPro ? (
               <>
-                <p className="text-[12px] text-emerald-100 mb-2">
+                <p className="text-[12px] text-[var(--text-main)] mb-2">
                   AI-powered weekly action plans are a Pro feature.
                 </p>
-                <p className="text-[11px] text-emerald-200/80 mb-3">
-                  Upgrade to Pro to get a focused action plan for each week,
-                  based on your reports, tasks, and notes.
+                <p className="text-[11px] text-[var(--text-muted)] mb-3">
+                  Upgrade to Pro to get a focused action plan for each
+                  week, based on your reports, tasks, and notes.
                 </p>
                 <Link
                   href="/dashboard#pricing"
-                  className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-slate-50"
+                  className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
                 >
                   🔒 Unlock with Pro
                 </Link>
@@ -335,17 +378,17 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
               <>
                 {actionPlan ? (
                   <div className="mb-3">
-                    <p className="text-[11px] text-emerald-200/80 mb-1">
+                    <p className="text-[11px] text-[var(--text-muted)] mb-1">
                       Your saved action plan for this week:
                     </p>
-                    <div className="text-[12px] text-emerald-50 whitespace-pre-wrap">
+                    <div className="text-[12px] text-[var(--text-main)] whitespace-pre-wrap">
                       {actionPlan.plan_text}
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[12px] text-emerald-100 mb-3">
-                    Generate a focused action plan for this week based on your
-                    report, tasks, notes, and productivity scores.
+                  <p className="text-[12px] text-[var(--text-main)] mb-3">
+                    Generate a focused action plan for this week based on
+                    your report, tasks, notes, and productivity scores.
                   </p>
                 )}
 
@@ -353,7 +396,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
                   type="button"
                   onClick={handleGenerateActionPlan}
                   disabled={planLoading}
-                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 text-xs font-medium disabled:opacity-60"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs font-medium disabled:opacity-60"
                 >
                   {planLoading
                     ? "Generating action plan..."
@@ -361,9 +404,9 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
                     ? "Regenerate action plan"
                     : "Generate weekly action plan"}
                 </button>
-                <p className="text-[11px] text-emerald-200/80 mt-1">
-                  This uses 1 AI call and overwrites the previous plan for this
-                  week (if any).
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                  This uses 1 AI call and overwrites the previous plan for
+                  this week (if any).
                 </p>
               </>
             )}

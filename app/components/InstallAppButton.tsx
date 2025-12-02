@@ -9,11 +9,12 @@ type BeforeInstallPromptEvent = Event & {
 
 export default function InstallAppButton() {
   const [mounted, setMounted] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIosSafari, setIsIosSafari] = useState(false);
 
-  // ✅ This makes server + first client render identical (mounted = false)
+  // Ensure server + first client render match
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -21,10 +22,9 @@ export default function InstallAppButton() {
   useEffect(() => {
     if (!mounted || typeof window === "undefined") return;
 
-    // Detect if app already running as PWA
     const standalone =
       window.matchMedia?.("(display-mode: standalone)").matches ||
-      // iOS Safari
+      // iOS Safari standalone
       (window.navigator as any).standalone === true;
 
     setIsStandalone(standalone);
@@ -43,20 +43,23 @@ export default function InstallAppButton() {
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-
     return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt
+      );
     };
   }, [mounted]);
 
-  // ❗ Important: server + first client render both return null here
+  // Don’t show the button until after mount, or if already installed
   if (!mounted || isStandalone) return null;
 
   async function handleClick() {
     if (deferredPrompt) {
       try {
         await deferredPrompt.prompt();
-        await deferredPrompt.userChoice;
+        const choice = await deferredPrompt.userChoice;
+        console.log("[PWA] userChoice", choice.outcome, choice.platform);
         setDeferredPrompt(null);
         return;
       } catch (err) {
@@ -79,13 +82,15 @@ export default function InstallAppButton() {
     );
   }
 
+  const label = deferredPrompt ? "Install app" : "How to install";
+
   return (
     <button
       type="button"
       onClick={handleClick}
-      className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[11px] text-slate-100"
+      className="px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated-soft)] text-[11px] text-[var(--text-main)]"
     >
-      Install app
+      {label}
     </button>
   );
 }

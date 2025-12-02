@@ -80,25 +80,27 @@ export default function MyTripsPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Checking your session...</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)] text-sm">
+          Checking your session...
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="my-trips" />
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-sm">
           <h1 className="text-2xl font-bold mb-3">My Trips</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm">
-            Log in or create a free account to save and view your AI
-            travel plans.
+          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm">
+            Log in or create a free account to save and view your AI travel
+            plans.
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
             Go to login / signup
           </Link>
@@ -108,7 +110,7 @@ export default function MyTripsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="my-trips" />
       <div className="flex-1">
         <div className="max-w-4xl mx-auto px-4 py-8 md:py-10 text-sm">
@@ -117,13 +119,13 @@ export default function MyTripsPage() {
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 My Trips
               </h1>
-              <p className="text-xs md:text-sm text-slate-400">
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 All the trips you&apos;ve planned with the Travel Planner.
               </p>
             </div>
             <Link
               href="/travel"
-              className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
             >
               ← Back to Travel Planner
             </Link>
@@ -134,21 +136,21 @@ export default function MyTripsPage() {
           )}
 
           {loading ? (
-            <p className="text-slate-300 text-sm">
+            <p className="text-[var(--text-muted)] text-sm">
               Loading your trips...
             </p>
           ) : trips.length === 0 ? (
-            <div className="border border-slate-800 rounded-2xl bg-slate-900/60 p-4 text-sm">
-              <p className="text-slate-200 mb-2">
+            <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-4 text-sm">
+              <p className="text-[var(--text-main)] mb-2">
                 You don&apos;t have any saved trips yet.
               </p>
-              <p className="text-slate-400 text-[13px] mb-3">
+              <p className="text-[var(--text-muted)] text-[13px] mb-3">
                 Use the Travel Planner to generate an AI itinerary, then tap
                 &quot;Save this trip to my account&quot;.
               </p>
               <Link
                 href="/travel"
-                className="inline-block px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs"
+                className="inline-block px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
               >
                 Plan a trip →
               </Link>
@@ -180,18 +182,22 @@ export default function MyTripsPage() {
                 return (
                   <div
                     key={trip.id}
-                    className="border border-slate-800 rounded-2xl bg-slate-900/60 p-4"
+                    className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-100 mb-1">
+                        <p className="text-sm font-semibold mb-1">
                           {trip.destination || "Unnamed trip"}
                         </p>
-                        <p className="text-[12px] text-slate-400">
+                        <p className="text-[12px] text-[var(--text-muted)]">
                           {checkin} → {checkout}
-                          {nights ? ` · ${nights} night${nights > 1 ? "s" : ""}` : ""}
+                          {nights
+                            ? ` · ${nights} night${
+                                nights > 1 ? "s" : ""
+                              }`
+                            : ""}
                         </p>
-                        <p className="text-[12px] text-slate-400 mt-1">
+                        <p className="text-[12px] text-[var(--text-muted)] mt-1">
                           {trip.adults ?? 0} adult
                           {(trip.adults ?? 0) === 1 ? "" : "s"}
                           {typeof trip.children === "number" &&
@@ -200,12 +206,14 @@ export default function MyTripsPage() {
                             }`}
                         </p>
                         {(trip.min_budget || trip.max_budget) && (
-                          <p className="text-[11px] text-slate-500 mt-1">
+                          <p className="text-[11px] text-[var(--text-muted)] mt-1">
                             Budget{" "}
                             {trip.min_budget
                               ? `from €${trip.min_budget}`
                               : ""}
-                            {trip.min_budget && trip.max_budget && " – "}
+                            {trip.min_budget &&
+                              trip.max_budget &&
+                              " – "}
                             {trip.max_budget
                               ? `up to €${trip.max_budget}`
                               : ""}
@@ -218,18 +226,18 @@ export default function MyTripsPage() {
                         onClick={() =>
                           setExpandedId(isExpanded ? null : trip.id)
                         }
-                        className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-[11px]"
+                        className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px]"
                       >
                         {isExpanded ? "Hide details" : "View details"}
                       </button>
                     </div>
 
                     {isExpanded && (
-                      <div className="mt-3 border-t border-slate-800 pt-3">
-                        <p className="text-[11px] text-slate-400 mb-1">
+                      <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+                        <p className="text-[11px] text-[var(--text-muted)] mb-1">
                           Saved AI itinerary
                         </p>
-                        <div className="text-[12px] text-slate-100 whitespace-pre-wrap">
+                        <div className="text-[12px] whitespace-pre-wrap">
                           {trip.plan_text || "(no plan text saved)"}
                         </div>
                       </div>

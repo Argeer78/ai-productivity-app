@@ -92,16 +92,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
    function setTheme(next: ThemeId) {
-    setThemeState(next);
-    if (typeof window !== "undefined") {
-      if (next === "default") {
-        window.localStorage.removeItem(STORAGE_KEY);
-      } else {
-        window.localStorage.setItem(STORAGE_KEY, next);
-      }
+  setThemeState(next);
+  if (typeof window !== "undefined") {
+    if (next === "default") {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(STORAGE_KEY, next);
     }
-    applyTheme(next);
   }
+  applyTheme(next);
+}
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>

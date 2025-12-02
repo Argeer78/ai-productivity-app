@@ -6,7 +6,7 @@ import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 
-type Plan = "free" | "pro";
+type Plan = "free" | "pro" | "founder";
 
 type Template = {
   id: string;
@@ -75,6 +75,7 @@ export default function ExplorePage() {
         }
 
         if (data?.plan === "pro") setPlan("pro");
+        else if (data?.plan === "founder") setPlan("founder");
         else setPlan("free");
       } catch (err) {
         console.error(err);
@@ -83,6 +84,8 @@ export default function ExplorePage() {
 
     loadPlan();
   }, [user]);
+
+  const isProUser = plan === "pro" || plan === "founder";
 
   // 3) Load public templates
   useEffect(() => {
@@ -124,7 +127,6 @@ export default function ExplorePage() {
 
     const isMine = user && t.user_id === user.id;
     const isProTemplate = !!t.is_pro_only;
-    const isProUser = plan === "pro";
     const locked = isProTemplate && !isProUser && !isMine;
 
     if (locked) {
@@ -205,7 +207,7 @@ export default function ExplorePage() {
 
       setMessage("Template copied! You can edit it from the Templates page.");
       if (data?.id && typeof window !== "undefined") {
-        // optional: send them to their copy
+        // Optional: navigate to the new template
         // window.location.href = `/templates/${data.id}`;
       }
     } catch (err) {
@@ -325,7 +327,6 @@ export default function ExplorePage() {
               {sortedFilteredTemplates.map((t) => {
                 const isMine = user && t.user_id === user.id;
                 const isProTemplate = !!t.is_pro_only;
-                const isProUser = plan === "pro";
                 const locked = isProTemplate && !isProUser && !isMine;
 
                 return (

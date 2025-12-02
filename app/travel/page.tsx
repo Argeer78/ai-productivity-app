@@ -4,13 +4,12 @@
 import { useEffect, useState } from "react";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 
 const BOOKING_AFFILIATE_ID =
   process.env.NEXT_PUBLIC_BOOKING_AID || "";
 const FLIGHTS_AFFILIATE_ID =
   process.env.NEXT_PUBLIC_FLIGHTS_AID || "";
+// Kept here if you want later; not directly used in current implementation
 const CARS_AFFILIATE_ID =
   process.env.NEXT_PUBLIC_CARS_AID || "";
 
@@ -31,7 +30,6 @@ function buildFlightsUrl({
   adults,
   children,
 }: FlightUrlOptions): string {
-  // Placeholder flights URL – swap later for your actual affiliate link
   const base = "https://www.google.com/travel/flights";
   const params = new URLSearchParams();
 
@@ -97,7 +95,7 @@ function buildCarRentalUrl(params: {
   return url.toString();
 }
 
-// --- Simple calendar date input ---
+// --- Simple calendar date input with theme vars ---
 
 type CalendarInputProps = {
   label: string;
@@ -115,9 +113,7 @@ function toISODateString(date: Date): string {
 
 function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
   const [open, setOpen] = useState(false);
-  const baseDate = value
-    ? new Date(value + "T00:00:00")
-    : new Date();
+  const baseDate = value ? new Date(value + "T00:00:00") : new Date();
 
   const [viewYear, setViewYear] = useState(baseDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(baseDate.getMonth()); // 0-11
@@ -158,7 +154,7 @@ function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
     year: "numeric",
   });
 
-  // Build grid: array of length up to 42 (6 weeks)
+  // Build grid: up to 42 cells (6 weeks)
   const cells: (number | null)[] = [];
   for (let i = 0; i < startWeekday; i++) {
     cells.push(null);
@@ -172,43 +168,43 @@ function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
 
   return (
     <div className="relative">
-      <label className="block text-[11px] text-slate-400 mb-1">
+      <label className="block text-[11px] text-[var(--text-muted)] mb-1">
         {label}
       </label>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full text-left px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm flex items-center justify-between"
+        className="w-full text-left px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm flex items-center justify-between"
       >
-        <span className={value ? "text-slate-100" : "text-slate-500"}>
+        <span className={value ? "text-[var(--text-main)]" : "text-[var(--text-muted)]"}>
           {value || "Select date"}
         </span>
-        <span className="text-[11px] text-slate-400">📅</span>
+        <span className="text-[11px] text-[var(--text-muted)]">📅</span>
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-2 w-full rounded-2xl border border-slate-800 bg-slate-950 shadow-xl p-3">
+        <div className="absolute z-30 mt-2 w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xl p-3">
           <div className="flex items-center justify-between mb-2">
             <button
               type="button"
               onClick={prevMonth}
-              className="px-2 py-1 rounded-lg text-[11px] text-slate-300 hover:bg-slate-900"
+              className="px-2 py-1 rounded-lg text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
             >
               ◀
             </button>
-            <span className="text-xs font-semibold text-slate-100">
+            <span className="text-xs font-semibold text-[var(--text-main)]">
               {monthLabel}
             </span>
             <button
               type="button"
               onClick={nextMonth}
-              className="px-2 py-1 rounded-lg text-[11px] text-slate-300 hover:bg-slate-900"
+              className="px-2 py-1 rounded-lg text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
             >
               ▶
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-[10px] text-center mb-1 text-slate-400">
+          <div className="grid grid-cols-7 gap-1 text-[10px] text-center mb-1 text-[var(--text-muted)]">
             <div>Su</div>
             <div>Mo</div>
             <div>Tu</div>
@@ -231,15 +227,16 @@ function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
               const isDisabled = min && dStr < min;
 
               let classes =
-                "h-7 rounded-lg flex items-center justify-center cursor-pointer ";
+                "h-7 rounded-lg flex items-center justify-center cursor-pointer transition ";
               if (isDisabled) {
-                classes += "text-slate-600 cursor-not-allowed";
+                classes += "text-[var(--text-muted)] opacity-40 cursor-not-allowed";
               } else if (isSelected) {
-                classes += "bg-indigo-600 text-white";
+                classes += "bg-[var(--accent)] text-[var(--bg-body)]";
               } else if (isToday) {
-                classes += "border border-indigo-500 text-slate-100";
+                classes += "border border-[var(--accent)] text-[var(--text-main)]";
               } else {
-                classes += "text-slate-200 hover:bg-slate-900";
+                classes +=
+                  "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]";
               }
 
               return (
@@ -477,9 +474,9 @@ export default function TravelPage() {
     : "";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Still using planner active to avoid TS changes */}
-      <AppHeader active="planner" />
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+      {/* Now correctly marks the Travel tab as active */}
+      <AppHeader active="travel" />
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
@@ -489,28 +486,29 @@ export default function TravelPage() {
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 Travel Planner (beta)
               </h1>
-              <p className="text-xs md:text-sm text-slate-400 max-w-xl">
-                Let AI help you plan your trip – then book your stay via
-                Booking.com. Open to everyone, no login needed. Log in if
-                you want to save your trip.
+              <p className="text-xs md:text-sm text-[var(--text-muted)] max-w-xl">
+                Let AI help you plan your trip – then book your stay via Booking.com.
+                Open to everyone, no login needed. Log in if you want to save your trip.
               </p>
             </div>
 
             {/* Auth hint */}
-            <div className="text-[11px] text-slate-300">
+            <div className="text-[11px] text-[var(--text-muted)]">
               {checkingUser ? (
                 <span>Checking account…</span>
               ) : user ? (
                 <span>
                   Logged in as{" "}
-                  <span className="font-semibold">{user.email}</span>
+                  <span className="font-semibold text-[var(--text-main)]">
+                    {user.email}
+                  </span>
                 </span>
               ) : (
                 <span>
                   You&apos;re browsing as guest.{" "}
                   <a
                     href="/auth"
-                    className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                    className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
                   >
                     Create a free account
                   </a>{" "}
@@ -524,14 +522,14 @@ export default function TravelPage() {
             {/* LEFT COLUMN – Trip details & booking links */}
             <div className="space-y-5">
               {/* Trip details */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                <p className="text-xs font-semibold text-slate-400 mb-3">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-3">
                   Trip details
                 </p>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">
+                    <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                       Destination
                     </label>
                     <input
@@ -539,7 +537,7 @@ export default function TravelPage() {
                       value={destination}
                       onChange={(e) => setDestination(e.target.value)}
                       placeholder="e.g. Athens, Barcelona, London"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                      className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                     />
                   </div>
 
@@ -549,10 +547,7 @@ export default function TravelPage() {
                         label="Check-in"
                         value={checkin}
                         onChange={(val) => {
-                          setCheckin(val);
-                          if (checkout && checkout < val) {
-                            setCheckout("");
-                          }
+                          applyAutoCheckout(val);
                         }}
                         min={todayStr}
                       />
@@ -572,21 +567,21 @@ export default function TravelPage() {
                     <button
                       type="button"
                       onClick={() => applyPreset(2)}
-                      className="px-3 py-1.5 rounded-full border border-slate-700 text-[11px] hover:bg-slate-900"
+                      className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] text-[11px] hover:bg-[var(--bg-elevated)]"
                     >
                       Weekend trip (2 nights)
                     </button>
                     <button
                       type="button"
                       onClick={() => applyPreset(6)}
-                      className="px-3 py-1.5 rounded-full border border-slate-700 text-[11px] hover:bg-slate-900"
+                      className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] text-[11px] hover:bg-[var(--bg-elevated)]"
                     >
                       1 week (6 nights)
                     </button>
                     <button
                       type="button"
                       onClick={() => applyPreset(3)}
-                      className="px-3 py-1.5 rounded-full border border-slate-700 text-[11px] hover:bg-slate-900"
+                      className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] text-[11px] hover:bg-[var(--bg-elevated)]"
                     >
                       3–4 day city break
                     </button>
@@ -594,7 +589,7 @@ export default function TravelPage() {
 
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                         Adults
                       </label>
                       <input
@@ -602,15 +597,13 @@ export default function TravelPage() {
                         min={1}
                         value={adults}
                         onChange={(e) =>
-                          setAdults(
-                            Math.max(1, Number(e.target.value) || 1)
-                          )
+                          setAdults(Math.max(1, Number(e.target.value) || 1))
                         }
-                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                        className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                         Children
                       </label>
                       <input
@@ -618,18 +611,16 @@ export default function TravelPage() {
                         min={0}
                         value={children}
                         onChange={(e) =>
-                          setChildren(
-                            Math.max(0, Number(e.target.value) || 0)
-                          )
+                          setChildren(Math.max(0, Number(e.target.value) || 0))
                         }
-                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                        className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
                   </div>
 
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                         Min budget (optional)
                       </label>
                       <input
@@ -637,11 +628,11 @@ export default function TravelPage() {
                         min={0}
                         value={minBudget}
                         onChange={(e) => setMinBudget(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                        className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                         Max budget (optional)
                       </label>
                       <input
@@ -649,7 +640,7 @@ export default function TravelPage() {
                         min={0}
                         value={maxBudget}
                         onChange={(e) => setMaxBudget(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                        className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
                   </div>
@@ -663,7 +654,7 @@ export default function TravelPage() {
                       type="button"
                       onClick={generatePlan}
                       disabled={planning}
-                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs md:text-sm disabled:opacity-60"
+                      className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs md:text-sm disabled:opacity-60"
                     >
                       {planning ? "Generating..." : "Generate AI trip plan"}
                     </button>
@@ -676,18 +667,20 @@ export default function TravelPage() {
                             clickType: "stay",
                             provider: "booking",
                           });
-                          window.open(bookingUrl, "_blank", "noreferrer");
+                          if (typeof window !== "undefined") {
+                            window.open(bookingUrl, "_blank", "noreferrer");
+                          }
                         }}
-                        className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs md:text-sm"
+                        className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm"
                       >
                         Search stays on Booking.com →
                       </button>
                     )}
                   </div>
 
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Booking links may be affiliate links. They help support
-                    the app at no extra cost to you.
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                    Booking links may be affiliate links. They help support the app at
+                    no extra cost to you.
                   </p>
                 </div>
               </div>
@@ -695,26 +688,24 @@ export default function TravelPage() {
               {/* Flights & Car rental */}
               <div className="grid md:grid-cols-2 gap-4">
                 {/* Flights */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold text-slate-400 mb-3">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-3">
                     Flights
                   </p>
 
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                         Departure city
                       </label>
                       <input
                         type="text"
                         value={departureCity}
-                        onChange={(e) =>
-                          setDepartureCity(e.target.value)
-                        }
+                        onChange={(e) => setDepartureCity(e.target.value)}
                         placeholder="e.g. Athens, London"
-                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                        className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
-                      <p className="text-[10px] text-slate-500 mt-1">
+                      <p className="text-[10px] text-[var(--text-muted)] mt-1">
                         If empty, we’ll use your destination as a fallback.
                       </p>
                     </div>
@@ -739,44 +730,42 @@ export default function TravelPage() {
                           provider: "google-flights",
                         });
 
-                        window.open(url, "_blank", "noreferrer");
+                        if (typeof window !== "undefined") {
+                          window.open(url, "_blank", "noreferrer");
+                        }
                       }}
-                      className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs md:text-sm disabled:opacity-60"
+                      className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm disabled:opacity-60"
                     >
                       Search flights →
                     </button>
 
-                    <p className="text-[10px] text-slate-500">
-                      We send you to a flights search page (for now Google
-                      Flights). You can hook in a proper affiliate link
-                      later.
+                    <p className="text-[10px] text-[var(--text-muted)]">
+                      We send you to a flights search page (for now Google Flights). You
+                      can hook in a proper affiliate link later.
                     </p>
                   </div>
                 </div>
 
                 {/* Car rental */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold text-slate-400 mb-3">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-3">
                     Car rental
                   </p>
 
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                         Pickup location
                       </label>
                       <input
                         type="text"
                         value={pickupLocation}
-                        onChange={(e) =>
-                          setPickupLocation(e.target.value)
-                        }
+                        onChange={(e) => setPickupLocation(e.target.value)}
                         placeholder="e.g. Airport, city name"
-                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                        className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
-                      <p className="text-[10px] text-slate-500 mt-1">
-                        If empty, we’ll use your destination as pickup
-                        location.
+                      <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                        If empty, we’ll use your destination as pickup location.
                       </p>
                     </div>
 
@@ -796,17 +785,18 @@ export default function TravelPage() {
                           provider: "booking-cars",
                         });
 
-                        window.open(url, "_blank", "noreferrer");
+                        if (typeof window !== "undefined") {
+                          window.open(url, "_blank", "noreferrer");
+                        }
                       }}
-                      className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs md:text-sm disabled:opacity-60"
+                      className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm disabled:opacity-60"
                     >
                       Search rental cars →
                     </button>
 
-                    <p className="text-[10px] text-slate-500">
-                      Car rental search opens on Booking.com. If your
-                      affiliate ID is set, it will be tracked via your{" "}
-                      <code>aid</code>.
+                    <p className="text-[10px] text-[var(--text-muted)]">
+                      Car rental search opens on Booking.com. If your affiliate ID is
+                      set, it will be tracked via your <code>aid</code>.
                     </p>
                   </div>
                 </div>
@@ -817,8 +807,8 @@ export default function TravelPage() {
             <div className="space-y-5">
               {/* Destination images */}
               {encodedDest && (
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
-                  <p className="text-xs font-semibold text-slate-400 mb-2">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
                     Destination preview
                   </p>
                   <div className="grid grid-cols-3 gap-2">
@@ -853,21 +843,20 @@ export default function TravelPage() {
                       />
                     </div>
                   </div>
-                  <p className="mt-1 text-[10px] text-slate-500">
-                    Photos from Unsplash-style sources. Actual stay and
-                    exact views may differ.
+                  <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                    Photos are illustrative and may not match your exact stay or view.
                   </p>
                 </div>
               )}
 
               {/* AI itinerary */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                <p className="text-xs font-semibold text-slate-400 mb-1">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                   AI itinerary
                 </p>
                 {planText ? (
                   <>
-                    <div className="text-[12px] text-slate-100 whitespace-pre-wrap mb-3">
+                    <div className="text-[12px] text-[var(--text-main)] whitespace-pre-wrap mb-3">
                       {planText}
                     </div>
                     {user ? (
@@ -876,26 +865,26 @@ export default function TravelPage() {
                           type="button"
                           onClick={saveTripPlan}
                           disabled={savingTrip}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs md:text-sm disabled:opacity-60"
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs md:text-sm text-white disabled:opacity-60"
                         >
                           {savingTrip
                             ? "Saving trip..."
                             : "Save this trip to my account"}
                         </button>
                         {saveMessage && (
-                          <p className="mt-2 text-[11px] text-slate-400">
+                          <p className="mt-2 text-[11px] text-[var(--text-muted)]">
                             {saveMessage}
                           </p>
                         )}
                       </>
                     ) : (
-                      <div className="mt-2 text-[11px] text-slate-400">
+                      <div className="mt-2 text-[11px] text-[var(--text-muted)]">
                         <p className="mb-1">
                           Want to save this trip and access it later?
                         </p>
                         <a
                           href="/auth"
-                          className="inline-block mt-1 px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900"
+                          className="inline-block mt-1 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                         >
                           Create a free account / Log in
                         </a>
@@ -903,54 +892,50 @@ export default function TravelPage() {
                     )}
                   </>
                 ) : (
-                  <p className="text-[12px] text-slate-400">
+                  <p className="text-[12px] text-[var(--text-muted)]">
                     Fill in your trip details and click{" "}
-                    <span className="font-semibold">
-                      Generate AI trip plan
-                    </span>{" "}
-                    to get a structured itinerary and suggestions.
+                    <span className="font-semibold">Generate AI trip plan</span> to get
+                    a structured itinerary and suggestions.
                   </p>
                 )}
               </div>
 
               {/* Planning Assistant */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                <p className="text-xs font-semibold text-slate-400 mb-2">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
                   Planning assistant
                 </p>
                 {assistantStep === 1 && (
                   <div className="space-y-2">
-                    <p className="text-[12px] text-slate-300">
+                    <p className="text-[12px] text-[var(--text-main)]">
                       1/3 – Where do you want to go?
                     </p>
                     <input
                       type="text"
                       value={assistantDestination}
-                      onChange={(e) =>
-                        setAssistantDestination(e.target.value)
-                      }
+                      onChange={(e) => setAssistantDestination(e.target.value)}
                       placeholder="e.g. Rome, Paris, Prague"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                      className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                     />
                     <div className="flex flex-wrap gap-2 text-[11px]">
                       <button
                         type="button"
                         onClick={() => setAssistantDestination("Barcelona")}
-                        className="px-3 py-1.5 rounded-full border border-slate-700 hover:bg-slate-900"
+                        className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         Barcelona
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantDestination("London")}
-                        className="px-3 py-1.5 rounded-full border border-slate-700 hover:bg-slate-900"
+                        className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         London
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantDestination("Athens")}
-                        className="px-3 py-1.5 rounded-full border border-slate-700 hover:bg-slate-900"
+                        className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         Athens
                       </button>
@@ -962,7 +947,7 @@ export default function TravelPage() {
                         setDestination(assistantDestination.trim());
                         setAssistantStep(2);
                       }}
-                      className="mt-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs disabled:opacity-60"
+                      className="mt-1 px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
                     >
                       Next: How many days?
                     </button>
@@ -971,7 +956,7 @@ export default function TravelPage() {
 
                 {assistantStep === 2 && (
                   <div className="space-y-2">
-                    <p className="text-[12px] text-slate-300">
+                    <p className="text-[12px] text-[var(--text-main)]">
                       2/3 – How many days do you want to stay?
                     </p>
                     <input
@@ -979,31 +964,29 @@ export default function TravelPage() {
                       min={2}
                       value={assistantDays}
                       onChange={(e) =>
-                        setAssistantDays(
-                          Math.max(2, Number(e.target.value) || 2)
-                        )
+                        setAssistantDays(Math.max(2, Number(e.target.value) || 2))
                       }
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                      className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                     />
                     <div className="flex flex-wrap gap-2 text-[11px]">
                       <button
                         type="button"
                         onClick={() => setAssistantDays(3)}
-                        className="px-3 py-1.5 rounded-full border border-slate-700 hover:bg-slate-900"
+                        className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         3 days
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantDays(5)}
-                        className="px-3 py-1.5 rounded-full border border-slate-700 hover:bg-slate-900"
+                        className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         5 days
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantDays(7)}
-                        className="px-3 py-1.5 rounded-full border border-slate-700 hover:bg-slate-900"
+                        className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         7 days
                       </button>
@@ -1014,25 +997,23 @@ export default function TravelPage() {
                         onClick={() => {
                           const start = new Date();
                           start.setDate(start.getDate() + 14);
-                          const startStr =
-                            start.toISOString().split("T")[0];
+                          const startStr = start.toISOString().split("T")[0];
                           const out = new Date(start);
                           out.setDate(out.getDate() + assistantDays);
-                          const outStr =
-                            out.toISOString().split("T")[0];
+                          const outStr = out.toISOString().split("T")[0];
 
                           setCheckin(startStr);
                           setCheckout(outStr);
                           setAssistantStep(3);
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs"
+                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs"
                       >
                         Next: Who’s going?
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantStep(1)}
-                        className="text-[11px] text-slate-400"
+                        className="text-[11px] text-[var(--text-muted)]"
                       >
                         ← Back
                       </button>
@@ -1042,12 +1023,12 @@ export default function TravelPage() {
 
                 {assistantStep === 3 && (
                   <div className="space-y-2">
-                    <p className="text-[12px] text-slate-300">
+                    <p className="text-[12px] text-[var(--text-main)]">
                       3/3 – Who&apos;s going?
                     </p>
                     <div className="flex gap-3">
                       <div className="flex-1">
-                        <label className="block text-[11px] text-slate-400 mb-1">
+                        <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                           Adults
                         </label>
                         <input
@@ -1059,11 +1040,11 @@ export default function TravelPage() {
                               Math.max(1, Number(e.target.value) || 1)
                             )
                           }
-                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                          className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                         />
                       </div>
                       <div className="flex-1">
-                        <label className="block text-[11px] text-slate-400 mb-1">
+                        <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                           Children
                         </label>
                         <input
@@ -1075,7 +1056,7 @@ export default function TravelPage() {
                               Math.max(0, Number(e.target.value) || 0)
                             )
                           }
-                          className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                          className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                         />
                       </div>
                     </div>
@@ -1088,24 +1069,22 @@ export default function TravelPage() {
                           setChildren(assistantChildren);
                           setAssistantStep(1);
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs"
+                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs"
                       >
                         Apply to form & use AI
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantStep(2)}
-                        className="text-[11px] text-slate-400"
+                        className="text-[11px] text-[var(--text-muted)]"
                       >
                         ← Back
                       </button>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-[11px] text-[var(--text-muted)] mt-1">
                       Once applied, just hit{" "}
-                      <span className="font-semibold">
-                        Generate AI trip plan
-                      </span>{" "}
-                      to get your itinerary.
+                      <span className="font-semibold">Generate AI trip plan</span> to get
+                      your itinerary.
                     </p>
                   </div>
                 )}
@@ -1115,18 +1094,17 @@ export default function TravelPage() {
 
           {/* Bottom CTA for guests */}
           {!user && !checkingUser && (
-            <div className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-4 text-xs max-w-xl">
-              <p className="text-indigo-100 font-semibold mb-1">
+            <div className="rounded-2xl border border-[var(--accent)]/60 bg-[var(--accent-soft)]/60 p-4 text-xs max-w-xl">
+              <p className="text-[var(--accent-strong,white)] font-semibold mb-1">
                 Want to save your trips and access them later?
               </p>
-              <p className="text-indigo-100 mb-3">
-                Create a free account to save your AI-generated itineraries,
-                sync them with your productivity dashboard, and get weekly
-                summaries.
+              <p className="text-[var(--accent-strong,white)] mb-3">
+                Create a free account to save your AI-generated itineraries, sync them
+                with your productivity dashboard, and get weekly summaries.
               </p>
               <a
                 href="/auth"
-                className="px-4 py-2 rounded-xl bg-indigo-400 hover:bg-indigo-300 text-slate-900 font-medium inline-block"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--bg-body)] font-medium inline-block"
               >
                 Create free account / Log in
               </a>

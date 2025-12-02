@@ -86,13 +86,13 @@ export default function PwaInstallPrompt() {
 
   return (
     <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[9998] max-w-xs w-[95%]">
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/95 px-3 py-2.5 shadow-xl text-xs text-slate-100 flex items-start gap-3">
+      <div className="rounded-2xl border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-body)_95%,transparent)] px-3 py-2.5 shadow-xl text-xs text-[var(--text-main)] flex items-start gap-3">
         <div className="mt-0.5">📱</div>
         <div className="flex-1">
           <p className="font-semibold mb-0.5">
             Install AI Productivity Hub as an app
           </p>
-          <p className="text-[11px] text-slate-300 mb-1.5">
+          <p className="text-[11px] text-[var(--text-muted)] mb-1.5">
             Add it to your home screen for a faster, native-like experience.
           </p>
           <div className="flex gap-2">
@@ -107,7 +107,7 @@ export default function PwaInstallPrompt() {
             <button
               type="button"
               onClick={handleDismiss}
-              className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-[11px] text-slate-200"
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
             >
               Not now
             </button>

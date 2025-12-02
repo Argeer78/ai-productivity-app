@@ -361,14 +361,16 @@ ${trimmed}
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Loading your daily system…</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)] text-sm">
+          Loading your daily system…
+        </p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="daily-success" />
       <div className="flex-1">
         <div className="max-w-4xl mx-auto px-4 py-8 md:py-10 text-sm">
@@ -378,21 +380,21 @@ ${trimmed}
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 AI Daily Success System
               </h1>
-              <p className="text-xs md:text-sm text-slate-400">
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 Start your day with a focused plan, end it with a clear
                 reflection, and track your progress with a simple score.
               </p>
             </div>
             <Link
               href="/dashboard"
-              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
+              className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
             >
               ← Back to dashboard
             </Link>
           </div>
 
           {!isProUser && (
-            <div className="mb-5 rounded-2xl border border-indigo-500/70 bg-indigo-900/20 px-4 py-3 text-[11px] text-indigo-100">
+            <div className="mb-5 rounded-2xl border border-indigo-500/70 bg-indigo-950/30 px-4 py-3 text-[11px] text-indigo-100">
               <p className="font-semibold mb-1">
                 You&apos;re on the Free plan.
               </p>
@@ -406,7 +408,7 @@ ${trimmed}
               <button
                 type="button"
                 onClick={() => router.push("/dashboard#pricing")}
-                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px]"
+                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
               >
                 View Pro options
               </button>
@@ -424,42 +426,46 @@ ${trimmed}
 
           {/* Score stats card */}
           <div className="mb-5 grid md:grid-cols-3 gap-3 text-[11px]">
-            <div className="border border-slate-800 rounded-2xl bg-slate-900/60 p-3">
-              <p className="text-slate-400 mb-1">Today&apos;s score</p>
+            <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
+              <p className="text-[var(--text-muted)] mb-1">
+                Today&apos;s score
+              </p>
               <p className="text-xl font-semibold">
                 {score}
-                <span className="text-[11px] text-slate-500 ml-1">
+                <span className="text-[11px] text-[var(--text-muted)] ml-1">
                   /100
                 </span>
               </p>
-              <p className="text-slate-500 mt-1">
+              <p className="text-[var(--text-muted)] mt-1">
                 0 = terrible day, 100 = perfect day. Be honest, not harsh.
               </p>
             </div>
-            <div className="border border-slate-800 rounded-2xl bg-slate-900/60 p-3">
-              <p className="text-slate-400 mb-1">Avg last 7 days</p>
+            <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
+              <p className="text-[var(--text-muted)] mb-1">
+                Avg last 7 days
+              </p>
               <p className="text-xl font-semibold">
                 {avgLast7 !== null ? `${avgLast7}/100` : "—"}
               </p>
-              <p className="text-slate-500 mt-1">
+              <p className="text-[var(--text-muted)] mt-1">
                 Aim for consistency, not perfection.
               </p>
             </div>
-            <div className="border border-slate-800 rounded-2xl bg-slate-900/60 p-3">
-              <p className="text-slate-400 mb-1">
+            <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
+              <p className="text-[var(--text-muted)] mb-1">
                 Success streak (score ≥ 60)
               </p>
               <p className="text-xl font-semibold">
                 {scoreStreak} day{scoreStreak === 1 ? "" : "s"}
               </p>
-              <p className="text-slate-500 mt-1">
+              <p className="text-[var(--text-muted)] mt-1">
                 Days in a row you rated your day 60+.
               </p>
             </div>
           </div>
 
           {scoreLoading && (
-            <p className="text-[11px] text-slate-400 mb-2">
+            <p className="text-[11px] text-[var(--text-muted)] mb-2">
               Loading your recent scores…
             </p>
           )}
@@ -472,30 +478,30 @@ ${trimmed}
           {/* Main grid: Morning / Evening + Score */}
           <div className="grid md:grid-cols-2 gap-5">
             {/* Morning planning */}
-            <section className="border border-slate-800 bg-slate-900/60 rounded-2xl p-4">
+            <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
               <h2 className="text-sm font-semibold mb-2">
                 🌅 Morning: Design your day
               </h2>
-              <p className="text-[11px] text-slate-400 mb-3">
+              <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 Tell the AI what&apos;s on your plate, and it will build a
                 realistic schedule with priorities.
               </p>
 
               <form onSubmit={handleMorningPlan} className="space-y-3">
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     What&apos;s happening today?
                   </label>
                   <textarea
                     value={morningInput}
                     onChange={(e) => setMorningInput(e.target.value)}
                     placeholder="Meetings, deadlines, personal tasks, energy level, etc."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm min-h-[80px]"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[80px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     Top 3 priorities
                   </label>
                   <div className="space-y-1.5">
@@ -510,11 +516,11 @@ ${trimmed}
                           setTopPriorities(next);
                         }}
                         placeholder={`Priority #${idx + 1}`}
-                        className="w-full px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+                        className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     ))}
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">
                     You don&apos;t have to fill all three, but at least one
                     priority helps a lot.
                   </p>
@@ -522,7 +528,7 @@ ${trimmed}
 
                 <button
                   type="submit"
-                  className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs"
+                  className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
                 >
                   ✨ Generate today&apos;s AI plan
                 </button>
@@ -530,25 +536,25 @@ ${trimmed}
             </section>
 
             {/* Evening reflection + score */}
-            <section className="border border-slate-800 bg-slate-900/60 rounded-2xl p-4">
+            <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
               <h2 className="text-sm font-semibold mb-2">
                 🌙 Evening: Reflect & score your day
               </h2>
-              <p className="text-[11px] text-slate-400 mb-3">
+              <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 Capture how your day went. The AI will turn it into wins,
                 lessons, and improvements for tomorrow.
               </p>
 
               <form onSubmit={handleEveningReflection} className="space-y-3">
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     How did today actually go?
                   </label>
                   <textarea
                     value={eveningInput}
                     onChange={(e) => setEveningInput(e.target.value)}
                     placeholder="What you got done, what derailed you, your energy, distractions, etc."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm min-h-[100px]"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[100px]"
                   />
                 </div>
 
@@ -561,8 +567,8 @@ ${trimmed}
               </form>
 
               {/* Score slider + AI suggest */}
-              <div className="mt-5 border-t border-slate-800 pt-3">
-                <label className="block text-[11px] text-slate-400 mb-1">
+              <div className="mt-5 border-t border-[var(--border-subtle)] pt-3">
+                <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   How would you rate today overall?
                 </label>
                 <div className="flex items-center gap-3">
@@ -578,7 +584,7 @@ ${trimmed}
                     {score}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-[10px] text-[var(--text-muted)] mt-1">
                   Think about effort + focus, not just outcomes. A 60–80 day
                   is often a win.
                 </p>
@@ -588,20 +594,20 @@ ${trimmed}
                     type="button"
                     onClick={handleSuggestScore}
                     disabled={suggestLoading}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-[11px]"
+                    className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[11px]"
                   >
                     {suggestLoading
                       ? "Asking AI…"
                       : "Let AI suggest today’s score"}
                   </button>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-[var(--text-muted)]">
                     AI looks at your tasks & notes to guess a realistic score.
                     You can still adjust it.
                   </p>
                 </div>
 
                 {suggestReason && (
-                  <p className="mt-2 text-[11px] text-slate-300">
+                  <p className="mt-2 text-[11px] text-[var(--text-main)]">
                     Suggested because: {suggestReason}
                   </p>
                 )}
@@ -618,15 +624,15 @@ ${trimmed}
                   disabled={savingScore}
                   className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-xs"
                 >
-                  {savingScore ? "Saving..." : "Save today's score"}
+                  {savingScore ? "Saving..." : "Save today&apos;s score"}
                 </button>
               </div>
 
-              <div className="mt-4 border-t border-slate-800 pt-3">
-                <p className="text-[11px] text-slate-400 mb-1">
+              <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
+                <p className="text-[11px] text-[var(--text-muted)] mb-1">
                   Hint for best results:
                 </p>
-                <ul className="text-[11px] text-slate-400 list-disc list-inside space-y-1">
+                <ul className="text-[11px] text-[var(--text-muted)] list-disc list-inside space-y-1">
                   <li>Mention 2–3 things you&apos;re proud of.</li>
                   <li>Be honest about distractions and procrastination.</li>
                   <li>Add how you&apos;d like tomorrow to feel.</li>
@@ -636,7 +642,7 @@ ${trimmed}
           </div>
 
           {/* Small footer hint */}
-          <p className="mt-6 text-[11px] text-slate-500">
+          <p className="mt-6 text-[11px] text-[var(--text-muted)]">
             Your answers and scores are processed by the AI assistant. You
             can always fine-tune the output directly in the assistant panel.
           </p>

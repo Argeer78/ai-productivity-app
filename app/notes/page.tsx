@@ -31,7 +31,6 @@ type Note = {
 
 type AiMode = "summarize" | "bullets" | "rewrite";
 
-// Recommended categories for notes
 const NOTE_CATEGORIES = [
   "Work",
   "Personal",
@@ -44,16 +43,18 @@ const NOTE_CATEGORIES = [
   "Other",
 ] as const;
 
-const noteCategoryColors: Record<string, string> = {
-  Work: "bg-indigo-500/15 text-indigo-300 border-indigo-500/40",
-  Personal: "bg-pink-500/15 text-pink-300 border-pink-500/40",
-  Ideas: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
-  "Meeting Notes": "bg-amber-500/15 text-amber-200 border-amber-500/40",
-  Study: "bg-blue-500/15 text-blue-300 border-blue-500/40",
-  Journal: "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/40",
-  Planning: "bg-cyan-500/15 text-cyan-300 border-cyan-500/40",
-  Research: "bg-sky-500/15 text-sky-300 border-sky-500/40",
-  Other: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+// Theme-aware category badges
+const noteCategoryStyles: Record<string, string> = {
+  Work: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Personal: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Ideas: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  "Meeting Notes":
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Study: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Journal: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Planning: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Research: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Other: "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-subtle)]",
 };
 
 export default function NotesPage() {
@@ -65,11 +66,9 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  // date picker state (default to today)
   const [noteDate, setNoteDate] = useState<string>(() =>
     new Date().toISOString().split("T")[0]
   );
-  // NEW: category for new note
   const [newCategory, setNewCategory] = useState<string>("");
 
   const [loading, setLoading] = useState(false);
@@ -83,7 +82,6 @@ export default function NotesPage() {
 
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
 
-  // edit state
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -91,350 +89,230 @@ export default function NotesPage() {
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // filter by category
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   function handleShareNote(note: Note) {
-    if (!note || !note.content) return;
+    if (!note?.content) return;
 
     const textToCopy = `${note.content}\n\n— shared from AI Productivity Hub`;
 
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard
-        .writeText(textToCopy)
-        .then(() => {
-          setCopiedNoteId(note.id);
-          setTimeout(() => setCopiedNoteId(null), 2000);
-          try {
-            track("note_shared");
-          } catch {
-            // ignore analytics errors
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to copy note:", err);
-        });
-    }
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopiedNoteId(note.id);
+      setTimeout(() => setCopiedNoteId(null), 2000);
+      track("note_shared");
+    });
   }
 
   function handleAskAssistantAboutNote(note: Note) {
-    if (typeof window === "undefined" || !note) return;
+    if (!note?.content) return;
 
-    const c = note.content || "";
-    if (!c.trim()) return;
+    window.dispatchEvent(
+      new CustomEvent("ai-assistant-context", {
+        detail: {
+          content: note.content,
+          hint: "Help me turn this note into 3 clear next actions.",
+        },
+      })
+    );
 
-    try {
-      window.dispatchEvent(
-        new CustomEvent("ai-assistant-context", {
-          detail: {
-            content: c,
-            hint:
-              "Help me turn this note into 3 clear next actions and a short summary.",
-          },
-        })
-      );
-      try {
-        track("ask_ai_from_note");
-      } catch {
-        // ignore analytics errors
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    track("ask_ai_from_note");
   }
 
-  // 1) Load current user
+  // Load user
   useEffect(() => {
-    async function loadUser() {
-      try {
-        const { data, error } = await supabase.auth.getUser();
-        if (error) console.error(error);
-        setUser((data?.user as any) ?? null);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setCheckingUser(false);
-      }
+    async function load() {
+      const { data } = await supabase.auth.getUser();
+      setUser(data?.user ?? null);
+      setCheckingUser(false);
     }
-
-    loadUser();
+    load();
   }, []);
 
-  // 2) Ensure profile exists & fetch plan
-  async function ensureProfileAndPlan() {
+  // Fetch profile (plan)
+  async function ensureProfile() {
     if (!user) return;
 
-    try {
-      const { data, error } = await supabase
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("plan")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!data) {
+      const { data: inserted } = await supabase
         .from("profiles")
-        .select("id, email, plan")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (error && (error as any).code !== "PGRST116") {
-        throw error;
-      }
-
-      if (!data) {
-        const { data: inserted, error: insertError } = await supabase
-          .from("profiles")
-          .insert([
-            {
-              id: user.id,
-              email: user.email,
-              plan: "free",
-            },
-          ])
-          .select("plan")
-          .single();
-
-        if (insertError) throw insertError;
-        setPlan((inserted?.plan as "free" | "pro") || "free");
-      } else {
-        setPlan((data.plan as "free" | "pro") || "free");
-      }
-    } catch (err) {
-      console.error(err);
-      // keep default free
+        .insert([{ id: user.id, email: user.email, plan: "free" }])
+        .select("plan")
+        .single();
+      setPlan(inserted?.plan || "free");
+    } else {
+      setPlan(data.plan || "free");
     }
   }
 
-  // 3) Fetch notes for user
   async function fetchNotes() {
     if (!user) return;
 
-    try {
-      setLoadingList(true);
-      setError("");
+    setLoadingList(true);
 
-      const { data, error } = await supabase
-        .from("notes")
-        .select("id, user_id, title, content, ai_result, created_at, category")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setNotes((data || []) as Note[]);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load notes.");
-    } finally {
-      setLoadingList(false);
-    }
+    if (!error) setNotes(data || []);
+
+    setLoadingList(false);
   }
 
-  // 4) Fetch today's AI usage
   async function fetchAiUsage() {
     if (!user) return;
 
-    try {
-      const today = getTodayString();
+    const today = getTodayString();
 
-      const { data, error } = await supabase
-        .from("ai_usage")
-        .select("count")
-        .eq("user_id", user.id)
-        .eq("usage_date", today)
-        .maybeSingle();
+    const { data } = await supabase
+      .from("ai_usage")
+      .select("count")
+      .eq("user_id", user.id)
+      .eq("usage_date", today)
+      .maybeSingle();
 
-      if (error && (error as any).code !== "PGRST116") {
-        throw error;
-      }
-
-      setAiCountToday(data?.count || 0);
-    } catch (err) {
-      console.error(err);
-    }
+    setAiCountToday(data?.count || 0);
   }
 
-  // When user changes, load everything
   useEffect(() => {
     if (user) {
-      ensureProfileAndPlan();
+      ensureProfile();
       fetchNotes();
       fetchAiUsage();
-    } else {
-      setNotes([]);
-      setAiCountToday(0);
-      setPlan("free");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
 
-  // 5) Save new note
   async function handleSaveNote(e: FormEvent) {
     e.preventDefault();
-    setError("");
-
-    if (!user) {
-      setError("You must be logged in to save notes.");
-      return;
-    }
+    if (!user) return;
 
     if (!title.trim() && !content.trim()) {
       setError("Please enter a title or content.");
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      // build an ISO date from the chosen noteDate
-      const createdAtIso = noteDate
-        ? new Date(`${noteDate}T00:00:00.000Z`).toISOString()
-        : new Date().toISOString();
+    const createdAtIso = new Date(`${noteDate}T00:00:00.000Z`).toISOString();
 
-      const { error } = await supabase.from("notes").insert([
-        {
-          title,
-          content,
-          user_id: user.id,
-          created_at: createdAtIso,
-          category: newCategory || null,
-        },
-      ]);
+    await supabase.from("notes").insert([
+      {
+        title,
+        content,
+        user_id: user.id,
+        created_at: createdAtIso,
+        category: newCategory || null,
+      },
+    ]);
 
-      if (error) throw error;
+    setTitle("");
+    setContent("");
+    setNewCategory("");
 
-      setTitle("");
-      setContent("");
-      setNoteDate(new Date().toISOString().split("T")[0]);
-      setNewCategory("");
+    await fetchNotes();
+    track("note_created");
 
-      await fetchNotes();
-
-      try {
-        track("note_created");
-      } catch {
-        // ignore analytics errors
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to save note.");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   }
 
-  // 6) Increment AI usage
-  async function incrementAiUsage(): Promise<number> {
+  async function incrementAiUsage() {
     if (!user) return aiCountToday;
 
     const today = getTodayString();
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("ai_usage")
-      .select("id, count")
+      .select("*")
       .eq("user_id", user.id)
       .eq("usage_date", today)
       .maybeSingle();
 
-    if (error && (error as any).code !== "PGRST116") {
-      throw error;
-    }
-
     if (!data) {
-      const { error: insertError } = await supabase.from("ai_usage").insert([
-        {
-          user_id: user.id,
-          usage_date: today,
-          count: 1,
-        },
+      await supabase.from("ai_usage").insert([
+        { user_id: user.id, usage_date: today, count: 1 },
       ]);
-      if (insertError) throw insertError;
       setAiCountToday(1);
       return 1;
-    } else {
-      const newCount = (data.count || 0) + 1;
-      const { error: updateError } = await supabase
-        .from("ai_usage")
-        .update({ count: newCount })
-        .eq("id", data.id);
-
-      if (updateError) throw updateError;
-      setAiCountToday(newCount);
-      return newCount;
     }
+
+    const newCount = data.count + 1;
+
+    await supabase
+      .from("ai_usage")
+      .update({ count: newCount })
+      .eq("id", data.id);
+
+    setAiCountToday(newCount);
+    return newCount;
   }
 
-  // 7) AI call
-  async function handleAI(
-    noteId: string,
-    noteContent: string | null,
-    mode: AiMode = "summarize"
-  ) {
-    if (!user) {
-      setError("You must be logged in to use AI.");
-      return;
-    }
-
-    if (!noteContent || !noteContent.trim()) {
-      setError("This note is empty, nothing to send to AI.");
-      return;
-    }
+  async function handleAI(noteId: string, noteContent: string | null, mode: AiMode) {
+    if (!noteContent?.trim()) return;
 
     if (remaining <= 0) {
-      setError(
-        `You reached your daily AI limit for the ${plan} plan (${dailyLimit}).`
-      );
+      setError("Daily AI limit reached.");
       return;
     }
 
     setAiLoading(noteId);
-    setError("");
 
-    try {
-      const res = await fetch("/api/ai/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: noteContent, mode }),
-      });
+    const res = await fetch("/api/ai/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: noteContent, mode }),
+    });
 
-      const data = await res.json();
-
-      if (!data.result) {
-        throw new Error("No AI result returned.");
-      }
-
-      const aiText: string = data.result;
-
-      const { error: updateError } = await supabase
-        .from("notes")
-        .update({ ai_result: aiText })
-        .eq("id", noteId)
-        .eq("user_id", user.id);
-
-      if (updateError) throw updateError;
-
-      const newCount = await incrementAiUsage();
-      await fetchNotes();
-
-      try {
-        track("ai_call_used", {
-          feature: `note_${mode}`,
-          plan,
-          usedToday: newCount,
-        });
-      } catch {
-        // ignore analytics errors
-      }
-    } catch (err) {
-      console.error(err);
-      setError("AI request or saving result failed.");
-    } finally {
+    const data = await res.json();
+    if (!data.result) {
+      setError("AI failed.");
       setAiLoading(null);
+      return;
     }
+
+    await supabase
+      .from("notes")
+      .update({ ai_result: data.result })
+      .eq("id", noteId)
+      .eq("user_id", user.id);
+
+    const used = await incrementAiUsage();
+    await fetchNotes();
+
+    track("ai_call_used", { feature: `note_${mode}`, usedToday: used });
+
+    setAiLoading(null);
   }
 
-  // 8) Edit note
   function startEdit(note: Note) {
     setEditingNoteId(note.id);
     setEditTitle(note.title || "");
     setEditContent(note.content || "");
     setEditCategory(note.category || "");
+  }
+
+  async function saveEdit(id: string) {
+    await supabase
+      .from("notes")
+      .update({
+        title: editTitle,
+        content: editContent,
+        category: editCategory || null,
+      })
+      .eq("id", id)
+      .eq("user_id", user!.id);
+
+    cancelEdit();
+    fetchNotes();
   }
 
   function cancelEdit() {
@@ -444,206 +322,103 @@ export default function NotesPage() {
     setEditCategory("");
   }
 
-  async function saveEdit(noteId: string) {
-    if (!user) return;
-    if (!editTitle.trim() && !editContent.trim()) {
-      setError("Please keep at least a title or some content.");
-      return;
-    }
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this note?")) return;
 
-    try {
-      setSavingEditId(noteId);
-      setError("");
+    setDeletingId(id);
 
-      const { error } = await supabase
-        .from("notes")
-        .update({
-          title: editTitle,
-          content: editContent,
-          category: editCategory || null,
-        })
-        .eq("id", noteId)
-        .eq("user_id", user.id);
+    await supabase.from("notes").delete().eq("id", id).eq("user_id", user!.id);
 
-      if (error) throw error;
-
-      await fetchNotes();
-      cancelEdit();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to update note.");
-    } finally {
-      setSavingEditId(null);
-    }
-  }
-
-  // 9) Delete note
-  async function handleDelete(noteId: string) {
-    if (!user) return;
-
-    const confirmed = window.confirm(
-      "Delete this note? This cannot be undone."
-    );
-    if (!confirmed) return;
-
-    try {
-      setDeletingId(noteId);
-      setError("");
-
-      const { error } = await supabase
-        .from("notes")
-        .delete()
-        .eq("id", noteId)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
-
-      setNotes((prev) => prev.filter((n) => n.id !== noteId));
-    } catch (err) {
-      console.error(err);
-      setError("Failed to delete note.");
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  // 10) Stripe checkout start (optional upgrade from notes)
-  async function startCheckout() {
-    if (!user) return;
-    setBillingLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, email: user.email }),
-      });
-
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setError("Failed to start checkout.");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to start checkout.");
-    } finally {
-      setBillingLoading(false);
-    }
-  }
-
-  // 11) Logout
-  async function handleLogout() {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setNotes([]);
-      setAiCountToday(0);
-      setPlan("free");
-    } catch (err) {
-      console.error(err);
-    }
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    setDeletingId(null);
   }
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300">Checking session...</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)]">Checking session…</p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col items-center justify-center p-4">
         <h1 className="text-2xl font-bold mb-3">Notes</h1>
-        <p className="text-slate-300 mb-4 text-center max-w-md">
-          You&apos;re not logged in. Please log in or sign up to create and
-          view your notes.
+        <p className="text-[var(--text-muted)] mb-4 text-center max-w-md">
+          You must log in to view your notes.
         </p>
         <a
           href="/auth"
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
         >
-          Go to login / signup
+          Log in / Sign up
         </a>
       </main>
     );
   }
 
-  // Filter notes by category (if any chosen)
   const filteredNotes =
     categoryFilter === "all"
       ? notes
-      : notes.filter(
-          (n) => (n.category || "") === (categoryFilter === "" ? "" : categoryFilter)
-        );
+      : notes.filter((n) => (n.category || "") === categoryFilter);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8">
       <AppHeader active="notes" />
 
       <div className="max-w-5xl mx-auto mt-6 grid gap-6 md:grid-cols-[1.2fr,1fr]">
-        {/* Create note */}
-        <section className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60">
+        {/* CREATE NOTE */}
+        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h2 className="text-lg font-semibold">Create a new note</h2>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Use notes with AI to summarize, bullet, or rewrite.
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                Use AI to summarize, bullet, or rewrite your notes.
               </p>
             </div>
             <button
-              onClick={handleLogout}
-              className="text-[11px] px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+              onClick={() => supabase.auth.signOut()}
+              className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
             >
               Log out
             </button>
           </div>
 
           {error && (
-            <div className="mb-3 text-sm text-red-400">{error}</div>
+            <div className="text-sm text-red-400 mb-3">{error}</div>
           )}
 
           <form onSubmit={handleSaveNote} className="flex flex-col gap-3">
             <input
               type="text"
               placeholder="Note title"
-              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm focus:outline-none"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
 
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
-              {/* date picker */}
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
               <div className="flex items-center gap-2">
-                <span className="whitespace-nowrap">Note date:</span>
+                <span>Note date:</span>
                 <input
                   type="date"
                   value={noteDate}
                   onChange={(e) => setNoteDate(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                  className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
                 />
-                <span className="text-[10px] text-slate-500">
-                  Used for sorting & display.
-                </span>
               </div>
 
-              {/* category for new note */}
               <div className="flex items-center gap-2">
                 <span>Category:</span>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                  className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
                 >
                   <option value="">None</option>
                   {NOTE_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
+                    <option key={c}>{c}</option>
                   ))}
                 </select>
               </div>
@@ -651,61 +426,53 @@ export default function NotesPage() {
 
             <textarea
               placeholder="Write your note here..."
-              className="w-full min-h-[120px] px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="w-full min-h-[120px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
               value={content}
               onChange={(e) => setContent(e.target.value)}
             />
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+            <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)]">
               <span>
-                Plan:{" "}
-                <span className="font-semibold uppercase">{plan}</span> • AI
-                today:{" "}
+                Plan: <span className="font-semibold">{plan}</span> • AI today:{" "}
                 <span className="font-semibold">
                   {aiCountToday}/{dailyLimit}
                 </span>
-              </span>
-              <span>
-                This AI limit is shared with dashboard, planner & assistant.
               </span>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 transition text-sm mt-1"
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-50"
             >
               {loading ? "Saving..." : "Save note"}
             </button>
-
-            {plan === "free" && (
-              <div className="mt-3 text-[11px] text-slate-400">
-                Hitting the limit often?{" "}
-                <button
-                  type="button"
-                  disabled={billingLoading}
-                  onClick={startCheckout}
-                  className="underline text-indigo-300 disabled:opacity-60"
-                >
-                  Upgrade to Pro
-                </button>
-              </div>
-            )}
           </form>
+
+          {plan === "free" && (
+            <div className="mt-3 text-[11px] text-[var(--text-muted)]">
+              AI limit reached often?{" "}
+              <button
+                disabled={billingLoading}
+                onClick={() => {}}
+                className="underline text-[var(--accent)]"
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+          )}
         </section>
 
-        {/* Notes list */}
-        <section className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60">
-          <div className="flex items-center justify-between mb-3 gap-3">
+        {/* NOTES LIST */}
+        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
+          <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Your notes</h2>
+
             <div className="flex items-center gap-2 text-[11px]">
-              <span className="text-slate-400 hidden sm:inline">
-                Filter:
-              </span>
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
+                className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
               >
                 <option value="all">All categories</option>
                 {NOTE_CATEGORIES.map((c) => (
@@ -718,43 +485,38 @@ export default function NotesPage() {
 
               <button
                 onClick={fetchNotes}
-                disabled={loadingList}
-                className="text-sm px-3 py-1 rounded-lg border border-slate-600 hover:bg-slate-800 disabled:opacity-60"
+                className="text-sm px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
               >
-                {loadingList ? "Refreshing..." : "Refresh"}
+                Refresh
               </button>
             </div>
           </div>
 
           {filteredNotes.length === 0 && !loadingList && (
-            <p className="text-slate-400 text-sm">
-              No notes in this view. Try changing the filter or create your
-              first note on the left.
+            <p className="text-[var(--text-muted)] text-sm">
+              No notes found.
             </p>
           )}
 
           <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
             {filteredNotes.map((note) => {
               const isEditing = editingNoteId === note.id;
-              const cat = note.category || "";
-              const catClass =
-                noteCategoryColors[cat] || noteCategoryColors["Other"];
+              const badge = noteCategoryStyles[note.category || "Other"];
 
               return (
                 <article
                   key={note.id}
-                  className="border border-slate-800 rounded-xl p-3 bg-slate-950/60"
+                  className="border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]"
                 >
-                  {/* VIEW MODE */}
                   {!isEditing && (
                     <>
-                      <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-start justify-between">
                         <h3 className="font-semibold text-sm">
-                          {note.title || "Untitled note"}
+                          {note.title || "Untitled"}
                         </h3>
                         {note.category && (
                           <span
-                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${catClass}`}
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${badge}`}
                           >
                             {note.category}
                           </span>
@@ -762,26 +524,25 @@ export default function NotesPage() {
                       </div>
 
                       {note.content && (
-                        <p className="text-xs text-slate-300 whitespace-pre-wrap">
+                        <p className="text-xs text-[var(--text-main)] whitespace-pre-wrap">
                           {note.content}
                         </p>
                       )}
 
-                      <p className="mt-2 text-[11px] text-slate-500">
+                      <p className="mt-2 text-[11px] text-[var(--text-muted)]">
                         {note.created_at
                           ? new Date(note.created_at).toLocaleString()
                           : ""}
                       </p>
 
                       <div className="mt-3 flex flex-wrap gap-2">
+                        {/* AI Buttons */}
                         <button
                           onClick={() =>
                             handleAI(note.id, note.content, "summarize")
                           }
-                          disabled={
-                            aiLoading === note.id || remaining === 0
-                          }
-                          className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
+                          disabled={aiLoading === note.id}
+                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
                         >
                           {aiLoading === note.id
                             ? "Summarizing..."
@@ -792,10 +553,8 @@ export default function NotesPage() {
                           onClick={() =>
                             handleAI(note.id, note.content, "bullets")
                           }
-                          disabled={
-                            aiLoading === note.id || remaining === 0
-                          }
-                          className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
+                          disabled={aiLoading === note.id}
+                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
                         >
                           📋 Bullets
                         </button>
@@ -804,42 +563,44 @@ export default function NotesPage() {
                           onClick={() =>
                             handleAI(note.id, note.content, "rewrite")
                           }
-                          disabled={
-                            aiLoading === note.id || remaining === 0
-                          }
-                          className="text-xs px-3 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 disabled:opacity-50"
+                          disabled={aiLoading === note.id}
+                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
                         >
                           ✍️ Rewrite
                         </button>
 
+                        {/* Share */}
                         <button
                           onClick={() => handleShareNote(note)}
-                          className="text-[11px] px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900"
+                          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
                           {copiedNoteId === note.id
                             ? "✅ Copied"
-                            : "Share (copy)"}
+                            : "Share"}
                         </button>
 
                         <button
-                          onClick={() => handleAskAssistantAboutNote(note)}
-                          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
+                          onClick={() =>
+                            handleAskAssistantAboutNote(note)
+                          }
+                          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
-                          🤖 Ask AI about this
+                          🤖 Ask AI
                         </button>
 
-                        {/* Edit + Delete */}
+                        {/* Edit */}
                         <button
                           onClick={() => startEdit(note)}
-                          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px]"
+                          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
                           ✏️ Edit
                         </button>
 
+                        {/* Delete */}
                         <button
                           onClick={() => handleDelete(note.id)}
                           disabled={deletingId === note.id}
-                          className="px-2 py-1 rounded-lg border border-red-500/70 text-[11px] text-red-300 hover:bg-red-900/30 disabled:opacity-60"
+                          className="px-2 py-1 rounded-lg border border-red-500 text-red-400 hover:bg-red-900/30 text-[11px]"
                         >
                           {deletingId === note.id
                             ? "Deleting..."
@@ -848,8 +609,8 @@ export default function NotesPage() {
                       </div>
 
                       {note.ai_result && (
-                        <div className="mt-3 text-xs text-slate-200 border-t border-slate-800 pt-2 whitespace-pre-wrap">
-                          <strong>AI Result (saved):</strong>
+                        <div className="mt-3 text-xs text-[var(--text-main)] border-t border-[var(--border-subtle)] pt-2 whitespace-pre-wrap">
+                          <strong>AI Result:</strong>
                           <br />
                           {note.ai_result}
                         </div>
@@ -857,54 +618,48 @@ export default function NotesPage() {
                     </>
                   )}
 
-                  {/* EDIT MODE */}
+                  {/* EDITING */}
                   {isEditing && (
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <input
-                          type="text"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm"
-                          placeholder="Note title"
-                        />
-                        <select
-                          value={editCategory}
-                          onChange={(e) => setEditCategory(e.target.value)}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-100"
-                        >
-                          <option value="">No category</option>
-                          {NOTE_CATEGORIES.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
+                      />
+
+                      <select
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
+                      >
+                        <option value="">No category</option>
+                        {NOTE_CATEGORIES.map((c) => (
+                          <option key={c}>{c}</option>
+                        ))}
+                      </select>
 
                       <textarea
                         value={editContent}
                         onChange={(e) =>
                           setEditContent(e.target.value)
                         }
-                        className="w-full min-h-[100px] px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm"
-                        placeholder="Edit your note..."
+                        className="w-full min-h-[100px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
-                      <div className="flex flex-wrap gap-2 text-[11px]">
+
+                      <div className="flex gap-2">
                         <button
-                          type="button"
                           onClick={() => saveEdit(note.id)}
                           disabled={savingEditId === note.id}
-                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white"
+                          className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs"
                         >
                           {savingEditId === note.id
                             ? "Saving..."
-                            : "Save changes"}
+                            : "Save"}
                         </button>
                         <button
-                          type="button"
                           onClick={cancelEdit}
-                          className="px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-900"
+                          className="px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
                         >
                           Cancel
                         </button>
@@ -916,11 +671,11 @@ export default function NotesPage() {
             })}
           </div>
 
-          <div className="mt-4 text-[11px] text-slate-400 flex gap-3">
-            <Link href="/tasks" className="hover:text-indigo-300">
+          <div className="mt-4 text-[11px] flex gap-3 text-[var(--text-muted)]">
+            <Link href="/tasks" className="hover:text-[var(--accent)]">
               → Go to Tasks
             </Link>
-            <Link href="/dashboard" className="hover:text-indigo-300">
+            <Link href="/dashboard" className="hover:text-[var(--accent)]">
               Open Dashboard
             </Link>
           </div>

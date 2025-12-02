@@ -17,23 +17,26 @@
 
   --accent: #6366f1;
   --accent-soft: rgba(99, 102, 241, 0.1);
+  --accent-contrast: #f9fafb; /* light text on accent */
 }
 
-/* Light */
+/* Light – polished */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg-body: #f8fafc;
-  --bg-elevated: #f1f5f9;
+  --bg-body: #ffffff;
+  --bg-elevated: #f8fafc;
   --bg-card: #ffffff;
-  --border-subtle: #e2e8f0;
-  --border-strong: #cbd5f5;
 
-  --text-main: #0f172a;
-  --text-muted: #64748b;
+  --border-subtle: #e5e7eb;
+  --border-strong: #d1d5db;
 
-  --accent: #4f46e5;
-  --accent-soft: rgba(79, 70, 229, 0.08);
+  --text-main: #0f172a; /* slate-900 */
+  --text-muted: #64748b; /* slate-500 */
+
+  --accent: #4f46e5;           /* indigo-600 */
+  --accent-soft: rgba(79, 70, 229, 0.1);
+  --accent-contrast: #ffffff;  /* force white text on primary buttons */
 }
 
 /* Ocean */
@@ -51,6 +54,7 @@
 
   --accent: #3cb4c9;
   --accent-soft: rgba(60, 180, 201, 0.14);
+  --accent-contrast: #f9fafb;
 }
 
 /* Purple Neon */
@@ -68,6 +72,7 @@
 
   --accent: #a855f7;
   --accent-soft: rgba(168, 85, 247, 0.16);
+  --accent-contrast: #f9fafb;
 }
 
 /* Forest */
@@ -85,6 +90,7 @@
 
   --accent: #22c55e;
   --accent-soft: rgba(34, 197, 94, 0.16);
+  --accent-contrast: #f9fafb;
 }
 
 /* Sunset */
@@ -102,6 +108,7 @@
 
   --accent: #fb7185;
   --accent-soft: rgba(251, 113, 133, 0.16);
+  --accent-contrast: #f9fafb;
 }
 
 /* Halloween */
@@ -119,6 +126,7 @@
 
   --accent: #f97316; /* orange */
   --accent-soft: rgba(249, 115, 22, 0.18);
+  --accent-contrast: #f9fafb;
 }
 
 /* Christmas */
@@ -136,47 +144,51 @@
 
   --accent: #ef4444; /* red */
   --accent-soft: rgba(239, 68, 68, 0.18);
+  --accent-contrast: #f9fafb;
 }
 
-/* Easter */
+/* Easter – softer pastel look */
 :root[data-theme="easter"] {
   color-scheme: light;
 
-  --bg-body: #fdf4ff;
-  --bg-elevated: #faf5ff;
-  --bg-card: #ffffff;
-  --border-subtle: #f5d0fe;
-  --border-strong: #e879f9;
+  --bg-body: #fdf4ff;     /* soft lavender */
+  --bg-elevated: #faf5ff; /* lighter lavender */
+  --bg-card: #ffffff;     /* keep white cards */
 
-  --text-main: #4a044e;
-  --text-muted: #a855f7;
+  --border-subtle: #f3d0ff;
+  --border-strong: #e58ff9;
 
-  --accent: #ec4899; /* pink */
-  --accent-soft: rgba(236, 72, 153, 0.15);
+  --text-main: #4a044e;    /* deep purple */
+  --text-muted: #8b5cf6;   /* purple-500 */
+
+  --accent: #ec4899;       /* pink-500 */
+  --accent-soft: rgba(236, 72, 153, 0.12);
+  --accent-contrast: #ffffff; /* white on pink */
 }
 
-/* Base body styles use THEME vars */
-body {
-  background-color: var(--bg-body);
-  color: var(--text-main);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* Small utility you already had */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.5s ease-out forwards;
-}
+/* === Base body styles === */
 
 body {
   background-color: var(--bg-body);
   color: var(--text-main);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+}
+
+/* Small utility you already had */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
 }
 
 /* === Theme bridge for existing Tailwind colors === */
@@ -187,12 +199,17 @@ body {
   color: var(--text-main);
 }
 
-/* Override the main dark background */
+/* Main dark background -> use bg-body */
 :root[data-theme] body .bg-slate-950 {
   background-color: var(--bg-body) !important;
 }
 
-/* Card-like surfaces */
+/* Slightly elevated backgrounds */
+:root[data-theme] body .bg-slate-900 {
+  background-color: var(--bg-elevated) !important;
+}
+
+/* Card-like surfaces with opacity */
 :root[data-theme] body .bg-slate-900\/60,
 :root[data-theme] body .bg-slate-900\/70 {
   background-color: var(--bg-card) !important;
@@ -210,4 +227,35 @@ body {
 
 :root[data-theme] body .text-slate-400 {
   color: var(--text-muted) !important;
+}
+
+/* === Accent buttons / primary CTAs === */
+
+/* Solid indigo buttons -> use accent + accent-contrast */
+:root[data-theme] body .bg-indigo-600,
+:root[data-theme] body .bg-indigo-500 {
+  background-color: var(--accent) !important;
+  color: var(--accent-contrast, #f9fafb) !important;
+}
+
+/* Hover state for those buttons */
+:root[data-theme] body .hover\:bg-indigo-500:hover,
+:root[data-theme] body .hover\:bg-indigo-600:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--accent) 88%,
+    #ffffff 12%
+  ) !important;
+}
+
+/* Soft accent backgrounds / chips */
+:root[data-theme] body .bg-indigo-950\/40,
+:root[data-theme] body .bg-indigo-900\/40 {
+  background-color: var(--accent-soft) !important;
+}
+
+/* Accent borders (e.g. Pro banners, pills) */
+:root[data-theme] body .border-indigo-500\/40,
+:root[data-theme] body .border-indigo-500 {
+  border-color: var(--accent) !important;
 }

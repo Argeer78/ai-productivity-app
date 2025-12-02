@@ -26,7 +26,8 @@ function getStreakConfig(streak: number) {
     return {
       emoji: "🏆",
       title: "Legendary streak!",
-      subtitle: "You’ve been consistently productive for 30+ days. That’s huge.",
+      subtitle:
+        "You’ve been consistently productive for 30+ days. That’s huge.",
       gradient: "from-amber-400 via-pink-500 to-indigo-600",
     };
   }
@@ -50,7 +51,8 @@ function getStreakConfig(streak: number) {
   return {
     emoji: "🎉",
     title: "Nice streak!",
-    subtitle: "You’re building a habit. A few more days and it becomes automatic.",
+    subtitle:
+      "You’re building a habit. A few more days and it becomes automatic.",
     gradient: "from-indigo-600 to-purple-600",
   };
 }
@@ -80,7 +82,6 @@ const PRICE_LABELS = {
       usd: "$5.99",
       gbp: "£4.99",
     },
-    // ❗ FOUNDER has no yearly, only monthly (or if you want yearly, add here)
   },
 };
 
@@ -98,7 +99,7 @@ export default function DashboardPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
 
-  const [streak, setStreak] = useState(0); // AI usage streak
+  const [streak, setStreak] = useState(0);
   const [activeDays, setActiveDays] = useState(0);
 
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
@@ -108,13 +109,13 @@ export default function DashboardPage() {
   const [scoreLoading, setScoreLoading] = useState(true);
   const [todayScore, setTodayScore] = useState<number | null>(null);
   const [avg7, setAvg7] = useState<number | null>(null);
-  const [scoreStreak, setScoreStreak] = useState<number>(0); // consecutive days with score >= 60
+  const [scoreStreak, setScoreStreak] = useState<number>(0);
 
   // AI Wins this Week
   const [weekTasksCompleted, setWeekTasksCompleted] = useState(0);
   const [weekNotesCreated, setWeekNotesCreated] = useState(0);
   const [weekAiCalls, setWeekAiCalls] = useState(0);
-  const [weekTimeSaved, setWeekTimeSaved] = useState(0); // in minutes
+  const [weekTimeSaved, setWeekTimeSaved] = useState(0);
 
   // Weekly goal state
   const [weeklyGoalId, setWeeklyGoalId] = useState<string | null>(null);
@@ -125,7 +126,9 @@ export default function DashboardPage() {
   const [weeklyGoalMarking, setWeeklyGoalMarking] = useState(false);
 
   const { track } = useAnalytics();
-  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">(
+    "monthly"
+  );
 
   const isPro = plan === "pro" || plan === "founder";
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
@@ -133,58 +136,51 @@ export default function DashboardPage() {
   const showBanner = streak >= 1;
   const streakCfg = getStreakConfig(streak);
 
-  // single source of truth for plan labels
   const planLabelUpper =
-  plan === "founder" ? "FOUNDER" :
-  plan === "pro" ? "PRO" :
-  "FREE";
+    plan === "founder" ? "FOUNDER" : plan === "pro" ? "PRO" : "FREE";
   const planLabelNice =
-  plan === "founder" ? "Founder" :
-  plan === "pro" ? "Pro" :
-  "Free";
+    plan === "founder" ? "Founder" : plan === "pro" ? "Pro" : "Free";
 
-  // 🌍 currency state for multi-currency checkout
   const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
   const monthlyPriceLabel = MONTHLY_PRICE_BY_CURRENCY[currency];
 
   async function startCheckout(
-  selectedCurrency: "eur" | "usd" | "gbp",
-  planType: "pro" | "yearly" | "founder" = "pro"
-) {
+    selectedCurrency: "eur" | "usd" | "gbp",
+    planType: "pro" | "yearly" | "founder" = "pro"
+  ) {
+    if (!user) return;
 
-  if (!user) return;
+    setBillingLoading(true);
+    setError("");
 
-  setBillingLoading(true);
-  setError("");
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.email,
+          currency: selectedCurrency,
+          plan: planType,
+        }),
+      });
 
-  try {
-    const res = await fetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-  userId: user.id,
-  email: user.email,
-  currency: selectedCurrency,
-  plan: planType,
-      }),
-    });
+      const data = await res.json().catch(() => null);
 
-    const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.url) {
+        console.error("[checkout] error payload", data);
+        setError(data?.error || "Could not start checkout.");
+        return;
+      }
 
-    if (!res.ok || !data?.url) {
-      console.error("[checkout] error payload", data);
-      setError(data?.error || "Could not start checkout.");
-      return;
+      window.location.href = data.url;
+    } catch (err) {
+      console.error("[checkout] exception", err);
+      setError("Network error while starting checkout.");
+    } finally {
+      setBillingLoading(false);
     }
-
-    window.location.href = data.url;
-  } catch (err) {
-    console.error("[checkout] exception", err);
-    setError("Network error while starting checkout.");
-  } finally {
-    setBillingLoading(false);
   }
-}
 
   // Load the current user
   useEffect(() => {
@@ -252,7 +248,8 @@ export default function DashboardPage() {
 
         if (last7.length > 0) {
           const avg =
-            last7.reduce((sum, r) => sum + (r.score || 0), 0) / last7.length;
+            last7.reduce((sum, r) => sum + (r.score || 0), 0) /
+            last7.length;
           setAvg7(Math.round(avg));
         } else {
           setAvg7(null);
@@ -338,7 +335,7 @@ export default function DashboardPage() {
           if (insertError) throw insertError;
           setPlan((inserted?.plan as "free" | "pro") || "free");
         } else {
-          setPlan((profile.plan as "free" | "pro") || "free");
+          setPlan((profile.plan as "free" | "pro" | "founder") || "free");
         }
 
         // 2) Today’s AI usage
@@ -376,11 +373,11 @@ export default function DashboardPage() {
         const historyList =
           (history || []) as { usage_date: string; count: number }[];
 
-        // Active days (any AI usage) in last 30 days
+        // Active days
         const active = historyList.filter((h) => h.count > 0).length;
         setActiveDays(active);
 
-        // AI usage streak (consecutive days with usage > 0)
+        // AI usage streak
         const activeDateSet = new Set(
           historyList.filter((h) => h.count > 0).map((h) => h.usage_date)
         );
@@ -400,19 +397,20 @@ export default function DashboardPage() {
 
         setStreak(streakCount);
 
-        // 4) AI Wins: last 7 days usage and time saved
+        // 4) AI Wins: last 7 days
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
         const sevenStr = sevenDaysAgo.toISOString().split("T")[0];
 
-        const last7Usage = historyList.filter((h) => h.usage_date >= sevenStr);
+        const last7Usage = historyList.filter(
+          (h) => h.usage_date >= sevenStr
+        );
         const totalAiCalls7 = last7Usage.reduce(
           (sum, h) => sum + (h.count || 0),
           0
         );
         setWeekAiCalls(totalAiCalls7);
 
-        // Simple heuristic: ~3 minutes saved per AI call
         const estimatedMins = Math.round(totalAiCalls7 * 3);
         setWeekTimeSaved(estimatedMins);
 
@@ -449,12 +447,11 @@ export default function DashboardPage() {
         // 7) Notes / tasks in last 7 days
         const sevenDaysAgoDate = new Date();
         sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 6);
-        const sevenDateStr = sevenDaysAgoDate.toISOString().split("T")[0];
+        const sevenDateStr = sevenDaysAgoDate
+          .toISOString()
+          .split("T")[0];
 
-        const {
-          count: notes7Count,
-          error: notes7Err,
-        } = await supabase
+        const { count: notes7Count, error: notes7Err } = await supabase
           .from("notes")
           .select("*", { count: "exact", head: true })
           .eq("user_id", user.id)
@@ -467,15 +464,13 @@ export default function DashboardPage() {
           setWeekNotesCreated(notes7Count ?? 0);
         }
 
-        // Tasks completed in the last 7 days
         const sevenDaysAgoTs = new Date();
         sevenDaysAgoTs.setDate(sevenDaysAgoTs.getDate() - 6);
-        const sevenDateOnly = sevenDaysAgoTs.toISOString().split("T")[0];
+        const sevenDateOnly = sevenDaysAgoTs
+          .toISOString()
+          .split("T")[0];
 
-        const {
-          data: tasks7Rows,
-          error: tasks7Err,
-        } = await supabase
+        const { data: tasks7Rows, error: tasks7Err } = await supabase
           .from("tasks")
           .select("id")
           .eq("user_id", user.id)
@@ -489,7 +484,7 @@ export default function DashboardPage() {
           setWeekTasksCompleted(tasks7Rows?.length || 0);
         }
 
-        // 8) Weekly goal of the week (latest)
+        // 8) Weekly goal
         const { data: goalRow, error: goalError } = await supabase
           .from("weekly_goals")
           .select("id, goal_text, week_start, completed")
@@ -659,23 +654,25 @@ export default function DashboardPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Checking your session...</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">
+          Checking your session...
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col items-center justify-center p-4">
         <h1 className="text-2xl font-bold mb-3">Dashboard</h1>
-        <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+        <p className="mb-4 text-center max-w-sm text-sm text-[var(--text-muted)]">
           You&apos;re not logged in. Log in or create a free account to see
           your plan and AI usage.
         </p>
         <Link
           href="/auth"
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+          className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
         >
           Go to login / signup
         </Link>
@@ -684,13 +681,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="dashboard" />
 
-      {/* Content */}
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
-          {/* ✅ Finish setup banner */}
+          {/* Setup banner */}
           <SetupBanner userId={user.id} />
 
           {showBanner && (
@@ -700,8 +696,8 @@ export default function DashboardPage() {
               <div>
                 <p className="font-semibold text-sm md:text-base">
                   {streakCfg.emoji} {streakCfg.title} You’re on a{" "}
-                  <span className="font-bold">{streak}-day</span>{" "}
-                  productivity streak.
+                  <span className="font-bold">{streak}-day</span> productivity
+                  streak.
                 </p>
                 <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
               </div>
@@ -713,14 +709,14 @@ export default function DashboardPage() {
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 Dashboard
               </h1>
-              <p className="text-xs md:text-sm text-slate-400">
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 Quick overview of your plan, AI usage, and activity.
               </p>
             </div>
 
             {/* Extra info for FREE plan */}
             {plan === "free" && (
-              <div className="mb-4 text-xs md:text-sm text-slate-300">
+              <div className="mb-4 text-xs md:text-sm text-[var(--text-main)]">
                 <p>
                   Plan:{" "}
                   <span className="font-semibold">FREE</span> | AI today:{" "}
@@ -728,7 +724,7 @@ export default function DashboardPage() {
                     {aiCountToday}/{FREE_DAILY_LIMIT}
                   </span>
                 </p>
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">
                   The free plan includes up to 20 AI calls per day shared
                   across notes, the global assistant, summaries, and planner.
                 </p>
@@ -736,10 +732,11 @@ export default function DashboardPage() {
             )}
 
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
-              <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
-                Plan: <span className="font-semibold">{planLabelUpper}</span>
+              <span className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+                Plan:{" "}
+                <span className="font-semibold">{planLabelUpper}</span>
               </span>
-              <span className="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
+              <span className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
                 {isPro ? (
                   <>
                     AI today:{" "}
@@ -764,38 +761,38 @@ export default function DashboardPage() {
           )}
 
           {loadingData ? (
-            <p className="text-slate-300 text-sm">Loading your data...</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              Loading your data...
+            </p>
           ) : (
             <>
               {/* Top stats grid */}
               <div className="grid md:grid-cols-3 gap-5 mb-8 text-sm">
                 {/* Account card */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                     ACCOUNT
                   </p>
-                  <p className="text-slate-100 mb-1 text-sm break-all">
+                  <p className="mb-1 text-sm break-all">
                     {user.email}
                   </p>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-[var(--text-muted)]">
                     This is the account you use to log in.
                   </p>
                 </div>
 
                 {/* Plan card */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                     PLAN
                   </p>
-                  <p className="text-slate-100 mb-1 text-sm">
-                    {planLabelNice}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mb-2">
+                  <p className="mb-1 text-sm">{planLabelNice}</p>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-2">
                     {isPro
                       ? "Unlimited daily AI usage for normal use, plus access to more powerful planning tools."
                       : "Good for trying the app and using AI lightly each day."}
                   </p>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-[var(--text-muted)]">
                     Daily AI limit:{" "}
                     <span className="font-semibold">
                       {isPro
@@ -807,7 +804,7 @@ export default function DashboardPage() {
                   {isPro && (
                     <Link
                       href="/weekly-reports"
-                      className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
+                      className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90"
                     >
                       📅 View Weekly Reports →
                     </Link>
@@ -816,7 +813,7 @@ export default function DashboardPage() {
                   {!isPro && (
                     <Link
                       href="/dashboard#pricing"
-                      className="inline-block mt-3 text-[11px] text-indigo-400 hover:text-indigo-300"
+                      className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90"
                     >
                       🔒 Unlock Weekly Reports with Pro →
                     </Link>
@@ -824,15 +821,15 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Usage + Productivity Score card */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                     TODAY&apos;S AI USAGE
                   </p>
-                  <p className="text-slate-100 mb-1 text-sm">
+                  <p className="mb-1 text-sm">
                     {isPro ? (
                       <>
                         {aiCountToday} used{" "}
-                        <span className="text-slate-400 text-[11px]">
+                        <span className="text-[11px] text-[var(--text-muted)]">
                           (unlimited for normal use)
                         </span>
                       </>
@@ -842,9 +839,9 @@ export default function DashboardPage() {
                       </>
                     )}
                   </p>
-                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden mb-2">
+                  <div className="h-2 rounded-full bg-[var(--border-subtle)] overflow-hidden mb-2">
                     <div
-                      className="h-full bg-indigo-500"
+                      className="h-full bg-[var(--accent)]"
                       style={{
                         width: `${Math.min(
                           dailyLimit > 0
@@ -856,20 +853,21 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  {/* Productivity Score Widget */}
-                  <div className="border border-slate-800 bg-slate-900/90 rounded-2xl p-3 mt-3">
+                  <div className="border border-[var(--border-subtle)] bg-[var(--bg-elevated)] rounded-2xl p-3 mt-3">
                     <h3 className="text-sm font-semibold mb-2">
                       📈 Productivity Score
                     </h3>
 
                     {scoreLoading ? (
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-[var(--text-muted)]">
                         Loading...
                       </p>
                     ) : (
                       <>
                         <p className="text-[13px] mb-1">
-                          <span className="text-slate-400">Today:</span>{" "}
+                          <span className="text-[var(--text-muted)]">
+                            Today:
+                          </span>{" "}
                           <span className="font-semibold">
                             {todayScore !== null
                               ? `${todayScore}/100`
@@ -878,14 +876,16 @@ export default function DashboardPage() {
                         </p>
 
                         <p className="text-[13px] mb-1">
-                          <span className="text-slate-400">7-day avg:</span>{" "}
+                          <span className="text-[var(--text-muted)]">
+                            7-day avg:
+                          </span>{" "}
                           <span className="font-semibold">
                             {avg7 !== null ? `${avg7}` : "—"}
                           </span>
                         </p>
 
                         <p className="text-[13px] mb-3">
-                          <span className="text-slate-400">
+                          <span className="text-[var(--text-muted)]">
                             Score streak (≥60):
                           </span>{" "}
                           <span className="font-semibold">
@@ -896,7 +896,7 @@ export default function DashboardPage() {
 
                         <Link
                           href="/daily-success"
-                          className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500"
+                          className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
                         >
                           Update today&apos;s score
                         </Link>
@@ -904,7 +904,7 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  <p className="text-[11px] text-slate-400 mt-2">
+                  <p className="text-[11px] text-[var(--text-muted)] mt-2">
                     {remaining > 0 ? (
                       isPro ? (
                         "Pro gives you effectively unlimited daily AI usage for normal workflows."
@@ -918,7 +918,7 @@ export default function DashboardPage() {
                         You reached today’s limit on the free plan.{" "}
                         <Link
                           href="/dashboard#pricing"
-                          className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                          className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
                         >
                           Upgrade to Pro
                         </Link>{" "}
@@ -927,7 +927,7 @@ export default function DashboardPage() {
                     )}
                   </p>
 
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1">
                     Usage streak:{" "}
                     <span className="font-semibold">
                       {streak} day{streak === 1 ? "" : "s"}
@@ -937,17 +937,17 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                {/* AI Summary card */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 md:col-span-3">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                {/* AI SUMMARY card (full-width) */}
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 md:col-span-3">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                     AI SUMMARY (BETA)
                   </p>
                   {summary ? (
-                    <div className="text-[12px] text-slate-100 whitespace-pre-wrap mb-2">
+                    <div className="text-[12px] whitespace-pre-wrap mb-2">
                       {summary}
                     </div>
                   ) : (
-                    <p className="text-[12px] text-slate-400 mb-2">
+                    <p className="text-[12px] text-[var(--text-muted)] mb-2">
                       Let AI scan your recent notes and tasks and give you a
                       short overview plus suggestions.
                     </p>
@@ -962,9 +962,10 @@ export default function DashboardPage() {
                   <button
                     onClick={generateSummary}
                     disabled={
-                      summaryLoading || (!isPro && aiCountToday >= dailyLimit)
+                      summaryLoading ||
+                      (!isPro && aiCountToday >= dailyLimit)
                     }
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs md:text-sm"
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm text-[var(--accent-contrast)]"
                   >
                     {summaryLoading
                       ? "Generating..."
@@ -972,7 +973,7 @@ export default function DashboardPage() {
                       ? "Daily AI limit reached"
                       : "Generate summary"}
                   </button>
-                  <p className="mt-1 text-[11px] text-slate-500">
+                  <p className="mt-1 text-[11px] text-[var(--text-muted)]">
                     Uses your daily AI limit (shared with notes, assistant,
                     planner).
                   </p>
@@ -980,56 +981,56 @@ export default function DashboardPage() {
               </div>
 
               {/* AI Wins This Week */}
-              <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/30 p-4 mb-8 text-sm">
-                <p className="text-xs font-semibold text-emerald-200 mb-1">
+              <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4 mb-8 text-sm">
+                <p className="text-xs font-semibold text-[var(--accent)] mb-1">
                   AI WINS THIS WEEK
                 </p>
-                <p className="text-[11px] text-emerald-100/80 mb-3">
+                <p className="text-[11px] text-[var(--text-muted)] mb-3">
                   A quick snapshot of how AI helped you move things forward in
                   the last 7 days.
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[12px]">
                   <div>
-                    <p className="text-emerald-300 text-xs mb-0.5">
+                    <p className="text-xs text-[var(--text-muted)] mb-0.5">
                       Avg productivity score
                     </p>
                     <p className="text-base font-semibold">
                       {avg7 !== null ? `${avg7}/100` : "—"}
                     </p>
-                    <p className="text-[11px] text-emerald-200/70">
+                    <p className="text-[11px] text-[var(--text-muted)]">
                       Based on your daily scores
                     </p>
                   </div>
                   <div>
-                    <p className="text-emerald-300 text-xs mb-0.5">
+                    <p className="text-xs text-[var(--text-muted)] mb-0.5">
                       Tasks completed
                     </p>
                     <p className="text-base font-semibold">
                       {weekTasksCompleted}
                     </p>
-                    <p className="text-[11px] text-emerald-200/70">
+                    <p className="text-[11px] text-[var(--text-muted)]">
                       Last 7 days
                     </p>
                   </div>
                   <div>
-                    <p className="text-emerald-300 text-xs mb-0.5">
+                    <p className="text-xs text-[var(--text-muted)] mb-0.5">
                       Notes created
                     </p>
                     <p className="text-base font-semibold">
                       {weekNotesCreated}
                     </p>
-                    <p className="text-[11px] text-emerald-200/70">
+                    <p className="text-[11px] text-[var(--text-muted)]">
                       Captured ideas & thoughts
                     </p>
                   </div>
                   <div>
-                    <p className="text-emerald-300 text-xs mb-0.5">
+                    <p className="text-xs text-[var(--text-muted)] mb-0.5">
                       AI calls used
                     </p>
                     <p className="text-base font-semibold">
                       {weekAiCalls}
                     </p>
-                    <p className="text-[11px] text-emerald-200/70">
+                    <p className="text-[11px] text-[var(--text-muted)]">
                       ~{weekTimeSaved} min saved
                     </p>
                   </div>
@@ -1037,18 +1038,18 @@ export default function DashboardPage() {
               </div>
 
               {/* Goal of the Week */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 mb-8 text-sm">
-                <p className="text-xs font-semibold text-slate-400 mb-1">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-8 text-sm">
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                   GOAL OF THE WEEK
                 </p>
 
                 {!isPro ? (
                   <>
-                    <p className="text-[13px] text-slate-200 mb-1">
+                    <p className="text-[13px] mb-1">
                       Set a clear weekly focus goal and let AI help you stay
                       on track.
                     </p>
-                    <p className="text-[11px] text-slate-500 mb-3">
+                    <p className="text-[11px] text-[var(--text-muted)] mb-3">
                       This is a Pro feature. Upgrade to unlock AI-powered
                       weekly goals, progress tracking in your weekly report
                       emails, and unlimited daily AI usage.
@@ -1056,14 +1057,14 @@ export default function DashboardPage() {
 
                     <Link
                       href="/dashboard#pricing"
-                      className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-slate-50"
+                      className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
                     >
                       🔒 Unlock with Pro
                     </Link>
                   </>
                 ) : (
                   <>
-                    <p className="text-[12px] text-slate-300 mb-2">
+                    <p className="text-[12px] text-[var(--text-muted)] mb-2">
                       Pick one meaningful outcome you want to achieve this
                       week. Keep it small and realistic.
                     </p>
@@ -1071,22 +1072,26 @@ export default function DashboardPage() {
                       value={weeklyGoalText}
                       onChange={(e) => setWeeklyGoalText(e.target.value)}
                       placeholder="e.g. Finish and send the client proposal draft."
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 mb-2 min-h-[60px]"
+                      className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm mb-2 min-h-[60px]"
                     />
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <button
                         type="button"
                         onClick={() => saveWeeklyGoal(false)}
-                        disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
-                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs"
+                        disabled={
+                          weeklyGoalSaving || !weeklyGoalText.trim()
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs text-[var(--accent-contrast)]"
                       >
                         {weeklyGoalSaving ? "Saving..." : "Save goal"}
                       </button>
                       <button
                         type="button"
                         onClick={() => saveWeeklyGoal(true)}
-                        disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
-                        className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs disabled:opacity-60"
+                        disabled={
+                          weeklyGoalSaving || !weeklyGoalText.trim()
+                        }
+                        className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs disabled:opacity-60"
                       >
                         {weeklyGoalSaving
                           ? "Saving..."
@@ -1100,17 +1105,17 @@ export default function DashboardPage() {
                           type="button"
                           onClick={toggleWeeklyGoalCompleted}
                           disabled={weeklyGoalMarking}
-                          className={`px-3 py-1.5 rounded-xl text-xs border ${
+                          className={`px-3 py-1.5 rounded-xl text-xs border disabled:opacity-60 ${
                             weeklyGoalCompleted
                               ? "border-emerald-500 text-emerald-300 bg-emerald-900/30"
-                              : "border-slate-700 text-slate-200 hover:bg-slate-900"
-                          } disabled:opacity-60`}
+                              : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
+                          }`}
                         >
                           {weeklyGoalCompleted
                             ? "✅ Marked as done"
                             : "Mark this goal as done"}
                         </button>
-                        <span className="text-[11px] text-slate-500">
+                        <span className="text-[11px] text-[var(--text-muted)]">
                           This is your single focus target for this week.
                         </span>
                       </div>
@@ -1121,20 +1126,21 @@ export default function DashboardPage() {
 
               {/* Recent activity */}
               <div className="grid md:grid-cols-2 gap-5 mb-8 text-sm">
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold text-slate-400 mb-2">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
                     RECENT NOTES
                   </p>
                   {recentNotes.length === 0 ? (
-                    <p className="text-[12px] text-slate-500">
-                      No notes yet. Create your first note from the Notes page.
+                    <p className="text-[12px] text-[var(--text-muted)]">
+                      No notes yet. Create your first note from the Notes
+                      page.
                     </p>
                   ) : (
                     <ul className="space-y-2">
                       {recentNotes.map((n) => (
                         <li
                           key={n.id}
-                          className="text-[12px] text-slate-200 line-clamp-2"
+                          className="text-[12px] line-clamp-2"
                         >
                           {n.content?.slice(0, 160) || "(empty note)"}
                         </li>
@@ -1143,18 +1149,18 @@ export default function DashboardPage() {
                   )}
                   <Link
                     href="/notes"
-                    className="mt-3 inline-block text-[11px] text-indigo-400 hover:text-indigo-300"
+                    className="mt-3 inline-block text-[11px] text-[var(--accent)] hover:opacity-90"
                   >
                     Open Notes →
                   </Link>
                 </div>
 
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold text-slate-400 mb-2">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
                     RECENT TASKS
                   </p>
                   {recentTasks.length === 0 ? (
-                    <p className="text-[12px] text-slate-500">
+                    <p className="text-[12px] text-[var(--text-muted)]">
                       No tasks yet. Start by adding a few tasks you want to
                       track.
                     </p>
@@ -1163,11 +1169,13 @@ export default function DashboardPage() {
                       {recentTasks.map((t) => (
                         <li
                           key={t.id}
-                          className="text-[12px] text-slate-200 flex items-center gap-2 line-clamp-2"
+                          className="text-[12px] flex items-center gap-2 line-clamp-2"
                         >
                           <span
                             className={`h-2 w-2 rounded-full ${
-                              t.completed ? "bg-emerald-400" : "bg-slate-500"
+                              t.completed
+                                ? "bg-emerald-400"
+                                : "bg-slate-500"
                             }`}
                           />
                           <span>{t.title || "(untitled task)"}</span>
@@ -1175,229 +1183,248 @@ export default function DashboardPage() {
                       ))}
                     </ul>
                   )}
-                  <Link
-                    href="/tasks"
-                    className="mt-3 inline-block text-[11px] text-indigo-400 hover:text-indigo-300"
-                  >
-                    Open Tasks →
-                  </Link>
-
-                  <Link
-                    href="/settings"
-                    className="mt-3 inline-block text-[11px] text-indigo-400 hover:text-indigo-300"
-                  >
-                    Settings / Export →
-                  </Link>
+                  <div className="flex flex-wrap gap-3 mt-3">
+                    <Link
+                      href="/tasks"
+                      className="inline-block text-[11px] text-[var(--accent)] hover:opacity-90"
+                    >
+                      Open Tasks →
+                    </Link>
+                    <Link
+                      href="/settings"
+                      className="inline-block text-[11px] text-[var(--accent)] hover:opacity-90"
+                    >
+                      Settings / Export →
+                    </Link>
+                  </div>
                 </div>
               </div>
             </>
           )}
 
-          {/* Actions */}
+          {/* Quick actions */}
           <div className="flex flex-wrap gap-3 mb-4">
             <Link
               href="/notes"
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
             >
               Go to Notes
             </Link>
             <Link
               href="/tasks"
-              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+              className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
             >
               Go to Tasks
             </Link>
             <Link
               href="/templates"
-              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+              className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
             >
               🧠 AI Templates
             </Link>
             <Link
               href="/planner"
-              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+              className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
             >
               🗓 Daily Planner
             </Link>
             <Link
               href="/weekly-reports"
-              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+              className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
             >
               📅 Weekly Reports
             </Link>
           </div>
 
-          {/* 🔓 What you unlock with Pro */}
-{!isPro && (
-  <>
-    <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-3 text-[11px] text-indigo-100 flex flex-wrap gap-3 items-center">
-      <span className="font-semibold text-xs">What you unlock with Pro:</span>
-      <span>📈 Higher daily AI limit</span>
-      <span>📬 Weekly AI email report</span>
-      <span>🎯 Weekly goal with AI refinement</span>
-      <span>✈️ Save unlimited trips</span>
-      <span>🧠 Premium templates</span>
-    </div>
+          {/* What you unlock with Pro */}
+          {!isPro && (
+            <>
+              <div className="mb-4 rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-3 text-[11px] text-[var(--text-main)] flex flex-wrap gap-3 items-center">
+                <span className="font-semibold text-xs">
+                  What you unlock with Pro:
+                </span>
+                <span>📈 Higher daily AI limit</span>
+                <span>📬 Weekly AI email report</span>
+                <span>🎯 Weekly goal with AI refinement</span>
+                <span>✈️ Save unlimited trips</span>
+                <span>🧠 Premium templates</span>
+              </div>
 
-    {/* 🟣 PRO PLAN */}
-<section
-  id="pricing"
-  className="rounded-2xl border border-indigo-500/60 bg-indigo-950/40 p-5 text-xs md:text-sm max-w-xl mb-4"
->
-  <p className="text-indigo-100 font-semibold mb-1 text-sm md:text-base">
-    Upgrade to AI Productivity Hub PRO
-  </p>
-  <p className="text-indigo-100 mb-3">
-    For daily users who want higher limits and weekly insights.
-  </p>
+              {/* PRO PLAN */}
+              <section
+                id="pricing"
+                className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-5 text-xs md:text-sm max-w-xl mb-4"
+              >
+                <p className="font-semibold mb-1 text-sm md:text-base">
+                  Upgrade to AI Productivity Hub PRO
+                </p>
+                <p className="mb-3 text-[var(--text-muted)]">
+                  For daily users who want higher limits and weekly
+                  insights.
+                </p>
 
-  {/* PRICE SWITCHER */}
-  <div className="flex items-center gap-4 mb-4">
-    <button
-      onClick={() => setBillingPeriod("monthly")}
-      className={`px-3 py-1.5 rounded-xl text-xs ${
-        billingPeriod === "monthly"
-          ? "bg-indigo-600 text-white"
-          : "border border-slate-700 text-slate-300"
-      }`}
-    >
-      Monthly
-    </button>
+                <div className="flex items-center gap-4 mb-4">
+                  <button
+                    onClick={() => setBillingPeriod("monthly")}
+                    className={`px-3 py-1.5 rounded-xl text-xs ${
+                      billingPeriod === "monthly"
+                        ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
+                        : "border border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                    }`}
+                  >
+                    Monthly
+                  </button>
 
-    <button
-      onClick={() => setBillingPeriod("yearly")}
-      className={`px-3 py-1.5 rounded-xl text-xs ${
-        billingPeriod === "yearly"
-          ? "bg-indigo-600 text-white"
-          : "border border-slate-700 text-slate-300"
-      }`}
-    >
-      Yearly — save 25%
-    </button>
-  </div>
+                  <button
+                    onClick={() => setBillingPeriod("yearly")}
+                    className={`px-3 py-1.5 rounded-xl text-xs ${
+                      billingPeriod === "yearly"
+                        ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
+                        : "border border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                    }`}
+                  >
+                    Yearly — save 25%
+                  </button>
+                </div>
 
-  {/* PRICE DISPLAY */}
-  <div className="flex items-baseline gap-2 mb-3">
-    <p className="text-2xl font-bold text-indigo-100">
-      {billingPeriod === "monthly"
-        ? PRICE_LABELS.pro.monthly[currency]
-        : PRICE_LABELS.pro.yearly[currency]}
-      <span className="text-base font-normal text-indigo-200">
-        {" "}
-        / {billingPeriod}
-      </span>
-    </p>
-  </div>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <p className="text-2xl font-bold">
+                    {billingPeriod === "monthly"
+                      ? PRICE_LABELS.pro.monthly[currency]
+                      : PRICE_LABELS.pro.yearly[currency]}
+                    <span className="text-base font-normal text-[var(--text-muted)]">
+                      {" "}
+                      / {billingPeriod}
+                    </span>
+                  </p>
+                </div>
 
-  {/* Benefits */}
-  <ul className="space-y-1.5 text-[11px] text-indigo-100/90 mb-4">
-    <li>• Unlimited AI (2000 calls/day)</li>
-    <li>• Weekly AI email reports</li>
-    <li>• AI-powered Weekly Goals</li>
-    <li>• Save & revisit trip plans</li>
-    <li>• All premium templates</li>
-    <li>• Priority feature access</li>
-  </ul>
+                <ul className="space-y-1.5 text-[11px] text-[var(--text-main)] mb-4">
+                  <li>• Unlimited AI (2000 calls/day)</li>
+                  <li>• Weekly AI email reports</li>
+                  <li>• AI-powered Weekly Goals</li>
+                  <li>• Save & revisit trip plans</li>
+                  <li>• All premium templates</li>
+                  <li>• Priority feature access</li>
+                </ul>
 
-  {/* Checkout */}
-  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-    <select
-      value={currency}
-      onChange={(e) => setCurrency(e.target.value as "eur" | "usd" | "gbp")}
-      className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs mb-2 sm:mb-0"
-    >
-      <option value="eur">EUR €</option>
-      <option value="usd">USD $</option>
-      <option value="gbp">GBP £</option>
-    </select>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                  <select
+                    value={currency}
+                    onChange={(e) =>
+                      setCurrency(
+                        e.target.value as "eur" | "usd" | "gbp"
+                      )
+                    }
+                    className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs mb-2 sm:mb-0"
+                  >
+                    <option value="eur">EUR €</option>
+                    <option value="usd">USD $</option>
+                    <option value="gbp">GBP £</option>
+                  </select>
 
-    <button
-      type="button"
-      onClick={() => startCheckout(currency, billingPeriod === "yearly" ? "yearly" : "pro")}
-      disabled={billingLoading}
-      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white disabled:opacity-60"
-    >
-      {billingLoading
-        ? "Opening Stripe…"
-        : billingPeriod === "yearly"
-        ? `Go yearly (${currency.toUpperCase()})`
-        : `Upgrade monthly (${currency.toUpperCase()})`}
-    </button>
-  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      startCheckout(
+                        currency,
+                        billingPeriod === "yearly" ? "yearly" : "pro"
+                      )
+                    }
+                    disabled={billingLoading}
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)] disabled:opacity-60"
+                  >
+                    {billingLoading
+                      ? "Opening Stripe…"
+                      : billingPeriod === "yearly"
+                      ? `Go yearly (${currency.toUpperCase()})`
+                      : `Upgrade monthly (${currency.toUpperCase()})`}
+                  </button>
+                </div>
 
-  <p className="mt-2 text-[11px] text-indigo-100/70">
-    Cancel anytime via Stripe billing portal.
-  </p>
-</section>
+                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                  Cancel anytime via Stripe billing portal.
+                </p>
+              </section>
 
-    {/* 🎉 FOUNDER EARLY DISCOUNT */}
-    <section
-      className="rounded-2xl border border-emerald-500/60 bg-emerald-950/30 p-5 text-xs md:text-sm max-w-xl"
-    >
-      <p className="text-emerald-200 font-semibold mb-1 text-sm md:text-base">
-        🎉 Early Supporter Discount
-      </p>
-      <p className="text-emerald-100 mb-3">
-        Because you're early — lock in a permanent discount, forever.
-      </p>
+              {/* Founder / early supporter */}
+              <section className="rounded-2xl border border-emerald-500/60 bg-emerald-950/30 p-5 text-xs md:text-sm max-w-xl">
+                <p className="text-emerald-200 font-semibold mb-1 text-sm md:text-base">
+                  🎉 Early Supporter Discount
+                </p>
+                <p className="text-emerald-100 mb-3">
+                  Because you're early — lock in a permanent discount,
+                  forever.
+                </p>
 
-      <div className="flex items-baseline gap-2 mb-3">
-        <p className="text-2xl font-bold text-emerald-100">
-  {PRICE_LABELS.founder.monthly[currency]}
-  <span className="text-base font-normal text-emerald-200"> / month</span>
-</p>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <p className="text-2xl font-bold text-emerald-100">
+                    {PRICE_LABELS.founder.monthly[currency]}
+                    <span className="text-base font-normal text-emerald-200">
+                      {" "}
+                      / month
+                    </span>
+                  </p>
 
-        <p className="text-[11px] text-emerald-200/80">Founder price — never increases</p>
-      </div>
+                  <p className="text-[11px] text-emerald-200/80">
+                    Founder price — never increases
+                  </p>
+                </div>
 
-      <ul className="space-y-1.5 text-[11px] text-emerald-100/90 mb-4">
-        <li>• Everything in Pro</li>
-        <li>• Locked-in lifetime price</li>
-        <li>• Unlimited AI (2000/day)</li>
-        <li>• Weekly reports & goals</li>
-        <li>• Premium templates</li>
-        <li>• Priority support</li>
-      </ul>
+                <ul className="space-y-1.5 text-[11px] text-emerald-100/90 mb-4">
+                  <li>• Everything in Pro</li>
+                  <li>• Locked-in lifetime price</li>
+                  <li>• Unlimited AI (2000/day)</li>
+                  <li>• Weekly reports & goals</li>
+                  <li>• Premium templates</li>
+                  <li>• Priority support</li>
+                </ul>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-        <select
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value as "eur" | "usd" | "gbp")}
-          className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs mb-2 sm:mb-0"
-        >
-          <option value="eur">EUR €</option>
-          <option value="usd">USD $</option>
-          <option value="gbp">GBP £</option>
-        </select>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                  <select
+                    value={currency}
+                    onChange={(e) =>
+                      setCurrency(
+                        e.target.value as "eur" | "usd" | "gbp"
+                      )
+                    }
+                    className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs mb-2 sm:mb-0"
+                  >
+                    <option value="eur">EUR €</option>
+                    <option value="usd">USD $</option>
+                    <option value="gbp">GBP £</option>
+                  </select>
 
-        <button
-          type="button"
-          onClick={() => startCheckout(currency, "founder")}
-          disabled={billingLoading}
-          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-sm text-slate-900 disabled:opacity-60"
-        >
-          {billingLoading ? "Opening Stripe…" : `Get Founder Price (${currency.toUpperCase()})`}
-        </button>
-      </div>
+                  <button
+                    type="button"
+                    onClick={() => startCheckout(currency, "founder")}
+                    disabled={billingLoading}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-sm text-slate-900 disabled:opacity-60"
+                  >
+                    {billingLoading
+                      ? "Opening Stripe…"
+                      : `Get Founder Price (${currency.toUpperCase()})`}
+                  </button>
+                </div>
 
-      <p className="mt-2 text-[11px] text-emerald-100/70">
-        Limited time. Price is yours forever once subscribed.
-      </p>
-    </section>
-  </>
-)}
+                <p className="mt-2 text-[11px] text-emerald-100/70">
+                  Limited time. Price is yours forever once subscribed.
+                </p>
+              </section>
+            </>
+          )}
 
-          {/* ✅ Centered feedback form inside the main container */}
+          {/* Feedback form */}
           <section className="mt-10 mb-8">
             <div className="max-w-md mx-auto">
-              <h2 className="text-sm font-semibold text-slate-200 mb-1 text-center">
+              <h2 className="text-sm font-semibold mb-1 text-center">
                 Send quick feedback
               </h2>
-              <p className="text-[11px] text-slate-400 mb-3 text-center">
+              <p className="text-[11px] text-[var(--text-muted)] mb-3 text-center">
                 Tell me what’s working, what’s confusing, or what you’d love
                 to see next.
               </p>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                 <FeedbackForm user={user} />
               </div>
             </div>

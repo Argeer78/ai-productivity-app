@@ -66,7 +66,7 @@ export default function AIChatPage() {
   const isPro = plan === "pro" || plan === "founder";
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = isPro
-    ? Infinity // effectively unlimited for normal use
+    ? Infinity
     : Math.max(dailyLimit - aiCountToday, 0);
 
   // 1) Load user
@@ -101,7 +101,7 @@ export default function AIChatPage() {
           .eq("id", user.id)
           .maybeSingle();
 
-        if (error && error.code !== "PGRST116") {
+        if (error && (error as any).code !== "PGRST116") {
           console.error("[ai-chat] loadPlan error", error);
           return;
         }
@@ -128,7 +128,7 @@ export default function AIChatPage() {
           .eq("usage_date", today)
           .maybeSingle();
 
-        if (error && error.code !== "PGRST116") {
+        if (error && (error as any).code !== "PGRST116") {
           console.error("[ai-chat] loadAiUsage error", error);
           return;
         }
@@ -157,7 +157,7 @@ export default function AIChatPage() {
         .eq("usage_date", today)
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
+      if (error && (error as any).code !== "PGRST116") {
         console.error("[ai-chat] incrementAiUsage select error", error);
         return;
       }
@@ -271,7 +271,7 @@ export default function AIChatPage() {
     loadMessages();
   }, [user, activeThreadId]);
 
-  // 5) Send message (AI call + DB writes on client)
+  // 5) Send message
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     if (!user) {
@@ -282,7 +282,6 @@ export default function AIChatPage() {
     const text = input.trim();
     if (!text) return;
 
-    // Enforce daily limit only for free
     if (!isPro && remaining <= 0) {
       setError(
         `You reached your daily AI limit for the free plan (${FREE_DAILY_LIMIT} replies).`
@@ -294,7 +293,6 @@ export default function AIChatPage() {
     setError("");
 
     try {
-      // Build history for AI from existing messages
       const historyForModel = messages.slice(-15).map((m) => ({
         role: m.role,
         content: m.content,
@@ -324,7 +322,6 @@ export default function AIChatPage() {
 
       const nowIso = new Date().toISOString();
 
-      // Optimistic UI
       const localUserMsg: ChatMessage = {
         id: `local-user-${nowIso}`,
         role: "user",
@@ -341,9 +338,7 @@ export default function AIChatPage() {
       setMessages((prev) => [...prev, localUserMsg, localAssistantMsg]);
       setInput("");
 
-      // DB writes
       if (!activeThreadId) {
-        // New conversation: create thread + messages
         const fallbackTitle =
           titleFromServer ||
           text.split("\n")[0].slice(0, 80).trim() ||
@@ -392,7 +387,6 @@ export default function AIChatPage() {
           console.error("[ai-chat] insert messages error", msgErr);
         }
       } else {
-        // Existing conversation: append messages + bump updated_at
         const threadId = activeThreadId;
 
         const { error: msgErr } = await supabase
@@ -426,7 +420,6 @@ export default function AIChatPage() {
           console.error("[ai-chat] update thread timestamp error", threadErr);
         }
 
-        // Move updated thread to top of sidebar
         setThreads((prev) => {
           const updated = prev.find((t) => t.id === threadId);
           if (!updated) return prev;
@@ -435,7 +428,6 @@ export default function AIChatPage() {
         });
       }
 
-      // Count this AI usage
       await incrementAiUsage();
     } catch (err) {
       console.error("[ai-chat] send exception", err);
@@ -447,8 +439,7 @@ export default function AIChatPage() {
 
   // 6) Delete thread
   async function handleDeleteThread(threadId: string) {
-    if (!user) return;
-    if (!threadId) return;
+    if (!user || !threadId) return;
     if (!window.confirm("Delete this chat? This cannot be undone.")) return;
 
     setThreadActionId(threadId);
@@ -551,25 +542,27 @@ export default function AIChatPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-sm text-slate-300">Checking your session…</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">
+          Checking your session…
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="ai-chat" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">AI Hub Chat</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             Log in or create a free account to chat with your AI coach and keep
             your conversations saved.
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
             Go to login / signup
           </Link>
@@ -579,20 +572,20 @@ export default function AIChatPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="ai-chat" />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar: threads (desktop) */}
-        <aside className="hidden md:flex flex-col w-64 border-r border-slate-800 bg-slate-950/80">
-          <div className="p-3 border-b border-slate-800 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-slate-200">
+        <aside className="hidden md:flex flex-col w-64 border-r border-[var(--border-subtle)] bg-[var(--bg-elevated)]/70">
+          <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold">
               Conversations
             </p>
             <button
               type="button"
               onClick={startNewChat}
-              className="text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+              className="text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
             >
               + New chat
             </button>
@@ -600,11 +593,11 @@ export default function AIChatPage() {
 
           <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
             {loadingThreads ? (
-              <p className="p-3 text-slate-400 text-[11px]">
+              <p className="p-3 text-[var(--text-muted)] text-[11px]">
                 Loading conversations…
               </p>
             ) : threads.length === 0 ? (
-              <p className="p-3 text-slate-500 text-[11px]">
+              <p className="p-3 text-[var(--text-muted)] text-[11px]">
                 No conversations yet. Start a new chat on the right.
               </p>
             ) : (
@@ -617,8 +610,8 @@ export default function AIChatPage() {
                     key={thread.id}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer ${
                       isActive
-                        ? "bg-slate-800 text-slate-50"
-                        : "hover:bg-slate-800/60 text-slate-200"
+                        ? "bg-[var(--bg-card)] text-[var(--text-main)]"
+                        : "hover:bg-[var(--bg-elevated)] text-[var(--text-main)]"
                     }`}
                     onClick={() => setActiveThreadId(thread.id)}
                   >
@@ -626,7 +619,7 @@ export default function AIChatPage() {
                       <p className="truncate font-medium">
                         {thread.title || "New conversation"}
                       </p>
-                      <p className="text-[10px] text-slate-400 truncate">
+                      <p className="text-[10px] text-[var(--text-muted)] truncate">
                         {thread.category || "General"}
                       </p>
                     </div>
@@ -639,7 +632,7 @@ export default function AIChatPage() {
                         type="button"
                         onClick={() => handleRenameThread(thread)}
                         disabled={isBusy}
-                        className="p-1 rounded hover:bg-slate-700 text-[11px]"
+                        className="p-1 rounded hover:bg-[var(--bg-card)] text-[11px]"
                         title="Rename chat"
                       >
                         ✏️
@@ -648,7 +641,7 @@ export default function AIChatPage() {
                         type="button"
                         onClick={() => handleDeleteThread(thread.id)}
                         disabled={isBusy}
-                        className="p-1 rounded hover:bg-slate-700 text-[11px] text-red-400"
+                        className="p-1 rounded hover:bg-[var(--bg-card)] text-[11px] text-red-400"
                         title="Delete chat"
                       >
                         🗑
@@ -663,30 +656,29 @@ export default function AIChatPage() {
 
         {/* Main chat area */}
         <section className="flex-1 flex flex-col relative">
-          <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
+          <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-3">
             <div>
               <h1 className="text-base md:text-lg font-semibold">
                 AI Hub Chat
               </h1>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-[var(--text-muted)]">
                 A general-purpose AI coach for planning, ideas and questions.
               </p>
             </div>
 
             <div className="flex flex-col items-end gap-1">
-              {/* Usage indicator */}
               {isPro ? (
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-[var(--text-muted)]">
                   AI replies today:{" "}
-                  <span className="font-semibold text-slate-200">
+                  <span className="font-semibold">
                     {aiCountToday} (unlimited)
                   </span>{" "}
                   ({plan})
                 </span>
               ) : (
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-[var(--text-muted)]">
                   AI replies today:{" "}
-                  <span className="font-semibold text-slate-200">
+                  <span className="font-semibold">
                     {aiCountToday}/{FREE_DAILY_LIMIT}
                   </span>{" "}
                   (free)
@@ -698,7 +690,7 @@ export default function AIChatPage() {
                 <button
                   type="button"
                   onClick={() => setShowMobileThreads(true)}
-                  className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+                  className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                 >
                   History
                 </button>
@@ -707,7 +699,7 @@ export default function AIChatPage() {
                 <button
                   type="button"
                   onClick={startNewChat}
-                  className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+                  className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                 >
                   + New chat
                 </button>
@@ -723,11 +715,11 @@ export default function AIChatPage() {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 text-sm">
             {loadingMessages && messages.length === 0 ? (
-              <p className="text-[12px] text-slate-400">
+              <p className="text-[12px] text-[var(--text-muted)]">
                 Loading conversation…
               </p>
             ) : messages.length === 0 ? (
-              <div className="text-[12px] text-slate-400 mt-4">
+              <div className="text-[12px] text-[var(--text-muted)] mt-4">
                 <p className="mb-1">Start by asking something like:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>
@@ -748,8 +740,8 @@ export default function AIChatPage() {
                   <div
                     className={`max-w-[80%] rounded-2xl px-3 py-2 text-[13px] whitespace-pre-wrap ${
                       m.role === "user"
-                        ? "bg-indigo-600 text-white rounded-br-sm"
-                        : "bg-slate-900 text-slate-100 rounded-bl-sm border border-slate-800"
+                        ? "bg-[var(--accent)] text-[var(--bg-body)] rounded-br-sm"
+                        : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
                     }`}
                   >
                     {m.content}
@@ -762,14 +754,14 @@ export default function AIChatPage() {
           {/* Input */}
           <form
             onSubmit={handleSend}
-            className="border-t border-slate-800 px-3 py-2 flex flex-col gap-2"
+            className="border-t border-[var(--border-subtle)] px-3 py-2 flex flex-col gap-2"
           >
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
               <span className="hidden md:inline">Category:</span>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-[11px]"
+                className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px]"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
@@ -777,7 +769,7 @@ export default function AIChatPage() {
                   </option>
                 ))}
               </select>
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[10px] text-[var(--text-muted)]">
                 Helps the AI adapt tone & suggestions.
               </span>
             </div>
@@ -787,14 +779,14 @@ export default function AIChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask anything — planning, focus, ideas, mindset…"
-                className="flex-1 rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-[13px] text-slate-100 min-h-[48px] max-h-[120px] resize-y"
+                className="flex-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[120px] resize-y"
               />
               <button
                 type="submit"
                 disabled={
                   sending || !input.trim() || (!isPro && remaining <= 0)
                 }
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-[13px]"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
               >
                 {sending
                   ? "Sending…"
@@ -814,15 +806,15 @@ export default function AIChatPage() {
                 onClick={() => setShowMobileThreads(false)}
               />
               {/* panel */}
-              <div className="absolute inset-y-0 left-0 w-[80%] max-w-xs bg-slate-950 border-r border-slate-800 flex flex-col">
-                <div className="p-3 border-b border-slate-800 flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-slate-200">
+              <div className="absolute inset-y-0 left-0 w-[80%] max-w-xs bg-[var(--bg-body)] border-r border-[var(--border-subtle)] flex flex-col">
+                <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold">
                     Conversation history
                   </p>
                   <button
                     type="button"
                     onClick={() => setShowMobileThreads(false)}
-                    className="text-[11px] px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800"
+                    className="text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                   >
                     ✕ Close
                   </button>
@@ -830,11 +822,11 @@ export default function AIChatPage() {
 
                 <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
                   {loadingThreads ? (
-                    <p className="p-3 text-slate-400 text-[11px]">
+                    <p className="p-3 text-[var(--text-muted)] text-[11px]">
                       Loading conversations…
                     </p>
                   ) : threads.length === 0 ? (
-                    <p className="p-3 text-slate-500 text-[11px]">
+                    <p className="p-3 text-[var(--text-muted)] text-[11px]">
                       No conversations yet. Start a new chat.
                     </p>
                   ) : (
@@ -847,8 +839,8 @@ export default function AIChatPage() {
                           key={thread.id}
                           className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer ${
                             isActive
-                              ? "bg-slate-800 text-slate-50"
-                              : "hover:bg-slate-800/60 text-slate-200"
+                              ? "bg-[var(--bg-card)] text-[var(--text-main)]"
+                              : "hover:bg-[var(--bg-elevated)] text-[var(--text-main)]"
                           }`}
                           onClick={() => {
                             setActiveThreadId(thread.id);
@@ -859,7 +851,7 @@ export default function AIChatPage() {
                             <p className="truncate font-medium">
                               {thread.title || "New conversation"}
                             </p>
-                            <p className="text-[10px] text-slate-400 truncate">
+                            <p className="text-[10px] text-[var(--text-muted)] truncate">
                               {thread.category || "General"}
                             </p>
                           </div>
@@ -874,7 +866,7 @@ export default function AIChatPage() {
                               type="button"
                               onClick={() => handleRenameThread(thread)}
                               disabled={isBusy}
-                              className="p-1 rounded hover:bg-slate-700 text-[11px]"
+                              className="p-1 rounded hover:bg-[var(--bg-card)] text-[11px]"
                               title="Rename chat"
                             >
                               ✏️
@@ -883,7 +875,7 @@ export default function AIChatPage() {
                               type="button"
                               onClick={() => handleDeleteThread(thread.id)}
                               disabled={isBusy}
-                              className="p-1 rounded hover:bg-slate-700 text-[11px] text-red-400"
+                              className="p-1 rounded hover:bg-[var(--bg-card)] text-[11px] text-red-400"
                               title="Delete chat"
                             >
                               🗑

@@ -37,6 +37,12 @@ export default function ChangelogPage() {
     };
   }, []);
 
+  const todayLabel = new Date().toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <AppHeader active="changelog" />
@@ -63,26 +69,36 @@ export default function ChangelogPage() {
             {/* Latest entry */}
             <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
               <p className="text-[11px] text-slate-400 mb-1">
-                📅 {new Date().toLocaleDateString()} • Latest
+                📅 {todayLabel} • Latest
               </p>
               <h2 className="text-sm font-semibold mb-2">
                 Weekly AI reports, goals, and wins
               </h2>
               <ul className="list-disc list-inside text-[12px] text-slate-200 space-y-1">
                 <li>
-                  Added <span className="font-semibold">Weekly AI email report</span> for Pro users with
-                  productivity overview, wins, and focus suggestions.
+                  Added{" "}
+                  <span className="font-semibold">
+                    Weekly AI email report
+                  </span>{" "}
+                  for Pro users with productivity overview, wins, and focus
+                  suggestions.
                 </li>
                 <li>
-                  New <span className="font-semibold">Weekly Reports page</span> to see your report history.
+                  New{" "}
+                  <span className="font-semibold">Weekly Reports page</span> to
+                  see your report history.
                 </li>
                 <li>
-                  Dashboard now shows <span className="font-semibold">AI Wins This Week</span> (tasks
-                  completed, notes created, AI calls, time saved).
+                  Dashboard now shows{" "}
+                  <span className="font-semibold">
+                    AI Wins This Week
+                  </span>{" "}
+                  (tasks completed, notes created, AI calls, time saved).
                 </li>
                 <li>
-                  Added <span className="font-semibold">Goal of the Week</span> with optional AI refinement
-                  and a “mark as done” toggle.
+                  Added{" "}
+                  <span className="font-semibold">Goal of the Week</span> with
+                  optional AI refinement and a “mark as done” toggle.
                 </li>
               </ul>
             </section>
@@ -95,16 +111,21 @@ export default function ChangelogPage() {
               </h2>
               <ul className="list-disc list-inside text-[12px] text-slate-200 space-y-1">
                 <li>
-                  New <span className="font-semibold">Daily Success</span> page where you score your day
-                  from 0–100.
+                  New <span className="font-semibold">Daily Success</span> page
+                  where you score your day from 0–100.
                 </li>
                 <li>
-                  Dashboard now shows <span className="font-semibold">today&apos;s score, 7-day average</span>{" "}
-                  and <span className="font-semibold">score streak</span> (days ≥ 60).
+                  Dashboard now shows{" "}
+                  <span className="font-semibold">
+                    today&apos;s score, 7-day average
+                  </span>{" "}
+                  and{" "}
+                  <span className="font-semibold">score streak</span> (days ≥
+                  60).
                 </li>
                 <li>
-                  Added streak banner at the top of the dashboard with different messages for 1+, 7+, 14+,
-                  and 30+ day streaks.
+                  Added streak banner at the top of the dashboard with different
+                  messages for 1+, 7+, 14+, and 30+ day streaks.
                 </li>
               </ul>
             </section>
@@ -117,16 +138,21 @@ export default function ChangelogPage() {
               </h2>
               <ul className="list-disc list-inside text-[12px] text-slate-200 space-y-1">
                 <li>
-                  Added <span className="font-semibold">AI Templates</span> with categories (Planning, Study,
-                  Writing, Work, Personal).
+                  Added <span className="font-semibold">AI Templates</span>{" "}
+                  with categories (Planning, Study, Writing, Work, Personal).
                 </li>
                 <li>
-                  Introduced <span className="font-semibold">Pro-only templates</span> with locked actions
-                  and an upgrade flow.
+                  Introduced{" "}
+                  <span className="font-semibold">Pro-only templates</span> with
+                  locked actions and an upgrade flow.
                 </li>
                 <li>
-                  Improved <span className="font-semibold">“Use with Assistant”</span> to pass clean context
-                  from templates, notes, and planner into the floating AI assistant.
+                  Improved{" "}
+                  <span className="font-semibold">
+                    “Use with Assistant”
+                  </span>{" "}
+                  to pass clean context from templates, notes, and planner into
+                  the floating AI assistant.
                 </li>
               </ul>
             </section>
@@ -139,22 +165,28 @@ export default function ChangelogPage() {
               </h2>
               <ul className="list-disc list-inside text-[12px] text-slate-200 space-y-1">
                 <li>
-                  New <span className="font-semibold">Apps panel</span> in the header to keep navigation
-                  clean while giving quick access to all tools.
+                  New <span className="font-semibold">Apps panel</span> in the
+                  header to keep navigation clean while giving quick access to
+                  all tools.
                 </li>
                 <li>
                   Header now always shows your{" "}
-                  <span className="font-semibold">email, Settings, and Log out</span> without being crushed.
+                  <span className="font-semibold">
+                    email, Settings, and Log out
+                  </span>{" "}
+                  without being crushed.
                 </li>
                 <li>
-                  Mobile navigation simplified with a single menu that includes all pages.
+                  Mobile navigation simplified with a single menu that includes
+                  all pages.
                 </li>
               </ul>
             </section>
 
             <p className="text-[11px] text-slate-500 mt-4">
-              More improvements are in progress around focus, routines, and better AI guidance. If you have a
-              feature request, you can always send it from the{" "}
+              More improvements are in progress around focus, routines, and
+              better AI guidance. If you have a feature request, you can always
+              send it from the{" "}
               <Link
                 href="/feedback"
                 className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"

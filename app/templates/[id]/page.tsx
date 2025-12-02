@@ -20,15 +20,17 @@ type Template = {
   created_at: string | null;
 };
 
+type PlanType = "free" | "pro" | "founder";
+
 export default function TemplateDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const id = params?.id; // ✅ useParams instead of props
+  const id = params?.id;
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [plan, setPlan] = useState<PlanType>("free");
 
   const [tmpl, setTmpl] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,8 +83,11 @@ export default function TemplateDetailPage() {
           return;
         }
 
-        if (data?.plan === "pro") setPlan("pro");
-        else setPlan("free");
+        if (data?.plan === "pro" || data?.plan === "founder") {
+          setPlan(data.plan as PlanType);
+        } else {
+          setPlan("free");
+        }
       } catch (err) {
         console.error(err);
       }
@@ -91,11 +96,12 @@ export default function TemplateDetailPage() {
     loadPlan();
   }, [user]);
 
+  const isProUser = plan === "pro" || plan === "founder";
+
   // 3) Load template by id
   useEffect(() => {
     async function loadTemplate() {
       if (!id) {
-        // No id in URL – nothing to fetch
         setError("Template not found.");
         setTmpl(null);
         setLoading(false);
@@ -112,7 +118,7 @@ export default function TemplateDetailPage() {
           .select(
             "id, user_id, title, description, ai_prompt, category, is_public, is_pro_only, usage_count, created_at"
           )
-          .eq("id", id) // ✅ id is now a real string
+          .eq("id", id)
           .maybeSingle();
 
         if (error && (error as any).code !== "PGRST116") {
@@ -148,10 +154,9 @@ export default function TemplateDetailPage() {
 
   const isMine = user && tmpl && tmpl.user_id === user.id;
   const isProTemplate = !!tmpl?.is_pro_only || isProOnly;
-  const isProUser = plan === "pro";
   const locked = !!tmpl && isProTemplate && !isProUser && !isMine;
 
-  // 4) Use with Assistant (same pattern, BUT gated)
+  // 4) Use with Assistant (gated)
   function handleUseWithAssistant() {
     if (!tmpl) return;
     if (typeof window === "undefined") return;
@@ -167,15 +172,14 @@ export default function TemplateDetailPage() {
     window.dispatchEvent(
       new CustomEvent("ai-assistant-context", {
         detail: {
-          content:
-            safePrompt || `Use this template: "${safeTitle}".`,
+          content: safePrompt || `Use this template: "${safeTitle}".`,
           hint: `Use this template: "${safeTitle}". I may add extra details before sending.`,
         },
       })
     );
   }
 
-  // 5) Save (only owner can edit)
+  // 5) Save (only owner)
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!tmpl || !user || !isMine) return;
@@ -247,23 +251,23 @@ export default function TemplateDetailPage() {
 
   if (checkingUser || loading) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Loading template…</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)] text-sm">Loading template…</p>
       </main>
     );
   }
 
   if (!tmpl) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="templates" />
-        <div className="flex-1 flex flex-col items-center justify-center px-4">
-          <p className="text-slate-300 text-sm mb-3">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 text-sm">
+          <p className="text-[var(--text-muted)] mb-3">
             {error || "Template not found."}
           </p>
           <Link
             href="/templates"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
             Back to templates
           </Link>
@@ -272,34 +276,49 @@ export default function TemplateDetailPage() {
     );
   }
 
+  const createdAtLabel = tmpl.created_at
+    ? new Date(tmpl.created_at).toLocaleString()
+    : null;
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="templates" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10 text-sm">
+          {/* Header */}
           <div className="flex items-center justify-between gap-3 mb-4">
-            <h1 className="text-xl md:text-2xl font-bold">
-              {tmpl.title || "Untitled template"}
-            </h1>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold">
+                {tmpl.title || "Untitled template"}
+              </h1>
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                {tmpl.is_public ? "Public" : "Private"}
+                {isProTemplate && " • Pro template"}
+                {isMine ? " • Yours" : ""}
+                {typeof tmpl.usage_count === "number" &&
+                  tmpl.usage_count > 0 && (
+                    <>
+                      {" "}
+                      • Used {tmpl.usage_count} time
+                      {tmpl.usage_count === 1 ? "" : "s"}
+                    </>
+                  )}
+                {createdAtLabel && ` • Created ${createdAtLabel}`}
+              </p>
+            </div>
             <Link
               href="/templates"
-              className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
               ← Back to templates
             </Link>
           </div>
 
-          <p className="text-[11px] text-slate-400 mb-3">
-            {tmpl.is_public ? "Public" : "Private"}
-            {isProTemplate && " • Pro template"}
-            {isMine ? " • Yours" : ""}
-          </p>
-
           {locked && (
             <div className="mb-4 rounded-xl border border-amber-400/60 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
-              This is a <span className="font-semibold">Pro template</span>.
-              You can preview it, but only Pro users (or the owner) can use it
-              with the AI assistant.
+              This is a <span className="font-semibold">Pro template</span>. You
+              can preview it, but only Pro / Founder users (or the owner) can
+              use it with the AI assistant.
             </div>
           )}
 
@@ -310,16 +329,16 @@ export default function TemplateDetailPage() {
             <p className="text-xs text-emerald-400 mb-2">{success}</p>
           )}
 
-          {/* Use with Assistant button (gated) */}
-          <div className="mb-4">
+          {/* Use with Assistant */}
+          <div className="mb-4 flex flex-wrap gap-2 items-center">
             <button
               type="button"
               onClick={handleUseWithAssistant}
               disabled={locked}
-              className={`px-4 py-2 rounded-xl border border-slate-700 text-xs mr-3 ${
+              className={`px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-xs ${
                 locked
                   ? "opacity-60 cursor-not-allowed"
-                  : "hover:bg-slate-900"
+                  : "hover:bg-[var(--bg-elevated)]"
               }`}
             >
               🤖 Use with Assistant
@@ -329,119 +348,121 @@ export default function TemplateDetailPage() {
               <button
                 type="button"
                 onClick={() => (window.location.href = "/dashboard#pricing")}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
               >
                 Upgrade to Pro
               </button>
             )}
           </div>
 
-          {/* Edit form – only editable if it's your template */}
-          <form onSubmit={handleSave} className="space-y-4 max-w-2xl">
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1">
-                Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                disabled={!isMine}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm disabled:opacity-60"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1">
-                Short description
-              </label>
-              <textarea
-                value={description}
-                disabled={!isMine}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm min-h-[80px] disabled:opacity-60"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1">
-                Underlying AI prompt
-              </label>
-              <textarea
-                value={aiPrompt}
-                disabled={!isMine}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm min-h-[140px] disabled:opacity-60"
-              />
-              <p className="text-[10px] text-slate-500 mt-1">
-                This is what gets sent to the AI when you use this template.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-4 items-center">
+          {/* Edit / View form */}
+          <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
+            <form onSubmit={handleSave} className="space-y-4 max-w-2xl">
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">
-                  Category
+                <label className="block text-[11px] text-[var(--text-muted)] mb-1">
+                  Title
                 </label>
                 <input
                   type="text"
-                  value={category}
+                  value={title}
                   disabled={!isMine}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm disabled:opacity-60"
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm disabled:opacity-60"
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-[11px]">
-                <input
-                  type="checkbox"
-                  checked={isPublic}
+              <div>
+                <label className="block text-[11px] text-[var(--text-muted)] mb-1">
+                  Short description
+                </label>
+                <textarea
+                  value={description}
                   disabled={!isMine}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-600 bg-slate-950"
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[80px] disabled:opacity-60"
                 />
-                <span>Public template</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-[11px]">
-                <input
-                  type="checkbox"
-                  checked={isProOnly}
-                  disabled={!isMine}
-                  onChange={(e) => setIsProOnly(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-600 bg-slate-950"
-                />
-                <span>Pro only</span>
-              </label>
-            </div>
-
-            {isMine && (
-              <div className="flex flex-wrap gap-3 mt-3">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-sm"
-                >
-                  {saving ? "Saving..." : "Save changes"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="px-4 py-2 rounded-xl border border-red-500 text-red-300 hover:bg-red-950/40 text-sm disabled:opacity-60"
-                >
-                  {deleting ? "Deleting..." : "Delete template"}
-                </button>
               </div>
-            )}
 
-            {!isMine && (
-              <p className="text-[11px] text-slate-500 mt-2">
-                You can view this template, but only the owner can edit or
-                delete it.
-              </p>
-            )}
-          </form>
+              <div>
+                <label className="block text-[11px] text-[var(--text-muted)] mb-1">
+                  Underlying AI prompt
+                </label>
+                <textarea
+                  value={aiPrompt}
+                  disabled={!isMine}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[140px] disabled:opacity-60"
+                />
+                <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                  This is what gets sent to the AI when you use this template.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-4 items-center">
+                <div>
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
+                    Category
+                  </label>
+                  <input
+                    type="text"
+                    value={category}
+                    disabled={!isMine}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm disabled:opacity-60"
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 text-[11px] text-[var(--text-main)]">
+                  <input
+                    type="checkbox"
+                    checked={isPublic}
+                    disabled={!isMine}
+                    onChange={(e) => setIsPublic(e.target.checked)}
+                    className="h-4 w-4 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                  />
+                  <span>Public template</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-[11px] text-[var(--text-main)]">
+                  <input
+                    type="checkbox"
+                    checked={isProOnly}
+                    disabled={!isMine}
+                    onChange={(e) => setIsProOnly(e.target.checked)}
+                    className="h-4 w-4 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                  />
+                  <span>Pro only</span>
+                </label>
+              </div>
+
+              {isMine && (
+                <div className="flex flex-wrap gap-3 mt-3">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-sm"
+                  >
+                    {saving ? "Saving..." : "Save changes"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="px-4 py-2 rounded-xl border border-red-500 text-red-400 hover:bg-red-900/20 text-sm disabled:opacity-60"
+                  >
+                    {deleting ? "Deleting..." : "Delete template"}
+                  </button>
+                </div>
+              )}
+
+              {!isMine && (
+                <p className="text-[11px] text-[var(--text-muted)] mt-2">
+                  You can view this template, but only the owner can edit or
+                  delete it.
+                </p>
+              )}
+            </form>
+          </section>
         </div>
       </div>
     </main>

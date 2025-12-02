@@ -71,7 +71,7 @@ export default function SettingsPage() {
 
   const { track } = useAnalytics();
 
-  // 🔹 Theme context (from ThemeProvider)
+  // Theme context (from ThemeProvider)
   const { theme, setTheme } = useTheme();
 
   // Load user
@@ -160,7 +160,7 @@ export default function SettingsPage() {
             );
           }
 
-          // ⛔ Important: we do NOT call setTheme(data.ui_theme) here,
+          // We do NOT call setTheme(data.ui_theme) here,
           // so the theme you pick and what's in localStorage wins.
         }
 
@@ -202,7 +202,7 @@ export default function SettingsPage() {
           onboarding_weekly_focus:
             onboardingWeeklyFocus.trim() || null,
           onboarding_reminder: onboardingReminder || "none",
-          ui_theme: theme, // 👍 still persist for future, but we don’t force it on load
+          ui_theme: theme, // still persist for future, but we don’t force it on load
         })
         .eq("id", user.id);
 
@@ -234,24 +234,26 @@ export default function SettingsPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Checking your session...</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">
+          Checking your session...
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="settings" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Settings</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+          <p className="mb-4 text-center max-w-sm text-sm text-[var(--text-muted)]">
             Log in or create a free account to customize your AI experience.
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
           >
             Go to login / signup
           </Link>
@@ -261,21 +263,23 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="settings" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
           <h1 className="text-2xl md:text-3xl font-bold mb-1">Settings</h1>
-          <p className="text-xs md:text-sm text-slate-400 mb-6">
+          <p className="text-xs md:text-sm text-[var(--text-muted)] mb-6">
             Customize how the AI talks to you and what to focus on.
           </p>
 
           {loadingProfile ? (
-            <p className="text-slate-300 text-sm">Loading your settings...</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              Loading your settings...
+            </p>
           ) : (
             <form
               onSubmit={handleSave}
-              className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm"
+              className="space-y-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 text-sm"
             >
               {error && (
                 <p className="text-xs text-red-400 mb-2">{error}</p>
@@ -287,20 +291,20 @@ export default function SettingsPage() {
               )}
 
               {/* Onboarding & focus card */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-[11px] font-semibold text-slate-200">
+                    <p className="text-[11px] font-semibold text-[var(--text-main)]">
                       Onboarding & focus
                     </p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-[var(--text-muted)]">
                       Help the app tailor AI prompts, reminders and weekly reports.
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-[11px] text-slate-300">
+                  <label className="block text-[11px] text-[var(--text-main)]">
                     Main way you plan to use this app
                     <textarea
                       value={onboardingUseCase}
@@ -308,12 +312,12 @@ export default function SettingsPage() {
                         setOnboardingUseCase(e.target.value)
                       }
                       placeholder="Example: I’m a solo founder using this for planning my week, journaling progress and drafting emails."
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100 resize-vertical"
+                      className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1.5 text-[11px] text-[var(--text-main)] resize-vertical"
                       rows={2}
                     />
                   </label>
 
-                  <label className="block text-[11px] text-slate-300">
+                  <label className="block text-[11px] text-[var(--text-main)]">
                     One important thing you want to make progress on each week
                     <textarea
                       value={onboardingWeeklyFocus}
@@ -321,12 +325,12 @@ export default function SettingsPage() {
                         setOnboardingWeeklyFocus(e.target.value)
                       }
                       placeholder="Example: Shipping one small improvement to my product every week."
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100 resize-vertical"
+                      className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1.5 text-[11px] text-[var(--text-main)] resize-vertical"
                       rows={2}
                     />
                   </label>
 
-                  <label className="block text-[11px] text-slate-300">
+                  <label className="block text-[11px] text-[var(--text-main)]">
                     Light reminder cadence
                     <select
                       value={onboardingReminder}
@@ -335,7 +339,7 @@ export default function SettingsPage() {
                           e.target.value as Reminder
                         )
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-[11px] text-slate-100"
+                      className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1.5 text-[11px] text-[var(--text-main)]"
                     >
                       <option value="none">No reminders</option>
                       <option value="daily">Daily nudge email</option>
@@ -347,61 +351,61 @@ export default function SettingsPage() {
 
               {/* Weekly AI report card */}
               <div className="grid md:grid-cols-2 gap-5">
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                  <p className="text-xs font-semibold text-slate-400 mb-1">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                     WEEKLY AI REPORT
                   </p>
                   {plan !== "pro" ? (
                     <>
-                      <p className="text-sm text-slate-200 mb-1">
+                      <p className="text-sm mb-1">
                         Get a weekly AI-generated report with your productivity score,
                         streak, completed tasks, and focus suggestions for next week.
                       </p>
 
-                      <p className="text-[11px] text-slate-500 mb-3">
+                      <p className="text-[11px] text-[var(--text-muted)] mb-3">
                         This is a Pro feature. Upgrade to unlock weekly email reports.
                       </p>
                       <a
                         href="/dashboard#pricing"
-                        className="inline-block text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-slate-50"
+                        className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--bg-body)]"
                       >
                         🔒 Unlock with Pro
                       </a>
                       <Link
                         href="/weekly-history"
-                        className="block mt-2 text-[11px] text-slate-400 hover:text-slate-200"
+                        className="block mt-2 text-[11px] text-[var(--accent)] hover:opacity-90"
                       >
                         See how weekly reports work →
                       </Link>
                     </>
                   ) : (
                     <>
-                      <p className="text-sm text-slate-200 mb-2">
+                      <p className="text-sm mb-2">
                         Receive a weekly AI summary of your progress, wins, and what to
                         focus on next week.
                       </p>
-                      <label className="flex items-center gap-2 text-xs text-slate-200 mb-1">
+                      <label className="flex items-center gap-2 text-xs mb-1">
                         <input
                           type="checkbox"
                           checked={weeklyReportEnabled}
                           onChange={(e) =>
                             setWeeklyReportEnabled(e.target.checked)
                           }
-                          className="h-4 w-4 rounded border-slate-600 bg-slate-950"
+                          className="h-4 w-4 rounded border-[var(--border-subtle)] bg-[var(--bg-body)]"
                         />
                         <span>Send me weekly AI productivity reports</span>
                       </label>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-[var(--text-muted)]">
                         Weekly reports use your scores, tasks, notes & goals to give you a
                         simple “how did I do?” email every week.
                       </p>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-[var(--text-muted)]">
                         Emails are sent once per week and include your streak, average
                         score, and tailored suggestions.
                       </p>
                       <Link
                         href="/weekly-history"
-                        className="inline-block mt-2 text-[11px] text-indigo-400 hover:text-indigo-300"
+                        className="inline-block mt-2 text-[11px] text-[var(--accent)] hover:opacity-90"
                       >
                         View past weekly reports →
                       </Link>
@@ -411,24 +415,24 @@ export default function SettingsPage() {
               </div>
 
               {/* Daily digest toggle */}
-              <div className="pt-1 pb-2 border-b border-slate-800 mb-4">
-                <label className="flex items-start gap-3 text-xs text-slate-200">
+              <div className="pt-1 pb-2 border-b border-[var(--border-subtle)] mb-4">
+                <label className="flex items-start gap-3 text-xs">
                   <input
                     type="checkbox"
                     checked={dailyDigestEnabled}
                     onChange={(e) =>
                       setDailyDigestEnabled(e.target.checked)
                     }
-                    className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-950"
+                    className="mt-0.5 h-4 w-4 rounded border-[var(--border-subtle)] bg-[var(--bg-body)]"
                   />
                   <span>
                     <span className="font-semibold">
                       Daily AI email digest
                     </span>
                     <br />
-                    <span className="text-[11px] text-slate-400">
-                      Once per day, AI will email you a short summary of
-                      recent notes and tasks, plus suggested next steps.
+                    <span className="text-[11px] text-[var(--text-muted)]">
+                      Once per day, AI will email you a short summary of recent notes
+                      and tasks, plus suggested next steps.
                     </span>
                   </span>
                 </label>
@@ -438,13 +442,13 @@ export default function SettingsPage() {
               <NotificationSettings userId={user.id} />
 
               {/* Theme & appearance */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-[11px] font-semibold text-slate-200">
+                    <p className="text-[11px] font-semibold text-[var(--text-main)]">
                       Theme & appearance
                     </p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-[var(--text-muted)]">
                       Choose your app theme. Seasonal themes turn on extra colors.
                     </p>
                   </div>
@@ -459,8 +463,8 @@ export default function SettingsPage() {
                         onClick={() => setTheme(t.value)}
                         className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
                           theme === t.value
-                            ? "border-indigo-400 bg-indigo-500/10 text-indigo-200"
-                            : "border-slate-700 bg-slate-950 hover:bg-slate-900 text-slate-200"
+                            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                            : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
                         }`}
                       >
                         {t.label}
@@ -468,7 +472,7 @@ export default function SettingsPage() {
                     ))}
                   </div>
 
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-[var(--text-muted)]">
                     Your choice is saved on this device. The default theme follows a dark
                     style; Light is easier in bright environments. Seasonal themes
                     (Halloween, Christmas, Easter) add a bit of fun.
@@ -478,16 +482,16 @@ export default function SettingsPage() {
 
               {/* AI tone */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
                   AI tone
                 </label>
-                <p className="text-[11px] text-slate-400 mb-2">
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">
                   This affects the assistant, templates, and planner tone.
                 </p>
                 <select
                   value={tone}
                   onChange={(e) => setTone(e.target.value as Tone)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
                 >
                   {TONE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -499,17 +503,17 @@ export default function SettingsPage() {
 
               {/* Preferred translation language */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
                   Preferred translation language
                 </label>
-                <p className="text-[11px] text-slate-400 mb-2">
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">
                   Used as the default target for the “Translate with AI” button and
                   auto-translation across the app.
                 </p>
                 <select
                   value={preferredLangCode}
                   onChange={(e) => setPreferredLangCode(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
                 >
                   <option value="">Use my browser language</option>
                   {languageOptions.map((lang) => (
@@ -525,10 +529,10 @@ export default function SettingsPage() {
 
               {/* Focus area */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
                   Main focus area (optional)
                 </label>
-                <p className="text-[11px] text-slate-400 mb-2">
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">
                   Example: &quot;Work projects&quot;, &quot;University
                   study&quot;, &quot;Personal growth&quot;, or leave blank.
                 </p>
@@ -536,7 +540,7 @@ export default function SettingsPage() {
                   type="text"
                   value={focusArea}
                   onChange={(e) => setFocusArea(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
                   placeholder="e.g. Work projects, university, personal life..."
                 />
               </div>
@@ -544,14 +548,14 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-sm"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-sm text-[var(--bg-body)]"
               >
                 {saving ? "Saving..." : "Save settings"}
               </button>
 
               {/* Manage subscription (Stripe Portal) */}
-              <div className="pt-4 border-t border-slate-800 mt-4">
-                <p className="text-[11px] text-slate-400 mb-2">
+              <div className="pt-4 border-t border-[var(--border-subtle)] mt-4">
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">
                   Manage your subscription, billing details, and invoices in
                   the secure Stripe customer portal.
                 </p>
@@ -585,15 +589,15 @@ export default function SettingsPage() {
                       alert("Could not open billing portal.");
                     }
                   }}
-                  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
                 >
                   Manage subscription (Stripe)
                 </button>
               </div>
 
               {/* Export data */}
-              <div className="pt-4 border-t border-slate-800 mt-4">
-                <p className="text-[11px] text-slate-400 mb-2">
+              <div className="pt-4 border-t border-[var(--border-subtle)] mt-4">
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">
                   You can download a copy of your notes and tasks as a
                   Markdown file.
                 </p>
@@ -621,7 +625,7 @@ export default function SettingsPage() {
                       alert("Export failed. Please try again.");
                     }
                   }}
-                  className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-sm"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
                 >
                   Download my data (.md)
                 </button>

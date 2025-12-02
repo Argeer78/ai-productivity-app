@@ -48,7 +48,6 @@ function toYmd(date: Date) {
 function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
   const [open, setOpen] = useState(false);
 
-  // derive initial display month from value or today
   const baseDate = value
     ? new Date(value + "T00:00:00")
     : new Date(); // today
@@ -96,7 +95,7 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
 
   const weeks: (number | null)[][] = [];
   let currentDay = 1 - firstDay;
-  // build 6 rows max
+
   for (let w = 0; w < 6; w++) {
     const week: (number | null)[] = [];
     for (let d = 0; d < 7; d++) {
@@ -121,39 +120,39 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
   }
 
   return (
-    <div className="relative inline-block text-[11px] text-slate-200">
+    <div className="relative inline-block text-[11px] text-[var(--text-main)]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-slate-100 hover:bg-slate-900"
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-main)] hover:bg-[var(--bg-card)]"
       >
         <span>{selectedYmd || "Pick date"}</span>
         <span className="text-[10px] opacity-70">📅</span>
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-52 rounded-xl border border-slate-800 bg-slate-950 shadow-xl p-2">
-          <div className="flex items-center justify-between mb-1 text-[11px]">
+        <div className="absolute z-20 mt-1 w-52 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xl p-2">
+          <div className="flex items-center justify-between mb-1 text-[11px] text-[var(--text-main)]">
             <button
               type="button"
               onClick={goPrevMonth}
-              className="px-1 text-slate-300 hover:text-slate-100"
+              className="px-1 hover:text-[var(--accent)]"
             >
               ‹
             </button>
-            <span className="font-semibold text-slate-100">
+            <span className="font-semibold">
               {monthNames[month]} {year}
             </span>
             <button
               type="button"
               onClick={goNextMonth}
-              className="px-1 text-slate-300 hover:text-slate-100"
+              className="px-1 hover:text-[var(--accent)]"
             >
               ›
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5 text-[10px] text-slate-400 mb-1">
+          <div className="grid grid-cols-7 gap-0.5 text-[10px] text-[var(--text-muted)] mb-1">
             <span>Su</span>
             <span>Mo</span>
             <span>Tu</span>
@@ -170,10 +169,8 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
                   return (
                     <span
                       key={`${wi}-${di}`}
-                      className="h-6 text-center text-slate-700"
-                    >
-                      {/* empty cell */}
-                    </span>
+                      className="h-6 text-center text-[var(--text-muted)]/40"
+                    />
                   );
                 }
 
@@ -187,8 +184,8 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
                     onClick={() => handleSelectDay(day)}
                     className={`h-6 rounded-md text-center ${
                       isSelected
-                        ? "bg-indigo-600 text-white"
-                        : "text-slate-100 hover:bg-slate-800"
+                        ? "bg-[var(--accent)] text-[var(--bg-body)]"
+                        : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
                     }`}
                   >
                     {day}
@@ -206,7 +203,7 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
 // 24h time dropdown options (00:00 - 23:00)
 const TIME_OPTIONS = Array.from({ length: 24 }, (_, h) => `${pad(h)}:00`);
 
-// Category list & colors
+// Category list
 const TASK_CATEGORIES = [
   "Work",
   "Personal",
@@ -218,15 +215,22 @@ const TASK_CATEGORIES = [
   "Other",
 ] as const;
 
-const categoryColors: Record<string, string> = {
-  Work: "bg-indigo-500/15 text-indigo-300 border-indigo-500/40",
-  Personal: "bg-pink-500/15 text-pink-300 border-pink-500/40",
-  Health: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
-  Study: "bg-yellow-500/15 text-yellow-200 border-yellow-500/40",
-  Errands: "bg-cyan-500/15 text-cyan-300 border-cyan-500/40",
-  Home: "bg-slate-500/15 text-slate-200 border-slate-500/40",
-  Travel: "bg-blue-500/15 text-blue-300 border-blue-500/40",
-  Other: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+// Theme-aware category badges (unified style like Notes)
+const taskCategoryStyles: Record<string, string> = {
+  Work: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Personal:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Health:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Study:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Errands:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Home: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Travel:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Other:
+    "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-subtle)]",
 };
 
 // Single-task share text
@@ -330,7 +334,6 @@ export default function TasksPage() {
   // bulk selection
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
-  // today's date for bulk sharing
   const todayYmd = new Date().toISOString().slice(0, 10);
 
   // Load user
@@ -555,7 +558,6 @@ export default function TasksPage() {
       }
 
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
-      // also remove from selection if needed
       setSelectedTaskIds((prev) => prev.filter((id) => id !== task.id));
     } catch (err) {
       console.error("[tasks] delete exception", err);
@@ -669,24 +671,26 @@ export default function TasksPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-sm text-slate-300">Checking your session…</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">
+          Checking your session…
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="tasks" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Tasks</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             Log in or create a free account to track your tasks.
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
           >
             Go to login / signup
           </Link>
@@ -711,66 +715,71 @@ export default function TasksPage() {
   });
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="tasks" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
           <h1 className="text-2xl md:text-3xl font-bold mb-3">Tasks</h1>
-          <p className="text-xs md:text-sm text-slate-400 mb-4">
+          <p className="text-xs md:text-sm text-[var(--text-muted)] mb-4">
             Capture tasks, check them off, and keep track of your progress.
           </p>
 
-          {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
+          {error && (
+            <p className="mb-3 text-xs text-red-400">{error}</p>
+          )}
 
           {/* New task form */}
           <form
-  onSubmit={handleAddTask}
-  className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3 text-sm"
->
-  <div className="mb-2 flex items-center justify-between">
-    <p className="text-[11px] font-semibold text-slate-300">
-      Add a new task
-    </p>
+            onSubmit={handleAddTask}
+            className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 space-y-3 text-sm"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-[var(--text-main)]">
+                Add a new task
+              </p>
 
-    <Link
-      href="/ai-task-creator"
-      className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-[11px]"
-    >
-      🤖 AI Task Creator
-    </Link>
-  </div>
+              <Link
+                href="/ai-task-creator"
+                className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px]"
+              >
+                🤖 AI Task Creator
+              </Link>
+            </div>
 
             <input
               type="text"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="Task title…"
-              className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 mb-2"
+              className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2"
             />
 
             <textarea
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
               placeholder="Optional description or notes…"
-              className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 mb-2 min-h-[60px]"
+              className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2 min-h-[60px]"
             />
 
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 text-xs text-slate-300">
-                <span className="text-[11px]">Due date</span>
-                {/* mini calendar for new task */}
+              <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  Due date
+                </span>
                 <MiniDatePicker
                   value={newDueDate}
                   onChange={(val) => setNewDueDate(val)}
                 />
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-slate-300">
-                <span className="text-[11px]">Category</span>
+              <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  Category
+                </span>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  className="rounded-xl bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
+                  className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
                   <option value="">None</option>
                   {TASK_CATEGORIES.map((cat) => (
@@ -781,12 +790,14 @@ export default function TasksPage() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-slate-300 flex-wrap">
-                <span className="text-[11px]">Time (optional)</span>
+              <div className="flex items-center gap-2 text-xs text-[var(--text-main)] flex-wrap">
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  Time (optional)
+                </span>
                 <select
                   value={newTimeFrom}
                   onChange={(e) => setNewTimeFrom(e.target.value)}
-                  className="rounded-xl bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
+                  className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
                   <option value="">From</option>
                   {TIME_OPTIONS.map((t) => (
@@ -799,7 +810,7 @@ export default function TasksPage() {
                 <select
                   value={newTimeTo}
                   onChange={(e) => setNewTimeTo(e.target.value)}
-                  className="rounded-xl bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-100"
+                  className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
                   <option value="">To</option>
                   {TIME_OPTIONS.map((t) => (
@@ -813,7 +824,7 @@ export default function TasksPage() {
               <button
                 type="submit"
                 disabled={savingNew}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs text-[var(--bg-body)]"
               >
                 {savingNew ? "Adding…" : "Add task"}
               </button>
@@ -824,14 +835,14 @@ export default function TasksPage() {
           {tasks.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-3 items-center text-[11px]">
               <div className="flex items-center gap-2">
-                <span className="text-slate-500 mr-1">View:</span>
+                <span className="text-[var(--text-muted)] mr-1">View:</span>
                 <button
                   type="button"
                   onClick={() => setViewMode("active")}
                   className={`rounded-full px-3 py-1 border text-xs ${
                     viewMode === "active"
-                      ? "bg-slate-800 border-slate-500 text-slate-50"
-                      : "bg-slate-900 border-slate-700 text-slate-300"
+                      ? "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-main)]"
+                      : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
                   }`}
                 >
                   Active
@@ -841,8 +852,8 @@ export default function TasksPage() {
                   onClick={() => setViewMode("completed")}
                   className={`rounded-full px-3 py-1 border text-xs ${
                     viewMode === "completed"
-                      ? "bg-slate-800 border-slate-500 text-slate-50"
-                      : "bg-slate-900 border-slate-700 text-slate-300"
+                      ? "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-main)]"
+                      : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
                   }`}
                 >
                   History
@@ -852,8 +863,8 @@ export default function TasksPage() {
                   onClick={() => setViewMode("all")}
                   className={`rounded-full px-3 py-1 border text-xs ${
                     viewMode === "all"
-                      ? "bg-slate-800 border-slate-500 text-slate-50"
-                      : "bg-slate-900 border-slate-700 text-slate-300"
+                      ? "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-main)]"
+                      : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
                   }`}
                 >
                   All
@@ -861,11 +872,11 @@ export default function TasksPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-slate-500">Category:</span>
+                <span className="text-[var(--text-muted)]">Category:</span>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="rounded-full px-3 py-1 bg-slate-900 border border-slate-700 text-[11px] text-slate-100"
+                  className="rounded-full px-3 py-1 bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-main)]"
                 >
                   <option value="all">All</option>
                   {TASK_CATEGORIES.map((cat) => (
@@ -882,31 +893,31 @@ export default function TasksPage() {
           {/* Bulk selection + share */}
           {tasks.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <div className="flex items-center gap-2 text-slate-400">
+              <div className="flex items-center gap-2 text-[var(--text-muted)]">
                 <span>Selected: {selectedTaskIds.length}</span>
                 {selectedTaskIds.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setSelectedTaskIds([])}
-                    className="px-2 py-1 rounded-full border border-slate-600 hover:bg-slate-800"
+                    className="px-2 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                   >
                     Clear selection
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-slate-400">
+              <div className="flex flex-wrap items-center gap-2 text-[var(--text-muted)]">
                 <span>Share:</span>
                 <button
                   type="button"
                   onClick={() => handleBulkCopy("today")}
-                  className="px-3 py-1 rounded-full border border-slate-600 hover:bg-slate-800"
+                  className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                 >
                   Copy today&apos;s tasks
                 </button>
                 <button
                   type="button"
                   onClick={() => handleBulkCopy("selected")}
-                  className="px-3 py-1 rounded-full border border-slate-600 hover:bg-slate-800"
+                  className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                 >
                   Copy selected tasks
                 </button>
@@ -916,13 +927,15 @@ export default function TasksPage() {
 
           {/* Task list */}
           {loading ? (
-            <p className="text-sm text-slate-300">Loading tasks…</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              Loading tasks…
+            </p>
           ) : tasks.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-[var(--text-muted)]">
               No tasks yet. Add your first one above.
             </p>
           ) : filteredTasks.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-[var(--text-muted)]">
               No tasks in this view. Try switching filters above.
             </p>
           ) : (
@@ -937,16 +950,16 @@ export default function TasksPage() {
                   ? new Date(task.completed_at)
                   : null;
 
-                const cat = task.category || "";
+                const cat = task.category || "Other";
                 const catClass =
-                  categoryColors[cat] || categoryColors["Other"];
+                  taskCategoryStyles[cat] || taskCategoryStyles["Other"];
 
                 const isSelected = selectedTaskIds.includes(task.id);
 
                 return (
                   <div
                     key={task.id}
-                    className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 text-sm"
+                    className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm"
                   >
                     <div className="flex items-start gap-3">
                       {/* Left: done toggle + selection */}
@@ -963,22 +976,22 @@ export default function TasksPage() {
                             }
                             className={`h-4 w-4 flex-shrink-0 rounded-full border transition ${
                               task.completed
-                                ? "border-emerald-400 bg-emerald-500/80"
-                                : "border-slate-600 bg-slate-950 hover:border-slate-400"
+                                ? "border-[var(--accent)] bg-[var(--accent)]"
+                                : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--accent)]"
                             }`}
                             aria-label="Toggle done"
                           />
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-[var(--text-muted)]">
                             {task.completed ? "Completed" : "Mark as done"}
                           </span>
                         </div>
 
-                        <label className="flex items-center gap-1 text-[10px] text-slate-400">
+                        <label className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleSelected(task.id)}
-                            className="h-3 w-3 rounded border-slate-500 bg-slate-900"
+                            className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                           />
                           <span>Select</span>
                         </label>
@@ -996,7 +1009,7 @@ export default function TasksPage() {
                                 title: e.target.value,
                               })
                             }
-                            className="flex-1 bg-transparent border-none outline-none text-sm text-slate-100 placeholder:text-slate-500"
+                            className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--text-main)] placeholder:text-[var(--text-muted)]"
                             placeholder="(untitled task)"
                           />
 
@@ -1008,7 +1021,7 @@ export default function TasksPage() {
                                   category: e.target.value || null,
                                 })
                               }
-                              className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-1 text-[11px] text-slate-100"
+                              className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                             >
                               <option value="">No category</option>
                               {TASK_CATEGORIES.map((c) => (
@@ -1036,12 +1049,12 @@ export default function TasksPage() {
                               description: e.target.value,
                             })
                           }
-                          className="w-full rounded-xl bg-slate-950/70 border border-slate-800 px-2 py-1 text-xs text-slate-100 min-h-[48px]"
+                          className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-main)] min-h-[48px]"
                           placeholder="Details or notes…"
                         />
 
                         {/* Bottom row: due / time / created / completed + share + delete */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                             <div className="flex items-center gap-2">
                               <span>Due:</span>
@@ -1067,7 +1080,7 @@ export default function TasksPage() {
                                     time_from: e.target.value || null,
                                   })
                                 }
-                                className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-1 text-[11px] text-slate-100"
+                                className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               >
                                 <option value="">From</option>
                                 {TIME_OPTIONS.map((t) => (
@@ -1084,7 +1097,7 @@ export default function TasksPage() {
                                     time_to: e.target.value || null,
                                   })
                                 }
-                                className="rounded-lg bg-slate-950 border border-slate-800 px-2 py-1 text-[11px] text-slate-100"
+                                className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               >
                                 <option value="">To</option>
                                 {TIME_OPTIONS.map((t) => (
@@ -1095,7 +1108,7 @@ export default function TasksPage() {
                               </select>
                             </div>
 
-                            <span className="text-[10px] text-slate-500">
+                            <span className="text-[10px]">
                               Created:{" "}
                               {new Date(
                                 task.created_at
@@ -1103,7 +1116,7 @@ export default function TasksPage() {
                             </span>
 
                             {completedAt && (
-                              <span className="text-[10px] text-emerald-400">
+                              <span className="text-[10px] text-[var(--accent)]">
                                 Completed: {completedAt.toLocaleString()}
                               </span>
                             )}
@@ -1119,7 +1132,7 @@ export default function TasksPage() {
                                     prev === task.id ? null : task.id
                                   )
                                 }
-                                className="text-[11px] px-2 py-1 rounded-lg border border-slate-600 hover:bg-slate-800"
+                                className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                               >
                                 {copiedTaskId === task.id
                                   ? "✅ Copied"
@@ -1127,11 +1140,11 @@ export default function TasksPage() {
                               </button>
 
                               {sharingTaskId === task.id && (
-                                <div className="absolute right-0 mt-1 w-40 rounded-xl border border-slate-800 bg-slate-950 shadow-xl p-2 text-[11px] z-10">
+                                <div className="absolute right-0 mt-1 w-40 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xl p-2 text-[11px] z-10">
                                   <button
                                     type="button"
                                     onClick={() => handleShareCopy(task)}
-                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
+                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                   >
                                     📋 Copy text
                                   </button>
@@ -1140,7 +1153,7 @@ export default function TasksPage() {
                                     onClick={() =>
                                       handleShareWhatsApp(task)
                                     }
-                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
+                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                   >
                                     💬 WhatsApp
                                   </button>
@@ -1149,7 +1162,7 @@ export default function TasksPage() {
                                     onClick={() =>
                                       handleShareViber(task)
                                     }
-                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
+                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                   >
                                     📲 Viber
                                   </button>
@@ -1158,7 +1171,7 @@ export default function TasksPage() {
                                     onClick={() =>
                                       handleShareEmail(task)
                                     }
-                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
+                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                   >
                                     ✉️ Email
                                   </button>
@@ -1184,17 +1197,19 @@ export default function TasksPage() {
               })}
             </div>
           )}
-                    {/* ✅ Centered feedback form for Tasks page */}
+
+          {/* Centered feedback form for Tasks page */}
           {tasks.length > 0 && (
             <section className="mt-10 mb-8">
               <div className="max-w-md mx-auto">
-                <h2 className="text-sm font-semibold text-slate-200 mb-1 text-center">
+                <h2 className="text-sm font-semibold text-[var(--text-main)] mb-1 text-center">
                   Send feedback about Tasks
                 </h2>
-                <p className="text-[11px] text-slate-400 mb-3 text-center">
-                  Spot a bug, missing feature, or something confusing? Let me know.
+                <p className="text-[11px] text-[var(--text-muted)] mb-3 text-center">
+                  Spot a bug, missing feature, or something confusing? Let me
+                  know.
                 </p>
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <FeedbackForm user={user} />
                 </div>
               </div>

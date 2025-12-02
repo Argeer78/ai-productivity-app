@@ -213,25 +213,27 @@ export default function AITaskCreatorPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-sm text-slate-300">Checking your session…</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">
+          Checking your session…
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="tasks" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">AI Task Creator</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             Log in or create a free account to let AI generate a personalized
             task list for your day.
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
             Go to login / signup
           </Link>
@@ -241,7 +243,7 @@ export default function AITaskCreatorPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="tasks" />
       <div className="flex-1">
         <div className="max-w-4xl mx-auto px-4 py-8 md:py-10 text-sm">
@@ -251,21 +253,21 @@ export default function AITaskCreatorPage() {
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 AI Task Creator
               </h1>
-              <p className="text-xs md:text-sm text-slate-400">
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 Answer a few quick questions and let AI build a realistic task
                 list for today. Then one click to add them to your Tasks.
               </p>
             </div>
             <Link
               href="/tasks"
-              className="px-4 py-2 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
+              className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
               ← Back to Tasks
             </Link>
           </div>
 
           {!isPro && (
-            <div className="mb-4 rounded-2xl border border-indigo-500/40 bg-indigo-950/20 px-4 py-3 text-[11px] text-indigo-100">
+            <div className="mb-4 rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-4 py-3 text-[11px] text-[var(--accent)]">
               <p className="font-semibold mb-1">
                 Works on Free – shines on Pro.
               </p>
@@ -279,7 +281,7 @@ export default function AITaskCreatorPage() {
               <button
                 type="button"
                 onClick={() => router.push("/dashboard#pricing")}
-                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px]"
+                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
               >
                 View Pro options
               </button>
@@ -297,11 +299,11 @@ export default function AITaskCreatorPage() {
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* LEFT: Questionnaire */}
-            <section className="border border-slate-800 bg-slate-900/60 rounded-2xl p-4">
+            <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
               <h2 className="text-sm font-semibold mb-2">
                 Tell the AI about your day
               </h2>
-              <p className="text-[11px] text-slate-400 mb-3">
+              <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 The more realistic you are, the better the task suggestions.
               </p>
 
@@ -311,7 +313,7 @@ export default function AITaskCreatorPage() {
               >
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">
+                    <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                       Gender (optional)
                     </label>
                     <select
@@ -319,7 +321,7 @@ export default function AITaskCreatorPage() {
                       onChange={(e) =>
                         setGender(e.target.value as typeof gender)
                       }
-                      className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2 py-1.5"
+                      className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1.5"
                     >
                       <option value="skip">Prefer not to say</option>
                       <option value="male">Male</option>
@@ -329,7 +331,7 @@ export default function AITaskCreatorPage() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">
+                    <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                       Age range
                     </label>
                     <select
@@ -337,7 +339,7 @@ export default function AITaskCreatorPage() {
                       onChange={(e) =>
                         setAgeRange(e.target.value as typeof ageRange)
                       }
-                      className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2 py-1.5"
+                      className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1.5"
                     >
                       <option value="under18">&lt; 18</option>
                       <option value="18-24">18–24</option>
@@ -349,7 +351,7 @@ export default function AITaskCreatorPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     What do you mainly do?
                   </label>
                   <input
@@ -357,13 +359,13 @@ export default function AITaskCreatorPage() {
                     value={jobRole}
                     onChange={(e) => setJobRole(e.target.value)}
                     placeholder="e.g. Software engineer, student, designer, freelancer"
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-1.5"
+                    className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-1.5"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">
+                    <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                       What kind of day is it?
                     </label>
                     <select
@@ -371,7 +373,7 @@ export default function AITaskCreatorPage() {
                       onChange={(e) =>
                         setWorkType(e.target.value as typeof workType)
                       }
-                      className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2 py-1.5"
+                      className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1.5"
                     >
                       <option value="work">Work day</option>
                       <option value="study">Study day</option>
@@ -380,7 +382,7 @@ export default function AITaskCreatorPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">
+                    <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                       Time available today
                     </label>
                     <select
@@ -390,7 +392,7 @@ export default function AITaskCreatorPage() {
                           e.target.value as typeof hoursAvailable
                         )
                       }
-                      className="w-full rounded-xl bg-slate-950 border border-slate-700 px-2 py-1.5"
+                      className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1.5"
                     >
                       <option value="<1">&lt; 1 hour</option>
                       <option value="1-2">1–2 hours</option>
@@ -401,7 +403,7 @@ export default function AITaskCreatorPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     Energy level right now
                   </label>
                   <div className="flex items-center gap-3">
@@ -417,13 +419,13 @@ export default function AITaskCreatorPage() {
                       {energyLevel}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">
                     1 = exhausted, 10 = full of energy.
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     How intense should today be?
                   </label>
                   <div className="flex gap-2 text-[11px]">
@@ -432,8 +434,8 @@ export default function AITaskCreatorPage() {
                       onClick={() => setIntensity("light")}
                       className={`px-3 py-1.5 rounded-xl border ${
                         intensity === "light"
-                          ? "border-emerald-500 bg-emerald-500/20"
-                          : "border-slate-700 bg-slate-950"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                       }`}
                     >
                       Light
@@ -443,8 +445,8 @@ export default function AITaskCreatorPage() {
                       onClick={() => setIntensity("balanced")}
                       className={`px-3 py-1.5 rounded-xl border ${
                         intensity === "balanced"
-                          ? "border-sky-500 bg-sky-500/20"
-                          : "border-slate-700 bg-slate-950"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                       }`}
                     >
                       Balanced
@@ -454,8 +456,8 @@ export default function AITaskCreatorPage() {
                       onClick={() => setIntensity("aggressive")}
                       className={`px-3 py-1.5 rounded-xl border ${
                         intensity === "aggressive"
-                          ? "border-red-500 bg-red-500/20"
-                          : "border-slate-700 bg-slate-950"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                       }`}
                     >
                       Deep push
@@ -464,19 +466,19 @@ export default function AITaskCreatorPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     What&apos;s your plan or context for today?
                   </label>
                   <textarea
                     value={todayPlan}
                     onChange={(e) => setTodayPlan(e.target.value)}
                     placeholder="Meetings, deadlines, errands, appointments, etc."
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 min-h-[70px]"
+                    className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 min-h-[70px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     Main goal for today
                   </label>
                   <input
@@ -484,12 +486,12 @@ export default function AITaskCreatorPage() {
                     value={mainGoal}
                     onChange={(e) => setMainGoal(e.target.value)}
                     placeholder="e.g. Finish draft, pass exam topic, clean the house"
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-1.5"
+                    className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-1.5"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     Hobbies or interests (optional)
                   </label>
                   <input
@@ -497,9 +499,9 @@ export default function AITaskCreatorPage() {
                     value={hobbies}
                     onChange={(e) => setHobbies(e.target.value)}
                     placeholder="e.g. gym, reading, coding, gaming"
-                    className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-1.5"
+                    className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-1.5"
                   />
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">
                     The AI can include 1–2 fun or restorative tasks if relevant.
                   </p>
                 </div>
@@ -507,7 +509,7 @@ export default function AITaskCreatorPage() {
                 <button
                   type="submit"
                   disabled={loadingSuggestions}
-                  className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-xs"
+                  className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs"
                 >
                   {loadingSuggestions
                     ? "Thinking…"
@@ -517,25 +519,28 @@ export default function AITaskCreatorPage() {
             </section>
 
             {/* RIGHT: Suggested tasks + create button */}
-            <section className="border border-slate-800 bg-slate-900/60 rounded-2xl p-4 flex flex-col">
+            <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4 flex flex-col">
               <h2 className="text-sm font-semibold mb-2">
                 AI-suggested tasks
               </h2>
-              <p className="text-[11px] text-slate-400 mb-3">
+              <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 Review, edit, or delete anything you don&apos;t like. Then
                 click one button to create the tasks in your account.
               </p>
 
               {loadingSuggestions && (
-                <p className="text-[12px] text-slate-400 mb-2">
+                <p className="text-[12px] text-[var(--text-muted)] mb-2">
                   Generating suggestions based on your answers…
                 </p>
               )}
 
               {!loadingSuggestions && suggestedTasks.length === 0 && (
-                <p className="text-[12px] text-slate-500">
+                <p className="text-[12px] text-[var(--text-muted)]">
                   No tasks yet. Fill the form on the left and click{" "}
-                  <span className="font-semibold">“AI: Suggest my tasks”</span>.
+                  <span className="font-semibold">
+                    “AI: Suggest my tasks”
+                  </span>
+                  .
                 </p>
               )}
 
@@ -546,7 +551,7 @@ export default function AITaskCreatorPage() {
                       key={idx}
                       className="flex items-start gap-2 text-[12px]"
                     >
-                      <span className="mt-1 text-slate-500 text-[11px]">
+                      <span className="mt-1 text-[var(--text-muted)] text-[11px]">
                         {idx + 1}.
                       </span>
                       <div className="flex-1">
@@ -561,16 +566,16 @@ export default function AITaskCreatorPage() {
                             };
                             setSuggestedTasks(next);
                           }}
-                          className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-1.5 mb-1"
+                          className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-1.5 mb-1"
                         />
-                        <div className="flex gap-2 text-[10px] text-slate-500">
+                        <div className="flex gap-2 text-[10px] text-[var(--text-muted)]">
                           {task.category && (
-                            <span className="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-700">
+                            <span className="px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)]">
                               {task.category}
                             </span>
                           )}
                           {task.size && (
-                            <span className="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-700 capitalize">
+                            <span className="px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] capitalize">
                               {task.size} task
                             </span>
                           )}
@@ -592,7 +597,7 @@ export default function AITaskCreatorPage() {
                 </div>
               )}
 
-              <div className="mt-auto pt-3 border-t border-slate-800">
+              <div className="mt-auto pt-3 border-t border-[var(--border-subtle)]">
                 <button
                   type="button"
                   onClick={handleCreateTasks}
@@ -603,7 +608,7 @@ export default function AITaskCreatorPage() {
                     ? "Creating tasks…"
                     : "✅ Auto-create these tasks and open Tasks"}
                 </button>
-                <p className="text-[10px] text-slate-500 mt-2">
+                <p className="text-[10px] text-[var(--text-muted)] mt-2">
                   Tasks will be added to your normal Tasks list. You can edit
                   them later like any other task.
                 </p>
