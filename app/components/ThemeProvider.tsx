@@ -1,3 +1,4 @@
+// app/components/ThemeProvider.tsx
 "use client";
 
 import {
@@ -19,121 +20,122 @@ export type ThemeId =
   | "christmas"
   | "easter";
 
-export type ThemeInfo = {
+type ThemeOption = {
   id: ThemeId;
   label: string;
   description?: string;
   seasonal?: boolean;
 };
 
-export const THEME_OPTIONS: ThemeInfo[] = [
+export const THEME_OPTIONS: ThemeOption[] = [
   {
     id: "dark",
-    label: "Dark (default)",
-    description: "High-contrast, midnight workspace.",
+    label: "Default dark",
+    description: "Current look – calm, minimal dark mode.",
   },
   {
     id: "light",
-    label: "Light",
-    description: "Clean, bright, paper-like appearance.",
+    label: "Light mode",
+    description: "Bright, paper-like background that's easy on the eyes.",
   },
   {
     id: "ocean",
     label: "Ocean",
-    description: "Deep blues with calm cyan accents.",
+    description: "Deep blues, calm and focused.",
   },
   {
     id: "purple",
-    label: "Purple Neon",
-    description: "Vibrant purple with neon accents.",
+    label: "Purple neon",
+    description: "Futuristic, high-contrast purple glow.",
   },
   {
     id: "forest",
     label: "Forest",
-    description: "Muted greens, grounded and calm.",
+    description: "Greenish tones with cozy contrast.",
   },
   {
     id: "sunset",
     label: "Sunset",
-    description: "Warm oranges and pink highlights.",
+    description: "Warm pink/orange vibe for evening sessions.",
   },
   {
     id: "halloween",
     label: "Halloween",
-    description: "Dark theme with orange highlights.",
+    description: "Spooky orange glow around October.",
     seasonal: true,
   },
   {
     id: "christmas",
     label: "Christmas",
-    description: "Cozy greens and reds.",
+    description: "Green & red festive theme for December.",
     seasonal: true,
   },
   {
     id: "easter",
     label: "Easter",
-    description: "Soft pastel palette.",
+    description: "Soft pastel colors for spring.",
     seasonal: true,
   },
 ];
 
-const STORAGE_KEY = "aph_ui_theme";
+const STORAGE_KEY = "ui_theme";
 
 type ThemeContextValue = {
   theme: ThemeId;
-  setTheme: (id: ThemeId) => void;
+  setTheme: (theme: ThemeId) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-function applyTheme(id: ThemeId) {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  root.setAttribute("data-theme", id);
+function isThemeId(val: string): val is ThemeId {
+  return THEME_OPTIONS.some((opt) => opt.id === val);
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeId>("dark");
 
+  // Load initial theme from localStorage or prefers-color-scheme
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const stored = window.localStorage.getItem(STORAGE_KEY) as ThemeId | null;
-
-    if (stored && THEME_OPTIONS.some((t) => t.id === stored)) {
-      setThemeState(stored);
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored && isThemeId(stored)) {
       applyTheme(stored);
       return;
     }
 
-    // Fallback: system preference
+    // Fallback: respect system preference just for light/dark
     const prefersDark = window.matchMedia?.(
       "(prefers-color-scheme: dark)"
     ).matches;
     const initial: ThemeId = prefersDark ? "dark" : "light";
-    setThemeState(initial);
     applyTheme(initial);
   }, []);
 
-  function setTheme(next: ThemeId) {
+  function applyTheme(next: ThemeId) {
     setThemeState(next);
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", next);
+    }
     if (typeof window !== "undefined") {
       window.localStorage.setItem(STORAGE_KEY, next);
     }
-    applyTheme(next);
   }
 
+  const value: ThemeContextValue = {
+    theme,
+    setTheme: applyTheme,
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 }
 
-export function useTheme() {
+export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    throw new Error("useTheme must be used inside ThemeProvider");
+    throw new Error("useTheme must be used within ThemeProvider");
   }
   return ctx;
 }

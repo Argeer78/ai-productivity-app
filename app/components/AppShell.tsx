@@ -1,5 +1,3 @@
-"use client";
-
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { LanguageProvider } from "@/app/components/LanguageProvider";
@@ -16,7 +14,6 @@ type AppShellProps = {
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
 
-  // Hide the floating assistant on AI Chat page
   const hideAssistantOnRoutes = ["/ai-chat"];
   const shouldHideAssistant = hideAssistantOnRoutes.some((p) =>
     pathname.startsWith(p)
