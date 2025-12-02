@@ -1,9 +1,9 @@
-// app/layout.tsx
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
 import AppShell from "@/app/components/AppShell";
+import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -44,18 +44,19 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
-        {/* ✅ Favicon + icons */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/* theme-color meta is fine to leave as dark; mobile bars will still look OK */}
         <meta name="theme-color" content="#020617" />
+        <link rel="icon" href="/favicon.ico" />
       </head>
-      <body className={`${inter.className} bg-[#020617] text-slate-100`}>
+      <body
+        className={`${inter.className} bg-[var(--bg-body)] text-[var(--text-main)]`}
+      >
         <PlausibleProvider
           domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
           trackLocalhost={false}
-        >
-          <AppShell>{children}</AppShell>
-        </PlausibleProvider>
+        />
+        <ServiceWorkerRegister />
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

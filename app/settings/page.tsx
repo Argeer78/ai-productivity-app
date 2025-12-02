@@ -8,6 +8,11 @@ import AppHeader from "@/app/components/AppHeader";
 import { useAnalytics } from "@/lib/analytics";
 import { LANGUAGES, LS_PREF_LANG } from "@/lib/translateLanguages";
 import NotificationSettings from "@/app/components/NotificationSettings";
+import {
+  useTheme,
+  THEME_OPTIONS,
+  type ThemeId,
+} from "@/app/components/ThemeProvider";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -57,6 +62,9 @@ export default function SettingsPage() {
 
   const { track } = useAnalytics();
 
+  // 🔹 Theme context (from ThemeProvider)
+  const { theme, setTheme } = useTheme();
+
   // Load user
   useEffect(() => {
     async function loadUser() {
@@ -96,7 +104,8 @@ export default function SettingsPage() {
             plan,
             onboarding_use_case,
             onboarding_weekly_focus,
-            onboarding_reminder
+            onboarding_reminder,
+            ui_theme
           `
           )
           .eq("id", user.id)
@@ -141,6 +150,14 @@ export default function SettingsPage() {
               data.onboarding_reminder as Reminder
             );
           }
+
+          // 🔹 Theme from profile (if present)
+          if (data.ui_theme) {
+            const t = data.ui_theme as ThemeId;
+            if (THEME_OPTIONS.some((opt) => opt.id === t)) {
+              setTheme(t);
+            }
+          }
         }
 
         // Preferred translation language from localStorage
@@ -159,7 +176,7 @@ export default function SettingsPage() {
     }
 
     loadProfile();
-  }, [user]);
+  }, [user, setTheme]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -181,6 +198,7 @@ export default function SettingsPage() {
           onboarding_weekly_focus:
             onboardingWeeklyFocus.trim() || null,
           onboarding_reminder: onboardingReminder || "none",
+          ui_theme: theme, // 🔹 persist selected theme
         })
         .eq("id", user.id);
 
@@ -414,6 +432,54 @@ export default function SettingsPage() {
 
               {/* Notification channels */}
               <NotificationSettings userId={user.id} />
+
+              {/* 🔹 App theme picker */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-2">
+                <p className="text-[11px] font-semibold text-slate-200">
+                  App theme
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Choose how the workspace looks. Seasonal themes are just for fun — you
+                  can switch anytime.
+                </p>
+
+                <div className="mt-2 grid sm:grid-cols-2 gap-2">
+                  {THEME_OPTIONS.map((t) => {
+                    const isActive = theme === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTheme(t.id)}
+                        className={`text-left rounded-xl border px-3 py-2 text-[11px] transition ${
+                          isActive
+                            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text-main)]"
+                            : "border-slate-700 bg-slate-950/60 text-slate-200 hover:border-slate-500 hover:bg-slate-900"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold">{t.label}</span>
+                          {t.seasonal && (
+                            <span className="text-[10px] text-amber-300">
+                              🎉 Seasonal
+                            </span>
+                          )}
+                        </div>
+                        {t.description && (
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            {t.description}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[10px] text-slate-500 mt-2">
+                  Your theme is stored on this device and in your profile. You can change
+                  it anytime from Settings.
+                </p>
+              </div>
 
               {/* AI tone */}
               <div>
