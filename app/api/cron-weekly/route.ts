@@ -5,61 +5,62 @@ import { verifyCronAuth } from "@/lib/verifyCron";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  // 1) Make sure this really is your Vercel cron (or a manual call with secret)
+  // 1) Verify it's actually Vercel Cron
   const authError = verifyCronAuth(req);
   if (authError) return authError;
 
-  try {
-    const origin = req.nextUrl.origin;
-    const weeklyUrl = new URL("/api/weekly-report", origin);
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.error("[cron-weekly] CRON_SECRET is not set");
+    return NextResponse.json(
+      { ok: false, error: "CRON_SECRET missing" },
+      { status: 500 }
+    );
+  }
 
-    // 2) Call the real weekly-report job inside the same deployment
-    const res = await fetch(weeklyUrl.toString(), {
+  const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
+  const url = `${origin}/api/weekly-report`;
+
+  let data: any = null;
+
+  try {
+    const res = await fetch(url, {
       method: "GET",
       headers: {
-        // /api/weekly-report expects this Authorization header
-        authorization: `Bearer ${process.env.CRON_SECRET ?? ""}`,
+        Authorization: `Bearer ${secret}`,
       },
     });
 
-    const data = await res.json().catch(() => null);
+    data = await res.json().catch(() => null);
 
     if (!res.ok) {
       console.error("[cron-weekly] /api/weekly-report failed", {
         status: res.status,
         data,
       });
-
       return NextResponse.json(
         {
           ok: false,
-          fromCron: true,
-          error:
-            data?.error ||
-            `weekly-report failed with status ${res.status}`,
+          error: "weekly-report failed",
+          status: res.status,
+          data,
         },
         { status: 500 }
       );
     }
-
-    console.log("[cron-weekly] DONE", {
-      fromCron: true,
-      weekly: data,
-    });
-
-    return NextResponse.json(
-      {
-        ok: true,
-        fromCron: true,
-        weekly: data,
-      },
-      { status: 200 }
-    );
   } catch (err) {
-    console.error("[cron-weekly] unexpected error", err);
+    console.error("[cron-weekly] fetch error → /api/weekly-report", err);
     return NextResponse.json(
-      { ok: false, fromCron: true, error: "Unexpected error" },
+      { ok: false, error: "fetch to weekly-report failed" },
       { status: 500 }
     );
   }
+
+  console.log("[cron-weekly] DONE", data);
+
+  return NextResponse.json({
+    ok: true,
+    fromCron: true,
+    child: data,
+  });
 }
