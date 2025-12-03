@@ -1,12 +1,30 @@
+// app/changelog/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import AppHeader from "@/app/components/AppHeader";
 import Link from "next/link";
+import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 
+type ChangelogEntry = {
+  id: string;
+  title: string;
+  body: string | null;
+  section: string | null;
+  published_at: string | null;
+};
+
+const SECTION_ICON: Record<string, string> = {
+  Latest: "📅",
+  Recent: "📊",
+  Earlier: "🧠",
+  Ongoing: "🧪",
+};
+
 export default function ChangelogPage() {
-  const [todayLabel, setTodayLabel] = useState("");
+  const [entries, setEntries] = useState<ChangelogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // Mark changelog as seen for the logged-in user
   useEffect(() => {
@@ -15,19 +33,10 @@ export default function ChangelogPage() {
     async function markSeen() {
       try {
         const { data, error } = await supabase.auth.getUser();
-
-        // Ignore "Auth session missing" as "not logged in"
         if (error) {
-          if (
-            typeof error.message === "string" &&
-            error.message.toLowerCase().includes("auth session missing")
-          ) {
-            return;
-          }
           console.error("[changelog] auth error", error);
           return;
         }
-
         const user = data?.user;
         if (!user || cancelled) return;
 
@@ -48,14 +57,41 @@ export default function ChangelogPage() {
     };
   }, []);
 
-  // Client-only date to avoid SSR/CSR mismatch
+  // Load changelog entries from Supabase
   useEffect(() => {
-    const label = new Date().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-    setTodayLabel(label);
+    let cancelled = false;
+
+    async function loadEntries() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const { data, error } = await supabase
+          .from("changelog_entries")
+          .select("id, title, body, section, published_at")
+          .order("published_at", { ascending: false });
+
+        if (error) {
+          console.error("[changelog] load error", error);
+          if (!cancelled) setError("Failed to load changelog.");
+          return;
+        }
+
+        if (!cancelled) {
+          setEntries(data || []);
+        }
+      } catch (err) {
+        console.error("[changelog] unexpected load error", err);
+        if (!cancelled) setError("Failed to load changelog.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadEntries();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -74,149 +110,85 @@ export default function ChangelogPage() {
             </div>
             <Link
               href="/dashboard"
-              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] text-xs"
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
               ← Back to dashboard
             </Link>
           </div>
 
-          <div className="space-y-6">
-            {/* Latest entry */}
-            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
-              <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                📅 {todayLabel || ""} • Latest
-              </p>
-              <h2 className="text-sm font-semibold mb-2">
-                Weekly AI reports, goals, and wins
-              </h2>
-              <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
-                <li>
-                  Added{" "}
-                  <span className="font-semibold">
-                    Weekly AI email report
-                  </span>{" "}
-                  for Pro users with productivity overview, wins, and focus
-                  suggestions.
-                </li>
-                <li>
-                  New{" "}
-                  <span className="font-semibold">Weekly Reports page</span> to
-                  see your report history.
-                </li>
-                <li>
-                  Dashboard now shows{" "}
-                  <span className="font-semibold">
-                    AI Wins This Week
-                  </span>{" "}
-                  (tasks completed, notes created, AI calls, time saved).
-                </li>
-                <li>
-                  Added{" "}
-                  <span className="font-semibold">Goal of the Week</span> with
-                  optional AI refinement and a “mark as done” toggle.
-                </li>
-              </ul>
-            </section>
+          {error && (
+            <p className="mb-3 text-xs text-red-400">{error}</p>
+          )}
 
-            {/* Productivity score entry */}
-            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
-              <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                📊 Recent
-              </p>
-              <h2 className="text-sm font-semibold mb-2">
-                Productivity score & streaks
-              </h2>
-              <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
-                <li>
-                  New <span className="font-semibold">Daily Success</span> page
-                  where you score your day from 0–100.
-                </li>
-                <li>
-                  Dashboard now shows{" "}
-                  <span className="font-semibold">
-                    today&apos;s score, 7-day average
-                  </span>{" "}
-                  and{" "}
-                  <span className="font-semibold">score streak</span> (days ≥
-                  60).
-                </li>
-                <li>
-                  Added streak banner at the top of the dashboard with different
-                  messages for 1+, 7+, 14+, and 30+ day streaks.
-                </li>
-              </ul>
-            </section>
-
-            {/* Templates entry */}
-            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
-              <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                🧠 Earlier
-              </p>
-              <h2 className="text-sm font-semibold mb-2">
-                Templates, Pro gating, and assistant upgrades
-              </h2>
-              <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
-                <li>
-                  Added <span className="font-semibold">AI Templates</span>{" "}
-                  with categories (Planning, Study, Writing, Work, Personal).
-                </li>
-                <li>
-                  Introduced{" "}
-                    <span className="font-semibold">Pro-only templates</span>{" "}
-                  with locked actions and an upgrade flow.
-                </li>
-                <li>
-                  Improved{" "}
-                  <span className="font-semibold">
-                    “Use with Assistant”
-                  </span>{" "}
-                  to pass clean context from templates, notes, and planner into
-                  the floating AI assistant.
-                </li>
-              </ul>
-            </section>
-
-            {/* UI entry */}
-            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
-              <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                🧪 Ongoing
-              </p>
-              <h2 className="text-sm font-semibold mb-2">
-                UI polish & navigation
-              </h2>
-              <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
-                <li>
-                  New <span className="font-semibold">Apps panel</span> in the
-                  header to keep navigation clean while giving quick access to
-                  all tools.
-                </li>
-                <li>
-                  Header now always shows your{" "}
-                  <span className="font-semibold">
-                    email, Settings, and Log out
-                  </span>{" "}
-                  without being crushed.
-                </li>
-                <li>
-                  Mobile navigation simplified with a single menu that includes
-                  all pages.
-                </li>
-              </ul>
-            </section>
-
-            <p className="text-[11px] text-[var(--text-muted)] mt-4">
-              More improvements are in progress around focus, routines, and
-              better AI guidance. If you have a feature request, you can always
-              send it from the{" "}
-              <Link
-                href="/feedback"
-                className="text-[var(--accent)] hover:opacity-80 underline underline-offset-2"
-              >
-                Feedback
-              </Link>{" "}
-              page.
+          {loading ? (
+            <p className="text-xs text-[var(--text-muted)]">
+              Loading changelog…
             </p>
-          </div>
+          ) : entries.length === 0 ? (
+            <p className="text-xs text-[var(--text-muted)]">
+              No changelog entries yet. Add some in the
+              <span className="font-semibold"> changelog_entries </span>
+              table in Supabase.
+            </p>
+          ) : (
+            <div className="space-y-6">
+              {entries.map((entry) => {
+                const section = entry.section || "Update";
+                const icon = SECTION_ICON[section] || "✨";
+                const dateLabel = entry.published_at
+                  ? new Date(entry.published_at).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "";
+
+                const bullets =
+                  entry.body
+                    ?.split("\n")
+                    .map((s) => s.trim())
+                    .filter(Boolean) || [];
+
+                return (
+                  <section
+                    key={entry.id}
+                    className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4"
+                  >
+                    <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                      {icon} {dateLabel} • {section}
+                    </p>
+                    <h2 className="text-sm font-semibold mb-2">
+                      {entry.title}
+                    </h2>
+                    {bullets.length > 0 ? (
+                      <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
+                        {bullets.map((line, idx) => (
+                          <li key={idx}>{line}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[12px] text-[var(--text-main)]">
+                        {entry.body}
+                      </p>
+                    )}
+                  </section>
+                );
+              })}
+
+              <p className="text-[11px] text-[var(--text-muted)] mt-4">
+                More improvements are in progress around focus, routines,
+                and better AI guidance. If you have a feature request, you
+                can always send it from the{" "}
+                <Link
+                  href="/feedback"
+                  className="text-[var(--accent)] hover:underline underline-offset-2"
+                >
+                  Feedback
+                </Link>{" "}
+                page.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </main>

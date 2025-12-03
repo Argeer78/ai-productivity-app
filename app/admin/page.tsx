@@ -10,7 +10,11 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 // Reusable panel component for sending test emails
-function AdminEmailTestPanel({ currentUserEmail }: { currentUserEmail: string | null }) {
+function AdminEmailTestPanel({
+  currentUserEmail,
+}: {
+  currentUserEmail: string | null;
+}) {
   const [targetEmail, setTargetEmail] = useState(currentUserEmail || "");
   const [kind, setKind] = useState<"simple" | "daily" | "weekly">("simple");
   const [status, setStatus] = useState<string | null>(null);
@@ -59,17 +63,18 @@ function AdminEmailTestPanel({ currentUserEmail }: { currentUserEmail: string | 
   }
 
   return (
-    <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-950 p-4">
-      <h2 className="text-sm font-semibold mb-2 text-slate-100">
+    <section className="mt-8 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+      <h2 className="text-sm font-semibold mb-2 text-[var(--text-main)]">
         Email deliverability tester
       </h2>
-      <p className="text-xs text-slate-400 mb-3">
-        Send a test email via Resend to any address (e.g. Mail-Tester). Only visible on the admin page.
+      <p className="text-xs text-[var(--text-muted)] mb-3">
+        Send a test email via Resend to any address (e.g. Mail-Tester). Only
+        visible on the admin page.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
         <div className="flex-1 w-full">
-          <label className="block text-[11px] text-slate-300 mb-1">
+          <label className="block text-[11px] text-[var(--text-main)] mb-1">
             Destination email
           </label>
           <input
@@ -77,18 +82,18 @@ function AdminEmailTestPanel({ currentUserEmail }: { currentUserEmail: string | 
             value={targetEmail}
             onChange={(e) => setTargetEmail(e.target.value)}
             placeholder="e.g. your-mail-tester-address@mail-tester.com"
-            className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100"
+            className="w-full rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)]"
           />
         </div>
 
         <div>
-          <label className="block text-[11px] text-slate-300 mb-1">
+          <label className="block text-[11px] text-[var(--text-main)] mb-1">
             Email type
           </label>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as any)}
-            className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-2 text-sm text-slate-100"
+            className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-2 text-sm text-[var(--text-main)]"
           >
             <option value="simple">Simple test</option>
             <option value="daily">Daily digest style</option>
@@ -100,14 +105,14 @@ function AdminEmailTestPanel({ currentUserEmail }: { currentUserEmail: string | 
           type="button"
           onClick={handleSend}
           disabled={sending}
-          className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white disabled:opacity-60"
+          className="px-3 py-2 rounded-lg bg-[var(--accent)] hover:opacity-90 text-xs font-medium text-[var(--bg-body)] disabled:opacity-60"
         >
           {sending ? "Sending…" : "Send test email"}
         </button>
       </div>
 
       {status && (
-        <p className="mt-2 text-[11px] text-slate-300 whitespace-pre-line">
+        <p className="mt-2 text-[11px] text-[var(--text-main)] whitespace-pre-line">
           {status}
         </p>
       )}
@@ -148,24 +153,26 @@ export default function AdminHomePage() {
   // ---- Auth guards ----
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Checking your session…</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)] text-sm">
+          Checking your session…
+        </p>
       </main>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="admin" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Admin</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             You need to log in to access the admin area.
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
           >
             Go to login / signup
           </Link>
@@ -176,16 +183,16 @@ export default function AdminHomePage() {
 
   if (!authorized) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="admin" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Admin</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             This page is restricted. Your account is not marked as admin.
           </p>
           <Link
             href="/dashboard"
-            className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-sm"
           >
             Back to Dashboard
           </Link>
@@ -196,7 +203,7 @@ export default function AdminHomePage() {
 
   // ---- Main admin dashboard ----
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="admin" />
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
@@ -205,12 +212,13 @@ export default function AdminHomePage() {
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 Admin dashboard
               </h1>
-              <p className="text-xs md:text-sm text-slate-400">
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 Internal tools for managing users and monitoring the app.
               </p>
             </div>
-            <span className="text-[11px] text-slate-500">
-              Logged in as <span className="font-mono">{user.email}</span>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              Logged in as{" "}
+              <span className="font-mono">{user.email}</span>
             </span>
           </div>
 
@@ -218,41 +226,63 @@ export default function AdminHomePage() {
             {/* Users management */}
             <Link
               href="/admin/users"
-              className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 hover:bg-slate-900/90 transition-colors flex flex-col justify-between"
+              className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 hover:bg-[var(--bg-elevated)] transition-colors flex flex-col justify-between"
             >
               <div>
-                <p className="text-[11px] font-semibold text-slate-400 mb-1">
+                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">
                   USERS
                 </p>
-                <h2 className="text-base font-semibold text-slate-50 mb-1">
+                <h2 className="text-base font-semibold mb-1">
                   Users & plans
                 </h2>
-                <p className="text-[12px] text-slate-400">
+                <p className="text-[12px] text-[var(--text-muted)]">
                   View profiles, plans, admin flag and send password reset
                   emails.
                 </p>
               </div>
-              <p className="mt-3 text-[11px] text-indigo-300">
+              <p className="mt-3 text-[11px] text-[var(--accent)]">
                 Open users table →
               </p>
             </Link>
 
-            {/* Placeholder for future tools */}
-            <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-4 flex flex-col justify-between">
+            {/* Changelog editor card */}
+            <Link
+              href="/changelog/admin"
+              className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 hover:bg-[var(--bg-elevated)] transition-colors flex flex-col justify-between"
+            >
               <div>
-                <p className="text-[11px] font-semibold text-slate-400 mb-1">
+                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">
+                  CHANGELOG
+                </p>
+                <h2 className="text-base font-semibold mb-1">
+                  Changelog editor
+                </h2>
+                <p className="text-[12px] text-[var(--text-muted)]">
+                  Add and organize entries that appear on the public
+                  “What&apos;s new” page.
+                </p>
+              </div>
+              <p className="mt-3 text-[11px] text-[var(--accent)]">
+                Open changelog admin →
+              </p>
+            </Link>
+
+            {/* Placeholder for future tools */}
+            <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 flex flex-col justify-between">
+              <div>
+                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">
                   COMING SOON
                 </p>
-                <h2 className="text-base font-semibold text-slate-50 mb-1">
+                <h2 className="text-base font-semibold mb-1">
                   More admin tools
                 </h2>
-                <p className="text-[12px] text-slate-400">
+                <p className="text-[12px] text-[var(--text-muted)]">
                   You can add usage overview, AI cost stats, or feature flags
                   here later.
                 </p>
               </div>
-              <p className="mt-3 text-[11px] text-slate-500">
-                For now, use the Users section.
+              <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+                For now, use the Users and Changelog sections.
               </p>
             </div>
           </div>
@@ -260,7 +290,7 @@ export default function AdminHomePage() {
           {/* Email test panel (only admin can see this page anyway) */}
           <AdminEmailTestPanel currentUserEmail={user.email ?? null} />
 
-          <div className="mt-8 text-[11px] text-slate-500">
+          <div className="mt-8 text-[11px] text-[var(--text-muted)]">
             <p>
               Tip: set <code>NEXT_PUBLIC_ADMIN_EMAIL</code> and{" "}
               <code>NEXT_PUBLIC_ADMIN_KEY</code> in your env to control who can

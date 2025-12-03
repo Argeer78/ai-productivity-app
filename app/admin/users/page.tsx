@@ -7,138 +7,110 @@ import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
-type ProfileRow = {
+type UserRow = {
   id: string;
   email: string | null;
-  plan: "free" | "pro" | null;
-  created_at: string | null;
+  plan: string | null;
+  created_at: string;
   is_admin: boolean | null;
 };
 
 export default function AdminUsersPage() {
-  const [user, setUser] = useState<any | null>(null);
-  const [checkingUser, setCheckingUser] = useState(true);
+  const [me, setMe] = useState<any | null>(null);
+  const [checkingMe, setCheckingMe] = useState(true);
   const [authorized, setAuthorized] = useState(false);
 
-  const [rows, setRows] = useState<ProfileRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [error, setError] = useState("");
 
-  const [resettingEmail, setResettingEmail] = useState<string | null>(null);
-
-  // ---- Load current user & verify admin ----
+  // Load current user and check admin email
   useEffect(() => {
-    async function loadUser() {
+    async function loadMe() {
       try {
         const { data } = await supabase.auth.getUser();
         const u = data?.user ?? null;
-        setUser(u);
+        setMe(u);
 
         if (u?.email && ADMIN_EMAIL && u.email === ADMIN_EMAIL) {
           setAuthorized(true);
         }
       } catch (err) {
-        console.error("[admin/users] loadUser error", err);
+        console.error("[admin/users] loadMe error", err);
       } finally {
-        setCheckingUser(false);
+        setCheckingMe(false);
       }
     }
-    loadUser();
+    loadMe();
   }, []);
 
-  // ---- Load users (profiles) ----
+  // Load all users via admin API
   useEffect(() => {
     if (!authorized) return;
+    if (!ADMIN_KEY) {
+      setError("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
+      return;
+    }
 
     async function loadUsers() {
-      setLoading(true);
+      setLoadingUsers(true);
       setError("");
 
       try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, email, plan, created_at, is_admin")
-          .order("created_at", { ascending: false })
-          .limit(200);
+        const res = await fetch("/api/admin/users", {
+          headers: {
+            "x-admin-key": ADMIN_KEY,
+          },
+        });
 
-        if (error) {
-          console.error("[admin/users] profiles list error", error);
-          setError(error.message || "Failed to load users.");
-          return;
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch (parseErr) {
+          console.error("[admin/users] JSON parse error", parseErr);
+          throw new Error("Invalid JSON response from /api/admin/users");
         }
 
-        setRows((data || []) as ProfileRow[]);
+        if (!res.ok || !json?.ok) {
+          console.error("[admin/users] API error", res.status, json);
+          throw new Error(json?.error || "Failed to load users");
+        }
+
+        setUsers(json.users || []);
       } catch (err: any) {
-        console.error("[admin/users] unexpected error", err);
-        setError("Failed to load users.");
+        console.error("[admin/users] loadUsers error", err);
+        setError(err?.message || "Failed to load users.");
       } finally {
-        setLoading(false);
+        setLoadingUsers(false);
       }
     }
 
     loadUsers();
   }, [authorized]);
 
-  // ---- Admin: send password reset email ----
-  async function handleSendReset(email: string | null) {
-    if (!email) {
-      alert("This user has no email stored in profiles.");
-      return;
-    }
-
-    const ok = window.confirm(
-      `Send a password reset email to ${email}?`
-    );
-    if (!ok) return;
-
-    setResettingEmail(email);
-
-    try {
-      const res = await fetch("/api/admin/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await res.json().catch(() => ({} as any));
-
-      if (!res.ok || !data?.ok) {
-        console.error("[admin/users] reset-password error", data);
-        alert(data?.error || "Failed to send reset email.");
-        return;
-      }
-
-      alert("Password reset email sent successfully.");
-    } catch (err) {
-      console.error("[admin/users] reset-password exception", err);
-      alert("Network error while sending reset email.");
-    } finally {
-      setResettingEmail(null);
-    }
-  }
-
-  // ---- Auth guards ----
-  if (checkingUser) {
+  // ---- Guards ----
+  if (checkingMe) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <p className="text-slate-300 text-sm">Checking your session…</p>
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)] text-sm">Checking your session…</p>
       </main>
     );
   }
 
-  if (!user) {
+  if (!me) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="admin" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Admin – Users</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
-            You need to log in to view the users list.
+          <p className="text-sm text-[var(--text-muted)] mb-4 text-center max-w-sm">
+            You need to log in to access the admin users view.
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-sm"
           >
             Go to login / signup
           </Link>
@@ -149,114 +121,110 @@ export default function AdminUsersPage() {
 
   if (!authorized) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="admin" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Admin – Users</h1>
-          <p className="text-slate-300 mb-4 text-center max-w-sm text-sm">
+          <p className="text-sm text-[var(--text-muted)] mb-4 text-center max-w-sm">
             This page is restricted. Your account is not marked as admin.
           </p>
           <Link
-            href="/dashboard"
-            className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-sm"
+            href="/admin"
+            className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
           >
-            Back to Dashboard
+            Back to Admin
           </Link>
         </div>
       </main>
     );
   }
 
-  // ---- Main render ----
+  // ---- Main content ----
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="admin" />
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
-          <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                Users
-              </h1>
-              <p className="text-xs md:text-sm text-slate-400">
-                Profiles from <code>profiles</code> table + admin tools.
+              <h1 className="text-2xl md:text-3xl font-bold mb-1">Users</h1>
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">
+                View all profiles, plans, and admin flags.
               </p>
             </div>
-            <Link
-              href="/admin"
-              className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
-            >
-              ← Back to Admin
-            </Link>
+            <div className="flex flex-col items-end text-[11px] text-[var(--text-muted)]">
+              <span>
+                Logged in as{" "}
+                <span className="font-mono text-[var(--text-main)]">
+                  {me.email}
+                </span>
+              </span>
+              <Link
+                href="/admin"
+                className="mt-1 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+              >
+                ← Back to Admin dashboard
+              </Link>
+            </div>
           </div>
 
           {error && (
-            <p className="mb-3 text-xs text-red-400">{error}</p>
+            <p className="text-xs text-red-400 mb-3 whitespace-pre-line">
+              {error}
+            </p>
           )}
 
-          {loading ? (
-            <p className="text-slate-300 text-sm">Loading users…</p>
-          ) : rows.length === 0 ? (
-            <p className="text-slate-300 text-sm">
-              No users found in profiles.
+          {loadingUsers ? (
+            <p className="text-sm text-[var(--text-muted)]">
+              Loading users…
+            </p>
+          ) : users.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">
+              No users found.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60">
-              <table className="w-full text-left text-[12px]">
-                <thead className="text-slate-400 bg-slate-900/80">
+            <div className="overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)]">
+              <table className="min-w-full text-xs md:text-sm">
+                <thead className="bg-[var(--bg-elevated)] border-b border-[var(--border-subtle)]">
                   <tr>
-                    <th className="px-3 py-2">Email</th>
-                    <th className="px-3 py-2">User ID</th>
-                    <th className="px-3 py-2">Plan</th>
-                    <th className="px-3 py-2">Admin</th>
-                    <th className="px-3 py-2">Created at</th>
-                    <th className="px-3 py-2">Actions</th>
+                    <th className="text-left px-3 py-2">Email</th>
+                    <th className="text-left px-3 py-2">Plan</th>
+                    <th className="text-left px-3 py-2">Admin</th>
+                    <th className="text-left px-3 py-2">Created</th>
+                    <th className="text-left px-3 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {users.map((u) => (
                     <tr
-                      key={row.id}
-                      className="border-t border-slate-800 align-top"
+                      key={u.id}
+                      className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                     >
-                      <td className="px-3 py-2 text-slate-100 text-[11px] break-all">
-                        {row.email || "—"}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-100 break-all">
-                        {row.id}
-                      </td>
-                      <td className="px-3 py-2 text-slate-100">
-                        {row.plan || "free"}
-                      </td>
                       <td className="px-3 py-2">
-                        {row.is_admin ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-200">
-                            yes
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-300">
-                            no
+                        {u.email || (
+                          <span className="text-[var(--text-muted)]">
+                            (no email)
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-slate-300 whitespace-nowrap">
-                        {row.created_at
-                          ? new Date(row.created_at).toLocaleString()
-                          : "—"}
+                      <td className="px-3 py-2">
+                        {u.plan || (
+                          <span className="text-[var(--text-muted)]">free</span>
+                        )}
                       </td>
                       <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => handleSendReset(row.email)}
-                          disabled={
-                            !row.email || resettingEmail === row.email
-                          }
-                          className="px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-900 text-[11px] disabled:opacity-60"
+                        {u.is_admin ? "✅" : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-[var(--text-muted)]">
+                        {new Date(u.created_at).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2">
+                        <Link
+                          href={`/admin/users/${u.id}`}
+                          className="text-[11px] text-[var(--accent)] hover:underline"
                         >
-                          {resettingEmail === row.email
-                            ? "Sending…"
-                            : "Reset password"}
-                        </button>
+                          View details →
+                        </Link>
                       </td>
                     </tr>
                   ))}
@@ -264,6 +232,11 @@ export default function AdminUsersPage() {
               </table>
             </div>
           )}
+
+          <p className="mt-4 text-[11px] text-[var(--text-muted)]">
+            Data comes from the <code>profiles</code> table via a protected
+            admin API route.
+          </p>
         </div>
       </div>
     </main>
