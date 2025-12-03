@@ -13,31 +13,57 @@ export default function AuthCallbackPage() {
 
     async function handleCallback() {
       try {
-        // Supabase can automatically detect the `code` in the URL
-        // when we call getUser()/getSession(), so we just poll a bit.
-        for (let attempt = 0; attempt < 6; attempt++) {
-          const { data, error } = await supabase.auth.getUser();
+        if (typeof window === "undefined") return;
 
-          // (Optional) debug – safe to leave or remove
-          console.log("[auth/callback] attempt", attempt, {
-            hasUser: !!data?.user,
-            error,
-          });
+        const url = new URL(window.location.href);
+        const code =
+          url.searchParams.get("code") || url.searchParams.get("auth_code");
+        const errorParam =
+          url.searchParams.get("error_description") ||
+          url.searchParams.get("error");
 
-          if (data?.user) {
-            if (!cancelled) {
-              router.replace("/dashboard");
-            }
+        // If the provider returned an error, bail early
+        if (errorParam) {
+          if (!cancelled) {
+            router.replace(
+              `/auth?error=${encodeURIComponent(errorParam)}`
+            );
+          }
+          return;
+        }
+
+        // No code in URL → maybe user already has a session,
+        // or something went wrong with OAuth redirect.
+        if (!code) {
+          const { data } = await supabase.auth.getUser();
+          if (data?.user && !cancelled) {
+            router.replace("/dashboard");
             return;
           }
 
-          // wait a bit before trying again
-          await new Promise((res) => setTimeout(res, 500));
+          if (!cancelled) {
+            router.replace("/auth?error=missing_code");
+          }
+          return;
         }
 
-        // If we get here, we never saw a user
+        // Explicitly exchange code for a session (more reliable than
+        // hoping getUser() does it automatically on all devices)
+        const { data, error } = await supabase.auth.exchangeCodeForSession(
+          code
+        );
+
+        if (error || !data?.session) {
+          console.error("[auth/callback] exchange error", error);
+          if (!cancelled) {
+            router.replace("/auth?error=auth");
+          }
+          return;
+        }
+
+        // Success – user should now be logged in
         if (!cancelled) {
-          router.replace("/auth?error=auth");
+          router.replace("/dashboard");
         }
       } catch (err) {
         console.error("[auth/callback] unexpected error", err);
@@ -56,7 +82,9 @@ export default function AuthCallbackPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[var(--bg-body)] text-[var(--text-main)]">
-      <p className="text-sm text-[var(--text-muted)]">Finishing sign-in…</p>
+      <p className="text-sm text-[var(--text-muted)]">
+        Finishing sign-in…
+      </p>
     </main>
   );
 }

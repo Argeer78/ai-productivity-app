@@ -6,7 +6,7 @@ import PlausibleProvider from "next-plausible";
 import AppShell from "@/app/components/AppShell";
 
 const inter = Inter({ subsets: ["latin"] });
-
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   metadataBase: new URL("https://aiprod.app"),
   title:
