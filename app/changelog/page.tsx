@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import AppHeader from "@/app/components/AppHeader";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function ChangelogPage() {
+  const [todayLabel, setTodayLabel] = useState("");
+
   // Mark changelog as seen for the logged-in user
   useEffect(() => {
     let cancelled = false;
@@ -13,10 +15,19 @@ export default function ChangelogPage() {
     async function markSeen() {
       try {
         const { data, error } = await supabase.auth.getUser();
+
+        // Ignore "Auth session missing" as "not logged in"
         if (error) {
+          if (
+            typeof error.message === "string" &&
+            error.message.toLowerCase().includes("auth session missing")
+          ) {
+            return;
+          }
           console.error("[changelog] auth error", error);
           return;
         }
+
         const user = data?.user;
         if (!user || cancelled) return;
 
@@ -37,14 +48,18 @@ export default function ChangelogPage() {
     };
   }, []);
 
-  const todayLabel = new Date().toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  // Client-only date to avoid SSR/CSR mismatch
+  useEffect(() => {
+    const label = new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    setTodayLabel(label);
+  }, []);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="changelog" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10 text-sm">
@@ -53,13 +68,13 @@ export default function ChangelogPage() {
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
                 What&apos;s new
               </h1>
-              <p className="text-xs md:text-sm text-slate-400">
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 Recent updates, fixes, and experiments in AI Productivity Hub.
               </p>
             </div>
             <Link
               href="/dashboard"
-              className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-900 text-xs"
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] text-xs"
             >
               ← Back to dashboard
             </Link>
@@ -67,14 +82,14 @@ export default function ChangelogPage() {
 
           <div className="space-y-6">
             {/* Latest entry */}
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-              <p className="text-[11px] text-slate-400 mb-1">
-                📅 {todayLabel} • Latest
+            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+              <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                📅 {todayLabel || ""} • Latest
               </p>
               <h2 className="text-sm font-semibold mb-2">
                 Weekly AI reports, goals, and wins
               </h2>
-              <ul className="list-disc list-inside text-[12px] text-slate-200 space-y-1">
+              <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
                 <li>
                   Added{" "}
                   <span className="font-semibold">
@@ -104,12 +119,14 @@ export default function ChangelogPage() {
             </section>
 
             {/* Productivity score entry */}
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-              <p className="text-[11px] text-slate-400 mb-1">📊 Recent</p>
+            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+              <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                📊 Recent
+              </p>
               <h2 className="text-sm font-semibold mb-2">
                 Productivity score & streaks
               </h2>
-              <ul className="list-disc list-inside text-[12px] text-slate-200 space-y-1">
+              <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
                 <li>
                   New <span className="font-semibold">Daily Success</span> page
                   where you score your day from 0–100.
@@ -131,20 +148,22 @@ export default function ChangelogPage() {
             </section>
 
             {/* Templates entry */}
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-              <p className="text-[11px] text-slate-400 mb-1">🧠 Earlier</p>
+            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+              <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                🧠 Earlier
+              </p>
               <h2 className="text-sm font-semibold mb-2">
                 Templates, Pro gating, and assistant upgrades
               </h2>
-              <ul className="list-disc list-inside text-[12px] text-slate-200 space-y-1">
+              <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
                 <li>
                   Added <span className="font-semibold">AI Templates</span>{" "}
                   with categories (Planning, Study, Writing, Work, Personal).
                 </li>
                 <li>
                   Introduced{" "}
-                  <span className="font-semibold">Pro-only templates</span> with
-                  locked actions and an upgrade flow.
+                    <span className="font-semibold">Pro-only templates</span>{" "}
+                  with locked actions and an upgrade flow.
                 </li>
                 <li>
                   Improved{" "}
@@ -158,12 +177,14 @@ export default function ChangelogPage() {
             </section>
 
             {/* UI entry */}
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-              <p className="text-[11px] text-slate-400 mb-1">🧪 Ongoing</p>
+            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+              <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                🧪 Ongoing
+              </p>
               <h2 className="text-sm font-semibold mb-2">
                 UI polish & navigation
               </h2>
-              <ul className="list-disc list-inside text-[12px] text-slate-200 space-y-1">
+              <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
                 <li>
                   New <span className="font-semibold">Apps panel</span> in the
                   header to keep navigation clean while giving quick access to
@@ -183,13 +204,13 @@ export default function ChangelogPage() {
               </ul>
             </section>
 
-            <p className="text-[11px] text-slate-500 mt-4">
+            <p className="text-[11px] text-[var(--text-muted)] mt-4">
               More improvements are in progress around focus, routines, and
               better AI guidance. If you have a feature request, you can always
               send it from the{" "}
               <Link
                 href="/feedback"
-                className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                className="text-[var(--accent)] hover:opacity-80 underline underline-offset-2"
               >
                 Feedback
               </Link>{" "}
