@@ -28,8 +28,8 @@ type UserStats = {
 type ApiResponse = {
   ok: boolean;
   error?: string;
-  profile?: ProfileRow;
-  stats?: UserStats;
+  profile?: ProfileRow | null;
+  stats?: UserStats | null;
 };
 
 export default function AdminUserDetailPage() {
@@ -67,6 +67,7 @@ export default function AdminUserDetailPage() {
   // Load profile + stats via admin API
   useEffect(() => {
     if (!authorized || !userId) return;
+
     if (!ADMIN_KEY) {
       setError(
         "Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured. Cannot load user data."
@@ -87,8 +88,10 @@ export default function AdminUserDetailPage() {
 
         const json: ApiResponse = await res.json().catch(() => ({
           ok: false,
-          error: "Invalid server response.",
+          error: "Invalid server response (not JSON).",
         }));
+
+        console.log("[admin/user] API response", res.status, json);
 
         if (!res.ok || !json.ok) {
           throw new Error(json.error || "Failed to load user data.");
@@ -158,6 +161,9 @@ export default function AdminUserDetailPage() {
     );
   }
 
+  const showLoading = loading && !error;
+  const showEmptyState = !loading && !error && (!profile || !stats);
+
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="admin" />
@@ -189,14 +195,24 @@ export default function AdminUserDetailPage() {
           </div>
 
           {error && (
-            <p className="text-xs text-red-400 mb-3">{error}</p>
+            <p className="text-xs text-red-400 mb-3">
+              {error}
+            </p>
           )}
 
-          {loading || !profile || !stats ? (
+          {showLoading && (
             <p className="text-[var(--text-muted)] text-sm">
               Loading user data…
             </p>
-          ) : (
+          )}
+
+          {showEmptyState && (
+            <p className="text-[var(--text-muted)] text-sm">
+              No profile data or stats found for this user.
+            </p>
+          )}
+
+          {!showLoading && !showEmptyState && profile && stats && (
             <>
               {/* Profile card */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-6">

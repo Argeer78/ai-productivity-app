@@ -12,10 +12,7 @@ type UserStats = {
   lastAiDate: string | null;
 };
 
-export async function GET(
-  req: Request,
-  context: { params: { id: string } }
-) {
+export async function GET(req: Request) {
   const headerKey = req.headers.get("x-admin-key") || "";
 
   if (!ADMIN_KEY) {
@@ -34,10 +31,24 @@ export async function GET(
     );
   }
 
-  const userId = context.params.id;
+  // 🔐 Parse id from URL path instead of relying on params
+  const url = new URL(req.url);
+  const segments = url.pathname.split("/").filter(Boolean);
+  // e.g. ["api", "admin", "users", "<id>"]
+  const userId = segments[segments.length - 1];
+
+  console.log("[admin/users/:id] raw path:", url.pathname, "userId:", userId);
+
+  if (!userId || userId === "undefined") {
+    console.error("[admin/users/:id] Invalid userId:", userId);
+    return NextResponse.json(
+      { ok: false, error: "Invalid or missing user id in URL." },
+      { status: 400 }
+    );
+  }
 
   try {
-    // Profile
+    // --- Profile ---
     const { data: profileRow, error: profileErr } = await supabaseAdmin
       .from("profiles")
       .select("id, email, plan, created_at")
@@ -47,19 +58,38 @@ export async function GET(
     if (profileErr) {
       console.error("[admin/users/:id] profile error", profileErr);
       return NextResponse.json(
-        { ok: false, error: "Failed to load user profile." },
+        {
+          ok: false,
+          error:
+            profileErr.message ||
+            "Failed to load user profile from Supabase.",
+        },
         { status: 500 }
       );
     }
 
     if (!profileRow) {
-      return NextResponse.json(
-        { ok: false, error: "User not found." },
-        { status: 404 }
+      console.warn(
+        "[admin/users/:id] No profile row found for user",
+        userId
       );
+
+      const emptyStats: UserStats = {
+        notesCount: 0,
+        tasksCount: 0,
+        tripsCount: 0,
+        totalAiCalls: 0,
+        lastAiDate: null,
+      };
+
+      return NextResponse.json({
+        ok: true,
+        profile: null,
+        stats: emptyStats,
+      });
     }
 
-    // Notes count
+    // --- Notes count ---
     const { count: notesCount, error: notesErr } = await supabaseAdmin
       .from("notes")
       .select("*", { count: "exact", head: true })
@@ -69,7 +99,7 @@ export async function GET(
       console.error("[admin/users/:id] notes count error", notesErr);
     }
 
-    // Tasks count
+    // --- Tasks count ---
     const { count: tasksCount, error: tasksErr } = await supabaseAdmin
       .from("tasks")
       .select("*", { count: "exact", head: true })
@@ -79,7 +109,7 @@ export async function GET(
       console.error("[admin/users/:id] tasks count error", tasksErr);
     }
 
-    // Trips count
+    // --- Trips count ---
     const { count: tripsCount, error: tripsErr } = await supabaseAdmin
       .from("travel_plans")
       .select("*", { count: "exact", head: true })
@@ -89,7 +119,7 @@ export async function GET(
       console.error("[admin/users/:id] trips count error", tripsErr);
     }
 
-    // AI usage last 30 days
+    // --- AI usage last 30 days ---
     const since = new Date();
     since.setDate(since.getDate() - 30);
     const sinceStr = since.toISOString().split("T")[0];
@@ -132,7 +162,10 @@ export async function GET(
   } catch (err: any) {
     console.error("[admin/users/:id] Unexpected error", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Unexpected server error." },
+      {
+        ok: false,
+        error: err?.message || "Unexpected server error in admin user route.",
+      },
       { status: 500 }
     );
   }
