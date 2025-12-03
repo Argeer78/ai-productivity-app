@@ -394,25 +394,25 @@ ${trimmed}
           </div>
 
           {!isProUser && (
-            <div className="mb-5 rounded-2xl border border-indigo-500/70 bg-indigo-950/30 px-4 py-3 text-[11px] text-indigo-100">
-              <p className="font-semibold mb-1">
-                You&apos;re on the Free plan.
-              </p>
-              <p className="mb-2">
-                The Daily Success System works great on Free, but{" "}
-                <span className="font-semibold">
-                  Pro will unlock higher AI usage and future automation
-                </span>{" "}
-                (auto-generated plans, weekly reports, and more).
-              </p>
-              <button
-                type="button"
-                onClick={() => router.push("/dashboard#pricing")}
-                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
-              >
-                View Pro options
-              </button>
-            </div>
+            <div className="mb-5 rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-3 text-[11px] text-[var(--text-main)]">
+    <p className="font-semibold mb-1">
+      You're on the Free plan.
+    </p>
+    <p className="mb-2 text-[var(--text-muted)]">
+      The Daily Success System works great on Free, but{" "}
+      <span className="font-semibold text-[var(--text-main)]">
+        Pro will unlock higher AI usage and future automation
+      </span>{" "}
+      (auto-generated plans, weekly reports, and more).
+    </p>
+    <button
+      type="button"
+      onClick={() => router.push("/dashboard#pricing")}
+      className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
+    >
+      View Pro options
+    </button>
+  </div>
           )}
 
           {error && (
@@ -428,7 +428,7 @@ ${trimmed}
           <div className="mb-5 grid md:grid-cols-3 gap-3 text-[11px]">
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
               <p className="text-[var(--text-muted)] mb-1">
-                Today&apos;s score
+                Today's score
               </p>
               <p className="text-xl font-semibold">
                 {score}
@@ -483,14 +483,14 @@ ${trimmed}
                 🌅 Morning: Design your day
               </h2>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
-                Tell the AI what&apos;s on your plate, and it will build a
+                Tell the AI what's on your plate, and it will build a
                 realistic schedule with priorities.
               </p>
 
               <form onSubmit={handleMorningPlan} className="space-y-3">
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    What&apos;s happening today?
+                    What's happening today?
                   </label>
                   <textarea
                     value={morningInput}
@@ -521,7 +521,7 @@ ${trimmed}
                     ))}
                   </div>
                   <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                    You don&apos;t have to fill all three, but at least one
+                    You don't have to fill all three, but at least one
                     priority helps a lot.
                   </p>
                 </div>
@@ -530,7 +530,7 @@ ${trimmed}
                   type="submit"
                   className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
                 >
-                  ✨ Generate today&apos;s AI plan
+                  ✨ Generate today's AI plan
                 </button>
               </form>
             </section>
@@ -598,7 +598,7 @@ ${trimmed}
                   >
                     {suggestLoading
                       ? "Asking AI…"
-                      : "Let AI suggest today’s score"}
+                      : "Let AI suggest today's score"}
                   </button>
                   <p className="text-[10px] text-[var(--text-muted)]">
                     AI looks at your tasks & notes to guess a realistic score.
@@ -624,7 +624,7 @@ ${trimmed}
                   disabled={savingScore}
                   className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-xs"
                 >
-                  {savingScore ? "Saving..." : "Save today&apos;s score"}
+                  {savingScore ? "Saving..." : "Save today's score"}
                 </button>
               </div>
 
@@ -633,9 +633,9 @@ ${trimmed}
                   Hint for best results:
                 </p>
                 <ul className="text-[11px] text-[var(--text-muted)] list-disc list-inside space-y-1">
-                  <li>Mention 2–3 things you&apos;re proud of.</li>
+                  <li>Mention 2–3 things you're proud of.</li>
                   <li>Be honest about distractions and procrastination.</li>
-                  <li>Add how you&apos;d like tomorrow to feel.</li>
+                  <li>Add how you'd like tomorrow to feel.</li>
                 </ul>
               </div>
             </section>

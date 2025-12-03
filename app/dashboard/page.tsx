@@ -1348,69 +1348,62 @@ export default function DashboardPage() {
               </section>
 
               {/* Founder / early supporter */}
-              <section className="rounded-2xl border border-emerald-500/60 bg-emerald-950/30 p-5 text-xs md:text-sm max-w-xl">
-                <p className="text-emerald-200 font-semibold mb-1 text-sm md:text-base">
-                  🎉 Early Supporter Discount
-                </p>
-                <p className="text-emerald-100 mb-3">
-                  Because you're early — lock in a permanent discount,
-                  forever.
-                </p>
+              <section className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-5 text-xs md:text-sm max-w-xl">
+  <p className="text-[var(--accent)] font-semibold mb-1 text-sm md:text-base">
+    🎉 Early Supporter Discount
+  </p>
+  <p className="text-[var(--text-main)] mb-3">
+    Because you're early — lock in a permanent discount, forever.
+  </p>
 
-                <div className="flex items-baseline gap-2 mb-3">
-                  <p className="text-2xl font-bold text-emerald-100">
-                    {PRICE_LABELS.founder.monthly[currency]}
-                    <span className="text-base font-normal text-emerald-200">
-                      {" "}
-                      / month
-                    </span>
-                  </p>
+  <div className="flex items-baseline gap-2 mb-3">
+    <p className="text-2xl font-bold text-[var(--text-main)]">
+      {PRICE_LABELS.founder.monthly[currency]}
+      <span className="text-base font-normal text-[var(--text-muted)]"> / month</span>
+    </p>
 
-                  <p className="text-[11px] text-emerald-200/80">
-                    Founder price — never increases
-                  </p>
-                </div>
+    <p className="text-[11px] text-[var(--text-muted)]">
+      Founder price — never increases
+    </p>
+  </div>
 
-                <ul className="space-y-1.5 text-[11px] text-emerald-100/90 mb-4">
-                  <li>• Everything in Pro</li>
-                  <li>• Locked-in lifetime price</li>
-                  <li>• Unlimited AI (2000/day)</li>
-                  <li>• Weekly reports & goals</li>
-                  <li>• Premium templates</li>
-                  <li>• Priority support</li>
-                </ul>
+  <ul className="space-y-1.5 text-[11px] text-[var(--text-main)] mb-4">
+    <li>• Everything in Pro</li>
+    <li>• Locked-in lifetime price</li>
+    <li>• Unlimited AI (2000/day)</li>
+    <li>• Weekly reports & goals</li>
+    <li>• Premium templates</li>
+    <li>• Priority support</li>
+  </ul>
 
-                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                  <select
-                    value={currency}
-                    onChange={(e) =>
-                      setCurrency(
-                        e.target.value as "eur" | "usd" | "gbp"
-                      )
-                    }
-                    className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs mb-2 sm:mb-0"
-                  >
-                    <option value="eur">EUR €</option>
-                    <option value="usd">USD $</option>
-                    <option value="gbp">GBP £</option>
-                  </select>
+  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+    <select
+      value={currency}
+      onChange={(e) => setCurrency(e.target.value as "eur" | "usd" | "gbp")}
+      className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs mb-2 sm:mb-0"
+    >
+      <option value="eur">EUR €</option>
+      <option value="usd">USD $</option>
+      <option value="gbp">GBP £</option>
+    </select>
 
-                  <button
-                    type="button"
-                    onClick={() => startCheckout(currency, "founder")}
-                    disabled={billingLoading}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-sm text-slate-900 disabled:opacity-60"
-                  >
-                    {billingLoading
-                      ? "Opening Stripe…"
-                      : `Get Founder Price (${currency.toUpperCase()})`}
-                  </button>
-                </div>
+    <button
+      type="button"
+      onClick={() => startCheckout(currency, "founder")}
+      disabled={billingLoading}
+      className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)] disabled:opacity-60"
+    >
+      {billingLoading
+        ? "Opening Stripe…"
+        : `Get Founder Price (${currency.toUpperCase()})`}
+    </button>
+  </div>
 
-                <p className="mt-2 text-[11px] text-emerald-100/70">
-                  Limited time. Price is yours forever once subscribed.
-                </p>
-              </section>
+  <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+    Limited time. Price is yours forever once subscribed.
+  </p>
+</section>
+
             </>
           )}
 
@@ -1420,7 +1413,8 @@ export default function DashboardPage() {
               <h2 className="text-sm font-semibold mb-1 text-center">
                 Send quick feedback
               </h2>
-              <p className="text-[11px] text-[var(--text-muted)] mb-3 text-center">
+              <p className="text-[11px] text-[var(--text-main)]/70 mb-3 text-center">
+
                 Tell me what’s working, what’s confusing, or what you’d love
                 to see next.
               </p>
