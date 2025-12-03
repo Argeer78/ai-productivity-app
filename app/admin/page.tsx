@@ -9,7 +9,15 @@ import AppHeader from "@/app/components/AppHeader";
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
-// Reusable panel component for sending test emails
+type AdminStats = {
+  totalUsers: number;
+  proUsers: number;
+  weeklyActiveUsers: number;
+  aiCalls7d: number;
+  notesCount: number;
+  tasksCount: number;
+};
+
 function AdminEmailTestPanel({
   currentUserEmail,
 }: {
@@ -82,7 +90,7 @@ function AdminEmailTestPanel({
             value={targetEmail}
             onChange={(e) => setTargetEmail(e.target.value)}
             placeholder="e.g. your-mail-tester-address@mail-tester.com"
-            className="w-full rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)]"
+            className="w-full rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm"
           />
         </div>
 
@@ -93,7 +101,7 @@ function AdminEmailTestPanel({
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as any)}
-            className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-2 text-sm text-[var(--text-main)]"
+            className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-2 text-sm"
           >
             <option value="simple">Simple test</option>
             <option value="daily">Daily digest style</option>
@@ -105,7 +113,7 @@ function AdminEmailTestPanel({
           type="button"
           onClick={handleSend}
           disabled={sending}
-          className="px-3 py-2 rounded-lg bg-[var(--accent)] hover:opacity-90 text-xs font-medium text-[var(--bg-body)] disabled:opacity-60"
+          className="px-3 py-2 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium disabled:opacity-60"
         >
           {sending ? "Sending…" : "Send test email"}
         </button>
@@ -131,6 +139,10 @@ export default function AdminHomePage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [authorized, setAuthorized] = useState(false);
 
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
   useEffect(() => {
     async function loadUser() {
       try {
@@ -150,7 +162,37 @@ export default function AdminHomePage() {
     loadUser();
   }, []);
 
-  // ---- Auth guards ----
+  useEffect(() => {
+    if (!authorized || !ADMIN_KEY) return;
+
+    async function loadStats() {
+      setStatsLoading(true);
+      setStatsError(null);
+      try {
+        const res = await fetch("/admin/api/stats", {
+          headers: {
+            "X-Admin-Key": ADMIN_KEY,
+          },
+        });
+        const json = await res.json().catch(() => null as any);
+
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.error || "Failed to load stats");
+        }
+
+        setStats(json.stats as AdminStats);
+      } catch (err: any) {
+        console.error("[admin] loadStats error", err);
+        setStatsError(err?.message || "Failed to load stats");
+      } finally {
+        setStatsLoading(false);
+      }
+    }
+
+    loadStats();
+  }, [authorized]);
+
+  // Auth guards
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
@@ -172,7 +214,7 @@ export default function AdminHomePage() {
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-sm"
           >
             Go to login / signup
           </Link>
@@ -192,7 +234,7 @@ export default function AdminHomePage() {
           </p>
           <Link
             href="/dashboard"
-            className="px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-sm"
+            className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
           >
             Back to Dashboard
           </Link>
@@ -201,7 +243,6 @@ export default function AdminHomePage() {
     );
   }
 
-  // ---- Main admin dashboard ----
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="admin" />
@@ -213,7 +254,8 @@ export default function AdminHomePage() {
                 Admin dashboard
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                Internal tools for managing users and monitoring the app.
+                Internal tools for managing users, monitoring the app and
+                testing emails.
               </p>
             </div>
             <span className="text-[11px] text-[var(--text-muted)]">
@@ -221,6 +263,97 @@ export default function AdminHomePage() {
               <span className="font-mono">{user.email}</span>
             </span>
           </div>
+
+          {/* Stats grid */}
+          <section className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-[11px] font-semibold text-[var(--text-muted)]">
+                  OVERVIEW
+                </p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  High-level metrics from Supabase.
+                </p>
+              </div>
+              {statsLoading && (
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  Loading…
+                </span>
+              )}
+            </div>
+
+            {statsError && (
+              <p className="text-[11px] text-red-400 mb-2">
+                {statsError}
+              </p>
+            )}
+
+            {stats && (
+              <div className="grid gap-3 md:grid-cols-3 text-sm">
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                    Total users
+                  </p>
+                  <p className="text-xl font-semibold">
+                    {stats.totalUsers}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    Pro: {stats.proUsers}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                    Active (last 7 days)
+                  </p>
+                  <p className="text-xl font-semibold">
+                    {stats.weeklyActiveUsers}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    users with AI usage
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                    AI calls (last 7 days)
+                  </p>
+                  <p className="text-xl font-semibold">
+                    {stats.aiCalls7d}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    across all users
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                    Notes
+                  </p>
+                  <p className="text-xl font-semibold">
+                    {stats.notesCount}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    total notes in DB
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
+                    Tasks
+                  </p>
+                  <p className="text-xl font-semibold">
+                    {stats.tasksCount}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    total tasks in DB
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!stats && !statsLoading && !statsError && (
+              <p className="text-[11px] text-[var(--text-muted)]">
+                No stats available yet.
+              </p>
+            )}
+          </section>
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* Users management */}
@@ -245,7 +378,7 @@ export default function AdminHomePage() {
               </p>
             </Link>
 
-            {/* Changelog editor card */}
+            {/* Changelog admin card */}
             <Link
               href="/changelog/admin"
               className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 hover:bg-[var(--bg-elevated)] transition-colors flex flex-col justify-between"
@@ -255,46 +388,26 @@ export default function AdminHomePage() {
                   CHANGELOG
                 </p>
                 <h2 className="text-base font-semibold mb-1">
-                  Changelog editor
+                  Manage “What&apos;s new”
                 </h2>
                 <p className="text-[12px] text-[var(--text-muted)]">
-                  Add and organize entries that appear on the public
-                  “What&apos;s new” page.
+                  Publish new entries to the public changelog page without
+                  redeploying.
                 </p>
               </div>
               <p className="mt-3 text-[11px] text-[var(--accent)]">
                 Open changelog admin →
               </p>
             </Link>
-
-            {/* Placeholder for future tools */}
-            <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 flex flex-col justify-between">
-              <div>
-                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">
-                  COMING SOON
-                </p>
-                <h2 className="text-base font-semibold mb-1">
-                  More admin tools
-                </h2>
-                <p className="text-[12px] text-[var(--text-muted)]">
-                  You can add usage overview, AI cost stats, or feature flags
-                  here later.
-                </p>
-              </div>
-              <p className="mt-3 text-[11px] text-[var(--text-muted)]">
-                For now, use the Users and Changelog sections.
-              </p>
-            </div>
           </div>
 
-          {/* Email test panel (only admin can see this page anyway) */}
           <AdminEmailTestPanel currentUserEmail={user.email ?? null} />
 
           <div className="mt-8 text-[11px] text-[var(--text-muted)]">
             <p>
-              Tip: set <code>NEXT_PUBLIC_ADMIN_EMAIL</code> and{" "}
-              <code>NEXT_PUBLIC_ADMIN_KEY</code> in your env to control who can
-              access admin tools and send test emails.
+              Tip: set <code>NEXT_PUBLIC_ADMIN_EMAIL</code>,{" "}
+              <code>NEXT_PUBLIC_ADMIN_KEY</code> and <code>ADMIN_KEY</code> in your
+              env to control who can access admin tools and protected APIs.
             </p>
           </div>
         </div>
