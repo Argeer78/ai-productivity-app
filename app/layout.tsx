@@ -4,9 +4,11 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
 import AppShell from "@/app/components/AppShell";
+import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 
 const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://aiprod.app"),
   title:
@@ -41,18 +43,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#020617" />
       </head>
-      {/* ❗️No bg-slate classes here so themes can control colors */}
+      {/* No bg-slate classes here so themes can control colors */}
       <body className={inter.className}>
         <PlausibleProvider
           domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
           trackLocalhost={false}
-        />
-        <AppShell>{children}</AppShell>
+        >
+          <AppShell>{children}</AppShell>
+        </PlausibleProvider>
+
+        {/* ✅ Register the PWA service worker once at root */}
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
