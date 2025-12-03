@@ -1,23 +1,18 @@
 // app/api/cron-weekly/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { verifyCronAuth } from "@/lib/verifyCron";
+import { NextResponse } from "next/server";
 import { runWeeklyReport } from "@/app/api/weekly-report/route";
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest) {
-  const authError = verifyCronAuth(req);
-  if (authError) return authError;
-
+export async function GET() {
   try {
     const result = await runWeeklyReport();
-
-    console.log("[cron-weekly] DONE", result);
+    console.log("[cron-weekly] DONE", { fromCron: true, ...result });
 
     return NextResponse.json({
-  fromCron: true,
-  ...result, // don't repeat ok
-});
+      fromCron: true,
+      ...result,
+    });
   } catch (err) {
     console.error("[cron-weekly] error", err);
     return NextResponse.json(

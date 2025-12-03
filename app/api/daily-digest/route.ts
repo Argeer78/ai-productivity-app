@@ -1,8 +1,9 @@
 // app/api/daily-digest/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
 import { renderDailyDigestEmail } from "@/lib/emailTemplates";
+import { verifyCronAuth } from "@/lib/verifyCron";
 
 export const runtime = "nodejs";
 
@@ -14,12 +15,8 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Core daily digest runner – can be called from cron or HTTP.
- * Returns a plain object with stats.
- */
+// 🔹 Shared helper – used by cron AND manual triggers
 export async function runDailyDigest() {
-  // 2) Load all subscribed profiles
   const { data: profiles, error } = await supabaseAdmin
     .from("profiles")
     .select("id, email, ai_tone, focus_area, daily_digest_enabled")
@@ -28,18 +25,12 @@ export async function runDailyDigest() {
 
   if (error) {
     console.error("[daily-digest] profiles query error", error);
-    throw new Error("DB error loading profiles");
+    return { ok: false, error: "DB error loading profiles" };
   }
 
   if (!profiles || profiles.length === 0) {
     console.log("[daily-digest] No subscribers found");
-    return {
-      ok: true,
-      message: "No subscribers for daily digest.",
-      totalProfiles: 0,
-      attempted: 0,
-      sent: 0,
-    };
+    return { ok: true, message: "No subscribers for daily digest.", processed: 0 };
   }
 
   let attempted = 0;
@@ -64,25 +55,18 @@ export async function runDailyDigest() {
 
     const userId = profile.id as string;
 
-    // Tasks due today
-    const { data: tasksDueToday, error: tasksTodayError } =
-      await supabaseAdmin
-        .from("tasks")
-        .select("id, title, description, due_date, completed")
-        .eq("user_id", userId)
-        .eq("completed", false)
-        .gte("due_date", startOfTodayIso)
-        .lt("due_date", startOfTomorrowIso);
+    const { data: tasksDueToday, error: tasksTodayError } = await supabaseAdmin
+      .from("tasks")
+      .select("id, title, description, due_date, completed")
+      .eq("user_id", userId)
+      .eq("completed", false)
+      .gte("due_date", startOfTodayIso)
+      .lt("due_date", startOfTomorrowIso);
 
     if (tasksTodayError) {
-      console.error(
-        "[daily-digest] tasksDueToday error for",
-        email,
-        tasksTodayError
-      );
+      console.error("[daily-digest] tasksDueToday error for", email, tasksTodayError);
     }
 
-    // Overdue tasks
     const { data: overdueTasks, error: overdueError } = await supabaseAdmin
       .from("tasks")
       .select("id, title, description, due_date, completed")
@@ -91,11 +75,7 @@ export async function runDailyDigest() {
       .lt("due_date", startOfTodayIso);
 
     if (overdueError) {
-      console.error(
-        "[daily-digest] overdueTasks error for",
-        email,
-        overdueError
-      );
+      console.error("[daily-digest] overdueTasks error for", email, overdueError);
     }
 
     const safeTasksDueToday = tasksDueToday || [];
@@ -111,10 +91,7 @@ export async function runDailyDigest() {
     const lines: string[] = [];
 
     lines.push("Hi there 👋", "");
-    lines.push(
-      `Here’s your daily AI Productivity Hub digest for ${todayDate}:`,
-      ""
-    );
+    lines.push(`Here’s your daily AI Productivity Hub digest for ${todayDate}:`, "");
     lines.push(`• Tone: ${tone}`);
     lines.push(`• Focus area: ${focus}`);
     lines.push("");
@@ -150,15 +127,12 @@ export async function runDailyDigest() {
 
     lines.push("Tomorrow, you might try:");
     lines.push("• Planning your top 3 priorities before you start.");
-    lines.push(
-      "• One deep-work block (60–90 minutes) with no notifications."
-    );
+    lines.push("• One deep-work block (60–90 minutes) with no notifications.");
     lines.push("• Writing one quick note about what you finished.");
     lines.push("");
     lines.push("You can change your daily digest settings anytime in the app.");
 
     const fullBody = lines.join("\n");
-
     const { text, html } = renderDailyDigestEmail(fullBody);
 
     try {
@@ -183,38 +157,23 @@ export async function runDailyDigest() {
       );
     }
 
-    // optional throttle:
+    // Optional throttle
     // await delay(300);
   }
 
   return {
     ok: true,
     message: `Daily digest processed for ${profiles.length} profiles, attempted ${attempted}, sent ${sent}.`,
-    totalProfiles: profiles.length,
+    processed: profiles.length,
     attempted,
     sent,
   };
 }
 
-/**
- * HTTP endpoint – protected by CRON_SECRET (for manual triggering).
- */
-export async function POST(req: Request) {
-  const authHeader = req.headers.get("authorization") || "";
-  const secret = process.env.CRON_SECRET;
-
-  if (!secret) {
-    console.error("[daily-digest] CRON_SECRET is not set");
-    return NextResponse.json(
-      { ok: false, error: "Server misconfigured" },
-      { status: 500 }
-    );
-  }
-
-  if (authHeader !== `Bearer ${secret}`) {
-    console.warn("[daily-digest] Unauthorized request");
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+// 🔹 HTTP route – can be used for manual triggers with Authorization header
+export async function POST(req: NextRequest) {
+  const authError = verifyCronAuth(req);
+  if (authError) return authError;
 
   try {
     const result = await runDailyDigest();
