@@ -15,10 +15,9 @@ export async function GET(req: NextRequest) {
     console.log("[cron-weekly] DONE", result);
 
     return NextResponse.json({
-      ok: true,
-      fromCron: true,
-      ...result,
-    });
+  fromCron: true,
+  ...result, // don't repeat ok
+});
   } catch (err) {
     console.error("[cron-weekly] error", err);
     return NextResponse.json(

@@ -15,9 +15,8 @@ export async function GET(req: NextRequest) {
     console.log("[cron-daily] DONE", result);
 
     return NextResponse.json({
-      ok: true,
       fromCron: true,
-      ...result,
+      ...result, // result already contains ok, message, etc.
     });
   } catch (err) {
     console.error("[cron-daily] error", err);
