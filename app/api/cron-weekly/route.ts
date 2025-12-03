@@ -7,11 +7,12 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const result = await runWeeklyReport();
-    console.log("[cron-weekly] DONE", { fromCron: true, ...result });
+
+    console.log("[cron-weekly] DONE", { fromCron: true, result });
 
     return NextResponse.json({
       fromCron: true,
-      ...result,
+      result,
     });
   } catch (err) {
     console.error("[cron-weekly] error", err);

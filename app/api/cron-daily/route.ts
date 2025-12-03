@@ -7,11 +7,13 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const result = await runDailyDigest();
-    console.log("[cron-daily] DONE", { fromCron: true, ...result });
+
+    // result can be any shape; no spreading → no TS error
+    console.log("[cron-daily] DONE", { fromCron: true, result });
 
     return NextResponse.json({
       fromCron: true,
-      ...result, // contains ok, message, processed, ...
+      result,
     });
   } catch (err) {
     console.error("[cron-daily] error", err);
