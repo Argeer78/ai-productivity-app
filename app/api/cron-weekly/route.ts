@@ -1,91 +1,65 @@
 // app/api/cron-weekly/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { verifyCronAuth } from "@/lib/verifyCron";
-// import { resend } from "@/lib/resend";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
+  // 1) Make sure this really is your Vercel cron (or a manual call with secret)
   const authError = verifyCronAuth(req);
   if (authError) return authError;
 
   try {
-    const { data: profiles, error } = await supabase
-      .from("profiles")
-      .select(
-        "id, email, weekly_report_enabled, ai_tone, focus_area, onboarding_weekly_focus"
-      )
-      .eq("weekly_report_enabled", true);
+    const origin = req.nextUrl.origin;
+    const weeklyUrl = new URL("/api/weekly-report", origin);
 
-    if (error) {
-      console.error("[cron-weekly] profiles query error", error);
-      throw error;
-    }
-
-    const eligible = (profiles || []).filter((p) => p.email);
-    console.log(
-      "[cron-weekly] eligible users:",
-      eligible.length,
-      "raw rows:",
-      profiles?.length ?? 0
-    );
-
-    const now = new Date();
-    const weekEnd = now.toISOString();
-
-    for (const profile of eligible) {
-      const email = profile.email as string;
-      const userId = profile.id as string;
-      const aiTone = profile.ai_tone as string | null;
-      const focusArea = profile.focus_area as string | null;
-      const weeklyFocus = profile.onboarding_weekly_focus as string | null;
-
-      // TODO: load last 7 days of scores/tasks/notes
-      // const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-      // const { data: scores } = await supabase
-      //   .from("daily_success")
-      //   .select("date, score")
-      //   .eq("user_id", userId)
-      //   .gte("date", sevenDaysAgo);
-
-      // TODO: maybe create a `weekly_reports` row *and* send email
-      // const aiWeeklySummary = await getWeeklySummary({ scores, focusArea, weeklyFocus, aiTone });
-
-      // await supabase.from("weekly_reports").insert([
-      //   {
-      //     user_id: userId,
-      //     report_date: weekEnd,
-      //     summary: aiWeeklySummary,
-      //   },
-      // ]);
-
-      // await resend.emails.send({
-      //   from: "AI Productivity Hub <hi@aiprod.app>",
-      //   to: email,
-      //   subject: "Your Weekly AI Productivity Report",
-      //   html: `<p>Hi! Here's your weekly report...</p>`,
-      // });
-
-      console.log("[cron-weekly] would send weekly report to", email, {
-        userId,
-        focusArea,
-        weeklyFocus,
-      });
-    }
-
-    return NextResponse.json({
-      ok: true,
-      processed: eligible.length,
+    // 2) Call the real weekly-report job inside the same deployment
+    const res = await fetch(weeklyUrl.toString(), {
+      method: "GET",
+      headers: {
+        // /api/weekly-report expects this Authorization header
+        authorization: `Bearer ${process.env.CRON_SECRET ?? ""}`,
+      },
     });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      console.error("[cron-weekly] /api/weekly-report failed", {
+        status: res.status,
+        data,
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          fromCron: true,
+          error:
+            data?.error ||
+            `weekly-report failed with status ${res.status}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log("[cron-weekly] DONE", {
+      fromCron: true,
+      weekly: data,
+    });
+
+    return NextResponse.json(
+      {
+        ok: true,
+        fromCron: true,
+        weekly: data,
+      },
+      { status: 200 }
+    );
   } catch (err) {
-    console.error("[cron-weekly] error", err);
-    return new NextResponse("Internal error", { status: 500 });
+    console.error("[cron-weekly] unexpected error", err);
+    return NextResponse.json(
+      { ok: false, fromCron: true, error: "Unexpected error" },
+      { status: 500 }
+    );
   }
 }

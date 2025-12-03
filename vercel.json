@@ -1,11 +1,11 @@
 {
   "crons": [
     {
-      "path": "/api/daily-digest",
+      "path": "/api/cron-daily",
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/weekly-report",
+      "path": "/api/cron-weekly",
       "schedule": "0 8 * * 1"
     },
     {

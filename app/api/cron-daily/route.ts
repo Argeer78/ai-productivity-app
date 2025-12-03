@@ -1,92 +1,65 @@
 // app/api/cron-daily/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { verifyCronAuth } from "@/lib/verifyCron";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
+  // 1) Make sure this really is the Vercel cron (or your manual call with secret)
   const authError = verifyCronAuth(req);
   if (authError) return authError;
 
-  const fromCron = req.headers.get("x-vercel-cron") === "1";
-  const nowIso = new Date().toISOString();
-
-  console.log("[cron-daily] START", {
-    fromCron,
-    nowIso,
-    userAgent: req.headers.get("user-agent"),
-  });
-
   try {
-    const { data: profiles, error } = await supabase
-      .from("profiles")
-      .select(
-        "id, email, daily_digest_enabled, wants_daily_digest, daily_digest_hour"
-      );
+    const origin = req.nextUrl.origin;
+    const dailyDigestUrl = new URL("/api/daily-digest", origin);
 
-    if (error) {
-      console.error("[cron-daily] profiles query error", error);
-      throw error;
-    }
-
-    // ✅ Very simple eligibility rule for now:
-    // - must have email
-    // - opted in via daily_digest_enabled or wants_daily_digest
-    const eligible = (profiles || []).filter((p) => {
-      const enabled =
-        !!p.daily_digest_enabled || !!p.wants_daily_digest;
-      const hasEmail = !!p.email;
-      return enabled && hasEmail;
+    // 2) Call your daily-digest job *inside* the same deployment
+    const res = await fetch(dailyDigestUrl.toString(), {
+      method: "POST",
+      headers: {
+        // /api/daily-digest expects this header
+        authorization: `Bearer ${process.env.CRON_SECRET}`,
+      },
     });
 
-    console.log("[cron-daily] profiles", {
-      totalProfiles: profiles?.length ?? 0,
-      eligible: eligible.length,
-      sample: eligible.slice(0, 5).map((p) => ({
-        id: p.id,
-        email: p.email,
-        daily_digest_enabled: p.daily_digest_enabled,
-        wants_daily_digest: p.wants_daily_digest,
-        daily_digest_hour: p.daily_digest_hour,
-      })),
-    });
+    const data = await res.json().catch(() => null);
 
-    let sentCount = 0;
-
-    for (const profile of eligible) {
-      const email = profile.email as string;
-      const userId = profile.id as string;
-
-      // TODO: call your real email-sending function here
-      console.log("[cron-daily] would send email to", email, {
-        userId,
+    if (!res.ok) {
+      console.error("[cron-daily] /api/daily-digest failed", {
+        status: res.status,
+        data,
       });
 
-      // Example:
-      // await resend.emails.send({ ... });
-
-      sentCount++;
+      return NextResponse.json(
+        {
+          ok: false,
+          fromCron: true,
+          error:
+            data?.error ||
+            `daily-digest failed with status ${res.status}`,
+        },
+        { status: 500 }
+      );
     }
 
     console.log("[cron-daily] DONE", {
-      fromCron,
-      sentCount,
+      fromCron: true,
+      digest: data,
     });
 
-    return NextResponse.json({
-      ok: true,
-      message: `Daily digest processed for ${
-        eligible.length
-      } profiles, attempted ${eligible.length}, sent ${sentCount}.`,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        fromCron: true,
+        digest: data,
+      },
+      { status: 200 }
+    );
   } catch (err) {
-    console.error("[cron-daily] error", err);
-    return new NextResponse("Internal error", { status: 500 });
+    console.error("[cron-daily] unexpected error", err);
+    return NextResponse.json(
+      { ok: false, fromCron: true, error: "Unexpected error" },
+      { status: 500 }
+    );
   }
 }
