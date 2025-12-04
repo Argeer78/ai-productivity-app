@@ -2,12 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// 👇 Same key as the client uses
+// Use the same key as the client
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 // Simple UUID-ish check
 function looksLikeUuid(str: string) {
-  // Your `profiles.id` is likely a UUID, so we only treat 36-char hex-with-dashes as UUID
   return /^[0-9a-fA-F-]{36}$/.test(str);
 }
 
@@ -37,7 +36,8 @@ export async function GET(req: NextRequest) {
 
     let query = supabaseAdmin
       .from("profiles")
-      .select("id, email, plan, created_at, is_admin", { count: "exact" })
+      // 👇 REMOVE is_admin for now to rule it out as an issue
+      .select("id, email, plan, created_at", { count: "exact" })
       .order("created_at", { ascending: false })
       .limit(200);
 
@@ -46,14 +46,13 @@ export async function GET(req: NextRequest) {
       query = query.eq("plan", plan);
     }
 
-    // SUPER SIMPLE, SUPER SAFE search:
-    // - If q looks like a UUID → filter by id EXACT
-    // - Else → filter by email ILIKE '%q%'
+    // Search filter – ultra simple and valid
     if (q) {
       if (looksLikeUuid(q)) {
+        // Exact id match
         query = query.eq("id", q);
       } else {
-        // IMPORTANT: ilike pattern uses % not * here
+        // Email substring match
         query = query.ilike("email", `%${q}%`);
       }
     }
@@ -62,12 +61,12 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error("[admin/users] Supabase error:", error);
+
+      // 👇 IMPORTANT: return the actual Supabase message in `error`
       return NextResponse.json(
         {
           ok: false,
-          error: "DB error loading users",
-          // 👇 Expose the real error so you can see it in the browser
-          details: error.message,
+          error: `Supabase error: ${error.message}`,
         },
         { status: 500 }
       );
