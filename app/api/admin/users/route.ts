@@ -44,14 +44,17 @@ export async function GET(req: Request) {
     }
 
     if (q.length > 0) {
-      const filters: string[] = [];
-      // use * wildcards with or()
-      filters.push(`email.ilike.*${q}*`);
-      if (looksLikeUuid(q)) {
-        filters.push(`id.eq.${q}`);
-      }
-      query = query.or(filters.join(","));
-    }
+  const filters: string[] = [];
+
+  // ✅ use % wildcards for ilike
+  filters.push(`email.ilike.%${q}%`);
+
+  if (looksLikeUuid(q)) {
+    filters.push(`id.eq.${q}`);
+  }
+
+  query = query.or(filters.join(","));
+}
 
     const { data, error, count } = await query;
 
