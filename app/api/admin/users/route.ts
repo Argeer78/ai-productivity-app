@@ -1,10 +1,9 @@
-// app/api/admin/users/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "";
 
-// Simple UUID v4-ish check
+// Simple UUID-ish check
 function looksLikeUuid(str: string) {
   return /^[0-9a-fA-F-]{36}$/.test(str);
 }
@@ -12,15 +11,15 @@ function looksLikeUuid(str: string) {
 export async function GET(req: Request) {
   const headerKey = req.headers.get("x-admin-key") || "";
 
-  if (!ADMIN_KEY) {
-    console.error("[admin/users] NEXT_PUBLIC_ADMIN_KEY is not set");
+  if (!ADMIN_API_KEY) {
+    console.error("[admin/users] ADMIN_API_KEY is not set");
     return NextResponse.json(
       { ok: false, error: "Admin key is not configured on the server." },
       { status: 500 }
     );
   }
 
-  if (headerKey !== ADMIN_KEY) {
+  if (headerKey !== ADMIN_API_KEY) {
     console.warn("[admin/users] Unauthorized request");
     return NextResponse.json(
       { ok: false, error: "Unauthorized" },
@@ -39,23 +38,16 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
       .limit(50);
 
-    // Filter by plan if needed
     if (plan && plan !== "all") {
       query = query.eq("plan", plan);
     }
 
-    // Build OR filters safely
     if (q.length > 0) {
       const filters: string[] = [];
-
-      // Always search by email substring
       filters.push(`email.ilike.%${q}%`);
-
-      // Only search by id if q looks like a UUID
       if (looksLikeUuid(q)) {
         filters.push(`id.eq.${q}`);
       }
-
       query = query.or(filters.join(","));
     }
 
@@ -63,7 +55,6 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error("[admin/users] Supabase error:", error);
-      // In dev it's often useful to see the real message:
       return NextResponse.json(
         {
           ok: false,
