@@ -80,7 +80,7 @@ export default function AdminUserDetailPage() {
       setError("");
 
       try {
-        const res = await fetch(`/api/admin/users/${userId}`, {
+        const res = await fetch(`/admin/api/users/${userId}`, {
           headers: {
             "x-admin-key": ADMIN_KEY,
           },

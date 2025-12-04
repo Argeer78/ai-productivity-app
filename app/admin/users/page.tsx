@@ -72,7 +72,7 @@ export default function AdminUsersPage() {
         if (search.trim()) params.set("q", search.trim());
         if (planFilter) params.set("plan", planFilter);
 
-        const res = await fetch(`/api/admin/users?${params.toString()}`, {
+        const res = await fetch(`/admin/api/users?${params.toString()}`, {
           headers: {
             "X-Admin-Key": ADMIN_KEY,
           },
