@@ -7,7 +7,13 @@ export const runtime = "nodejs"; // ensure Node runtime (not edge)
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-const STRIPE_FOUNDER_PRICE_ID = process.env.STRIPE_FOUNDER_PRICE_ID || "";
+
+// ✅ Support multiple founder price IDs: comma-separated env
+// e.g. STRIPE_FOUNDER_PRICE_IDS="price_eur,price_usd,price_gbp"
+const FOUNDER_PRICE_IDS: string[] = (process.env.STRIPE_FOUNDER_PRICE_IDS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 if (!STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY env var is missing");
@@ -25,6 +31,11 @@ function isActiveStatus(status: Stripe.Subscription.Status) {
   );
 }
 
+function isFounderPrice(priceId: string | null | undefined): boolean {
+  if (!priceId) return false;
+  return FOUNDER_PRICE_IDS.includes(priceId);
+}
+
 // Decide plan based on subscription status + price id (for founders)
 function planFromSubscription(sub: Stripe.Subscription): Plan {
   const status = sub.status;
@@ -32,16 +43,11 @@ function planFromSubscription(sub: Stripe.Subscription): Plan {
   const priceId =
     ((sub.items?.data?.[0]?.price?.id as string | undefined) ||
       // older accounts may still use plan.id
-      ((sub.items?.data?.[0] as any)?.plan?.id as string | undefined)) ??
-    "";
+      ((sub.items?.data?.[0] as any)?.plan?.id as string | undefined)) ?? "";
 
   const active = isActiveStatus(status);
 
-  if (
-    STRIPE_FOUNDER_PRICE_ID &&
-    priceId &&
-    priceId === STRIPE_FOUNDER_PRICE_ID
-  ) {
+  if (isFounderPrice(priceId)) {
     // Founder is lifetime *while* subscription is on; if they cancel, go back to free
     return active ? "founder" : "free";
   }
@@ -120,11 +126,7 @@ export async function POST(req: Request) {
           const li = fullSession.line_items?.data?.[0];
           const priceId = (li?.price?.id as string | undefined) ?? "";
 
-          if (
-            STRIPE_FOUNDER_PRICE_ID &&
-            priceId &&
-            priceId === STRIPE_FOUNDER_PRICE_ID
-          ) {
+          if (isFounderPrice(priceId)) {
             plan = "founder";
           } else {
             plan = "pro";
