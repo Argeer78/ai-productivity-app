@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// ✅ Same env var here too
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+const ADMIN_KEY =
+  process.env.ADMIN_API_KEY ||
+  process.env.ADMIN_KEY ||
+  process.env.NEXT_PUBLIC_ADMIN_KEY ||
+  "";
 
 type UserStats = {
   notesCount: number;
@@ -16,7 +19,7 @@ export async function GET(req: Request) {
   const headerKey = req.headers.get("x-admin-key") || "";
 
   if (!ADMIN_KEY) {
-    console.error("[admin/users/:id] NEXT_PUBLIC_ADMIN_KEY is not set");
+    console.error("[admin/users/:id] ADMIN_KEY is not set");
     return NextResponse.json(
       { ok: false, error: "Admin key is not configured on the server." },
       { status: 500 }
