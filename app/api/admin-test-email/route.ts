@@ -6,10 +6,7 @@ import {
   renderWeeklyReportEmail,
   renderSimpleTestEmail,
 } from "@/lib/emailTemplates";
-import {
-  renderStripeUpgradeThankYouEmail,
-  type StripePlan,
-} from "@/lib/stripeEmails";
+import { renderStripeUpgradeThankYouEmail } from "@/lib/stripeEmails";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 const ADMIN_KEY =
@@ -63,10 +60,17 @@ export async function POST(req: Request) {
       text = tpl.text;
       html = tpl.html;
     } else if (kind === "upgrade-pro" || kind === "upgrade-founder") {
-      const plan: StripePlan =
+      // 🔔 Stripe upgrade templates (thank-you emails)
+      const plan: "pro" | "founder" =
         kind === "upgrade-founder" ? "founder" : "pro";
+
       const tpl = renderStripeUpgradeThankYouEmail(plan);
-      subject = tpl.subject;
+
+      subject =
+        plan === "founder"
+          ? "Thanks for becoming an AI Productivity Hub Founder ✨"
+          : "Thanks for upgrading to AI Productivity Hub Pro ✨";
+
       text = tpl.text;
       html = tpl.html;
     } else {
