@@ -260,7 +260,7 @@ export default function TemplatesPage() {
               </li>
               <li>
                 Templates marked{" "}
-                <span className="font-semibold text-amber-400">Pro</span> are
+                <span className="font-semibold text-[var(--accent)]">Pro</span> are
                 available for Pro / Founder users (or if it&apos;s a template
                 you created yourself).
               </li>
@@ -345,7 +345,7 @@ export default function TemplatesPage() {
                               {t.is_public ? "Public" : "Private"}
                               {isMine ? " • Yours" : ""}
                               {isProTemplate && (
-                                <span className="ml-1 text-amber-400">
+                                <span className="ml-1 text-[var(--accent)]">
                                   • Pro template
                                 </span>
                               )}
@@ -359,7 +359,7 @@ export default function TemplatesPage() {
                                 )}
                             </p>
                             {locked && (
-                              <p className="text-[11px] text-amber-400">
+                              <p className="text-[11px] text-[var(--accent)]">
                                 This is a Pro template. Upgrade to use it with
                                 the AI assistant and unlock full access.
                               </p>
@@ -458,7 +458,7 @@ export default function TemplatesPage() {
                                 </p>
                               </div>
                               {isProTemplate && (
-                                <span className="text-[10px] text-amber-400">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--accent)] text-[var(--accent)]">
                                   Pro
                                 </span>
                               )}
