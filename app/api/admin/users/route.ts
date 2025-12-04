@@ -1,3 +1,4 @@
+// app/api/admin/users/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -44,7 +45,10 @@ export async function GET(req: Request) {
 
     if (q.length > 0) {
       const filters: string[] = [];
-      filters.push(`email.ilike.%${q}%`);
+      // 🔴 current version (likely in your old route) uses `%`, which can blow up with .or()
+      // filters.push(`email.ilike.%${q}%`);
+      // Instead, Supabase likes '*' wildcards in the OR string:
+      filters.push(`email.ilike.*${q}*`);
       if (looksLikeUuid(q)) {
         filters.push(`id.eq.${q}`);
       }
