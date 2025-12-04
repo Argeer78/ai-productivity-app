@@ -1,15 +1,20 @@
-// app/api/admin/users/route.ts
+// app/admin/api/users/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// ✅ same key as the client uses
+// Use the same key as the client
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+
+// Simple UUID-ish check
+function looksLikeUuid(str: string) {
+  return /^[0-9a-fA-F-]{36}$/.test(str);
+}
 
 export async function GET(req: NextRequest) {
   const headerKey = req.headers.get("x-admin-key") || "";
 
   if (!ADMIN_KEY) {
-    console.error("[admin/users] NEXT_PUBLIC_ADMIN_KEY is not set");
+    console.error("[admin/api/users] NEXT_PUBLIC_ADMIN_KEY is not set");
     return NextResponse.json(
       { ok: false, error: "Admin key is not configured on the server." },
       { status: 500 }
@@ -17,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (headerKey !== ADMIN_KEY) {
-    console.warn("[admin/users] Unauthorized request", { headerKey });
+    console.warn("[admin/api/users] Unauthorized request");
     return NextResponse.json(
       { ok: false, error: "Unauthorized" },
       { status: 401 }
@@ -31,28 +36,36 @@ export async function GET(req: NextRequest) {
 
     let query = supabaseAdmin
       .from("profiles")
-      .select("id, email, plan, created_at", { count: "exact" });
+      .select("id, email, plan, created_at, is_admin", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .limit(50);
 
     // Plan filter
     if (plan && plan !== "all") {
       query = query.eq("plan", plan);
     }
 
-    // VERY SIMPLE SEARCH: email ILIKE %q%
+    // Search filter
     if (q) {
-      query = query.ilike("email", `%${q}%`);
+      const pattern = `%${q}%`;
+
+      if (looksLikeUuid(q)) {
+        // match email substring OR exact UUID id
+        query = query.or(`email.ilike.${pattern},id.eq.${q}`);
+      } else {
+        // match email substring only
+        query = query.ilike("email", pattern);
+      }
     }
 
-    const { data, error, count } = await query
-      .order("created_at", { ascending: false })
-      .limit(200);
+    const { data, error, count } = await query;
 
     if (error) {
-      console.error("[admin/users] Supabase error:", error);
+      console.error("[admin/api/users] Supabase error:", error);
       return NextResponse.json(
         {
           ok: false,
-          error: "DB error loading users",
+          error: "Failed to load users from database.",
           details: error.message,
         },
         { status: 500 }
@@ -62,10 +75,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       users: data || [],
-      total: count ?? (data?.length || 0),
+      total: typeof count === "number" ? count : (data || []).length,
     });
   } catch (err: any) {
-    console.error("[admin/users] Unexpected error:", err);
+    console.error("[admin/api/users] Unexpected error:", err);
     return NextResponse.json(
       {
         ok: false,
