@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const ADMIN_KEY =
-  process.env.ADMIN_API_KEY ||
-  process.env.ADMIN_KEY ||
-  process.env.NEXT_PUBLIC_ADMIN_KEY ||
-  "";
-
 // Simple UUID-ish check so we don't crash on non-UUID strings
 function looksLikeUuid(str: string) {
   return /^[0-9a-fA-F-]{36}$/.test(str);
@@ -15,15 +9,21 @@ function looksLikeUuid(str: string) {
 export async function GET(req: NextRequest) {
   const adminKeyHeader = req.headers.get("x-admin-key") || "";
 
-  if (!ADMIN_KEY) {
-    console.error("[admin/users] ADMIN_KEY env not set");
+  const allowedKeys = [
+    process.env.ADMIN_API_KEY,
+    process.env.ADMIN_KEY,
+    process.env.NEXT_PUBLIC_ADMIN_KEY,
+  ].filter(Boolean) as string[];
+
+  if (allowedKeys.length === 0) {
+    console.error("[admin/users] no admin key envs set");
     return NextResponse.json(
       { ok: false, error: "Server misconfigured" },
       { status: 500 }
     );
   }
 
-  if (adminKeyHeader !== ADMIN_KEY) {
+  if (!allowedKeys.includes(adminKeyHeader)) {
     return NextResponse.json(
       { ok: false, error: "Unauthorized" },
       { status: 401 }
@@ -39,20 +39,16 @@ export async function GET(req: NextRequest) {
       .from("profiles")
       .select("id, email, plan, created_at, is_admin", { count: "exact" });
 
-    // Plan filter
     if (plan && plan !== "all") {
       query = query.eq("plan", plan);
     }
 
-    // Search filter
     if (q) {
       const pattern = `%${q}%`;
 
       if (looksLikeUuid(q)) {
-        // Email substring OR exact UUID id
         query = query.or(`email.ilike.${pattern},id.eq.${q}`);
       } else {
-        // Only email substring if not UUID
         query = query.ilike("email", pattern);
       }
     }
@@ -64,11 +60,7 @@ export async function GET(req: NextRequest) {
     if (error) {
       console.error("[admin/users] query error", error);
       return NextResponse.json(
-        {
-          ok: false,
-          error: "DB error loading users",
-          details: error.message,
-        },
+        { ok: false, error: "DB error loading users", details: error.message },
         { status: 500 }
       );
     }
