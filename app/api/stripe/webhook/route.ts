@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { sendThankYouForUpgradeEmail } from "@/lib/stripeEmails";
 
 export const runtime = "nodejs"; // ensure Node runtime (not edge)
 
@@ -170,6 +171,15 @@ export async function POST(req: Request) {
                 upErr
               );
             }
+            // Send thank-you email (non-blocking)
+if (email) {
+  try {
+    await sendThankYouForUpgradeEmail({ to: email, plan });
+  } catch (e) {
+    console.error("Failed to send thank-you email:", e);
+  }
+}
+
           } else {
             console.warn(
               "checkout.session.completed: no userId or email to map profile"
