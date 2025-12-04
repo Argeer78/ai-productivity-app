@@ -8,13 +8,6 @@ export const runtime = "nodejs"; // ensure Node runtime (not edge)
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
-// ✅ Support multiple founder price IDs: comma-separated env
-// e.g. STRIPE_FOUNDER_PRICE_IDS="price_eur,price_usd,price_gbp"
-const FOUNDER_PRICE_IDS: string[] = (process.env.STRIPE_FOUNDER_PRICE_IDS || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
 if (!STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY env var is missing");
 }
@@ -22,6 +15,13 @@ if (!STRIPE_SECRET_KEY) {
 const stripe = new Stripe(STRIPE_SECRET_KEY);
 
 type Plan = "free" | "pro" | "founder";
+
+// 🔐 All founder price IDs (any currency)
+const FOUNDER_PRICE_IDS = new Set<string>([
+  "price_1SZXm9IaVkwgnHGjkj3mYYu7", // FOUNDER EUR
+  "price_1SZXqYIaVkwgnHGjROTAO47Y", // FOUNDER USD
+  "price_1SZXseIaVkwgnHGjdck8h4Qw", // FOUNDER GBP
+]);
 
 function isActiveStatus(status: Stripe.Subscription.Status) {
   return (
@@ -31,23 +31,20 @@ function isActiveStatus(status: Stripe.Subscription.Status) {
   );
 }
 
-function isFounderPrice(priceId: string | null | undefined): boolean {
-  if (!priceId) return false;
-  return FOUNDER_PRICE_IDS.includes(priceId);
-}
-
 // Decide plan based on subscription status + price id (for founders)
 function planFromSubscription(sub: Stripe.Subscription): Plan {
-  const status = sub.status;
+  const active = isActiveStatus(sub.status);
 
+  const firstItem = sub.items?.data?.[0];
   const priceId =
-    ((sub.items?.data?.[0]?.price?.id as string | undefined) ||
-      // older accounts may still use plan.id
-      ((sub.items?.data?.[0] as any)?.plan?.id as string | undefined)) ?? "";
+    (firstItem?.price?.id as string | undefined) ||
+    // older accounts may still use plan.id
+    ((firstItem as any)?.plan?.id as string | undefined) ||
+    "";
 
-  const active = isActiveStatus(status);
+  const isFounder = priceId && FOUNDER_PRICE_IDS.has(priceId);
 
-  if (isFounderPrice(priceId)) {
+  if (isFounder) {
     // Founder is lifetime *while* subscription is on; if they cancel, go back to free
     return active ? "founder" : "free";
   }
@@ -95,8 +92,7 @@ export async function POST(req: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
 
         const metadata = (session.metadata || {}) as Record<string, string>;
-        const metaUserId =
-          metadata.userId || metadata.user_id || null;
+        const metaUserId = metadata.userId || metadata.user_id || null;
 
         const email =
           (session as any).customer_email ??
@@ -115,8 +111,9 @@ export async function POST(req: Request) {
           sessionId: session.id,
         });
 
-        // Decide if this is a founder or pro checkout
+        // Decide if this is a founder or pro checkout by checking the price id
         let plan: Plan = "pro";
+
         try {
           const fullSession = await stripe.checkout.sessions.retrieve(
             session.id,
@@ -124,9 +121,9 @@ export async function POST(req: Request) {
           );
 
           const li = fullSession.line_items?.data?.[0];
-          const priceId = (li?.price?.id as string | undefined) ?? "";
+          const priceId = (li?.price?.id as string | undefined) || "";
 
-          if (isFounderPrice(priceId)) {
+          if (priceId && FOUNDER_PRICE_IDS.has(priceId)) {
             plan = "founder";
           } else {
             plan = "pro";
