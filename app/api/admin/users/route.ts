@@ -2,13 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// ✅ Same key as the client uses
+// ✅ same key as the client uses
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
-
-// Simple UUID-ish check
-function looksLikeUuid(str: string) {
-  return /^[0-9a-fA-F-]{36}$/.test(str);
-}
 
 export async function GET(req: NextRequest) {
   const headerKey = req.headers.get("x-admin-key") || "";
@@ -22,7 +17,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (headerKey !== ADMIN_KEY) {
-    console.warn("[admin/users] Unauthorized request");
+    console.warn("[admin/users] Unauthorized request", { headerKey });
     return NextResponse.json(
       { ok: false, error: "Unauthorized" },
       { status: 401 }
@@ -36,24 +31,16 @@ export async function GET(req: NextRequest) {
 
     let query = supabaseAdmin
       .from("profiles")
-      .select("id, email, plan, created_at, is_admin", { count: "exact" });
+      .select("id, email, plan, created_at", { count: "exact" });
 
     // Plan filter
     if (plan && plan !== "all") {
       query = query.eq("plan", plan);
     }
 
-    // Search filter
+    // VERY SIMPLE SEARCH: email ILIKE %q%
     if (q) {
-      const pattern = `%${q}%`;
-
-      if (looksLikeUuid(q)) {
-        // Email substring OR exact UUID id
-        query = query.or(`email.ilike.${pattern},id.eq.${q}`);
-      } else {
-        // Only email substring if not UUID
-        query = query.ilike("email", pattern);
-      }
+      query = query.ilike("email", `%${q}%`);
     }
 
     const { data, error, count } = await query
@@ -61,7 +48,7 @@ export async function GET(req: NextRequest) {
       .limit(200);
 
     if (error) {
-      console.error("[admin/users] query error", error);
+      console.error("[admin/users] Supabase error:", error);
       return NextResponse.json(
         {
           ok: false,
@@ -78,9 +65,12 @@ export async function GET(req: NextRequest) {
       total: count ?? (data?.length || 0),
     });
   } catch (err: any) {
-    console.error("[admin/users] fatal error", err);
+    console.error("[admin/users] Unexpected error:", err);
     return NextResponse.json(
-      { ok: false, error: "Unexpected error loading users" },
+      {
+        ok: false,
+        error: err?.message || "Unexpected server error.",
+      },
       { status: 500 }
     );
   }
