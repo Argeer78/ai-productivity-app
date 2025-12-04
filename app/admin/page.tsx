@@ -24,7 +24,9 @@ function AdminEmailTestPanel({
   currentUserEmail: string | null;
 }) {
   const [targetEmail, setTargetEmail] = useState(currentUserEmail || "");
-  const [kind, setKind] = useState<"simple" | "daily" | "weekly">("simple");
+  const [kind, setKind] = useState<
+    "simple" | "daily" | "weekly" | "upgrade-pro" | "upgrade-founder"
+  >("simple");
   const [status, setStatus] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
@@ -100,12 +102,23 @@ function AdminEmailTestPanel({
           </label>
           <select
             value={kind}
-            onChange={(e) => setKind(e.target.value as any)}
+            onChange={(e) =>
+              setKind(
+                e.target.value as
+                  | "simple"
+                  | "daily"
+                  | "weekly"
+                  | "upgrade-pro"
+                  | "upgrade-founder"
+              )
+            }
             className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-2 text-sm"
           >
             <option value="simple">Simple test</option>
             <option value="daily">Daily digest style</option>
             <option value="weekly">Weekly report style</option>
+            <option value="upgrade-pro">Stripe thank-you (Pro)</option>
+            <option value="upgrade-founder">Stripe thank-you (Founder)</option>
           </select>
         </div>
 

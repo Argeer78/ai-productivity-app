@@ -8,7 +8,7 @@ import {
 } from "@/lib/emailTemplates";
 import {
   renderStripeUpgradeThankYouEmail,
-  StripePlan,
+  type StripePlan,
 } from "@/lib/stripeEmails";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
@@ -35,24 +35,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json().catch(() => ({}))) as {
-      targetEmail?: string;
-      kind?: "daily" | "weekly" | "simple" | "upgrade-thankyou";
-      plan?: "pro" | "founder";
-    };
-
-    const { targetEmail, kind, plan } = body;
+    const { targetEmail, kind } = await req.json();
 
     if (!targetEmail) {
       return NextResponse.json(
         { ok: false, error: "Missing targetEmail" },
-        { status: 400 }
-      );
-    }
-
-    if (!kind) {
-      return NextResponse.json(
-        { ok: false, error: "Missing kind" },
         { status: 400 }
       );
     }
@@ -75,17 +62,15 @@ export async function POST(req: Request) {
       );
       text = tpl.text;
       html = tpl.html;
-    } else if (kind === "upgrade-thankyou") {
-      // Default to "pro" if not specified
-      const effectivePlan: StripePlan =
-        plan === "founder" ? "founder" : "pro";
-
-      const rendered = renderStripeUpgradeThankYouEmail(effectivePlan);
-      subject = rendered.subject;
-      text = rendered.text;
-      html = rendered.html;
+    } else if (kind === "upgrade-pro" || kind === "upgrade-founder") {
+      const plan: StripePlan =
+        kind === "upgrade-founder" ? "founder" : "pro";
+      const tpl = renderStripeUpgradeThankYouEmail(plan);
+      subject = tpl.subject;
+      text = tpl.text;
+      html = tpl.html;
     } else {
-      // "simple" or anything else falls back here
+      // "simple" or unknown → simple test
       subject = "Test email from AI Productivity Hub";
       const tpl = renderSimpleTestEmail(
         "This is a simple deliverability test email from AI Productivity Hub."
@@ -95,7 +80,8 @@ export async function POST(req: Request) {
     }
 
     const fromAddress =
-      process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+      process.env.RESEND_FROM_EMAIL ||
+      "AI Productivity Hub <hello@aiprod.app>";
 
     const sendResult = await resend.emails.send({
       from: fromAddress,
