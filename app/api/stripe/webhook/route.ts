@@ -171,6 +171,7 @@ export async function POST(req: Request) {
                 upErr
               );
             }
+            
             // Send thank-you email (non-blocking)
 if (email) {
   try {
