@@ -1,8 +1,8 @@
-// app/api/admin/users/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "";
+// ✅ Use the same env as the client
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 // Simple UUID-ish check
 function looksLikeUuid(str: string) {
@@ -12,15 +12,15 @@ function looksLikeUuid(str: string) {
 export async function GET(req: Request) {
   const headerKey = req.headers.get("x-admin-key") || "";
 
-  if (!ADMIN_API_KEY) {
-    console.error("[admin/users] ADMIN_API_KEY is not set");
+  if (!ADMIN_KEY) {
+    console.error("[admin/users] NEXT_PUBLIC_ADMIN_KEY is not set");
     return NextResponse.json(
       { ok: false, error: "Admin key is not configured on the server." },
       { status: 500 }
     );
   }
 
-  if (headerKey !== ADMIN_API_KEY) {
+  if (headerKey !== ADMIN_KEY) {
     console.warn("[admin/users] Unauthorized request");
     return NextResponse.json(
       { ok: false, error: "Unauthorized" },
@@ -45,9 +45,7 @@ export async function GET(req: Request) {
 
     if (q.length > 0) {
       const filters: string[] = [];
-      // 🔴 current version (likely in your old route) uses `%`, which can blow up with .or()
-      // filters.push(`email.ilike.%${q}%`);
-      // Instead, Supabase likes '*' wildcards in the OR string:
+      // use * wildcards with or()
       filters.push(`email.ilike.*${q}*`);
       if (looksLikeUuid(q)) {
         filters.push(`id.eq.${q}`);
