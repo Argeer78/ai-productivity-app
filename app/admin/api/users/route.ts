@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// Use the same key as the client
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 // Simple UUID-ish check
@@ -50,10 +49,10 @@ export async function GET(req: NextRequest) {
       const pattern = `%${q}%`;
 
       if (looksLikeUuid(q)) {
-        // match email substring OR exact UUID id
+        // email substring OR exact UUID id
         query = query.or(`email.ilike.${pattern},id.eq.${q}`);
       } else {
-        // match email substring only
+        // email substring only
         query = query.ilike("email", pattern);
       }
     }
@@ -65,7 +64,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Failed to load users from database.",
+          error: "DB error loading users",
           details: error.message,
         },
         { status: 500 }
