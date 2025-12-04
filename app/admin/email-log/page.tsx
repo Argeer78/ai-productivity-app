@@ -78,7 +78,7 @@ export default function AdminEmailLogPage() {
   useEffect(() => {
     if (!userEmail || userEmail !== adminEmail) return;
     loadLogs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [userEmail, adminEmail]);
 
   // 3) Derived filtered logs

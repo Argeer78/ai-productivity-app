@@ -256,7 +256,7 @@ ${trimmed}
         );
 
         let streakCount = 0;
-        let current = new Date();
+        const current = new Date();
         for (let i = 0; i < 365; i++) {
           const dStr = current.toISOString().split("T")[0];
           if (goodDateSet.has(dStr)) {
