@@ -1,9 +1,11 @@
-// app/admin/api/users/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const ADMIN_KEY =
-  process.env.ADMIN_KEY || process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+  process.env.ADMIN_API_KEY ||
+  process.env.ADMIN_KEY ||
+  process.env.NEXT_PUBLIC_ADMIN_KEY ||
+  "";
 
 // Simple UUID-ish check so we don't crash on non-UUID strings
 function looksLikeUuid(str: string) {
@@ -14,7 +16,7 @@ export async function GET(req: NextRequest) {
   const adminKeyHeader = req.headers.get("x-admin-key") || "";
 
   if (!ADMIN_KEY) {
-    console.error("[admin/users] ADMIN_KEY / NEXT_PUBLIC_ADMIN_KEY not set");
+    console.error("[admin/users] ADMIN_KEY env not set");
     return NextResponse.json(
       { ok: false, error: "Server misconfigured" },
       { status: 500 }
