@@ -4,6 +4,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
+// Simple UUID v4-ish check
+function looksLikeUuid(str: string) {
+  return /^[0-9a-fA-F-]{36}$/.test(str);
+}
+
 export async function GET(req: Request) {
   const headerKey = req.headers.get("x-admin-key") || "";
 
@@ -24,15 +29,47 @@ export async function GET(req: Request) {
   }
 
   try {
-    const { data, error } = await supabaseAdmin
+    const { searchParams } = new URL(req.url);
+    const q = (searchParams.get("q") || "").trim();
+    const plan = (searchParams.get("plan") || "").trim(); // "all" | "free" | "pro"
+
+    let query = supabaseAdmin
       .from("profiles")
-      .select("id, email, plan, created_at, is_admin")
-      .order("created_at", { ascending: false });
+      .select("id, email, plan, created_at, is_admin", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    // Filter by plan if needed
+    if (plan && plan !== "all") {
+      query = query.eq("plan", plan);
+    }
+
+    // Build OR filters safely
+    if (q.length > 0) {
+      const filters: string[] = [];
+
+      // Always search by email substring
+      filters.push(`email.ilike.%${q}%`);
+
+      // Only search by id if q looks like a UUID
+      if (looksLikeUuid(q)) {
+        filters.push(`id.eq.${q}`);
+      }
+
+      query = query.or(filters.join(","));
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error("[admin/users] Supabase error:", error);
+      // In dev it's often useful to see the real message:
       return NextResponse.json(
-        { ok: false, error: "Failed to load users from database." },
+        {
+          ok: false,
+          error: "Failed to load users from database.",
+          details: error.message,
+        },
         { status: 500 }
       );
     }
@@ -40,11 +77,15 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       users: data || [],
+      total: typeof count === "number" ? count : (data || []).length,
     });
   } catch (err: any) {
     console.error("[admin/users] Unexpected error:", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Unexpected server error." },
+      {
+        ok: false,
+        error: err?.message || "Unexpected server error.",
+      },
       { status: 500 }
     );
   }
