@@ -2,28 +2,50 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+
+if (!STRIPE_SECRET_KEY) {
+  throw new Error("STRIPE_SECRET_KEY env var is missing");
+}
+
+const stripe = new Stripe(STRIPE_SECRET_KEY);
+
 export async function POST(req: Request) {
   try {
     const { userId } = await req.json();
-    if (!userId) return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Missing userId" },
+        { status: 400 }
+      );
+    }
 
-    // Look up the Stripe customer id for this user
     const { data: profile, error } = await supabaseAdmin
       .from("profiles")
       .select("stripe_customer_id")
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) return NextResponse.json({ error: "Failed to load profile" }, { status: 500 });
+    if (error) {
+      console.error("portal: profile query error", error);
+      return NextResponse.json(
+        { error: "Failed to load profile" },
+        { status: 500 }
+      );
+    }
+
     const customerId = profile?.stripe_customer_id;
-    if (!customerId) return NextResponse.json({ error: "No Stripe customer found." }, { status: 404 });
+    if (!customerId) {
+      return NextResponse.json(
+        { error: "No Stripe customer found." },
+        { status: 404 }
+      );
+    }
 
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://aiprod.app";
 
-    const returnUrl =
-      process.env.NEXT_PUBLIC_SITE_URL
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/settings`
-        : "http://aiprod.app/settings";
+    const returnUrl = `${baseUrl.replace(/\/+$/, "")}/settings`;
 
     const params: Stripe.BillingPortal.SessionCreateParams = {
       customer: customerId,
@@ -35,9 +57,13 @@ export async function POST(req: Request) {
     }
 
     const session = await stripe.billingPortal.sessions.create(params);
+
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
     console.error("portal route error:", err);
-    return NextResponse.json({ error: err?.message || "Portal error" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || "Portal error" },
+      { status: 500 }
+    );
   }
 }
