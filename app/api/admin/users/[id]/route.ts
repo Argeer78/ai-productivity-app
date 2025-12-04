@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "";
 
 type UserStats = {
   notesCount: number;
@@ -15,15 +15,15 @@ type UserStats = {
 export async function GET(req: Request) {
   const headerKey = req.headers.get("x-admin-key") || "";
 
-  if (!ADMIN_KEY) {
-    console.error("[admin/users/:id] NEXT_PUBLIC_ADMIN_KEY is not set");
+  if (!ADMIN_API_KEY) {
+    console.error("[admin/users/:id] ADMIN_API_KEY is not set");
     return NextResponse.json(
       { ok: false, error: "Admin key is not configured on the server." },
       { status: 500 }
     );
   }
 
-  if (headerKey !== ADMIN_KEY) {
+  if (headerKey !== ADMIN_API_KEY) {
     console.warn("[admin/users/:id] Unauthorized request");
     return NextResponse.json(
       { ok: false, error: "Unauthorized" },
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     );
   }
 
-  // 🔐 Parse id from URL path instead of relying on params
+  // 🔐 Parse id from URL path
   const url = new URL(req.url);
   const segments = url.pathname.split("/").filter(Boolean);
   // e.g. ["api", "admin", "users", "<id>"]
@@ -69,10 +69,7 @@ export async function GET(req: Request) {
     }
 
     if (!profileRow) {
-      console.warn(
-        "[admin/users/:id] No profile row found for user",
-        userId
-      );
+      console.warn("[admin/users/:id] No profile row found for user", userId);
 
       const emptyStats: UserStats = {
         notesCount: 0,
