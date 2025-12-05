@@ -73,35 +73,46 @@ export default function SettingsPage() {
   // Push notifications state
   const [pushStatus, setPushStatus] = useState<string | null>(null);
   const [pushLoading, setPushLoading] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
 
   const { track } = useAnalytics();
 
   // Theme context (from ThemeProvider)
   const { theme, setTheme } = useTheme();
-  
+
+  // Check existing push subscription on this device
   useEffect(() => {
-  async function checkPush() {
-    if (typeof window === "undefined") return;
-    if (!("serviceWorker" in navigator)) {
-      setPushStatus("Push notifications are not supported in this browser.");
-      return;
-    }
+    async function checkPush() {
+      if (typeof window === "undefined") return;
 
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        setPushStatus("✅ Push notifications already enabled.");
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        setPushStatus("Push notifications are not supported in this browser.");
+        setPushEnabled(false);
+        return;
       }
-    } catch (err) {
-      console.error("checkPush error:", err);
-    }
-  }
 
-  if (user) {
-    checkPush();
-  }
-}, [user]);
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+
+        if (sub) {
+          setPushEnabled(true);
+          setPushStatus("✅ Push notifications enabled for this device.");
+        } else {
+          setPushEnabled(false);
+          setPushStatus(null); // no message until user interacts
+        }
+      } catch (err) {
+        console.error("checkPush error:", err);
+        setPushEnabled(false);
+        setPushStatus("Could not check push notification status.");
+      }
+    }
+
+    if (user) {
+      checkPush();
+    }
+  }, [user]);
 
   // Load user
   useEffect(() => {
@@ -262,31 +273,93 @@ export default function SettingsPage() {
   }
 
   // Enable browser push notifications for tasks
-async function handleEnablePush() {
-  if (!user) {
-    setPushStatus("You need to be logged in.");
-    return;
+  async function handleEnablePush() {
+    if (!user) {
+      setPushStatus("You need to be logged in.");
+      return;
+    }
+
+    setPushLoading(true);
+    setPushStatus(null);
+
+    try {
+      // This will throw if anything goes wrong
+      await subscribeToPush(user.id);
+
+      setPushEnabled(true);
+      setPushStatus("✅ Push notifications enabled for this device.");
+    } catch (err: any) {
+      console.error("handleEnablePush error:", err);
+
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "denied"
+      ) {
+        setPushStatus(
+          "❌ Notifications are blocked in your browser. Please allow notifications in your browser settings."
+        );
+      } else {
+        setPushStatus(
+          `❌ Error enabling push notifications${
+            err?.message ? `: ${err.message}` : ""
+          }`
+        );
+      }
+
+      setPushEnabled(false);
+    } finally {
+      setPushLoading(false);
+    }
   }
 
-  setPushLoading(true);
-  setPushStatus(null);
+  // Disable push notifications for this device
+  async function handleDisablePush() {
+    if (!user) {
+      setPushStatus("You need to be logged in.");
+      return;
+    }
 
-  try {
-    // This will throw if anything goes wrong
-    await subscribeToPush(user.id);
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) {
+      setPushStatus("Service workers are not supported in this browser.");
+      return;
+    }
 
-    setPushStatus("✅ Push notifications enabled for task reminders.");
-  } catch (err: any) {
-    console.error("handleEnablePush error:", err);
-    setPushStatus(
-      `❌ Error enabling push notifications${
-        err?.message ? `: ${err.message}` : ""
-      }`
-    );
-  } finally {
-    setPushLoading(false);
+    setPushLoading(true);
+    setPushStatus(null);
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+
+      if (sub) {
+        await sub.unsubscribe();
+      }
+
+      // Optionally also remove from DB for this user
+      try {
+        await fetch("/api/push/unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id }),
+        });
+      } catch (e) {
+        console.warn("push/unsubscribe API error (non-fatal):", e);
+      }
+
+      setPushEnabled(false);
+      setPushStatus("Push notifications disabled for this device.");
+    } catch (err: any) {
+      console.error("handleDisablePush error:", err);
+      setPushStatus(
+        `❌ Error disabling push notifications${
+          err?.message ? `: ${err.message}` : ""
+        }`
+      );
+    } finally {
+      setPushLoading(false);
+    }
   }
-}
 
   if (checkingUser) {
     return (
@@ -503,21 +576,38 @@ async function handleEnablePush() {
                   Enable browser notifications for task reminders. You’ll see a
                   notification when a task you set a reminder for is due.
                 </p>
-                <button
-                  type="button"
-                  onClick={handleEnablePush}
-                  disabled={pushLoading}
-                  className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-xs hover:bg-[var(--bg-card)] disabled:opacity-60"
-                >
-                  {pushLoading
-                    ? "Enabling…"
-                    : "Enable task reminders (push)"}
-                </button>
-                {pushStatus && (
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    {pushStatus}
-                  </p>
-                )}
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {pushEnabled ? (
+                    <button
+                      type="button"
+                      onClick={handleDisablePush}
+                      disabled={pushLoading}
+                      className="px-3 py-2 rounded-xl border border-red-400 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+                    >
+                      {pushLoading
+                        ? "Disabling…"
+                        : "Disable task reminders (push)"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleEnablePush}
+                      disabled={pushLoading}
+                      className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-xs hover:bg-[var(--bg-card)] disabled:opacity-60"
+                    >
+                      {pushLoading
+                        ? "Enabling…"
+                        : "Enable task reminders (push)"}
+                    </button>
+                  )}
+
+                  {pushStatus && (
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      {pushStatus}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Notification channels */}

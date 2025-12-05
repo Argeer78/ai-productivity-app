@@ -1,44 +1,28 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-
-type UnsubPayload = {
-  userId: string;
-  endpoint: string;
-};
-
-export const runtime = "nodejs";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as UnsubPayload;
+    const { userId } = await req.json();
 
-    if (!body?.userId || !body?.endpoint) {
-      return NextResponse.json(
-        { ok: false, error: "Missing userId or endpoint" },
-        { status: 400 }
-      );
+    if (!userId) {
+      return NextResponse.json({ ok: false, error: "Missing userId" });
     }
 
-    const { error } = await supabaseAdmin
+    const supabase = supabaseServer();
+    const { error } = await supabase
       .from("push_subscriptions")
       .delete()
-      .eq("user_id", body.userId)
-      .eq("endpoint", body.endpoint);
+      .eq("user_id", userId);
 
     if (error) {
-      console.error("[push/unsubscribe] DB error:", error);
-      return NextResponse.json(
-        { ok: false, error: "DB error" },
-        { status: 500 }
-      );
+      console.error("Unsubscribe error:", error);
+      return NextResponse.json({ ok: false, error: "DB delete error" });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    console.error("[push/unsubscribe] error", err);
-    return NextResponse.json(
-      { ok: false, error: err?.message || "Unexpected error" },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("Unsubscribe exception:", err);
+    return NextResponse.json({ ok: false, error: "Server error" });
   }
 }
