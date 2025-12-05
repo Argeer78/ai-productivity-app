@@ -1,52 +1,87 @@
 // lib/stripeEmails.ts
-import { Resend } from "resend";
 import { renderSimpleTestEmail } from "@/lib/emailTemplates";
+import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
+type UpgradePlan = "pro" | "founder";
 
-export type StripePlan = "pro" | "founder";
+/**
+ * Build the thank-you email content when a user upgrades.
+ * Returns subject + text + html, so it can be reused by:
+ *  - the Stripe webhook
+ *  - the admin test email route
+ */
+export function renderStripeUpgradeThankYouEmail(plan: UpgradePlan) {
+  const isFounder = plan === "founder";
 
-export function renderStripeUpgradeThankYouEmail(plan: StripePlan) {
-  const prettyPlan = plan === "founder" ? "AI Productivity Hub Pro — Founder" : "AI Productivity Hub Pro";
+  const subject = isFounder
+    ? "Welcome to AI Productivity Hub – Founder lifetime plan 🎉"
+    : "Thanks for upgrading to AI Productivity Hub Pro 🎉";
 
-  const subject = `Thanks for upgrading to ${prettyPlan}!`;
-
-  const message = [
-    `Hi there,`,
-    ``,
-    `Thank you for upgrading to ${prettyPlan}. 🎉`,
-    ``,
-    `You now have full access to AI Productivity Hub Pro features, including:`,
-    `• Smarter AI assistance across notes, tasks, and travel`,
-    `• Higher AI limits and faster responses`,
-    `• Priority access to new features and improvements`,
-    ``,
-    plan === "founder"
-      ? "As a Founder member, your locked-in price stays with you as long as you keep your subscription active. ❤️"
+  const messageLines: string[] = [
+    isFounder
+      ? "Thank you for becoming a Founder of AI Productivity Hub! 💫"
+      : "Thank you for upgrading to AI Productivity Hub Pro! 🚀",
+    "",
+    "Your account has just been upgraded. Here’s what you can do next:",
+    "- Open the AI Hub to run deep work sessions, planning prompts, and daily check-ins.",
+    "- Use the Templates page to quickly reuse your favorite prompts.",
+    "- Turn on daily or weekly emails from Settings, if you want summaries in your inbox.",
+    "",
+    isFounder
+      ? "As a Founder, your special pricing is locked in for as long as you keep your subscription active."
       : "Your subscription will renew automatically unless you cancel from the billing portal.",
-    ``,
-    "You can manage your subscription anytime in your Settings → Billing.",
-    ``,
-    "— The AI Productivity Hub team",
-  ].join("\n");
+    "",
+    "If you have any questions or feedback, just reply to this email.",
+    "",
+    "— AI Productivity Hub",
+  ];
 
-  return renderSimpleTestEmail(message, subject);
+  const message = messageLines.join("\n");
+
+  // ✅ renderSimpleTestEmail only takes the message
+  const base = renderSimpleTestEmail(message);
+
+  return {
+    subject,
+    text: base.text,
+    html: base.html,
+  };
 }
 
-// ✅ Add this function to actually send the email
-export async function sendThankYouForUpgradeEmail(toEmail: string, plan: StripePlan) {
-  const { subject, text, html } = renderStripeUpgradeThankYouEmail(plan);
+/**
+ * Actually send the thank-you email via Resend.
+ * Used by the Stripe webhook.
+ */
+export async function sendThankYouForUpgradeEmail(
+  to: string,
+  plan: UpgradePlan
+) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("[stripeEmails] RESEND_API_KEY is missing, skipping email");
+    return;
+  }
 
-  const from = process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+  const resend = new Resend(apiKey);
+  const tpl = renderStripeUpgradeThankYouEmail(plan);
 
-  return await resend.emails.send({
-    from,
-    to: toEmail,
-    subject,
-    text,
-    html,
-    headers: {
-      "List-Unsubscribe": "<https://aiprod.app/settings>",
-    },
-  });
+  const fromAddress =
+    process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+
+  try {
+    const result = await resend.emails.send({
+      from: fromAddress,
+      to,
+      subject: tpl.subject,
+      text: tpl.text,
+      html: tpl.html,
+      headers: {
+        "List-Unsubscribe": "<https://aiprod.app/settings>",
+      },
+    });
+
+    console.log("[stripeEmails] Thank-you email sent:", result);
+  } catch (err) {
+    console.error("[stripeEmails] Failed to send thank-you email:", err);
+  }
 }
