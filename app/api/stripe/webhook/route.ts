@@ -171,11 +171,11 @@ export async function POST(req: Request) {
                 upErr
               );
             }
-            
+
             // Send thank-you email (non-blocking)
 if (email) {
   try {
-    await sendThankYouForUpgradeEmail({ to: email, plan });
+    await sendThankYouForUpgradeEmail(email, plan);
   } catch (e) {
     console.error("Failed to send thank-you email:", e);
   }
