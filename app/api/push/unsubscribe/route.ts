@@ -1,28 +1,45 @@
+// app/api/push/unsubscribe/route.ts
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabaseServer";
+import { supabase } from "@/lib/supabaseClient"; // ✅ use existing client
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { userId, endpoint } = body as {
+      userId?: string;
+      endpoint?: string;
+    };
 
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "Missing userId" });
+    // We allow either userId, endpoint, or both.
+    if (!userId && !endpoint) {
+      return NextResponse.json(
+        { ok: false, error: "Missing userId or endpoint" },
+        { status: 400 }
+      );
     }
 
-    const supabase = supabaseServer();
-    const { error } = await supabase
-      .from("push_subscriptions")
-      .delete()
-      .eq("user_id", userId);
+    // ⚠️ Adjust table name/columns if yours is different
+    let query = supabase.from("push_subscriptions").delete();
+
+    if (userId) query = query.eq("user_id", userId);
+    if (endpoint) query = query.eq("endpoint", endpoint);
+
+    const { error } = await query;
 
     if (error) {
-      console.error("Unsubscribe error:", error);
-      return NextResponse.json({ ok: false, error: "DB delete error" });
+      console.error("[push/unsubscribe] supabase error", error);
+      return NextResponse.json(
+        { ok: false, error: "Database error while unsubscribing" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("Unsubscribe exception:", err);
-    return NextResponse.json({ ok: false, error: "Server error" });
+    console.error("[push/unsubscribe] exception", err);
+    return NextResponse.json(
+      { ok: false, error: "Unexpected server error" },
+      { status: 500 }
+    );
   }
 }
