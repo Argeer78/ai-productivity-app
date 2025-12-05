@@ -7,6 +7,179 @@ import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import SocialShareBar from "@/app/components/SocialShareBar";
 
+// Tool cards used in the "What you get" section
+const TOOL_CARDS = [
+  {
+    slug: "/dashboard",
+    label: "Dashboard overview",
+    emoji: "📊",
+    tagline: "See your day, score, and focus in one place.",
+    description:
+      "Your home base: daily success score, focus for today, quick links to tasks, notes and weekly progress.",
+    highlights: [
+      "Today at a glance",
+      "Daily Success score & trend",
+      "Quick access to all tools",
+    ],
+    cta: "Open dashboard",
+  },
+  {
+    slug: "/notes",
+    label: "Notes & AI workspace",
+    emoji: "📝",
+    tagline: "Capture ideas, drafts and progress logs.",
+    description:
+      "Keep everything in one place and let AI summarize, clean up or extract tasks from your notes.",
+    highlights: [
+      "Fast note capture",
+      "AI summaries & clean-ups",
+      "Great for journaling & meeting notes",
+    ],
+    cta: "Go to Notes",
+  },
+  {
+    slug: "/tasks",
+    label: "Tasks & reminders",
+    emoji: "✅",
+    tagline: "Simple task list with real reminders.",
+    description:
+      "Add tasks with due dates, time windows, categories and per-task reminders that can trigger email + push.",
+    highlights: [
+      "Time-boxed tasks with categories",
+      "Reminders via email & push",
+      "Share tasks to WhatsApp, Viber, email",
+    ],
+    cta: "Open Tasks",
+  },
+  {
+    slug: "/ai-task-creator",
+    label: "AI Task Creator",
+    emoji: "🤖",
+    tagline: "Turn vague goals into clear steps.",
+    description:
+      "Paste a messy goal and let AI break it into small, prioritized tasks you can send straight into your board.",
+    highlights: [
+      "Turns goals into checklists",
+      "Smart priorities & time hints",
+      "Works great with your Tasks page",
+    ],
+    cta: "Use AI Task Creator",
+  },
+  {
+    slug: "/weekly-history",
+    label: "Weekly AI reports",
+    emoji: "📬",
+    tagline: "A lightweight review written for you by AI.",
+    description:
+      "See how your week went, what worked, and what to focus on next — powered by your scores, tasks and notes.",
+    highlights: [
+      "Weekly score & streak view",
+      "Highlights wins & bottlenecks",
+      "Focus suggestions for next week",
+    ],
+    cta: "View weekly history",
+  },
+  {
+    slug: "/settings",
+    label: "Notifications & themes",
+    emoji: "🎛️",
+    tagline: "Make the app feel like your own.",
+    description:
+      "Control email digests, push reminders, timezone and themes — including seasonal looks like Halloween or Christmas.",
+    highlights: [
+      "Email & push reminder controls",
+      "Timezone & reminder cadence",
+      "Dark, light & seasonal themes",
+    ],
+    cta: "Open Settings",
+  },
+];
+
+function ToolsSection() {
+  return (
+    <section className="mb-14" id="tools">
+      <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
+        WHAT YOU GET
+      </p>
+
+      <div className="mb-5 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <h2 className="text-xl md:text-2xl font-bold text-[var(--text-main)]">
+            A small toolkit for planning, focus and follow-through.
+          </h2>
+          <p className="text-xs md:text-sm text-[var(--text-muted)] mt-1 max-w-xl">
+            Every page in AI Productivity Hub is a focused tool. No endless
+            widgets — just the essentials for days, weeks and long-term goals.
+          </p>
+        </div>
+
+        <Link
+          href="/tools"
+          className="inline-flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] md:text-xs text-[var(--text-main)] hover:bg-[var(--bg-card)]"
+        >
+          View all tools
+          <span className="ml-1 text-[10px]">→</span>
+        </Link>
+      </div>
+
+      <div className="grid gap-4 md:gap-5 md:grid-cols-2">
+        {TOOL_CARDS.map((tool) => (
+          <article
+            key={tool.slug}
+            className="group relative rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 md:p-5 hover:border-[var(--accent)]/70 hover:shadow-lg hover:shadow-black/10 transition-all"
+          >
+            <div className="flex items-start gap-3 mb-2">
+              <div className="h-9 w-9 flex items-center justify-center rounded-2xl bg-[var(--bg-elevated)] text-lg">
+                <span aria-hidden="true">{tool.emoji}</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm md:text-base font-semibold text-[var(--text-main)]">
+                  {tool.label}
+                </h3>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                  {tool.tagline}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs md:text-[13px] text-[var(--text-main)] mb-3">
+              {tool.description}
+            </p>
+
+            <ul className="space-y-1.5 mb-4">
+              {tool.highlights.map((item) => (
+                <li
+                  key={item}
+                  className="flex items-start gap-2 text-[11px] text-[var(--text-muted)]"
+                >
+                  <span className="mt-[2px] text-[var(--accent)]">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-center justify-between gap-2">
+              <Link
+                href={tool.slug}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] md:text-xs text-[var(--text-main)] group-hover:border-[var(--accent)] group-hover:text-[var(--accent)]"
+              >
+                {tool.cta}
+                <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">
+                  ↗
+                </span>
+              </Link>
+              <span className="text-[10px] text-[var(--text-muted)]">
+                Opens{" "}
+                <code className="text-[10px] opacity-80">{tool.slug}</code>
+              </span>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function HomePage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -60,7 +233,7 @@ export default function HomePage() {
                 summarize your progress.
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 mb-4">
+              <div className="flex flex-wrap items-center gap-3 mb-3">
                 <Link
                   href={primaryCtaHref}
                   className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)]"
@@ -72,6 +245,13 @@ export default function HomePage() {
                   className="px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
                 >
                   {secondaryCtaLabel}
+                </Link>
+                <Link
+                  href="/tools"
+                  className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-transparent hover:bg-[var(--bg-card)] text-[11px] md:text-xs text-[var(--text-muted)] flex items-center gap-1"
+                >
+                  View all tools
+                  <span className="text-[10px]">→</span>
                 </Link>
               </div>
 
@@ -139,70 +319,8 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* FEATURES */}
-          <section className="mb-14">
-            <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-              WHAT YOU GET
-            </p>
-
-            <div className="grid md:grid-cols-3 gap-4 text-sm">
-              {[
-                {
-                  title: "📝 Notes with built-in AI",
-                  desc: "Let AI clean up, summarize, or create tasks from your notes.",
-                },
-                {
-                  title: "✅ Tasks & Daily Success",
-                  desc: "A simple task list plus a daily score for momentum.",
-                },
-                {
-                  title: "📧 Email digests & weekly report",
-                  desc: "AI-written summaries of your wins and progress.",
-                },
-              ].map((f, i) => (
-                <div
-                  key={i}
-                  className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4"
-                >
-                  <p className="text-sm font-semibold text-[var(--text-main)]">
-                    {f.title}
-                  </p>
-                  <p className="text-[12px] text-[var(--text-muted)]">
-                    {f.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 grid md:grid-cols-3 gap-4 text-sm">
-              {[
-                {
-                  title: "🧠 Reusable AI templates",
-                  desc: "Save prompts for emails, content, journaling and more.",
-                },
-                {
-                  title: "✈️ Travel planner & trips",
-                  desc: "AI generates itineraries and pre-fills Booking.com.",
-                },
-                {
-                  title: "🎯 Weekly goal & focus",
-                  desc: "Pick one big weekly focus and track it.",
-                },
-              ].map((f, i) => (
-                <div
-                  key={i}
-                  className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4"
-                >
-                  <p className="text-sm font-semibold text-[var(--text-main)]">
-                    {f.title}
-                  </p>
-                  <p className="text-[12px] text-[var(--text-muted)]">
-                    {f.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
+          {/* TOOLS / WHAT YOU GET */}
+          <ToolsSection />
 
           {/* PRICING */}
           <section id="pricing" className="mb-14">
