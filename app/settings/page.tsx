@@ -9,6 +9,7 @@ import { useAnalytics } from "@/lib/analytics";
 import { LANGUAGES, LS_PREF_LANG } from "@/lib/translateLanguages";
 import NotificationSettings from "@/app/components/NotificationSettings";
 import { useTheme, type ThemeId } from "@/app/components/ThemeProvider";
+import { subscribeToPush } from "@/lib/pushClient";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -68,6 +69,10 @@ export default function SettingsPage() {
   const [onboardingWeeklyFocus, setOnboardingWeeklyFocus] = useState("");
   const [onboardingReminder, setOnboardingReminder] =
     useState<Reminder>("none");
+
+  // Push notifications state
+  const [pushStatus, setPushStatus] = useState<string | null>(null);
+  const [pushLoading, setPushLoading] = useState(false);
 
   const { track } = useAnalytics();
 
@@ -231,6 +236,33 @@ export default function SettingsPage() {
       setSaving(false);
     }
   }
+
+  // Enable browser push notifications for tasks
+async function handleEnablePush() {
+  if (!user) {
+    setPushStatus("You need to be logged in.");
+    return;
+  }
+
+  setPushLoading(true);
+  setPushStatus(null);
+
+  try {
+    // This will throw if anything goes wrong
+    await subscribeToPush(user.id);
+
+    setPushStatus("✅ Push notifications enabled for task reminders.");
+  } catch (err: any) {
+    console.error("handleEnablePush error:", err);
+    setPushStatus(
+      `❌ Error enabling push notifications${
+        err?.message ? `: ${err.message}` : ""
+      }`
+    );
+  } finally {
+    setPushLoading(false);
+  }
+}
 
   if (checkingUser) {
     return (
@@ -436,6 +468,32 @@ export default function SettingsPage() {
                     </span>
                   </span>
                 </label>
+              </div>
+
+              {/* Browser push notifications for tasks */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-2">
+                <p className="text-[11px] font-semibold text-[var(--text-main)]">
+                  Task reminders (push notifications)
+                </p>
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  Enable browser notifications for task reminders. You’ll see a
+                  notification when a task you set a reminder for is due.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleEnablePush}
+                  disabled={pushLoading}
+                  className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-xs hover:bg-[var(--bg-card)] disabled:opacity-60"
+                >
+                  {pushLoading
+                    ? "Enabling…"
+                    : "Enable task reminders (push)"}
+                </button>
+                {pushStatus && (
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    {pushStatus}
+                  </p>
+                )}
               </div>
 
               {/* Notification channels */}
