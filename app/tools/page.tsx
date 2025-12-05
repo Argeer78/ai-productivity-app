@@ -52,7 +52,7 @@ const TOOLS: ToolDef[] = [
     ctaLabel: "Open dashboard",
   },
   {
-    id: "ai-chat",
+    id: "ai-hub-chat",
     slug: "/ai-chat", // adjust if your route is different, e.g. "/ai-hub"
     emoji: "💬",
     name: "AI Hub Chat",
