@@ -27,13 +27,31 @@ const DEFAULT_SETTINGS: SettingsRow = {
   timezone: "Europe/Athens",
 };
 
+// 🔹 Helper: get browser timezone, fallback to Europe/Athens
+function getBrowserTimezone(): string {
+  if (typeof Intl !== "undefined" && Intl.DateTimeFormat) {
+    try {
+      return (
+        Intl.DateTimeFormat().resolvedOptions().timeZone ||
+        "Europe/Athens"
+      );
+    } catch {
+      return "Europe/Athens";
+    }
+  }
+  return "Europe/Athens";
+}
+
 export default function NotificationSettings({ userId }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const [settings, setSettings] = useState<SettingsRow>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<SettingsRow>(() => ({
+    ...DEFAULT_SETTINGS,
+    timezone: getBrowserTimezone(),
+  }));
 
   // Load settings (or create defaults)
   useEffect(() => {
@@ -59,19 +77,32 @@ export default function NotificationSettings({ userId }: Props) {
           return;
         }
 
+        const browserTz = getBrowserTimezone();
+
         if (!data) {
-          // Insert defaults
+          // Insert defaults with browser timezone
           const { error: insertError } = await supabase
             .from("user_notification_settings")
-            .insert([{ user_id: userId }]);
+            .insert([
+              {
+                user_id: userId,
+                timezone: browserTz,
+              },
+            ]);
 
           if (insertError) {
-            console.error("[notifications] insert default error", insertError);
+            console.error(
+              "[notifications] insert default error",
+              insertError
+            );
             setError("Failed to initialize notification settings.");
             return;
           }
 
-          setSettings(DEFAULT_SETTINGS);
+          setSettings({
+            ...DEFAULT_SETTINGS,
+            timezone: browserTz,
+          });
         } else {
           // Normalize time to HH:MM (strip seconds)
           const normalizeTime = (t: string | null) =>
@@ -86,7 +117,7 @@ export default function NotificationSettings({ userId }: Props) {
             ),
             task_reminders_enabled: data.task_reminders_enabled,
             weekly_report_enabled: data.weekly_report_enabled,
-            timezone: data.timezone,
+            timezone: data.timezone || browserTz,
           });
         }
       } catch (err) {
@@ -114,7 +145,7 @@ export default function NotificationSettings({ userId }: Props) {
         evening_reflection_time: settings.evening_reflection_time + ":00",
         task_reminders_enabled: settings.task_reminders_enabled,
         weekly_report_enabled: settings.weekly_report_enabled,
-        timezone: settings.timezone || "Europe/Athens",
+        timezone: settings.timezone || getBrowserTimezone(),
       };
 
       const { error } = await supabase

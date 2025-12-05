@@ -19,6 +19,10 @@ type TaskRow = {
   category: string | null;
   time_from: string | null;
   time_to: string | null;
+
+  // 🔔 New reminder fields
+  reminder_enabled: boolean | null;
+  reminder_at: string | null; // ISO
 };
 
 type MiniDatePickerProps = {
@@ -39,6 +43,33 @@ function toYmd(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
     date.getDate()
   )}`;
+}
+
+/**
+ * Convert stored UTC ISO → datetime-local string (local wall time "YYYY-MM-DDTHH:MM")
+ */
+function toLocalDateTimeInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+
+  // new Date(iso) is the correct moment in time; to get the *local* wall time
+  // string we do the classic offset trick:
+  const tzOffsetMinutes = d.getTimezoneOffset(); // e.g. -120 for Athens
+  const local = new Date(d.getTime() - tzOffsetMinutes * 60_000);
+
+  // datetime-local expects no timezone info, just "YYYY-MM-DDTHH:MM"
+  return local.toISOString().slice(0, 16);
+}
+
+/**
+ * Convert datetime-local string (interpreted in local timezone) → UTC ISO
+ */
+function fromLocalInputToIso(local: string): string | null {
+  if (!local) return null;
+  const d = new Date(local); // treated as local time
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString(); // store as UTC ISO
 }
 
 /**
@@ -315,6 +346,10 @@ export default function TasksPage() {
   const [newTimeFrom, setNewTimeFrom] = useState<string>("");
   const [newTimeTo, setNewTimeTo] = useState<string>("");
 
+  // 🔔 new reminder fields for new task
+  const [newReminderEnabled, setNewReminderEnabled] = useState(false);
+  const [newReminderAtLocal, setNewReminderAtLocal] = useState<string>(""); // datetime-local
+
   const [savingNew, setSavingNew] = useState(false);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
@@ -366,7 +401,7 @@ export default function TasksPage() {
         const { data, error } = await supabase
           .from("tasks")
           .select(
-            "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
+            "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
           )
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
@@ -407,6 +442,11 @@ export default function TasksPage() {
           ? new Date(newDueDate + "T00:00:00").toISOString()
           : null;
 
+      let reminderAtIso: string | null = null;
+      if (newReminderEnabled && newReminderAtLocal) {
+        reminderAtIso = fromLocalInputToIso(newReminderAtLocal);
+      }
+
       const { data, error } = await supabase
         .from("tasks")
         .insert([
@@ -420,10 +460,13 @@ export default function TasksPage() {
             category: newCategory || null,
             time_from: newTimeFrom || null,
             time_to: newTimeTo || null,
+
+            reminder_enabled: !!reminderAtIso,
+            reminder_at: reminderAtIso,
           },
         ])
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
         )
         .single();
 
@@ -443,6 +486,8 @@ export default function TasksPage() {
       setNewCategory("");
       setNewTimeFrom("");
       setNewTimeTo("");
+      setNewReminderEnabled(false);
+      setNewReminderAtLocal("");
     } catch (err) {
       console.error("[tasks] insert exception", err);
       setError("Failed to add task.");
@@ -470,7 +515,7 @@ export default function TasksPage() {
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
         )
         .single();
 
@@ -512,11 +557,21 @@ export default function TasksPage() {
               : task.time_from,
           time_to:
             updates.time_to !== undefined ? updates.time_to : task.time_to,
+
+          // keep existing reminder fields unless explicitly changed
+          reminder_enabled:
+            updates.reminder_enabled !== undefined
+              ? updates.reminder_enabled
+              : task.reminder_enabled,
+          reminder_at:
+            updates.reminder_at !== undefined
+              ? updates.reminder_at
+              : task.reminder_at,
         })
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
         )
         .single();
 
@@ -821,6 +876,37 @@ export default function TasksPage() {
                 </select>
               </div>
 
+              {/* 🔔 New task reminder controls */}
+              <div className="flex flex-col gap-1 text-xs text-[var(--text-main)]">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={newReminderEnabled}
+                    onChange={(e) =>
+                      setNewReminderEnabled(e.target.checked)
+                    }
+                    className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                  />
+                  <span>Set reminder for this task</span>
+                </label>
+                {newReminderEnabled && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="datetime-local"
+                      value={newReminderAtLocal}
+                      onChange={(e) =>
+                        setNewReminderAtLocal(e.target.value)
+                      }
+                      className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
+                    />
+                    <span className="text-[10px] text-[var(--text-muted)]">
+                      Uses your device timezone. You’ll get an email + push
+                      (if enabled) when it’s due.
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="submit"
                 disabled={savingNew}
@@ -956,6 +1042,62 @@ export default function TasksPage() {
 
                 const isSelected = selectedTaskIds.includes(task.id);
 
+                // 🔔 convert reminder_at ISO → datetime-local string (local wall time)
+                const reminderLocal = toLocalDateTimeInput(task.reminder_at);
+
+                async function handleReminderChange(
+                  enabled: boolean,
+                  localVal: string
+                ) {
+                  if (!user) return;
+
+                  let reminderAt: string | null = null;
+                  if (enabled && localVal) {
+                    reminderAt = fromLocalInputToIso(localVal);
+                  }
+
+                  setSavingTaskId(task.id);
+                  setError("");
+
+                  try {
+                    const { data, error } = await supabase
+                      .from("tasks")
+                      .update({
+                        reminder_enabled: !!reminderAt,
+                        reminder_at: reminderAt,
+                      })
+                      .eq("id", task.id)
+                      .eq("user_id", user.id)
+                      .select(
+                        "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
+                      )
+                      .single();
+
+                    if (error) {
+                      console.error(
+                        "[tasks] reminder update error",
+                        error
+                      );
+                      setError("Could not update reminder.");
+                      return;
+                    }
+
+                    setTasks((prev) =>
+                      prev.map((t) =>
+                        t.id === task.id ? ((data as TaskRow) || t) : t
+                      )
+                    );
+                  } catch (err) {
+                    console.error(
+                      "[tasks] reminder update exception]",
+                      err
+                    );
+                    setError("Could not update reminder.");
+                  } finally {
+                    setSavingTaskId(null);
+                  }
+                }
+
                 return (
                   <div
                     key={task.id}
@@ -1053,7 +1195,7 @@ export default function TasksPage() {
                           placeholder="Details or notes…"
                         />
 
-                        {/* Bottom row: due / time / created / completed + share + delete */}
+                        {/* Bottom row: due / time / reminder / created / completed + share + delete */}
                         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                             <div className="flex items-center gap-2">
@@ -1106,6 +1248,38 @@ export default function TasksPage() {
                                   </option>
                                 ))}
                               </select>
+                            </div>
+
+                            {/* 🔔 Reminder controls per task */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>Reminder:</span>
+                              <label className="flex items-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  defaultChecked={!!task.reminder_enabled}
+                                  onChange={(e) =>
+                                    handleReminderChange(
+                                      e.target.checked,
+                                      reminderLocal
+                                    )
+                                  }
+                                  className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                                />
+                                <span className="text-[10px]">
+                                  Enable
+                                </span>
+                              </label>
+                              <input
+                                type="datetime-local"
+                                defaultValue={reminderLocal}
+                                onBlur={(e) =>
+                                  handleReminderChange(
+                                    true,
+                                    e.target.value
+                                  )
+                                }
+                                className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
+                              />
                             </div>
 
                             <span className="text-[10px]">
