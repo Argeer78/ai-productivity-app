@@ -712,49 +712,50 @@ export default function TranslateWithAIButton() {
                 <p className="text-[11px] text-red-400">{errorMsg}</p>
               )}
 
-              {/* Actions */}
-              <div className="flex flex-wrap items-center gap-2 justify-between">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleTranslateText}
-                    disabled={loading || !selectedLang}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
-                  >
-                    {loading
-                      ? "Translating…"
-                      : `Translate text to ${selectedLang?.label ?? "…"}`}
-                  </button>
+            {/* Actions */}
+<div className="flex flex-wrap items-center gap-2 justify-between">
+  <div className="flex flex-wrap gap-2">
+    <button
+      type="button"
+      onClick={handleTranslateText}
+      disabled={loading || !selectedLang}
+      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
+    >
+      {loading
+        ? "Translating…"
+        : `Translate text to ${selectedLang?.label ?? "…"}`}
+    </button>
 
-                  <button
-                    type="button"
-                    onClick={handleTranslatePage}
-                    disabled={loading || !selectedLang}
-                    className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] font-medium text-[var(--text-main)] disabled:opacity-60"
-                  >
-                    {loading ? "Working on page…" : "Translate this page"}
-                  </button>
+    <button
+      type="button"
+      onClick={handleTranslatePage}
+      disabled={loading || !selectedLang}
+      className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] font-medium text-[var(--text-main)] disabled:opacity-60"
+    >
+      {loading ? "Working on page…" : "Translate this page"}
+    </button>
 
-                  <button
-                    type="button"
-                    onClick={handleTranslateSite}
-                    disabled={loading || !selectedLang}
-                    className="px-4 py-2 rounded-xl border border-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] font-medium text-emerald-100 disabled:opacity-60"
-                  >
-                    {loading
-                      ? "Applying to AI Hub…"
-                      : "Translate AI Hub (auto)"}
-                  </button>
-                </div>
+    {/* 🔁 Auto-translate the whole app (no theme vars) */}
+    <button
+      type="button"
+      onClick={handleTranslateSite}
+      disabled={loading || !selectedLang}
+      className="px-4 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-medium text-white disabled:opacity-60"
+    >
+      {loading
+        ? "Applying auto-translation…"
+        : "Auto-translate app"}
+    </button>
+  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
-                >
-                  Close
-                </button>
-              </div>
+  <button
+    type="button"
+    onClick={() => setOpen(false)}
+    className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
+  >
+    Close
+  </button>
+</div>
 
               {/* Result / status */}
               {translatedText && (
