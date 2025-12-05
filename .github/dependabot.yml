@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # 1) Keep npm deps up to date (only patches for Next + eslint-config-next)
+  - package-ecosystem: "npm"
+    directory: "/"          # Root of your project
+    schedule:
+      interval: "weekly"    # Or "daily" if you prefer
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-name: "next"
+      - dependency-name: "eslint-config-next"
+    ignore:
+      # Ignore major & minor bumps for Next.js – only allow patch versions
+      - dependency-name: "next"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+      - dependency-name: "eslint-config-next"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+
+  # 2) (Optional but recommended) Keep GitHub Actions up to date too
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
