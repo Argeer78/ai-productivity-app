@@ -13,6 +13,9 @@ type ToolKind =
   | "tasks"
   | "ai-task-creator"
   | "templates"
+  | "travel"
+  | "planner"
+  | "my-trips"
   | "daily-success"
   | "weekly-history"
   | "settings";
@@ -53,7 +56,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     id: "chat",
-    slug: "/ai-chat", // adjust if your route is different, e.g. "/ai-hub"
+    slug: "/ai-chat", // adjust if your route is different
     emoji: "💬",
     name: "AI Hub Chat",
     shortTagline: "Your general-purpose AI assistant inside the workspace.",
@@ -167,8 +170,77 @@ const TOOLS: ToolDef[] = [
     ctaLabel: "Browse Templates",
   },
   {
+    id: "travel",
+    slug: "/travel",
+    emoji: "✈️",
+    name: "Travel Planner",
+    shortTagline: "Instant AI-generated trip itineraries.",
+    description:
+      "Plan detailed multi-day itineraries in seconds. Get highlights, food recommendations, daily routes, budgets, and prefilled Booking.com links that you can reuse later from My Trips.",
+    bestFor: [
+      "Planning weekend trips or long holidays quickly",
+      "Getting ideas for what to see, eat and do in a new city",
+      "Creating structured daily itineraries instead of random bookmarks",
+    ],
+    howToUse: [
+      "Open the Travel Planner and enter your destination, dates, travel style and preferences.",
+      "Let AI generate a day-by-day itinerary with activities, food suggestions and logistics.",
+      "Edit or regenerate parts you don’t like until it feels right.",
+      "Save the trip so it appears in My Trips, where you can revisit or reuse it anytime.",
+    ],
+    proHint:
+      "Pro is ideal if you plan lots of trips or want richer, more detailed itineraries with multiple alternatives.",
+    ctaLabel: "Open Travel Planner",
+  },
+  {
+    id: "planner",
+    slug: "/planner",
+    emoji: "📅",
+    name: "Daily Planner",
+    shortTagline: "Plan your day with AI-assisted tasks & focus.",
+    description:
+      "Start every day with clarity. The Daily Planner helps you review your goals, create an achievable schedule, and use AI to break big goals into actionable tasks you can actually finish.",
+    bestFor: [
+      "Structuring your day when you feel overwhelmed",
+      "Turning a messy to-do list into a realistic schedule",
+      "Connecting your Daily Success score with concrete actions",
+    ],
+    howToUse: [
+      "Open the Daily Planner in the morning or the night before.",
+      "Write what you want to focus on and the constraints you have (meetings, energy, time).",
+      "Let AI suggest a structured plan with time blocks and priority tasks.",
+      "Send tasks directly into the Tasks page and use the Daily Success score to review how it went.",
+    ],
+    proHint:
+      "With Pro, you can lean on the planner more often and let AI handle bigger, more complex planning sessions.",
+    ctaLabel: "Use Daily Planner",
+  },
+  {
+    id: "my-trips",
+    slug: "/my-trips",
+    emoji: "🧳",
+    name: "My Trips",
+    shortTagline: "Manage and revisit all your AI-generated trips.",
+    description:
+      "All trips you generate with the Travel Planner are saved in My Trips. You can reopen any itinerary, tweak it with AI, or copy details for bookings and logistics.",
+    bestFor: [
+      "Keeping all your trip ideas and plans in one place",
+      "Reusing an old itinerary for a new trip with tweaks",
+      "Quickly grabbing hotel or activity suggestions you liked before",
+    ],
+    howToUse: [
+      "Open My Trips from the navigation to see all saved itineraries.",
+      "Click into a trip to view the full AI-generated plan.",
+      "Regenerate or adjust sections (e.g. food, activities) if your preferences changed.",
+      "Copy important details into your calendar, booking sites or share them with travel partners.",
+    ],
+    proHint:
+      "If you travel often, Pro plus My Trips becomes your personal travel library powered by AI.",
+    ctaLabel: "View My Trips",
+  },
+  {
     id: "daily-success",
-    slug: "/daily-success", // if you don't have a dedicated page, you can point this to "/dashboard#daily-success"
+    slug: "/dashboard#daily-success", // anchor into dashboard
     emoji: "🌟",
     name: "Daily Success score",
     shortTagline: "A tiny 0–100 score that tracks your days.",
@@ -180,7 +252,7 @@ const TOOLS: ToolDef[] = [
       "Connecting your mood, tasks and wins to a quick daily check-in",
     ],
     howToUse: [
-      "At the end of the day (or during your evening reflection), open the Daily Success section from the Dashboard or its dedicated page.",
+      "At the end of the day (or during your evening reflection), open the Daily Success section from the Dashboard.",
       "Rate your day from 0–100 based on how satisfied you feel with your progress.",
       "Optionally add a quick note about why you gave that score.",
       "Review your scores over time via Weekly history to spot streaks, slumps and what tends to help.",
@@ -270,9 +342,9 @@ export default function ToolsPage() {
               Every tool in AI Productivity Hub, explained.
             </h1>
             <p className="text-xs md:text-sm text-[var(--text-muted)] max-w-2xl">
-              Think of this as your map. Each section below is a page or feature
-              inside the app — what it does, when to use it, and how to get the
-              most value from it.
+              Think of this as your map. Each section below is a page or
+              feature inside the app — what it does, when to use it, and how to
+              get the most value from it.
             </p>
           </header>
 
