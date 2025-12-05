@@ -90,35 +90,45 @@ self.addEventListener("message", (event) => {
 // 🔔 PUSH NOTIFICATIONS — Show reminders from backend
 // --------------------------------------------------
 self.addEventListener("push", (event) => {
-  console.log("[sw] push event", event);
+  let data = {};
 
-  let payload = {};
-
-  if (event.data) {
-    try {
-      // Try JSON first
-      payload = event.data.json();
-    } catch (e) {
+  try {
+    if (event.data) {
       try {
-        // Fallback to text payload
-        const text = event.data.text();
-        payload = { title: text };
+        // First try JSON
+        data = event.data.json();
       } catch {
-        // Ignore, will use defaults
-        payload = {};
+        // Fallback to plain text
+        const text = event.data.text();
+        data = {
+          title: text || "Task Reminder",
+          body: "",
+        };
       }
+    } else {
+      // No payload at all (some push services do this)
+      data = {
+        title: "Task Reminder",
+        body: "You have something to review.",
+      };
     }
+  } catch (e) {
+    // Absolute last resort
+    console.error("[sw] push event parsing error:", e);
+    data = {
+      title: "Task Reminder",
+      body: "You have something to review.",
+    };
   }
 
-  const title = payload.title || "Task Reminder";
-  const body = payload.body || "You have a task coming up.";
-  const url = payload.url || "/dashboard";
+  const title = data.title || "Task Reminder";
+  const body = data.body || "You have something to review.";
+  const url = data.url || "/dashboard";
 
   const options = {
     body,
-    // Make sure these paths exist in /public
     icon: "/icons/icon-192.png",
-    badge: "/icons/icon-96.png",
+    badge: "/icons/badge-72.png",
     vibrate: [80, 40, 80],
     data: { url },
   };
@@ -137,17 +147,11 @@ self.addEventListener("notificationclick", (event) => {
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
-        // Focus *any* existing tab on your origin if possible
-        for (const client of clientList) {
-          if ("focus" in client) {
-            // If you want to be strict, check client.url.includes(urlToOpen)
-            return client.focus();
-          }
+        const existing = clientList.find((c) => c.url.includes(urlToOpen));
+        if (existing) {
+          return existing.focus();
         }
-        // Otherwise open a new one
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
-        }
+        return clients.openWindow(urlToOpen);
       })
   );
 });

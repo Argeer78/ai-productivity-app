@@ -78,6 +78,30 @@ export default function SettingsPage() {
 
   // Theme context (from ThemeProvider)
   const { theme, setTheme } = useTheme();
+  
+  useEffect(() => {
+  async function checkPush() {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) {
+      setPushStatus("Push notifications are not supported in this browser.");
+      return;
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        setPushStatus("✅ Push notifications already enabled.");
+      }
+    } catch (err) {
+      console.error("checkPush error:", err);
+    }
+  }
+
+  if (user) {
+    checkPush();
+  }
+}, [user]);
 
   // Load user
   useEffect(() => {
