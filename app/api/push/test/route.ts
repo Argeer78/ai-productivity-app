@@ -1,32 +1,11 @@
-// app/api/push/test/route.ts
 import { NextResponse } from "next/server";
-import webpush from "web-push";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendTaskReminderEmail } from "@/lib/emailTasks";
-
-const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY;
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:hello@aiprod.app";
+import { sendTaskReminderPush } from "@/lib/pushServer";
 
 export async function POST(req: Request) {
   try {
-    // ✅ 1) Require VAPID keys – if missing, return an error, not ok:true
-    if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
-      console.error(
-        "[push/test] Missing VAPID_PUBLIC or VAPID_PRIVATE – cannot send push"
-      );
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Missing VAPID keys (VAPID_PUBLIC / VAPID_PRIVATE)",
-        },
-        { status: 500 }
-      );
-    }
+    const { userId } = await req.json().catch(() => ({}));
 
-    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-
-    const { userId } = await req.json();
     if (!userId) {
       return NextResponse.json(
         { ok: false, error: "Missing userId" },
@@ -34,85 +13,44 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) Load push subscription
-    const { data: sub, error: subErr } = await supabaseAdmin
+    // Get the latest subscription for this user
+    const { data: subs, error } = await supabaseAdmin
       .from("push_subscriptions")
-      .select("*")
+      .select("endpoint, p256dh, auth")
       .eq("user_id", userId)
-      .maybeSingle();
+      .order("created_at", { ascending: false })
+      .limit(1);
 
-    if (subErr || !sub) {
-      console.error("[push/test] no subscription:", subErr);
+    if (error) {
+      console.error("[push-test] DB error:", error);
       return NextResponse.json(
-        { ok: false, error: "No subscription for this user" },
-        { status: 404 }
-      );
-    }
-
-    // 3) Load user email for debug email
-    const { data: profile, error: profileErr } = await supabaseAdmin
-      .from("profiles")
-      .select("email")
-      .eq("id", userId)
-      .maybeSingle();
-
-    const email = profile?.email as string | undefined;
-    if (profileErr) {
-      console.error("[push/test] profile error:", profileErr);
-    }
-
-    // 4) Send PUSH notification
-    const payload = JSON.stringify({
-      title: "Test task reminder",
-      body: "If you see this, push notifications are wired end-to-end ✅",
-      url: "/tasks",
-    });
-
-    try {
-      await webpush.sendNotification(
-        {
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh,
-            auth: sub.auth,
-          },
-        } as any,
-        payload
-      );
-      console.log("[push/test] push sent OK");
-    } catch (err: any) {
-      console.error(
-        "[push/test] webpush error:",
-        err?.statusCode,
-        err?.body || err
-      );
-      return NextResponse.json(
-        { ok: false, error: "webpush send error" },
+        { ok: false, error: "DB error loading subscription" },
         { status: 500 }
       );
     }
 
-    // 5) Send debug EMAIL using the same helper (optional but useful)
-    if (email) {
-      try {
-        await sendTaskReminderEmail({
-          to: email,
-          taskTitle: "Test task reminder",
-          taskNote:
-            "If you see this email, the task reminder email pipeline works ✅",
-          dueAt: null,
-        });
-      } catch (err) {
-        console.error("[push/test] email send error:", err);
-        // don't fail test just because email failed
-      }
+    if (!subs || subs.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: "No subscription found for this user" },
+        { status: 404 }
+      );
     }
 
+    const sub = subs[0];
+
+    console.log("[push-test] Sending test push to", sub.endpoint);
+
+    await sendTaskReminderPush(sub, {
+      taskId: "test-task",
+      title: "🔔 Test push from AI Productivity Hub",
+      note: "If you see this, push notifications are working!",
+    });
+
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    console.error("[push/test] error:", err);
+  } catch (err) {
+    console.error("[push-test] Unexpected error:", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Push send error" },
+      { ok: false, error: "Unexpected error" },
       { status: 500 }
     );
   }
