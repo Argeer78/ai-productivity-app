@@ -9,9 +9,7 @@ let resend: Resend | null = null;
 if (resendApiKey) {
   resend = new Resend(resendApiKey);
 } else {
-  console.warn(
-    "[email] RESEND_API_KEY is not set – emails will be skipped."
-  );
+  console.warn("[email] RESEND_API_KEY is not set – emails will be skipped.");
 }
 
 let openai: OpenAI | null = null;
@@ -23,231 +21,110 @@ if (openaiApiKey) {
   );
 }
 
-type DailyDigestOptions = {
-  userId: string;
-  email: string;
-  aiTone?: string | null;
-  focusArea?: string | null;
+type SendTaskReminderEmailParams = {
+  to: string;
+  taskTitle: string;
+  taskNote?: string | null;
+  dueAt?: string | null; // ISO string (optional)
 };
 
-type TestEmailOptions = {
-  email: string;
-  subject?: string;
-  body?: string;
-};
+export async function sendTaskReminderEmail({
+  to,
+  taskTitle,
+  taskNote,
+  dueAt,
+}: SendTaskReminderEmailParams): Promise<void> {
+  if (!resend) {
+    console.error("[emailTasks] Resend is not configured, skipping email send.");
+    return;
+  }
 
-/**
- * Decide which "from" address to use.
- * - If RESEND_FROM_EMAIL is set → "AI Productivity Hub <that@address>"
- * - Otherwise fallback to a hard-coded assistant@aiprod.app
- */
+  const subject = `Task reminder: ${taskTitle}`;
+
+  const humanDue =
+    dueAt && !Number.isNaN(Date.parse(dueAt))
+      ? new Date(dueAt).toLocaleString()
+      : null;
+
+  const plainLines: string[] = [
+    "Hey,",
+    "",
+    "This is a quick reminder from AI Productivity Hub:",
+    "",
+    `• Task: ${taskTitle}`,
+  ];
+
+  if (humanDue) {
+    plainLines.push(`• When: ${humanDue}`);
+  }
+  if (taskNote) {
+    plainLines.push("", "Notes:", taskNote);
+  }
+
+  plainLines.push(
+    "",
+    "Open your tasks to mark it done or reschedule:",
+    "https://aiprod.app/tasks",
+    "",
+    "— AI Productivity Hub"
+  );
+
+  const text = plainLines.join("\n");
+
+  const html = `
+    <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0f172a; line-height: 1.5;">
+      <h2 style="margin: 0 0 8px; font-size: 18px;">Task reminder</h2>
+      <p style="margin: 0 0 12px;">This is a quick reminder from <strong>AI Productivity Hub</strong>:</p>
+      <ul style="margin: 0 0 12px; padding-left: 18px;">
+        <li><strong>Task:</strong> ${escapeHtml(taskTitle)}</li>
+        ${humanDue ? `<li><strong>When:</strong> ${escapeHtml(humanDue)}</li>` : ""}
+      </ul>
+      ${taskNote ? `<p style="margin: 0 0 12px;"><strong>Notes:</strong><br />${escapeHtml(taskNote).replace(/\n/g, "<br />")}</p>` : ""}
+      <p style="margin: 0 0 12px;">
+        <a href="https://aiprod.app/tasks" style="display:inline-block;padding:8px 14px;border-radius:999px;background:#6366f1;color:#f9fafb;text-decoration:none;font-size:13px;">
+          Open my tasks
+        </a>
+      </p>
+      <p style="margin: 12px 0 0; font-size: 12px; color: #64748b;">
+        You can turn off task reminders from Settings at any time.
+      </p>
+    </div>
+  `;
+
+  // Ensure that `resend` is available before sending email
+  if (resend) {
+    try {
+      const result = await resend.emails.send({
+        from: getFromAddress(),
+        to,
+        subject,
+        text,
+        html,
+        headers: {
+          "List-Unsubscribe": "<https://aiprod.app/settings>",
+        },
+      });
+      console.log("[emailTasks] Task reminder email sent:", result?.data?.id || result);
+    } catch (err) {
+      console.error("[emailTasks] Failed to send task reminder email:", err);
+    }
+  }
+}
+
+// small helper to avoid XSS in HTML email
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Decide which "from" address to use.
 function getFromAddress() {
   const envFrom = process.env.RESEND_FROM_EMAIL;
   if (!envFrom) {
     return "AI Productivity Hub <assistant@aiprod.app>";
   }
   return `AI Productivity Hub <${envFrom}>`;
-}
-
-/**
- * Generic email sender (used by weekly reports, etc.)
- */
-export async function sendEmail({
-  to,
-  subject,
-  html,
-  text,
-}: {
-  to: string;
-  subject: string;
-  html?: string;
-  text?: string;
-}): Promise<void> {
-  if (!to) {
-    console.warn("[sendEmail] Missing 'to' address");
-    return;
-  }
-  if (!resend) {
-    console.warn(
-      "[sendEmail] Resend client not initialized, skipping send to",
-      to
-    );
-    return;
-  }
-
-  let fallbackText = text;
-  if (!fallbackText && html) {
-    fallbackText = html.replace(/<[^>]+>/g, "");
-  }
-
-  try {
-    await resend.emails.send({
-      from: getFromAddress(),
-      to,
-      subject,
-      html,
-      text: fallbackText,
-    } as any); 
-    console.log("[sendEmail] Email sent to", to);
-  } catch (err) {
-    console.error("[sendEmail] Resend error for", to, err);
-  }
-}
-
-/**
- * Fetch last 24h notes & open tasks for a user.
- */
-async function fetchUserActivity(userId: string) {
-  const now = new Date();
-  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-
-  const { data: notes, error: notesError } = await supabaseAdmin
-    .from("notes")
-    .select("id, title, content, created_at")
-    .eq("user_id", userId)
-    .gte("created_at", since)
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  if (notesError) {
-    console.error("[daily-digest] Notes query error:", notesError);
-  }
-
-  const { data: tasks, error: tasksError } = await supabaseAdmin
-    .from("tasks")
-    .select("id, title, description, is_done, due_date, created_at")
-    .eq("user_id", userId)
-    .eq("is_done", false)
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  if (tasksError) {
-    console.error("[daily-digest] Tasks query error:", tasksError);
-  }
-
-  return {
-    notes: (notes || []) as {
-      id: string;
-      title: string | null;
-      content: string | null;
-      created_at: string | null;
-    }[],
-    tasks: (tasks || []) as {
-      id: string;
-      title: string | null;
-      description: string | null;
-      is_done: boolean;
-      due_date: string | null;
-      created_at: string | null;
-    }[],
-  };
-}
-
-/**
- * Build the AI body text using OpenAI.
- */
-async function buildAiDigestBody(opts: {
-  notes: any[];
-  tasks: any[];
-  aiTone?: string | null;
-  focusArea?: string | null;
-}): Promise<string> {
-  if (!openai) {
-    const lines: string[] = [];
-    lines.push("Here’s your simple daily snapshot (fallback mode).");
-    lines.push("");
-
-    if (opts.notes.length === 0 && opts.tasks.length === 0) {
-      lines.push("No new notes or open tasks found.");
-    } else {
-      if (opts.notes.length > 0) {
-        lines.push("Recent notes (last 24 hours):");
-        for (const note of opts.notes.slice(0, 5)) {
-          lines.push(`- ${note.title || "(untitled)"}`);
-        }
-        lines.push("");
-      }
-
-      if (opts.tasks.length > 0) {
-        lines.push("Open tasks:");
-        for (const task of opts.tasks.slice(0, 5)) {
-          lines.push(`- ${task.title || "(untitled task)"}`);
-        }
-        lines.push("");
-      }
-    }
-
-    lines.push("Tip: Capture something today!");
-    return lines.join("\n");
-  }
-
-  const notesForModel = opts.notes.map((note) => ({
-    title: note.title,
-    content: note.content,
-  }));
-
-  const tasksForModel = opts.tasks.map((task) => ({
-    title: task.title,
-    description: task.description,
-    due_date: task.due_date,
-  }));
-
-  const tone = opts.aiTone || "balanced";
-  const focus = opts.focusArea || "general productivity";
-
-  const systemPrompt = `
-    You are an AI productivity assistant.
-    Tone: ${tone}
-    Focus: ${focus}
-  `;
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: JSON.stringify({ notes: notesForModel, tasks: tasksForModel }) },
-    ],
-    max_tokens: 500,
-  });
-
-  return completion.choices[0]?.message?.content || "Here's your digest.";
-}
-
-/**
- * REAL daily digest:
- */
-export async function sendDailyDigest(
-  opts: DailyDigestOptions
-): Promise<void> {
-  const { userId, email, aiTone, focusArea } = opts;
-
-  if (!email) {
-    console.warn("[daily-digest] Missing email for user", userId);
-    return;
-  }
-
-  try {
-    const { notes, tasks } = await fetchUserActivity(userId);
-    const aiBody = await buildAiDigestBody({ notes, tasks, aiTone, focusArea });
-
-    const subject = "Your AI Productivity Hub daily digest";
-
-    const lines = [
-      "Hi 👋",
-      "Here’s your daily snapshot from AI Productivity Hub:",
-      aiBody,
-      "Adjust tone in settings if needed.",
-    ];
-
-    await resend.emails.send({
-      from: getFromAddress(),
-      to: email,
-      subject,
-      text: lines.join("\n"),
-    });
-
-    console.log("[daily-digest] Email sent to", email);
-  } catch (err) {
-    console.error("[daily-digest] Error:", err);
-  }
 }
