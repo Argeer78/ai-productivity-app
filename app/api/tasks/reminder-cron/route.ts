@@ -1,4 +1,3 @@
-// app/api/tasks/reminder-cron/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderEmail } from "@/lib/emailTasks";
@@ -14,9 +13,7 @@ function checkCronAuth(req: Request): NextResponse | null {
   }
 
   if (!CRON_SECRET) {
-    console.warn(
-      "[reminder-cron] CRON_SECRET is not set – refusing unauthorized access."
-    );
+    console.warn("[reminder-cron] CRON_SECRET is not set – refusing unauthorized access.");
     return NextResponse.json(
       { ok: false, error: "Cron secret not configured" },
       { status: 500 }
@@ -27,11 +24,12 @@ function checkCronAuth(req: Request): NextResponse | null {
   const url = new URL(req.url);
   const cronKeyParam = url.searchParams.get("cron_key");
 
+  // Prioritize header-based authentication
   const validByHeader = authHeader === `Bearer ${CRON_SECRET}`;
   const validByQuery = cronKeyParam === CRON_SECRET;
 
   if (!validByHeader && !validByQuery) {
-    console.warn("[reminder-cron] unauthorized cron call");
+    console.warn("[reminder-cron] Unauthorized cron call");
     return NextResponse.json(
       { ok: false, error: "Unauthorized cron" },
       { status: 401 }
@@ -47,9 +45,7 @@ export async function GET(req: Request) {
   if (authError) return authError;
 
   if (!supabaseAdmin) {
-    console.error(
-      "[reminder-cron] supabaseAdmin not configured – check SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_URL"
-    );
+    console.error("[reminder-cron] supabaseAdmin not configured – check SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_URL");
     return NextResponse.json(
       { ok: false, error: "Supabase admin not configured" },
       { status: 500 }
@@ -62,9 +58,7 @@ export async function GET(req: Request) {
     // 1) Find due tasks
     const { data: tasks, error } = await supabaseAdmin
       .from("tasks")
-      .select(
-        "id, user_id, title, description, reminder_at, reminder_enabled, reminder_sent_at"
-      )
+      .select("id, user_id, title, description, reminder_at, reminder_enabled, reminder_sent_at")
       .eq("reminder_enabled", true)
       .is("reminder_sent_at", null)
       .lte("reminder_at", nowIso)
@@ -72,7 +66,7 @@ export async function GET(req: Request) {
       .limit(50);
 
     if (error) {
-      console.error("[reminder-cron] query error:", error);
+      console.error("[reminder-cron] Query error:", error);
       return NextResponse.json(
         { ok: false, error: "Failed to fetch tasks" },
         { status: 500 }
@@ -80,14 +74,15 @@ export async function GET(req: Request) {
     }
 
     if (!tasks || tasks.length === 0) {
-      console.log("[reminder-cron] no due tasks found");
+      console.log("[reminder-cron] No due tasks found");
       return NextResponse.json({ ok: true, processed: 0, sent: 0 });
     }
 
-    console.log("[reminder-cron] due tasks:", tasks.length);
+    console.log("[reminder-cron] Found due tasks:", tasks.length);
 
     let sentCount = 0;
 
+    // Process tasks
     for (const task of tasks) {
       const title = task.title || "Untitled task";
 
@@ -97,24 +92,13 @@ export async function GET(req: Request) {
           await supabaseAdmin.auth.admin.getUserById(task.user_id);
 
         if (userError || !userData?.user?.email) {
-          console.error(
-            "[reminder-cron] could not fetch user email for user_id",
-            task.user_id,
-            userError
-          );
+          console.error("[reminder-cron] Could not fetch user email for user_id", task.user_id, userError);
           continue;
         }
 
         const email = userData.user.email;
 
-        console.log(
-          "[reminder-cron] sending reminder",
-          task.id,
-          "to",
-          email,
-          "for reminder_at=",
-          task.reminder_at
-        );
+        console.log("[reminder-cron] Sending reminder for task", task.id, "to", email, "at", task.reminder_at);
 
         // 3) Send email
         await sendTaskReminderEmail({
@@ -131,21 +115,13 @@ export async function GET(req: Request) {
           .eq("id", task.id);
 
         if (updateError) {
-          console.error(
-            "[reminder-cron] failed to update reminder_sent_at for task",
-            task.id,
-            updateError
-          );
+          console.error("[reminder-cron] Failed to update reminder_sent_at for task", task.id, updateError);
           continue;
         }
 
         sentCount += 1;
       } catch (err) {
-        console.error(
-          "[reminder-cron] error while processing task",
-          task.id,
-          err
-        );
+        console.error("[reminder-cron] Error while processing task", task.id, err);
       }
     }
 
@@ -155,7 +131,7 @@ export async function GET(req: Request) {
       sent: sentCount,
     });
   } catch (err) {
-    console.error("[reminder-cron] unexpected error:", err);
+    console.error("[reminder-cron] Unexpected error:", err);
     return NextResponse.json(
       { ok: false, error: "Unexpected error" },
       { status: 500 }

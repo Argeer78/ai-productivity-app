@@ -1,14 +1,11 @@
-// lib/emailTasks.ts
 import { Resend } from "resend";
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const FROM =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
 
-if (!resendApiKey) {
-  console.warn(
-    "[emailTasks] RESEND_API_KEY is not set – task reminder emails will fail."
-  );
+if (!resendApiKey || !FROM) {
+  console.warn("[emailTasks] Missing API key or FROM email, task reminder emails may fail.");
 }
 
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
@@ -36,7 +33,7 @@ export async function sendTaskReminderEmail({
   const humanDue =
     dueAt && !Number.isNaN(Date.parse(dueAt))
       ? new Date(dueAt).toLocaleString()
-      : null;
+      : "No due date set";  // Default if due date is invalid
 
   const plainLines: string[] = [
     "Hey,",
@@ -58,42 +55,33 @@ export async function sendTaskReminderEmail({
     "Open your tasks to mark it done or reschedule:",
     "https://aiprod.app/tasks",
     "",
-    "— AI Productivity Hub"
+    "— AI Productivity Hub",
+    "If you no longer wish to receive task reminders, visit https://aiprod.app/settings/unsubscribe"
   );
 
   const text = plainLines.join("\n");
 
   const html = `
     <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0f172a; line-height: 1.5;">
-      <h2 style="margin: 0 0 8px; font-size: 18px;">Task reminder</h2>
-      <p style="margin: 0 0 12px;">This is a quick reminder from <strong>AI Productivity Hub</strong>:</p>
-      <ul style="margin: 0 0 12px; padding-left: 18px;">
+      <h2>Task reminder</h2>
+      <p>This is a quick reminder from <strong>AI Productivity Hub</strong>:</p>
+      <ul>
         <li><strong>Task:</strong> ${escapeHtml(taskTitle)}</li>
-        ${
-          humanDue
-            ? `<li><strong>When:</strong> ${escapeHtml(humanDue)}</li>`
-            : ""
-        }
+        ${humanDue ? `<li><strong>When:</strong> ${escapeHtml(humanDue)}</li>` : ""}
       </ul>
-      ${
-        taskNote
-          ? `<p style="margin: 0 0 12px;"><strong>Notes:</strong><br />${escapeHtml(
-              taskNote
-            ).replace(/\n/g, "<br />")}</p>`
-          : ""
-      }
-      <p style="margin: 0 0 12px;">
+      ${taskNote ? `<p><strong>Notes:</strong><br />${escapeHtml(taskNote).replace(/\n/g, "<br />")}</p>` : ""}
+      <p>
         <a href="https://aiprod.app/tasks" style="display:inline-block;padding:8px 14px;border-radius:999px;background:#6366f1;color:#f9fafb;text-decoration:none;font-size:13px;">
           Open my tasks
         </a>
       </p>
-      <p style="margin: 12px 0 0; font-size: 12px; color: #64748b;">
-        You can turn off task reminders from Settings at any time.
+      <p style="font-size: 12px; color: #64748b;">
+        If you no longer wish to receive task reminders, visit <a href="https://aiprod.app/settings/unsubscribe">this link</a>.
       </p>
     </div>
   `;
 
-    try {
+  try {
     const result = await resend.emails.send({
       from: FROM,
       to,
@@ -105,17 +93,17 @@ export async function sendTaskReminderEmail({
       },
     });
 
-    // Resend returns { data: { id: string } | null, error?: ... }
-    console.log(
-      "[emailTasks] Task reminder email sent:",
-      result?.data?.id || result
-    );
+    console.log("[emailTasks] Task reminder email sent:", result?.data?.id || result);
   } catch (err) {
-    console.error("[emailTasks] Failed to send task reminder email:", err);
+    if (err instanceof Error) {
+      console.error("[emailTasks] Failed to send task reminder email:", err.message);
+    } else {
+      console.error("[emailTasks] Unexpected error:", err);
+    }
   }
 }
 
-// small helper to avoid XSS in HTML email
+// Escape HTML to prevent XSS in email content
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

@@ -16,10 +16,10 @@ webpush.setVapidDetails(
 
 // 🔥 Replace with your actual subscription from Supabase
 const subscription = {
-  endpoint: "https://fcm.googleapis.com/fcm/send/ecKUCMbQwtY:APA91bFQYNkfPHsQ8z4iqsT8YbzF71btiRqHxOL1ai-aYSEZKCerLBH7VIgsE5yniuOIGUAKKk6DnqgkSe2Xim-hAim2jOkUO-Ii-2Bm-QqMIREazMrJ0wE5J1j3xoYA9fqsNHsTxU3d",
+  endpoint: "https://fcm.googleapis.com/fcm/send/c69fs5zQwac:APA91bFdkFylWr9lXlAIy8-lB0djqikRbL6vbVoX47zvUZso8jK0hcbQslMN3SIXA2-QgI-rd1iE5ziAWf0VXWtQELzerO3nqzUBrvgntY3KbfWmkI4pwpJTpnqcZALSKhdL4iZDjUl5",
   keys: {
-    p256dh: "BC0zzVVODug0awxCg_gl2Mm0NLvvBKfX4-7rnPyU5ICFnCOJ9o-SBBdx2qQgk9kEY7ndzcCU4keP43BpxUTjqKY",
-    auth: "5h772kLWZ6OSbEOZ9HV5FQ"
+    p256dh: "BMv1VA4vtFksDrIPRCcniATt7Yb4uVASo2zmT_Oj_dJ_V9gknEgxGtxeiMccRpx4diMSlqrQsS0gwL6I1jYbc04",
+    auth: "Q-GpeHVUNT7R2x-EkGQCkw"
   }
 };
 

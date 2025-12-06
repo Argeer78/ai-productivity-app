@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { subscribeToPush } from "@/lib/pushClient"; // Assuming the function is imported from your pushClient
@@ -153,12 +155,14 @@ export default function NotificationSettings({ userId }: Props) {
         </label>
       </div>
 
+      {/* Save Button */}
       <button onClick={handleSave} disabled={saving}>
         {saving ? "Saving…" : "Save notification settings"}
       </button>
 
+      {/* Feedback Message */}
       {message && <p>{message}</p>}
-      {error && <p>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
     </section>
   );
 }
