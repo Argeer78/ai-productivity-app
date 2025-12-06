@@ -95,45 +95,60 @@ self.addEventListener("push", (event) => {
   try {
     if (event.data) {
       try {
-        // First try JSON
+        // First try JSON (this matches sendTaskReminderPush)
         data = event.data.json();
       } catch {
         // Fallback to plain text
         const text = event.data.text();
         data = {
-          title: text || "Task Reminder",
+          title: text || "Task reminder",
           body: "",
         };
       }
     } else {
-      // No payload at all (some push services do this)
+      // No payload at all
       data = {
-        title: "Task Reminder",
+        title: "Task reminder",
         body: "You have something to review.",
       };
     }
   } catch (e) {
-    // Absolute last resort
     console.error("[sw] push event parsing error:", e);
     data = {
-      title: "Task Reminder",
+      title: "Task reminder",
       body: "You have something to review.",
     };
   }
 
-  const title = data.title || "Task Reminder";
+  const title = data.title || "Task reminder";
   const body = data.body || "You have something to review.";
-  const url = data.url || "/dashboard";
+
+  // 🔑 IMPORTANT: server puts URL inside data.data.url
+  const urlFromNested =
+    data.data && (data.data.url || data.data.link || data.data.path);
+  const urlFromRoot = data.url || data.link || data.path;
+
+  const url = urlFromNested || urlFromRoot || "https://aiprod.app/tasks";
+
+  const taskId =
+    (data.data && data.data.taskId) ||
+    data.taskId ||
+    null;
 
   const options = {
     body,
-    icon: "/icons/icon-192.png",
+    icon: "/icons/icon-192.png", // make sure these exist in /public/icons
     badge: "/icons/icon-96.png",
     vibrate: [80, 40, 80],
-    data: { url },
+    data: {
+      url,
+      taskId,
+    },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
 });
 
 // --------------------------------------------------
@@ -141,16 +156,24 @@ self.addEventListener("push", (event) => {
 // --------------------------------------------------
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || "/dashboard";
+
+  const urlToOpen =
+    (event.notification.data && event.notification.data.url) ||
+    "https://aiprod.app/tasks";
 
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
-        const existing = clientList.find((c) => c.url.includes(urlToOpen));
+        const existing = clientList.find((c) =>
+          c.url.includes(new URL(urlToOpen, self.location.origin).pathname)
+        );
+
         if (existing) {
-          return existing.focus();
+          existing.focus();
+          return;
         }
+
         return clients.openWindow(urlToOpen);
       })
   );
