@@ -15,25 +15,34 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export async function subscribeToPush(userId: string) {
+  console.log("[pushClient] subscribeToPush called for user:", userId);
+
   if (typeof window === "undefined") {
+    console.error("[pushClient] Not in browser context");
     throw new Error("Not in browser");
   }
 
   if (!("serviceWorker" in navigator)) {
+    console.error("[pushClient] Service Worker unsupported");
     throw new Error("Service Worker unsupported in this browser");
   }
 
   if (!("PushManager" in window)) {
+    console.error("[pushClient] Push API unsupported");
     throw new Error("Push notifications unsupported in this browser");
   }
 
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  // ⚠️ Make sure this env var matches the public key used on the server with web-push
   if (!vapidKey) {
+    console.error("[pushClient] NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set");
     throw new Error("VAPID public key is not configured");
   }
 
   // Ask for notification permission
   const permission = await Notification.requestPermission();
+  console.log("[pushClient] Notification permission:", permission);
+
   if (permission !== "granted") {
     throw new Error(
       permission === "denied"
@@ -43,31 +52,53 @@ export async function subscribeToPush(userId: string) {
   }
 
   // Wait for service worker to be ready
+  console.log("[pushClient] Waiting for service worker to be ready…");
   const swReg = await navigator.serviceWorker.ready;
+  console.log("[pushClient] Service worker ready:", swReg);
 
-  // Subscribe to push
-  const subscription = await swReg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapidKey),
-  });
+  // Check existing subscription first
+  const existing = await swReg.pushManager.getSubscription();
+  console.log("[pushClient] Existing subscription:", existing);
+
+  let subscription = existing;
+
+  if (!subscription) {
+    console.log("[pushClient] No subscription, creating a new one…");
+    subscription = await swReg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidKey),
+    });
+    console.log("[pushClient] New subscription created:", subscription);
+  } else {
+    console.log("[pushClient] Reusing existing subscription");
+  }
 
   // Send subscription to your API
+  console.log("[pushClient] Sending subscription to /api/push/subscribe …");
+
   const res = await fetch("/api/push/subscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userId, subscription }),
   });
 
-  const json = await res.json().catch(() => null);
+  let json: any = null;
+  try {
+    json = await res.json();
+  } catch {
+    // ignore parse error, we'll still log the status
+  }
+
+  console.log("[pushClient] /api/push/subscribe response:", res.status, json);
 
   if (!res.ok || !json?.ok) {
-    console.error("[subscribeToPush] server error:", {
+    console.error("[pushClient] server error in subscribe:", {
       status: res.status,
       json,
     });
     throw new Error(json?.error || "push subscribe failed");
   }
 
-  // Success
+  console.log("[pushClient] Push subscription saved successfully.");
   return true;
 }
