@@ -45,6 +45,7 @@ export default function VoiceCaptureButton({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const mimeTypeRef = useRef<string>("");
 
   // Cleanup on unmount
   useEffect(() => {
@@ -64,37 +65,85 @@ export default function VoiceCaptureButton({
     setError(null);
   }, [resetKey]);
 
+  function getSupportError(): string | null {
+    if (typeof window === "undefined") return "Not in a browser environment.";
+
+    if (!("mediaDevices" in navigator) || !navigator.mediaDevices.getUserMedia) {
+      return "Your browser does not support microphone recording. Try updating your browser.";
+    }
+
+    // @ts-expect-error – MediaRecorder may not exist on older mobile browsers
+    if (typeof MediaRecorder === "undefined") {
+      return "This browser does not support audio recording. On mobile, try the latest Chrome or Safari.";
+    }
+
+    return null;
+  }
+
+  function chooseMimeType(): string | "" {
+    // @ts-expect-error – MediaRecorder may not exist on older platforms
+    if (typeof MediaRecorder === "undefined") return "";
+
+    // Prefer webm if available
+    // @ts-expect-error
+    if (MediaRecorder.isTypeSupported?.("audio/webm")) {
+      return "audio/webm";
+    }
+
+    // Fallback for Safari / iOS (often supports mp4)
+    // @ts-expect-error
+    if (MediaRecorder.isTypeSupported?.("audio/mp4")) {
+      return "audio/mp4";
+    }
+
+    return "";
+  }
+
   async function startRecording() {
     setError(null);
     setRawText(null);
     setStructured(null);
     setSavedNoteId(null);
 
-    if (!("mediaDevices" in navigator)) {
-      setError("Your browser does not support audio recording.");
+    const supportError = getSupportError();
+    if (supportError) {
+      setError(supportError);
+      console.warn("[VoiceCapture] Support error:", supportError, navigator.userAgent);
       return;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+
+      const mimeType = chooseMimeType();
+      mimeTypeRef.current = mimeType;
+
+      // @ts-expect-error – MediaRecorder type is not fully known
+      const recorder: MediaRecorder =
+        mimeType && // if we have a valid mimeType, pass it in
+        // @ts-expect-error
+        new MediaRecorder(stream, { mimeType });
+
       chunksRef.current = [];
 
-      recorder.ondataavailable = (event) => {
+      recorder.ondataavailable = (event: BlobEvent) => {
         if (event.data.size > 0) {
           chunksRef.current.push(event.data);
         }
       };
 
       recorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const type = mimeTypeRef.current || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
 
         setLoading(true);
         setSavedNoteId(null);
 
         try {
           const formData = new FormData();
-          formData.append("file", blob, "voice-note.webm");
+          // Use file extension based on mime type
+          const ext = type.includes("mp4") ? "mp4" : "webm";
+          formData.append("file", blob, `voice-note.${ext}`);
           formData.append("userId", userId);
           formData.append("mode", mode);
 
@@ -107,7 +156,7 @@ export default function VoiceCaptureButton({
 
           if (!res.ok || !json.ok) {
             console.error("[VoiceCapture] server error:", json);
-            setError(json.error || "Server error");
+            setError(json.error || "Server error while processing audio.");
           } else {
             const rt = json.rawText || null;
             const st = (json.structured || null) as StructuredResult | null;
@@ -136,7 +185,7 @@ export default function VoiceCaptureButton({
       setRecording(true);
     } catch (err) {
       console.error("[VoiceCapture] getUserMedia error:", err);
-      setError("Could not access microphone.");
+      setError("Could not access microphone. Check browser permissions.");
     }
   }
 
