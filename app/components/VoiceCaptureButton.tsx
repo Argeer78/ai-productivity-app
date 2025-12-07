@@ -185,17 +185,19 @@ export default function VoiceCaptureButton({
         }
       };
 
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setRecording(true);
-    
+          recorder.start();
+    mediaRecorderRef.current = recorder;
+    setRecording(true);
+  } catch (err: any) {
     console.error("[VoiceCapture] getUserMedia error:", err);
 
     const name = err?.name || "UnknownError";
     const msg = err?.message || "";
 
     if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-      setError("Microphone permission was blocked. Please enable it in your browser/site settings.");
+      setError(
+        "Microphone permission was blocked. Please enable it in your browser/site settings."
+      );
     } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
       setError("No microphone was found on this device.");
     } else if (name === "NotReadableError") {
@@ -204,13 +206,7 @@ export default function VoiceCaptureButton({
       setError(`Could not access microphone (${name}). Check permissions and try again.`);
     }
   }
-
-  function stopRecording() {
-    if (!mediaRecorderRef.current) return;
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
-    setRecording(false);
-  }
+}
 
   return (
     <div className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3">
@@ -230,7 +226,7 @@ export default function VoiceCaptureButton({
 
         <button
           type="button"
-          onClick={recording ? stopRecording : startRecording}
+          onClick={recording ? setRecording : startRecording}
           disabled={loading}
           className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 ${
             recording
