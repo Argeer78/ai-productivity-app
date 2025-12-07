@@ -32,21 +32,21 @@ type Note = {
 
 type AiMode = "summarize" | "bullets" | "rewrite";
 
-// 🆕 Richer voice task suggestion shape
+// ✅ Normalized voice task suggestion shape (for UI + DB)
 type VoiceTaskSuggestion = {
   title: string;
-  due_natural?: string | null;
-  due_iso?: string | null;
+  dueLabel: string | null; // what we display to user
+  dueIso: string | null;   // ISO we store in tasks.due_date / reminder_at
   priority?: "low" | "medium" | "high" | null;
 };
 
-// 🆕 Structured payload shape from /api/voice/capture
+// Shape returned by /api/voice/capture
 type VoiceStructured = {
   note?: string | null;
   note_category?: string | null;
   actions?: string[];
   tasks?: {
-    title: string;
+    title?: string;
     due_natural?: string | null;
     due_iso?: string | null;
     priority?: "low" | "medium" | "high" | null;
@@ -134,17 +134,12 @@ export default function NotesPage() {
   // For resetting voice capture after save
   const [voiceResetKey, setVoiceResetKey] = useState(0);
 
-  // 🆕 Voice → suggested tasks from AI
+  // Voice → suggested tasks from AI (normalized)
   const [voiceSuggestedTasks, setVoiceSuggestedTasks] = useState<
     VoiceTaskSuggestion[]
   >([]);
   const [creatingTasks, setCreatingTasks] = useState(false);
   const [voiceTasksMessage, setVoiceTasksMessage] = useState("");
-
-  // 🆕 For linking tasks back to a note
-  const [voiceSourceNoteId, setVoiceSourceNoteId] = useState<string | null>(
-    null
-  );
 
   function handleShareNote(note: Note) {
     if (!note?.content) return;
@@ -173,20 +168,18 @@ export default function NotesPage() {
     track("ask_ai_from_note");
   }
 
-  // 🆕 When voice capture finishes, fill content/title, category, and capture tasks
+  // When voice capture finishes, fill content/title/category and capture tasks
   function handleVoiceResult(payload: {
     rawText: string | null;
     structured: VoiceStructured | null;
-    noteId?: string | null;
   }) {
     const structured = payload.structured;
 
-    // 1) Note content
+    // 1) Note content + smart title
     if (structured && structured.note && typeof structured.note === "string") {
       const noteText = structured.note;
       setContent(noteText);
 
-      // Smart title from first line if user hasn't typed one
       if (!title.trim() && autoTitleEnabled) {
         const firstLine = noteText.trim().split("\n")[0];
         const maxLen = 60;
@@ -197,15 +190,14 @@ export default function NotesPage() {
         setTitle(generated);
       }
     } else if (payload.rawText) {
-      // Fallback if no structured note is present
       setContent(payload.rawText);
     }
 
-    // 2) Smart note category from AI, only if user hasn't chosen one
+    // 2) Smart category from AI (only if user hasn't chosen one)
     if (structured && structured.note_category && !newCategory) {
       const cat = structured.note_category;
-      const allowed = NOTE_CATEGORIES.map((c) => c.toLowerCase());
-      const idx = allowed.indexOf(cat.toLowerCase());
+      const allowedLower = NOTE_CATEGORIES.map((c) => c.toLowerCase());
+      const idx = allowedLower.indexOf(cat.toLowerCase());
       if (idx >= 0) {
         setNewCategory(NOTE_CATEGORIES[idx]);
       } else if (cat.toLowerCase() === "other") {
@@ -213,26 +205,51 @@ export default function NotesPage() {
       }
     }
 
-    // 3) Suggested tasks
+    // 3) Normalize tasks into VoiceTaskSuggestion[]
     if (structured && Array.isArray(structured.tasks)) {
-      const mapped: VoiceTaskSuggestion[] = structured.tasks.map((t) => ({
-        title: t.title,
-        due_natural: t.due_natural ?? null,
-        due_iso: t.due_iso ?? null,
-        priority: t.priority ?? null,
-      }));
-      setVoiceSuggestedTasks(mapped);
+      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
+        const rawTitle =
+          typeof t.title === "string" && t.title.trim()
+            ? t.title.trim()
+            : "(Untitled task)";
+
+        let dueIso: string | null = null;
+        let dueLabel: string | null = null;
+
+        // Prefer ISO from server
+        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
+          const parsed = Date.parse(t.due_iso);
+          if (!Number.isNaN(parsed)) {
+            const iso = new Date(parsed).toISOString();
+            dueIso = iso;
+            dueLabel = new Date(parsed).toLocaleString();
+          }
+        }
+
+        // Fallback to natural-language if ISO missing
+        if (!dueLabel && typeof t.due_natural === "string" && t.due_natural.trim()) {
+          dueLabel = t.due_natural.trim();
+        }
+
+        return {
+          title: rawTitle,
+          dueIso,
+          dueLabel,
+          priority:
+            t.priority === "low" ||
+            t.priority === "medium" ||
+            t.priority === "high"
+              ? t.priority
+              : null,
+        };
+      });
+
+      const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
+      setVoiceSuggestedTasks(nonEmpty);
       setVoiceTasksMessage("");
     } else {
       setVoiceSuggestedTasks([]);
       setVoiceTasksMessage("");
-    }
-
-    // 4) Source note id (for autosave mode)
-    if (payload.noteId) {
-      setVoiceSourceNoteId(payload.noteId);
-    } else {
-      setVoiceSourceNoteId(null);
     }
   }
 
@@ -314,7 +331,6 @@ export default function NotesPage() {
     e.preventDefault();
     if (!user) return;
 
-    // Need at least title OR content
     if (!title.trim() && !content.trim()) {
       setError("Please enter a title or content.");
       return;
@@ -322,7 +338,6 @@ export default function NotesPage() {
 
     setError("");
 
-    // Smart title: if title empty, toggle ON, and we have content → generate from first line
     let finalTitle = title;
     if (!finalTitle.trim() && autoTitleEnabled && content.trim()) {
       const firstLine = content.trim().split("\n")[0];
@@ -354,7 +369,6 @@ export default function NotesPage() {
     setVoiceResetKey((prev) => prev + 1);
     setVoiceSuggestedTasks([]);
     setVoiceTasksMessage("");
-    setVoiceSourceNoteId(null);
 
     await fetchNotes();
     track("note_created");
@@ -489,105 +503,89 @@ export default function NotesPage() {
     setDeletingId(null);
   }
 
-  // 🆕 Create tasks from voiceSuggestedTasks with time + priority + link back to note
+  // ✅ Create tasks from voiceSuggestedTasks with dueIso + reminders
   async function handleCreateTasksFromVoice() {
-  if (!user) return;
-  if (voiceSuggestedTasks.length === 0) return;
+    if (!user) return;
+    if (voiceSuggestedTasks.length === 0) return;
 
-  setCreatingTasks(true);
-  setError("");
-  setVoiceTasksMessage("");
+    setCreatingTasks(true);
+    setError("");
+    setVoiceTasksMessage("");
 
-  try {
-    const nowIso = new Date().toISOString();
+    try {
+      const nowIso = new Date().toISOString();
 
-    const rows = voiceSuggestedTasks.map((t) => {
-      let dueIso: string | null = null;
+      const rows = voiceSuggestedTasks.map((t) => {
+        const row: any = {
+          user_id: user.id,
+          title: t.title,
+          description: null,
+          completed: false,
+          created_at: nowIso,
+          completed_at: null,
+          category: null,
+          time_from: null,
+          time_to: null,
+          reminder_enabled: false,
+          reminder_at: null,
+          reminder_sent_at: null,
+          due_date: t.dueIso, // can be null
+        };
 
-      // 1) Prefer AI's ISO
-      if (t.due_iso && !Number.isNaN(Date.parse(t.due_iso))) {
-        dueIso = new Date(t.due_iso).toISOString();
-      } else {
-        // 2) Fallback: if anything like "due" exists as a plain string
-        const anyT = t as any;
-        if (typeof anyT.due === "string" && anyT.due.trim()) {
-          const ms = Date.parse(anyT.due.trim());
-          if (!Number.isNaN(ms)) {
-            dueIso = new Date(ms).toISOString();
-          }
+        // If we have a valid due date, auto-enable reminder
+        if (t.dueIso) {
+          row.reminder_enabled = true;
+          row.reminder_at = t.dueIso;
         }
-      }
 
-      const row: any = {
-        user_id: user.id,
-        title: t.title,
-        description: null,
-        completed: false,
-        created_at: nowIso,
-        completed_at: null,
-        category: null,
-        time_from: null,
-        time_to: null,
-        reminder_enabled: false,
-        reminder_at: null,
-        reminder_sent_at: null,
-        due_date: dueIso, // can be null
-      };
+        return row;
+      });
 
-      // If we have a valid due date, auto-enable reminder
-      if (dueIso) {
-        row.reminder_enabled = true;
-        row.reminder_at = dueIso; // you can shift earlier if you want
-      }
+      console.log("[voice-tasks] inserting rows:", rows);
 
-      return row;
-    });
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert(rows)
+        .select("id");
 
-    console.log("[voice-tasks] inserting rows:", rows);
+      console.log("[voice-tasks] insert result:", { data, error });
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert(rows)
-      .select("id");
+      if (error) {
+        let extra = "";
+        try {
+          extra = JSON.stringify(
+            {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+            },
+            null,
+            2
+          );
+        } catch {
+          // ignore
+        }
 
-    console.log("[voice-tasks] insert result:", { data, error });
-
-    if (error) {
-      let extra = "";
-      try {
-        extra = JSON.stringify(
-          {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code,
-          },
-          null,
-          2
+        console.error("[voice-tasks] insert error full:", error);
+        setError(
+          "Failed to create tasks from your voice note: " +
+            (error.message || error.details || extra || "Unknown error")
         );
-      } catch {
-        // ignore
+      } else {
+        setVoiceTasksMessage(
+          `Created ${rows.length} tasks from your voice note.`
+        );
+        setVoiceSuggestedTasks([]);
+        // track("voice_tasks_created", { count: rows.length });
       }
-
-      console.error("[voice-tasks] insert error full:", error);
-      setError(
-        "Failed to create tasks from your voice note: " +
-          (error.message || error.details || extra || "Unknown error")
-      );
-    } else {
-      setVoiceTasksMessage(
-        `Created ${rows.length} tasks from your voice note.`
-      );
-      setVoiceSuggestedTasks([]);
-      // optional: track("voice_tasks_created", { count: rows.length });
+    } catch (err) {
+      console.error("[voice-tasks] unexpected error", err);
+      setError("Unexpected error while creating tasks (check console).");
+    } finally {
+      setCreatingTasks(false);
     }
-  } catch (err) {
-    console.error("[voice-tasks] unexpected error", err);
-    setError("Unexpected error while creating tasks (check console).");
-  } finally {
-    setCreatingTasks(false);
   }
-}
 
   if (checkingUser) {
     return (
@@ -767,30 +765,22 @@ export default function NotesPage() {
                   )}
                 </div>
                 <ul className="list-disc pl-4 space-y-1 mb-2">
-                  {voiceSuggestedTasks.map((t, idx) => {
-                    const dueLabel =
-                      t.due_natural ||
-                      (t.due_iso
-                        ? new Date(t.due_iso).toLocaleString()
-                        : null);
-
-                    return (
-                      <li key={idx}>
-                        <span className="font-medium">{t.title}</span>
-                        {dueLabel && (
-                          <span className="text-[var(--text-muted)]">
-                            {" "}
-                            — {dueLabel}
-                          </span>
-                        )}
-                        {t.priority && (
-                          <span className="ml-1 uppercase text-[9px] text-[var(--text-muted)]">
-                            [{t.priority}]
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
+                  {voiceSuggestedTasks.map((t, idx) => (
+                    <li key={idx}>
+                      <span className="font-medium">{t.title}</span>
+                      {t.dueLabel && (
+                        <span className="text-[var(--text-muted)]">
+                          {" "}
+                          — {t.dueLabel}
+                        </span>
+                      )}
+                      {t.priority && (
+                        <span className="ml-1 uppercase text-[9px] text-[var(--text-muted)]">
+                          [{t.priority}]
+                        </span>
+                      )}
+                    </li>
+                  ))}
                 </ul>
                 <button
                   type="button"
