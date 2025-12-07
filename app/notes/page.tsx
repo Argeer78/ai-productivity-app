@@ -32,6 +32,11 @@ type Note = {
 
 type AiMode = "summarize" | "bullets" | "rewrite";
 
+type VoiceTaskSuggestion = {
+  title: string;
+  due: string | null;
+};
+
 const NOTE_CATEGORIES = [
   "Work",
   "Personal",
@@ -98,12 +103,22 @@ export default function NotesPage() {
 
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  // 🆕 Smart title toggle
+  // Smart title toggle
   const [autoTitleEnabled, setAutoTitleEnabled] = useState(true);
 
-  // 🆕 Voice capture mode toggle: "review" or "autosave"
+  // Voice capture mode toggle: "review" or "autosave"
   const [voiceMode, setVoiceMode] = useState<"review" | "autosave">("review");
+
+  // For resetting voice capture after save
   const [voiceResetKey, setVoiceResetKey] = useState(0);
+
+  // 🆕 Voice → suggested tasks from AI
+  const [voiceSuggestedTasks, setVoiceSuggestedTasks] = useState<
+    VoiceTaskSuggestion[]
+  >([]);
+  const [creatingTasks, setCreatingTasks] = useState(false);
+  const [voiceTasksMessage, setVoiceTasksMessage] = useState("");
+
   function handleShareNote(note: Note) {
     if (!note?.content) return;
 
@@ -130,32 +145,45 @@ export default function NotesPage() {
 
     track("ask_ai_from_note");
   }
+
+  // 🆕 When voice capture finishes, fill content/title and capture tasks
   function handleVoiceResult(payload: {
-  rawText: string | null;
-  structured: any | null;
-}) {
-  const s = payload.structured;
+    rawText: string | null;
+    structured: {
+      note?: string;
+      tasks?: VoiceTaskSuggestion[];
+    } | null;
+  }) {
+    const structured = payload.structured;
 
-  // Prefer the cleaned-up note from AI
-  if (s && s.note && typeof s.note === "string") {
-    const noteText = s.note as string;
-    setContent(noteText);
+    if (structured && structured.note && typeof structured.note === "string") {
+      const noteText = structured.note;
+      setContent(noteText);
 
-    // If user hasn't typed a title and smart title is ON, generate from first line
-    if (!title.trim() && autoTitleEnabled) {
-      const firstLine = noteText.trim().split("\n")[0];
-      const maxLen = 60;
-      const generated =
-        firstLine.length <= maxLen
-          ? firstLine
-          : firstLine.slice(0, maxLen) + "…";
-      setTitle(generated);
+      // Smart title from first line if user hasn't typed one
+      if (!title.trim() && autoTitleEnabled) {
+        const firstLine = noteText.trim().split("\n")[0];
+        const maxLen = 60;
+        const generated =
+          firstLine.length <= maxLen
+            ? firstLine
+            : firstLine.slice(0, maxLen) + "…";
+        setTitle(generated);
+      }
+    } else if (payload.rawText) {
+      // Fallback if no structured note is present
+      setContent(payload.rawText);
     }
-  } else if (payload.rawText) {
-    // Fallback to raw transcript if no structured note
-    setContent(payload.rawText);
+
+    // Capture suggested tasks (if any)
+    if (structured && Array.isArray(structured.tasks)) {
+      setVoiceSuggestedTasks(structured.tasks);
+      setVoiceTasksMessage("");
+    } else {
+      setVoiceSuggestedTasks([]);
+      setVoiceTasksMessage("");
+    }
   }
-}
 
   // Load user
   useEffect(() => {
@@ -171,7 +199,7 @@ export default function NotesPage() {
   async function ensureProfile() {
     if (!user) return;
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("profiles")
       .select("plan")
       .eq("id", user.id)
@@ -235,7 +263,7 @@ export default function NotesPage() {
     e.preventDefault();
     if (!user) return;
 
-    // Keep original behavior: need at least title OR content
+    // Need at least title OR content
     if (!title.trim() && !content.trim()) {
       setError("Please enter a title or content.");
       return;
@@ -243,7 +271,7 @@ export default function NotesPage() {
 
     setError("");
 
-    // 🆕 Smart title: if title empty, toggle ON, and we have content → generate from first line
+    // Smart title: if title empty, toggle ON, and we have content → generate from first line
     let finalTitle = title;
     if (!finalTitle.trim() && autoTitleEnabled && content.trim()) {
       const firstLine = content.trim().split("\n")[0];
@@ -268,10 +296,14 @@ export default function NotesPage() {
       },
     ]);
 
+    // Clear form & voice state
     setTitle("");
     setContent("");
     setNewCategory("");
     setVoiceResetKey((prev) => prev + 1);
+    setVoiceSuggestedTasks([]);
+    setVoiceTasksMessage("");
+
     await fetchNotes();
     track("note_created");
 
@@ -403,6 +435,50 @@ export default function NotesPage() {
 
     setNotes((prev) => prev.filter((n) => n.id !== id));
     setDeletingId(null);
+  }
+
+  // 🆕 Create tasks from voiceSuggestedTasks
+  async function handleCreateTasksFromVoice() {
+    if (!user) return;
+    if (voiceSuggestedTasks.length === 0) return;
+
+    setCreatingTasks(true);
+    setError("");
+    setVoiceTasksMessage("");
+
+    try {
+      const rows = voiceSuggestedTasks.map((t) => {
+        let dueIso: string | null = null;
+        if (t.due && !Number.isNaN(Date.parse(t.due))) {
+          dueIso = new Date(t.due).toISOString();
+        }
+
+        return {
+          user_id: user.id,
+          title: t.title,
+          description: null,
+          is_done: false,
+          due_date: dueIso,
+          reminder_enabled: false,
+        };
+      });
+
+      const { error } = await supabase.from("tasks").insert(rows);
+
+      if (error) {
+        console.error("[voice-tasks] insert error", error);
+        setError("Failed to create tasks from your voice note.");
+      } else {
+        setVoiceTasksMessage(`Created ${rows.length} tasks from your voice note.`);
+        setVoiceSuggestedTasks([]);
+        track("voice_tasks_created", { count: rows.length });
+      }
+    } catch (err) {
+      console.error("[voice-tasks] unexpected error", err);
+      setError("Unexpected error while creating tasks.");
+    } finally {
+      setCreatingTasks(false);
+    }
   }
 
   if (checkingUser) {
@@ -561,13 +637,54 @@ export default function NotesPage() {
 
             {/* Voice capture */}
             <div className="mt-2">
-  <VoiceCaptureButton
-    userId={userId}
-    mode={voiceMode}
-    resetKey={voiceResetKey}
-    onResult={handleVoiceResult}
-  />
-</div>
+              <VoiceCaptureButton
+                userId={userId}
+                mode={voiceMode}
+                resetKey={voiceResetKey}
+                onResult={handleVoiceResult}
+              />
+            </div>
+
+            {/* 🆕 Suggested tasks from voice */}
+            {voiceSuggestedTasks.length > 0 && (
+              <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold">
+                    Suggested tasks from your voice note
+                  </p>
+                  {voiceTasksMessage && (
+                    <span className="text-[10px] text-emerald-400">
+                      {voiceTasksMessage}
+                    </span>
+                  )}
+                </div>
+                <ul className="list-disc pl-4 space-y-1 mb-2">
+                  {voiceSuggestedTasks.map((t, idx) => (
+                    <li key={idx}>
+                      <span className="font-medium">{t.title}</span>
+                      {t.due && (
+                        <span className="text-[var(--text-muted)]">
+                          {" "}
+                          — {t.due}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={handleCreateTasksFromVoice}
+                  disabled={creatingTasks}
+                  className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-[11px] disabled:opacity-60"
+                >
+                  {creatingTasks
+                    ? "Creating tasks…"
+                    : `Create ${voiceSuggestedTasks.length} task${
+                        voiceSuggestedTasks.length > 1 ? "s" : ""
+                      }`}
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"
