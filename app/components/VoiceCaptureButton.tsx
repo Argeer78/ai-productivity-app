@@ -189,11 +189,7 @@ export default function VoiceCaptureButton({
         </p>
       )}
 
-      {error && (
-        <p className="text-xs text-red-400">
-          {error}
-        </p>
-      )}
+      {error && <p className="text-xs text-red-400">{error}</p>}
 
       {rawText && (
         <div className="mt-2 space-y-2 text-xs">
@@ -228,32 +224,48 @@ export default function VoiceCaptureButton({
 
               {structured.tasks && structured.tasks.length > 0 && (
                 <div>
-                  <ul>
-    {structured.tasks.map((t, i) => {
-      const dueLabel =
-        t.due_natural ||
-        (t.due_iso ? new Date(t.due_iso).toLocaleString() : null);
+                  <p className="text-slate-400 font-semibold">
+                    Suggested tasks:
+                  </p>
+                  <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                    {structured.tasks.map((t, i) => {
+                      const dueLabel =
+                        t.due_natural ||
+                        (t.due_iso
+                          ? new Date(t.due_iso).toLocaleString()
+                          : null);
 
-      return (
-        <li key={i}>
-          {t.title}
-          {dueLabel ? ` (due: ${dueLabel})` : ""}
-        </li>
-      );
-    })}
-  </ul>
+                      return (
+                        <li key={i}>
+                          {t.title}
+                          {dueLabel ? ` (due: ${dueLabel})` : ""}
+                          {t.priority && (
+                            <span className="ml-1 uppercase text-[9px] text-slate-400">
+                              [{t.priority}]
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
               )}
 
               {structured.reminder &&
-                (structured.reminder.time || structured.reminder.reason) && (
+                (structured.reminder.time_natural ||
+                  structured.reminder.time_iso ||
+                  structured.reminder.reason) && (
                   <div>
                     <p className="text-slate-400 font-semibold">
                       Reminder suggestion:
                     </p>
                     <p className="text-slate-200 mt-1">
-                      {structured.reminder.time
-                        ? `Time: ${structured.reminder.time}`
+                      {structured.reminder.time_natural
+                        ? `Time: ${structured.reminder.time_natural}`
+                        : structured.reminder.time_iso
+                        ? `Time: ${new Date(
+                            structured.reminder.time_iso
+                          ).toLocaleString()}`
                         : null}
                       {structured.reminder.reason
                         ? ` — Reason: ${structured.reminder.reason}`
