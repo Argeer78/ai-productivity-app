@@ -35,7 +35,7 @@ type AiMode = "summarize" | "bullets" | "rewrite";
 // ✅ Normalized voice task suggestion shape for the UI + task creation
 type VoiceTaskSuggestion = {
   title: string;
-  dueIso: string | null;   // machine-usable ISO datetime
+  dueIso: string | null;   // machine-usable ISO datetime (UTC)
   dueLabel: string | null; // human-readable label for the UI
   priority?: "low" | "medium" | "high" | null;
 };
@@ -131,7 +131,7 @@ export default function NotesPage() {
   // Voice capture mode toggle: "review" or "autosave"
   const [voiceMode, setVoiceMode] = useState<"review" | "autosave">("review");
 
-  // For resetting voice capture after save
+  // For resetting voice capture after save / reset button
   const [voiceResetKey, setVoiceResetKey] = useState(0);
 
   // Voice → suggested tasks from AI (normalized)
@@ -140,6 +140,15 @@ export default function NotesPage() {
   >([]);
   const [creatingTasks, setCreatingTasks] = useState(false);
   const [voiceTasksMessage, setVoiceTasksMessage] = useState("");
+
+  // ✅ Accordion state for notes (open/closed)
+  const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
+
+  function toggleNoteOpen(id: string) {
+    setOpenNoteIds((prev) =>
+      prev.includes(id) ? prev.filter((nid) => nid !== id) : [...prev, id]
+    );
+  }
 
   function handleShareNote(note: Note) {
     if (!note?.content) return;
@@ -166,6 +175,17 @@ export default function NotesPage() {
     );
 
     track("ask_ai_from_note");
+  }
+
+  // ✅ Reset current voice note (recording result) without saving
+  function handleResetVoice() {
+    setTitle("");
+    setContent("");
+    setNewCategory("");
+    setVoiceSuggestedTasks([]);
+    setVoiceTasksMessage("");
+    setError("");
+    setVoiceResetKey((prev) => prev + 1);
   }
 
   // When voice capture finishes, fill content/title/category and capture tasks
@@ -216,11 +236,12 @@ export default function NotesPage() {
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
 
-        // Use explicit ISO if present
+        // Use explicit ISO from the model directly (it's already UTC)
         if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-          const parsed = Date.parse(t.due_iso);
+          dueIso = t.due_iso.trim();
+          const parsed = Date.parse(dueIso);
           if (!Number.isNaN(parsed)) {
-            dueIso = new Date(parsed).toISOString();
+            // Nicely formatted label in *local* time for the UI
             dueLabel = new Date(parsed).toLocaleString();
           }
         }
@@ -295,7 +316,12 @@ export default function NotesPage() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (!error) setNotes(data || []);
+    if (!error) {
+      const rows = (data || []) as Note[];
+      setNotes(rows);
+      // Open the newest note by default, close others
+      setOpenNoteIds(rows.length ? [rows[0].id] : []);
+    }
 
     setLoadingList(false);
   }
@@ -502,97 +528,106 @@ export default function NotesPage() {
     setDeletingId(null);
   }
 
- // ✅ Create tasks from voiceSuggestedTasks with due date + sane reminders
-async function handleCreateTasksFromVoice() {
-  if (!user) return;
-  if (voiceSuggestedTasks.length === 0) return;
+  // ✅ Create tasks from voiceSuggestedTasks with due date + sane reminders
+  async function handleCreateTasksFromVoice() {
+    if (!user) return;
+    if (voiceSuggestedTasks.length === 0) return;
 
-  setCreatingTasks(true);
-  setError("");
-  setVoiceTasksMessage("");
+    setCreatingTasks(true);
+    setError("");
+    setVoiceTasksMessage("");
 
-  try {
-    const nowIso = new Date().toISOString();
+    try {
+      const now = new Date();
 
-    const rows = voiceSuggestedTasks.map((t) => {
-      let dueIso: string | null = t.dueIso || null;
+      const rows = voiceSuggestedTasks.map((t) => {
+        let dueIso: string | null = t.dueIso || null;
 
-      // If we don't have an explicit ISO but the label looks like a date, we can try parsing it
-      if (!dueIso && t.dueLabel) {
-        const parsed = Date.parse(t.dueLabel);
-        if (!Number.isNaN(parsed)) {
-          dueIso = new Date(parsed).toISOString();
+        // If we don't have an explicit ISO but the label looks like a date, we can try parsing it
+        if (!dueIso && t.dueLabel) {
+          const parsed = Date.parse(t.dueLabel);
+          if (!Number.isNaN(parsed)) {
+            dueIso = new Date(parsed).toISOString();
+          }
         }
-      }
 
-      // ❗ We do NOT fallback to `nowIso` anymore.
-      // Only set reminder if we actually have a due date.
-      const reminderAt: string | null = dueIso || null;
+        let reminderAt: string | null = null;
 
-      const row: any = {
-        user_id: user.id,
-        title: t.title,
-        description: null,
-        completed: false,
-        created_at: nowIso,
-        completed_at: null,
-        category: null,
-        time_from: null,
-        time_to: null,
-        due_date: dueIso,             // may be null if AI didn't give a real date
-        reminder_enabled: !!reminderAt,
-        reminder_at: reminderAt,
-        reminder_sent_at: null,
-      };
+        if (dueIso) {
+          const dueDate = new Date(dueIso);
+          // Only enable reminder if it's at least 5 minutes in the future
+          const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60_000);
+          if (dueDate > fiveMinutesFromNow) {
+            reminderAt = dueIso;
+          } else {
+            reminderAt = null;
+          }
+        }
 
-      return row;
-    });
+        const row: any = {
+          user_id: user.id,
+          title: t.title,
+          description: null,
+          completed: false,
+          created_at: now.toISOString(),
+          completed_at: null,
+          category: null,
+          time_from: null,
+          time_to: null,
+          due_date: dueIso,             // may be null if AI didn't give a real date
+          reminder_enabled: !!reminderAt,
+          reminder_at: reminderAt,
+          reminder_sent_at: null,
+        };
 
-    console.log("[voice-tasks] inserting rows:", rows);
+        return row;
+      });
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert(rows)
-      .select("id, due_date, reminder_enabled, reminder_at");
+      console.log("[voice-tasks] inserting rows:", rows);
 
-    console.log("[voice-tasks] insert result:", { data, error });
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert(rows)
+        .select("id, due_date, reminder_enabled, reminder_at");
 
-    if (error) {
-      let extra = "";
-      try {
-        extra = JSON.stringify(
-          {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code,
-          },
-          null,
-          2
+      console.log("[voice-tasks] insert result:", { data, error });
+
+      if (error) {
+        let extra = "";
+        try {
+          extra = JSON.stringify(
+            {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+            },
+            null,
+            2
+          );
+        } catch {
+          // ignore
+        }
+
+        console.error("[voice-tasks] insert error full:", error);
+        setError(
+          "Failed to create tasks from your voice note: " +
+            (error.message || error.details || extra || "Unknown error")
         );
-      } catch {
-        // ignore
+      } else {
+        setVoiceTasksMessage(
+          `Created ${rows.length} tasks from your voice note.`
+        );
+        setVoiceSuggestedTasks([]);
+        // optional: track("voice_tasks_created", { count: rows.length });
       }
-
-      console.error("[voice-tasks] insert error full:", error);
-      setError(
-        "Failed to create tasks from your voice note: " +
-          (error.message || error.details || extra || "Unknown error")
-      );
-    } else {
-      setVoiceTasksMessage(
-        `Created ${rows.length} tasks from your voice note.`
-      );
-      setVoiceSuggestedTasks([]);
-      // optional: track("voice_tasks_created", { count: rows.length });
+    } catch (err) {
+      console.error("[voice-tasks] unexpected error", err);
+      setError("Unexpected error while creating tasks (check console).");
+    } finally {
+      setCreatingTasks(false);
     }
-  } catch (err) {
-    console.error("[voice-tasks] unexpected error", err);
-    setError("Unexpected error while creating tasks (check console).");
-  } finally {
-    setCreatingTasks(false);
   }
-}
 
   if (checkingUser) {
     return (
@@ -627,7 +662,8 @@ async function handleCreateTasksFromVoice() {
       : notes.filter((n) => (n.category || "") === categoryFilter);
 
   return (
-    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8 pb-24">
+      {/* pb-24 so bottom buttons (feedback) don't hide behind floating UI */}
       <AppHeader active="notes" />
 
       <div className="max-w-5xl mx-auto mt-6 grid gap-6 md:grid-cols-[1.2fr,1fr]">
@@ -748,14 +784,23 @@ async function handleCreateTasksFromVoice() {
               </div>
             </div>
 
-            {/* Voice capture */}
-            <div className="mt-2">
+            {/* Voice capture + reset */}
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
               <VoiceCaptureButton
                 userId={userId}
                 mode={voiceMode}
                 resetKey={voiceResetKey}
                 onResult={handleVoiceResult}
               />
+              {(content || title || voiceSuggestedTasks.length > 0) && (
+                <button
+                  type="button"
+                  onClick={handleResetVoice}
+                  className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px] hover:bg-[var(--bg-card)]"
+                >
+                  Reset voice note
+                </button>
+              )}
             </div>
 
             {/* Suggested tasks from voice */}
@@ -866,18 +911,37 @@ async function handleCreateTasksFromVoice() {
             {filteredNotes.map((note) => {
               const isEditing = editingNoteId === note.id;
               const badge = noteCategoryStyles[note.category || "Other"];
+              const isOpen = openNoteIds.includes(note.id);
 
               return (
                 <article
                   key={note.id}
                   className="border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]"
                 >
+                  {/* COLLAPSED / HEADER ROW */}
                   {!isEditing && (
-                    <>
-                      <div className="flex items-start justify-between">
-                        <h3 className="font-semibold text-sm">
-                          {note.title || "Untitled"}
-                        </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleNoteOpen(note.id)}
+                        className="h-5 w-5 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[10px] hover:bg-[var(--bg-elevated)]"
+                        aria-label={isOpen ? "Collapse note" : "Expand note"}
+                      >
+                        {isOpen ? "▲" : "▼"}
+                      </button>
+
+                      <div className="flex-1 flex items-center justify-between gap-2">
+                        <div className="flex flex-col">
+                          <h3 className="font-semibold text-sm line-clamp-1">
+                            {note.title || "Untitled"}
+                          </h3>
+                          <span className="text-[10px] text-[var(--text-muted)]">
+                            {note.created_at
+                              ? new Date(note.created_at).toLocaleString()
+                              : ""}
+                          </span>
+                        </div>
+
                         {note.category && (
                           <span
                             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${badge}`}
@@ -886,18 +950,19 @@ async function handleCreateTasksFromVoice() {
                           </span>
                         )}
                       </div>
+                    </div>
+                  )}
 
+                  {/* COLLAPSED VIEW: title + category only (already handled above) */}
+
+                  {/* EXPANDED VIEW: show full content + buttons */}
+                  {!isEditing && isOpen && (
+                    <>
                       {note.content && (
-                        <p className="text-xs text-[var(--text-main)] whitespace-pre-wrap">
+                        <p className="mt-2 text-xs text-[var(--text-main)] whitespace-pre-wrap">
                           {note.content}
                         </p>
                       )}
-
-                      <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                        {note.created_at
-                          ? new Date(note.created_at).toLocaleString()
-                          : ""}
-                      </p>
 
                       <div className="mt-3 flex flex-wrap gap-2">
                         {/* AI Buttons */}
@@ -978,7 +1043,7 @@ async function handleCreateTasksFromVoice() {
 
                   {/* EDITING */}
                   {isEditing && (
-                    <div className="space-y-3">
+                    <div className="mt-2 space-y-3">
                       <input
                         type="text"
                         value={editTitle}
@@ -1034,9 +1099,12 @@ async function handleCreateTasksFromVoice() {
             </Link>
           </div>
 
-          <div className="mt-4">
-            <FeedbackForm user={user} />
-          </div>
+          {/* Feedback form, centered + with extra bottom padding (handled by main) */}
+          <section className="mt-6">
+            <div className="max-w-md mx-auto">
+              <FeedbackForm user={user} />
+            </div>
+          </section>
         </section>
       </div>
     </main>
