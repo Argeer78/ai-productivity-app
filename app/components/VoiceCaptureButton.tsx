@@ -188,8 +188,7 @@ export default function VoiceCaptureButton({
       recorder.start();
       mediaRecorderRef.current = recorder;
       setRecording(true);
-    } catch (err) {
-        } catch (err: any) {
+    
     console.error("[VoiceCapture] getUserMedia error:", err);
 
     const name = err?.name || "UnknownError";
