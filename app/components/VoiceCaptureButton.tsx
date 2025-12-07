@@ -189,8 +189,20 @@ export default function VoiceCaptureButton({
       mediaRecorderRef.current = recorder;
       setRecording(true);
     } catch (err) {
-      console.error("[VoiceCapture] getUserMedia error:", err);
-      setError("Could not access microphone. Check browser permissions.");
+        } catch (err: any) {
+    console.error("[VoiceCapture] getUserMedia error:", err);
+
+    const name = err?.name || "UnknownError";
+    const msg = err?.message || "";
+
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      setError("Microphone permission was blocked. Please enable it in your browser/site settings.");
+    } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+      setError("No microphone was found on this device.");
+    } else if (name === "NotReadableError") {
+      setError("Your microphone is already in use by another app.");
+    } else {
+      setError(`Could not access microphone (${name}). Check permissions and try again.`);
     }
   }
 
