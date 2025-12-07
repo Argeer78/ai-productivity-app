@@ -61,18 +61,21 @@ export default function VoiceCaptureButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset when parent changes resetKey (e.g. after note save)
+  // ✅ Reset when parent changes resetKey (ONLY when resetKey changes)
   useEffect(() => {
     if (resetKey === undefined) return;
+
     setRawText(null);
     setStructured(null);
     setSavedNoteId(null);
     setError(null);
+
     if (audioPreviewUrl) {
       URL.revokeObjectURL(audioPreviewUrl);
       setAudioPreviewUrl(null);
     }
-  }, [resetKey, audioPreviewUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
 
   function getSupportError(): string | null {
     if (typeof window === "undefined") return "Not in a browser environment.";
