@@ -61,7 +61,7 @@ export default function VoiceCaptureButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Reset when parent changes resetKey (ONLY when resetKey changes)
+  // Reset when parent changes resetKey (e.g. after note save)
   useEffect(() => {
     if (resetKey === undefined) return;
 
@@ -131,7 +131,15 @@ export default function VoiceCaptureButton({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 🔊 More explicit audio constraints – often helps on weird devices
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        } as MediaTrackConstraints,
+      });
 
       const mimeType = chooseMimeType();
       mimeTypeRef.current = mimeType;
@@ -167,11 +175,20 @@ export default function VoiceCaptureButton({
           type: blob.type,
         });
 
-        // 🔊 Store preview URL so user can play back what was recorded
+        // Always show preview so you can hear what the phone actually recorded
         if (audioPreviewUrl) {
           URL.revokeObjectURL(audioPreviewUrl);
         }
         setAudioPreviewUrl(URL.createObjectURL(blob));
+
+        // If the blob is tiny, we basically captured no usable audio
+        if (blob.size < 2000) {
+          setError(
+            "We barely captured any audio. Try holding the phone closer and speaking a bit longer."
+          );
+          setLoading(false);
+          return;
+        }
 
         setLoading(true);
         setSavedNoteId(null);
