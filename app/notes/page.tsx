@@ -447,28 +447,27 @@ export default function NotesPage() {
   setVoiceTasksMessage("");
 
   try {
-    const nowIso = new Date().toISOString();
-
     const rows = voiceSuggestedTasks.map((t) => {
       let dueIso: string | null = null;
 
-      // Try to parse a proper ISO-like date for due
+      // Only set due_date if it's a valid date string
       if (t.due && !Number.isNaN(Date.parse(t.due))) {
         dueIso = new Date(t.due).toISOString();
       }
 
-      return {
+      // Keep this minimal to match your tasks schema safely
+      const row: any = {
         user_id: user.id,
         title: t.title,
-        description: null,
         is_done: false,
-        due_date: dueIso,
-        // these two may or may not exist in your schema, but are safe if they do:
-        reminder_enabled: false,
-        reminder_at: null,
-        // some schemas require created_at explicitly if no default is set:
-        created_at: nowIso,
       };
+
+      if (dueIso) {
+        row.due_date = dueIso;
+      }
+
+      // You can add more OPTIONAL fields here later
+      return row;
     });
 
     console.log("[voice-tasks] inserting rows:", rows);
@@ -477,7 +476,6 @@ export default function NotesPage() {
 
     if (error) {
       console.error("[voice-tasks] insert error", error);
-      // show the exact message so we see what's wrong
       setError(
         "Failed to create tasks from your voice note: " +
           (error.message || error.details || "")
