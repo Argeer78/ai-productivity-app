@@ -1,21 +1,23 @@
-// app/api/tasks/reminder-cron/route.ts
+// app/api/cron/reminder/route.ts
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import webPush from "web-push";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderEmail } from "@/lib/emailTasks";
-import { sendTaskReminderPush } from "@/lib/pushServer"; // 🆕 add this
 
 export const runtime = "nodejs";
 
 function checkCronAuth(req: Request): NextResponse | null {
   const CRON_SECRET = process.env.CRON_SECRET;
 
-  // In dev, you can optionally skip auth
   if (process.env.NODE_ENV === "development") {
     return null;
   }
 
   if (!CRON_SECRET) {
-    console.warn("[reminder-cron] CRON_SECRET is not set – refusing unauthorized access.");
+    console.warn(
+      "[reminder-cron] CRON_SECRET is not set – refusing unauthorized access."
+    );
     return NextResponse.json(
       { ok: false, error: "Cron secret not configured" },
       { status: 500 }
@@ -26,7 +28,6 @@ function checkCronAuth(req: Request): NextResponse | null {
   const url = new URL(req.url);
   const cronKeyParam = url.searchParams.get("cron_key");
 
-  // Prioritize header-based authentication
   const validByHeader = authHeader === `Bearer ${CRON_SECRET}`;
   const validByQuery = cronKeyParam === CRON_SECRET;
 
@@ -41,8 +42,116 @@ function checkCronAuth(req: Request): NextResponse | null {
   return null;
 }
 
+// ---------- PUSH SETUP ----------
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+
+if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  console.warn(
+    "[reminder-cron] Missing VAPID keys – push notifications for reminders will be skipped."
+  );
+} else {
+  webPush.setVapidDetails(
+    "mailto:hello@aiprod.app",
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+}
+
+type PushSubscriptionRow = {
+  id: string;
+  user_id: string;
+  subscription: any; // stored JSON from browser PushSubscription
+};
+
+/**
+ * Send a push notification to all subscriptions of a user for a task reminder.
+ */
+async function sendTaskReminderPush(params: {
+  userId: string;
+  taskTitle: string;
+  reminderAt?: string | null;
+}) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    // VAPID not configured → silently skip push
+    return;
+  }
+
+  const { userId, taskTitle, reminderAt } = params;
+
+  const { data: subs, error } = await supabaseAdmin
+    .from("push_subscriptions")
+    .select("id, user_id, subscription")
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error(
+      "[reminder-cron] Failed to load push_subscriptions for user",
+      userId,
+      error
+    );
+    return;
+  }
+
+  if (!subs || subs.length === 0) {
+    console.log(
+      "[reminder-cron] No push subscriptions found for user",
+      userId
+    );
+    return;
+  }
+
+  const title = "Task reminder";
+  const whenLabel = reminderAt
+    ? new Date(reminderAt).toLocaleString()
+    : "now";
+
+  const body = `“${taskTitle}” is due ${whenLabel}.`;
+  const url = "https://aiprod.app/tasks";
+
+  const payload = JSON.stringify({
+    title,
+    body,
+    url,
+    tag: "task-reminder",
+  });
+
+  for (const row of subs as PushSubscriptionRow[]) {
+    try {
+      await webPush.sendNotification(row.subscription, payload);
+      console.log(
+        "[reminder-cron] Push sent to subscription",
+        row.id,
+        "for user",
+        userId
+      );
+    } catch (err: any) {
+      console.error(
+        "[reminder-cron] Failed to send push to subscription",
+        row.id,
+        err?.statusCode || err?.message || err
+      );
+
+      // Clean up dead endpoints (410 / 404)
+      const statusCode = err?.statusCode || err?.status;
+      if (statusCode === 404 || statusCode === 410) {
+        console.log(
+          "[reminder-cron] Removing stale subscription",
+          row.id
+        );
+        await supabaseAdmin
+          .from("push_subscriptions")
+          .delete()
+          .eq("id", row.id);
+      }
+    }
+  }
+}
+
+// ---------- MAIN CRON HANDLER ----------
+
 export async function GET(req: Request) {
-  // 0) Auth check
   const authError = checkCronAuth(req);
   if (authError) return authError;
 
@@ -88,8 +197,7 @@ export async function GET(req: Request) {
 
     let sentCount = 0;
 
-    // Process tasks
-    for (const task of tasks) {
+    for (const task of tasks as any[]) {
       const title = task.title || "Untitled task";
 
       try {
@@ -117,23 +225,7 @@ export async function GET(req: Request) {
           task.reminder_at
         );
 
-        // 2a) Load push subscriptions for this user 🆕
-        const { data: subs, error: subsError } = await supabaseAdmin
-          .from("push_subscriptions")
-          .select("endpoint, p256dh, auth")
-          .eq("user_id", task.user_id)
-          .order("created_at", { ascending: false })
-          .limit(5);
-
-        if (subsError) {
-          console.error(
-            "[reminder-cron] Error loading push_subscriptions for",
-            task.user_id,
-            subsError
-          );
-        }
-
-        // 3) Send email ✅
+        // 3a) Send email
         await sendTaskReminderEmail({
           to: email,
           taskTitle: title,
@@ -141,40 +233,12 @@ export async function GET(req: Request) {
           dueAt: task.reminder_at,
         });
 
-        // 3b) Send push notifications (if any subscriptions) 🆕
-        if (subs && subs.length > 0) {
-          for (const sub of subs) {
-            try {
-              console.log(
-                "[reminder-cron] Sending PUSH for task",
-                task.id,
-                "to endpoint",
-                sub.endpoint
-              );
-
-              await sendTaskReminderPush(sub, {
-                taskId: task.id,
-                title,
-                note: task.description,
-              });
-            } catch (pushErr: any) {
-              console.error(
-                "[reminder-cron] Failed to send push for task",
-                task.id,
-                "endpoint",
-                sub.endpoint,
-                pushErr?.statusCode,
-                pushErr?.body || pushErr
-              );
-              // Optional: if statusCode 404/410 → delete dead subscription here
-            }
-          }
-        } else {
-          console.log(
-            "[reminder-cron] No push subscriptions found for user",
-            task.user_id
-          );
-        }
+        // 3b) Send push
+        await sendTaskReminderPush({
+          userId: task.user_id,
+          taskTitle: title,
+          reminderAt: task.reminder_at,
+        });
 
         // 4) Mark as sent
         const { error: updateError } = await supabaseAdmin

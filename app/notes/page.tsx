@@ -8,8 +8,8 @@ import FeedbackForm from "@/app/components/FeedbackForm";
 import { useAnalytics } from "@/lib/analytics";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 
-const FREE_DAILY_LIMIT = 5;
-const PRO_DAILY_LIMIT = 50;
+const FREE_DAILY_LIMIT = 20;
+const PRO_DAILY_LIMIT = 2000;
 
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
@@ -206,51 +206,49 @@ export default function NotesPage() {
     }
 
     // 3) Normalize tasks into VoiceTaskSuggestion[]
-    if (structured && Array.isArray(structured.tasks)) {
-      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
-        const rawTitle =
-          typeof t.title === "string" && t.title.trim()
-            ? t.title.trim()
-            : "(Untitled task)";
+if (structured && Array.isArray(structured.tasks)) {
+  const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
+    const rawTitle =
+      typeof t.title === "string" && t.title.trim()
+        ? t.title.trim()
+        : "(Untitled task)";
 
-        let dueIso: string | null = null;
-        let dueLabel: string | null = null;
+    let dueIso: string | null = null;
+    let dueLabel: string | null = null;
 
-        // Prefer ISO from server
-        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-          const parsed = Date.parse(t.due_iso);
-          if (!Number.isNaN(parsed)) {
-            const iso = new Date(parsed).toISOString();
-            dueIso = iso;
-            dueLabel = new Date(parsed).toLocaleString();
-          }
-        }
-
-        // Fallback to natural-language if ISO missing
-        if (!dueLabel && typeof t.due_natural === "string" && t.due_natural.trim()) {
-          dueLabel = t.due_natural.trim();
-        }
-
-        return {
-          title: rawTitle,
-          dueIso,
-          dueLabel,
-          priority:
-            t.priority === "low" ||
-            t.priority === "medium" ||
-            t.priority === "high"
-              ? t.priority
-              : null,
-        };
-      });
-
-      const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
-      setVoiceSuggestedTasks(nonEmpty);
-      setVoiceTasksMessage("");
-    } else {
-      setVoiceSuggestedTasks([]);
-      setVoiceTasksMessage("");
+    if (typeof t.due_iso === "string" && t.due_iso.trim()) {
+      const parsed = Date.parse(t.due_iso);
+      if (!Number.isNaN(parsed)) {
+        const iso = new Date(parsed).toISOString();
+        dueIso = iso;
+        dueLabel = new Date(parsed).toLocaleString();
+      }
     }
+
+    if (!dueLabel && typeof t.due_natural === "string" && t.due_natural.trim()) {
+      dueLabel = t.due_natural.trim();
+    }
+
+    return {
+      title: rawTitle,
+      dueIso,
+      dueLabel,
+      priority:
+        t.priority === "low" ||
+        t.priority === "medium" ||
+        t.priority === "high"
+          ? t.priority
+          : null,
+    };
+  });
+
+  const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
+  setVoiceSuggestedTasks(nonEmpty);
+  setVoiceTasksMessage("");
+} else {
+  setVoiceSuggestedTasks([]);
+  setVoiceTasksMessage("");
+}
   }
 
   // Load user
@@ -504,88 +502,90 @@ export default function NotesPage() {
   }
 
   // ✅ Create tasks from voiceSuggestedTasks with dueIso + reminders
-  async function handleCreateTasksFromVoice() {
-    if (!user) return;
-    if (voiceSuggestedTasks.length === 0) return;
+ // Create tasks from voiceSuggestedTasks with dueIso + reminders
+async function handleCreateTasksFromVoice() {
+  if (!user) return;
+  if (voiceSuggestedTasks.length === 0) return;
 
-    setCreatingTasks(true);
-    setError("");
-    setVoiceTasksMessage("");
+  setCreatingTasks(true);
+  setError("");
+  setVoiceTasksMessage("");
 
-    try {
-      const nowIso = new Date().toISOString();
+  try {
+    const nowIso = new Date().toISOString();
 
-      const rows = voiceSuggestedTasks.map((t) => {
-        const row: any = {
-          user_id: user.id,
-          title: t.title,
-          description: null,
-          completed: false,
-          created_at: nowIso,
-          completed_at: null,
-          category: null,
-          time_from: null,
-          time_to: null,
-          reminder_enabled: false,
-          reminder_at: null,
-          reminder_sent_at: null,
-          due_date: t.dueIso, // can be null
-        };
+    const rows = voiceSuggestedTasks.map((t) => {
+      const row: any = {
+        user_id: user.id,
+        title: t.title,
+        description: null,
+        completed: false,
+        created_at: nowIso,
+        completed_at: null,
+        category: null,
+        time_from: null,
+        time_to: null,
+        reminder_enabled: false,
+        reminder_at: null,
+        reminder_sent_at: null,
+        due_date: t.dueIso, // can be null
+      };
 
-        // If we have a valid due date, auto-enable reminder
-        if (t.dueIso) {
-          row.reminder_enabled = true;
-          row.reminder_at = t.dueIso;
-        }
-
-        return row;
-      });
-
-      console.log("[voice-tasks] inserting rows:", rows);
-
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert(rows)
-        .select("id");
-
-      console.log("[voice-tasks] insert result:", { data, error });
-
-      if (error) {
-        let extra = "";
-        try {
-          extra = JSON.stringify(
-            {
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code,
-            },
-            null,
-            2
-          );
-        } catch {
-          // ignore
-        }
-
-        console.error("[voice-tasks] insert error full:", error);
-        setError(
-          "Failed to create tasks from your voice note: " +
-            (error.message || error.details || extra || "Unknown error")
-        );
-      } else {
-        setVoiceTasksMessage(
-          `Created ${rows.length} tasks from your voice note.`
-        );
-        setVoiceSuggestedTasks([]);
-        // track("voice_tasks_created", { count: rows.length });
+      // If we have a valid due date, auto-enable reminder
+      if (t.dueIso) {
+        row.reminder_enabled = true;
+        row.reminder_at = t.dueIso;
       }
-    } catch (err) {
-      console.error("[voice-tasks] unexpected error", err);
-      setError("Unexpected error while creating tasks (check console).");
-    } finally {
-      setCreatingTasks(false);
+
+      return row;
+    });
+
+    console.log("[voice-tasks] inserting rows:", rows);
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(rows)
+      .select("id, due_date, reminder_enabled, reminder_at");
+
+    console.log("[voice-tasks] insert result:", { data, error });
+
+    if (error) {
+      let extra = "";
+      try {
+        extra = JSON.stringify(
+          {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          },
+          null,
+          2
+        );
+      } catch {
+        // ignore
+      }
+
+      console.error("[voice-tasks] insert error full:", error);
+      setError(
+        "Failed to create tasks from your voice note: " +
+          (error.message || error.details || extra || "Unknown error")
+      );
+    } else {
+      setVoiceTasksMessage(
+        `Created ${rows.length} tasks from your voice note.`
+      );
+      setVoiceSuggestedTasks([]);
+      // optional analytics:
+      // track("voice_tasks_created", { count: rows.length });
     }
+  } catch (err) {
+    console.error("[voice-tasks] unexpected error", err);
+    setError("Unexpected error while creating tasks (check console).");
+  } finally {
+    setCreatingTasks(false);
   }
+}
 
   if (checkingUser) {
     return (
