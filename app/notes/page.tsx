@@ -439,47 +439,61 @@ export default function NotesPage() {
 
   // 🆕 Create tasks from voiceSuggestedTasks
   async function handleCreateTasksFromVoice() {
-    if (!user) return;
-    if (voiceSuggestedTasks.length === 0) return;
+  if (!user) return;
+  if (voiceSuggestedTasks.length === 0) return;
 
-    setCreatingTasks(true);
-    setError("");
-    setVoiceTasksMessage("");
+  setCreatingTasks(true);
+  setError("");
+  setVoiceTasksMessage("");
 
-    try {
-      const rows = voiceSuggestedTasks.map((t) => {
-        let dueIso: string | null = null;
-        if (t.due && !Number.isNaN(Date.parse(t.due))) {
-          dueIso = new Date(t.due).toISOString();
-        }
+  try {
+    const nowIso = new Date().toISOString();
 
-        return {
-          user_id: user.id,
-          title: t.title,
-          description: null,
-          is_done: false,
-          due_date: dueIso,
-          reminder_enabled: false,
-        };
-      });
+    const rows = voiceSuggestedTasks.map((t) => {
+      let dueIso: string | null = null;
 
-      const { error } = await supabase.from("tasks").insert(rows);
-
-      if (error) {
-        console.error("[voice-tasks] insert error", error);
-        setError("Failed to create tasks from your voice note.");
-      } else {
-        setVoiceTasksMessage(`Created ${rows.length} tasks from your voice note.`);
-        setVoiceSuggestedTasks([]);
-        track("voice_tasks_created", { count: rows.length });
+      // Try to parse a proper ISO-like date for due
+      if (t.due && !Number.isNaN(Date.parse(t.due))) {
+        dueIso = new Date(t.due).toISOString();
       }
-    } catch (err) {
-      console.error("[voice-tasks] unexpected error", err);
-      setError("Unexpected error while creating tasks.");
-    } finally {
-      setCreatingTasks(false);
+
+      return {
+        user_id: user.id,
+        title: t.title,
+        description: null,
+        is_done: false,
+        due_date: dueIso,
+        // these two may or may not exist in your schema, but are safe if they do:
+        reminder_enabled: false,
+        reminder_at: null,
+        // some schemas require created_at explicitly if no default is set:
+        created_at: nowIso,
+      };
+    });
+
+    console.log("[voice-tasks] inserting rows:", rows);
+
+    const { error } = await supabase.from("tasks").insert(rows);
+
+    if (error) {
+      console.error("[voice-tasks] insert error", error);
+      // show the exact message so we see what's wrong
+      setError(
+        "Failed to create tasks from your voice note: " +
+          (error.message || error.details || "")
+      );
+    } else {
+      setVoiceTasksMessage(`Created ${rows.length} tasks from your voice note.`);
+      setVoiceSuggestedTasks([]);
+      track("voice_tasks_created", { count: rows.length });
     }
+  } catch (err) {
+    console.error("[voice-tasks] unexpected error", err);
+    setError("Unexpected error while creating tasks (check console).");
+  } finally {
+    setCreatingTasks(false);
   }
+}
 
   if (checkingUser) {
     return (
