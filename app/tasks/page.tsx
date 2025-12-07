@@ -369,6 +369,9 @@ export default function TasksPage() {
   // bulk selection
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
+  // 🔽 which tasks are open (show details form)
+  const [openTaskIds, setOpenTaskIds] = useState<string[]>([]);
+
   const todayYmd = new Date().toISOString().slice(0, 10);
 
   // Load user
@@ -614,6 +617,7 @@ export default function TasksPage() {
 
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
       setSelectedTaskIds((prev) => prev.filter((id) => id !== task.id));
+      setOpenTaskIds((prev) => prev.filter((id) => id !== task.id));
     } catch (err) {
       console.error("[tasks] delete exception", err);
       setError("Could not delete task.");
@@ -1042,6 +1046,16 @@ export default function TasksPage() {
 
                 const isSelected = selectedTaskIds.includes(task.id);
 
+                // 🔽 open / closed
+                const isOpen = openTaskIds.includes(task.id);
+                const toggleOpen = () => {
+                  setOpenTaskIds((prev) =>
+                    prev.includes(task.id)
+                      ? prev.filter((id) => id !== task.id)
+                      : [...prev, task.id]
+                  );
+                };
+
                 // 🔔 convert reminder_at ISO → datetime-local string (local wall time)
                 const reminderLocal = toLocalDateTimeInput(task.reminder_at);
 
@@ -1103,45 +1117,77 @@ export default function TasksPage() {
                     key={task.id}
                     className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm"
                   >
-                    <div className="flex items-start gap-3">
-                      {/* Left: done toggle + selection */}
-                      <div className="flex flex-col gap-2 mt-1">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleDone(task)}
-                            disabled={isSaving}
-                            title={
-                              task.completed
-                                ? "Mark as not completed"
-                                : "Mark as completed"
-                            }
-                            className={`h-4 w-4 flex-shrink-0 rounded-full border transition ${
-                              task.completed
-                                ? "border-[var(--accent)] bg-[var(--accent)]"
-                                : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--accent)]"
-                            }`}
-                            aria-label="Toggle done"
-                          />
-                          <span className="text-[10px] text-[var(--text-muted)]">
-                            {task.completed ? "Completed" : "Mark as done"}
+                    {/* Collapsed header row */}
+                    <div className="flex items-center gap-3">
+                      {/* Arrow toggle */}
+                      <button
+                        type="button"
+                        onClick={toggleOpen}
+                        className="w-6 h-6 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px]"
+                        aria-label={
+                          isOpen ? "Collapse task details" : "Expand task details"
+                        }
+                      >
+                        <span
+                          className={`inline-block transition-transform ${
+                            isOpen ? "rotate-90" : ""
+                          }`}
+                        >
+                          ▸
+                        </span>
+                      </button>
+
+                      {/* Mark as done */}
+                      <button
+                        type="button"
+                        onClick={() => toggleDone(task)}
+                        disabled={isSaving}
+                        className={`px-2 py-1 rounded-full border text-[11px] ${
+                          task.completed
+                            ? "bg-emerald-500/10 border-emerald-400 text-emerald-300"
+                            : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                        }`}
+                      >
+                        {task.completed ? "✅ Done" : "✔ Mark as done"}
+                      </button>
+
+                      {/* Select */}
+                      <label className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelected(task.id)}
+                          className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        />
+                        <span>Select</span>
+                      </label>
+
+                      {/* Title + category badge */}
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <p
+                          className={`truncate text-sm ${
+                            task.completed
+                              ? "line-through text-[var(--text-muted)]"
+                              : "text-[var(--text-main)]"
+                          }`}
+                        >
+                          {task.title || "(untitled task)"}
+                        </p>
+
+                        {task.category && (
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${catClass}`}
+                          >
+                            {task.category}
                           </span>
-                        </div>
-
-                        <label className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelected(task.id)}
-                            className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
-                          />
-                          <span>Select</span>
-                        </label>
+                        )}
                       </div>
+                    </div>
 
-                      {/* Right: main content */}
-                      <div className="flex-1 space-y-2">
-                        {/* Top row: title + category */}
+                    {/* Expanded details form */}
+                    {isOpen && (
+                      <div className="mt-3 border-t border-[var(--border-subtle)] pt-3 space-y-2 text-[11px]">
+                        {/* Title + category editing */}
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <input
                             type="text"
@@ -1151,7 +1197,7 @@ export default function TasksPage() {
                                 title: e.target.value,
                               })
                             }
-                            className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--text-main)] placeholder:text-[var(--text-muted)]"
+                            className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-sm text-[var(--text-main)] placeholder:text-[var(--text-muted)]"
                             placeholder="(untitled task)"
                           />
 
@@ -1172,31 +1218,28 @@ export default function TasksPage() {
                                 </option>
                               ))}
                             </select>
-
-                            {task.category && (
-                              <span
-                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${catClass}`}
-                              >
-                                {task.category}
-                              </span>
-                            )}
                           </div>
                         </div>
 
                         {/* Description */}
-                        <textarea
-                          defaultValue={task.description || ""}
-                          onBlur={(e) =>
-                            handleUpdateTask(task, {
-                              description: e.target.value,
-                            })
-                          }
-                          className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-main)] min-h-[48px]"
-                          placeholder="Details or notes…"
-                        />
+                        <div>
+                          <label className="block mb-1 text-[10px] text-[var(--text-muted)]">
+                            Details
+                          </label>
+                          <textarea
+                            defaultValue={task.description || ""}
+                            onBlur={(e) =>
+                              handleUpdateTask(task, {
+                                description: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-main)] min-h-[48px]"
+                            placeholder="Details or notes…"
+                          />
+                        </div>
 
-                        {/* Bottom row: due / time / reminder / created / completed + share + delete */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+                        {/* Dates / time / reminder / meta */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                             <div className="flex items-center gap-2">
                               <span>Due:</span>
@@ -1281,8 +1324,10 @@ export default function TasksPage() {
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               />
                             </div>
+                          </div>
 
-                            <span className="text-[10px]">
+                          <div className="flex flex-col items-end gap-1 text-[10px]">
+                            <span>
                               Created:{" "}
                               {new Date(
                                 task.created_at
@@ -1290,82 +1335,81 @@ export default function TasksPage() {
                             </span>
 
                             {completedAt && (
-                              <span className="text-[10px] text-[var(--accent)]">
+                              <span className="text-[var(--accent)]">
                                 Completed: {completedAt.toLocaleString()}
                               </span>
                             )}
                           </div>
+                        </div>
 
-                          <div className="flex items-center gap-2">
-                            {/* Share menu */}
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSharingTaskId((prev) =>
-                                    prev === task.id ? null : task.id
-                                  )
-                                }
-                                className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
-                              >
-                                {copiedTaskId === task.id
-                                  ? "✅ Copied"
-                                  : "Share"}
-                              </button>
-
-                              {sharingTaskId === task.id && (
-                                <div className="absolute right-0 mt-1 w-40 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xl p-2 text-[11px] z-10">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleShareCopy(task)}
-                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
-                                  >
-                                    📋 Copy text
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleShareWhatsApp(task)
-                                    }
-                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
-                                  >
-                                    💬 WhatsApp
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleShareViber(task)
-                                    }
-                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
-                                  >
-                                    📲 Viber
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleShareEmail(task)
-                                    }
-                                    className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
-                                  >
-                                    ✉️ Email
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Delete */}
+                        {/* Share + Delete */}
+                        <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border-subtle)]">
+                          <div className="relative">
                             <button
                               type="button"
-                              onClick={() => handleDeleteTask(task)}
-                              disabled={isDeleting}
-                              className="text-[11px] text-red-400 hover:text-red-300"
+                              onClick={() =>
+                                setSharingTaskId((prev) =>
+                                  prev === task.id ? null : task.id
+                                )
+                              }
+                              className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                             >
-                              {isDeleting ? "Deleting…" : "Delete"}
+                              {copiedTaskId === task.id
+                                ? "✅ Copied"
+                                : "Share"}
                             </button>
+
+                            {sharingTaskId === task.id && (
+                              <div className="absolute right-0 mt-1 w-40 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xl p-2 text-[11px] z-10">
+                                <button
+                                  type="button"
+                                  onClick={() => handleShareCopy(task)}
+                                  className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
+                                >
+                                  📋 Copy text
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleShareWhatsApp(task)
+                                  }
+                                  className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
+                                >
+                                  💬 WhatsApp
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleShareViber(task)
+                                  }
+                                  className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
+                                >
+                                  📲 Viber
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleShareEmail(task)
+                                  }
+                                  className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
+                                >
+                                  ✉️ Email
+                                </button>
+                              </div>
+                            )}
                           </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTask(task)}
+                            disabled={isDeleting}
+                            className="text-[11px] text-red-400 hover:text-red-300"
+                          >
+                            {isDeleting ? "Deleting…" : "Delete"}
+                          </button>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}

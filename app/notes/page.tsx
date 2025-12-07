@@ -32,15 +32,11 @@ type Note = {
 
 type AiMode = "summarize" | "bullets" | "rewrite";
 
-// 🆕 Richer voice task suggestion shape
+// ✅ Normalized voice task suggestion shape for the UI + task creation
 type VoiceTaskSuggestion = {
   title: string;
-  // snake_case from API
-  due_natural?: string | null;
-  due_iso?: string | null;
-  // camelCase (if you had this before)
-  dueNatural?: string | null;
-  dueIso?: string | null;
+  dueIso: string | null;   // machine-usable ISO datetime
+  dueLabel: string | null; // human-readable label for the UI
   priority?: "low" | "medium" | "high" | null;
 };
 
@@ -210,49 +206,50 @@ export default function NotesPage() {
     }
 
     // 3) Normalize tasks into VoiceTaskSuggestion[]
-if (structured && Array.isArray(structured.tasks)) {
-  const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
-    const rawTitle =
-      typeof t.title === "string" && t.title.trim()
-        ? t.title.trim()
-        : "(Untitled task)";
+    if (structured && Array.isArray(structured.tasks)) {
+      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
+        const rawTitle =
+          typeof t.title === "string" && t.title.trim()
+            ? t.title.trim()
+            : "(Untitled task)";
 
-    let dueIso: string | null = null;
-    let dueLabel: string | null = null;
+        let dueIso: string | null = null;
+        let dueLabel: string | null = null;
 
-    if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-      const parsed = Date.parse(t.due_iso);
-      if (!Number.isNaN(parsed)) {
-        const iso = new Date(parsed).toISOString();
-        dueIso = iso;
-        dueLabel = new Date(parsed).toLocaleString();
-      }
+        // Use explicit ISO if present
+        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
+          const parsed = Date.parse(t.due_iso);
+          if (!Number.isNaN(parsed)) {
+            dueIso = new Date(parsed).toISOString();
+            dueLabel = new Date(parsed).toLocaleString();
+          }
+        }
+
+        // If we don't have a label yet, fallback to natural string
+        if (!dueLabel && typeof t.due_natural === "string" && t.due_natural.trim()) {
+          dueLabel = t.due_natural.trim();
+        }
+
+        return {
+          title: rawTitle,
+          dueIso,
+          dueLabel,
+          priority:
+            t.priority === "low" ||
+            t.priority === "medium" ||
+            t.priority === "high"
+              ? t.priority
+              : null,
+        };
+      });
+
+      const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
+      setVoiceSuggestedTasks(nonEmpty);
+      setVoiceTasksMessage("");
+    } else {
+      setVoiceSuggestedTasks([]);
+      setVoiceTasksMessage("");
     }
-
-    if (!dueLabel && typeof t.due_natural === "string" && t.due_natural.trim()) {
-      dueLabel = t.due_natural.trim();
-    }
-
-    return {
-      title: rawTitle,
-      dueIso,
-      dueLabel,
-      priority:
-        t.priority === "low" ||
-        t.priority === "medium" ||
-        t.priority === "high"
-          ? t.priority
-          : null,
-    };
-  });
-
-  const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
-  setVoiceSuggestedTasks(nonEmpty);
-  setVoiceTasksMessage("");
-} else {
-  setVoiceSuggestedTasks([]);
-  setVoiceTasksMessage("");
-}
   }
 
   // Load user
@@ -505,105 +502,96 @@ if (structured && Array.isArray(structured.tasks)) {
     setDeletingId(null);
   }
 
-  // Create tasks from voiceSuggestedTasks with due date + reminders
-async function handleCreateTasksFromVoice() {
-  if (!user) return;
-  if (voiceSuggestedTasks.length === 0) return;
+  // ✅ Create tasks from voiceSuggestedTasks with due date + reminders
+  async function handleCreateTasksFromVoice() {
+    if (!user) return;
+    if (voiceSuggestedTasks.length === 0) return;
 
-  setCreatingTasks(true);
-  setError("");
-  setVoiceTasksMessage("");
+    setCreatingTasks(true);
+    setError("");
+    setVoiceTasksMessage("");
 
-  try {
-    const nowIso = new Date().toISOString();
+    try {
+      const nowIso = new Date().toISOString();
 
-    const rows = voiceSuggestedTasks.map((t) => {
-      let dueIso: string | null = null;
+      const rows = voiceSuggestedTasks.map((t) => {
+        let dueIso: string | null = t.dueIso || null;
 
-      // 1) Prefer AI's ISO field directly
-      if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-        const parsed = Date.parse(t.due_iso);
-        if (!Number.isNaN(parsed)) {
-          dueIso = new Date(parsed).toISOString();
+        // If we don't have an explicit ISO, we can try parsing the label
+        if (!dueIso && t.dueLabel) {
+          const parsed = Date.parse(t.dueLabel);
+          if (!Number.isNaN(parsed)) {
+            dueIso = new Date(parsed).toISOString();
+          }
         }
-      }
 
-      // 2) Fallback: try parsing due_natural if present
-      if (!dueIso && typeof t.due_natural === "string" && t.due_natural.trim()) {
-        const parsed = Date.parse(t.due_natural.trim());
-        if (!Number.isNaN(parsed)) {
-          dueIso = new Date(parsed).toISOString();
+        // Reminder time: use dueIso if we have it, otherwise "now"
+        const reminderAt = dueIso || nowIso;
+
+        const row: any = {
+          user_id: user.id,
+          title: t.title,
+          description: null,
+          completed: false,
+          created_at: nowIso,
+          completed_at: null,
+          category: null,
+          time_from: null,
+          time_to: null,
+          due_date: dueIso,            // may be null if AI didn't give a real date
+          reminder_enabled: true,      // ✅ always enable for voice-created tasks
+          reminder_at: reminderAt,     // ✅ cron + push/email will use this
+          reminder_sent_at: null,
+        };
+
+        return row;
+      });
+
+      console.log("[voice-tasks] inserting rows:", rows);
+
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert(rows)
+        .select("id, due_date, reminder_enabled, reminder_at");
+
+      console.log("[voice-tasks] insert result:", { data, error });
+
+      if (error) {
+        let extra = "";
+        try {
+          extra = JSON.stringify(
+            {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+            },
+            null,
+            2
+          );
+        } catch {
+          // ignore
         }
-      }
 
-      // 3) If we STILL don't have anything, we can still set a reminder “now”
-      //    so that reminders are never silently missing.
-      const reminderAt = dueIso || nowIso;
-
-      const row: any = {
-        user_id: user.id,
-        title: t.title,
-        description: null,
-        completed: false,
-        created_at: nowIso,
-        completed_at: null,
-        category: null,
-        time_from: null,
-        time_to: null,
-        reminder_enabled: true,     // 🔥 always enable
-        reminder_at: reminderAt,    // 🔥 use dueIso or now
-        reminder_sent_at: null,
-        due_date: dueIso,           // may be null if AI gave no real date
-      };
-
-      return row;
-    });
-
-    console.log("[voice-tasks] inserting rows:", rows);
-
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert(rows)
-      .select("id, due_date, reminder_enabled, reminder_at");
-
-    console.log("[voice-tasks] insert result:", { data, error });
-
-    if (error) {
-      let extra = "";
-      try {
-        extra = JSON.stringify(
-          {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code,
-          },
-          null,
-          2
+        console.error("[voice-tasks] insert error full:", error);
+        setError(
+          "Failed to create tasks from your voice note: " +
+            (error.message || error.details || extra || "Unknown error")
         );
-      } catch {
-        // ignore
+      } else {
+        setVoiceTasksMessage(
+          `Created ${rows.length} tasks from your voice note.`
+        );
+        setVoiceSuggestedTasks([]);
+        // optional: track("voice_tasks_created", { count: rows.length });
       }
-
-      console.error("[voice-tasks] insert error full:", error);
-      setError(
-        "Failed to create tasks from your voice note: " +
-          (error.message || error.details || extra || "Unknown error")
-      );
-    } else {
-      setVoiceTasksMessage(
-        `Created ${rows.length} tasks from your voice note.`
-      );
-      setVoiceSuggestedTasks([]);
-      // optional: track("voice_tasks_created", { count: rows.length });
+    } catch (err) {
+      console.error("[voice-tasks] unexpected error", err);
+      setError("Unexpected error while creating tasks (check console).");
+    } finally {
+      setCreatingTasks(false);
     }
-  } catch (err) {
-    console.error("[voice-tasks] unexpected error", err);
-    setError("Unexpected error while creating tasks (check console).");
-  } finally {
-    setCreatingTasks(false);
   }
-}
 
   if (checkingUser) {
     return (
