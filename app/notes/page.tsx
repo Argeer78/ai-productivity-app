@@ -32,11 +32,15 @@ type Note = {
 
 type AiMode = "summarize" | "bullets" | "rewrite";
 
-// ✅ Normalized voice task suggestion shape (for UI + DB)
+// 🆕 Richer voice task suggestion shape
 type VoiceTaskSuggestion = {
   title: string;
-  dueLabel: string | null; // what we display to user
-  dueIso: string | null;   // ISO we store in tasks.due_date / reminder_at
+  // snake_case from API
+  due_natural?: string | null;
+  due_iso?: string | null;
+  // camelCase (if you had this before)
+  dueNatural?: string | null;
+  dueIso?: string | null;
   priority?: "low" | "medium" | "high" | null;
 };
 
