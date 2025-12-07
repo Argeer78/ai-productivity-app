@@ -44,6 +44,13 @@ export default function VoiceCaptureButton({
   const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
 
+  // 🔊 device selection
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [devicesLoaded, setDevicesLoaded] = useState(false);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | "auto">(
+    "auto"
+  );
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const mimeTypeRef = useRef<string>("");
@@ -113,6 +120,39 @@ export default function VoiceCaptureButton({
     return "";
   }
 
+  // 🔍 Load available audio inputs after permission is granted
+  async function loadAudioInputs() {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
+
+    try {
+      // Ask for basic audio permission first, then list devices
+      const tmpStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioIns = devices.filter((d) => d.kind === "audioinput");
+
+      setAudioInputs(audioIns);
+      setDevicesLoaded(true);
+
+      // Stop temp stream
+      tmpStream.getTracks().forEach((t) => t.stop());
+
+      // Choose a decent default if we don't have one yet
+      if (selectedDeviceId === "auto" && audioIns.length > 0) {
+        const preferred =
+          audioIns.find((d) =>
+            /built-in|microphone|mic|phone/i.test(d.label)
+          ) || audioIns[0];
+
+        setSelectedDeviceId(preferred.deviceId);
+      }
+    } catch (err) {
+      console.error("[VoiceCapture] loadAudioInputs error:", err);
+    }
+  }
+
   async function startRecording() {
     setError(null);
     setRawText(null);
@@ -130,15 +170,25 @@ export default function VoiceCaptureButton({
       return;
     }
 
+    // Make sure we have device list before we pick input
+    if (!devicesLoaded) {
+      await loadAudioInputs();
+    }
+
     try {
-      // 🔊 More explicit audio constraints – often helps on weird devices
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      };
+
+      if (selectedDeviceId && selectedDeviceId !== "auto") {
+        (audioConstraints as any).deviceId = selectedDeviceId;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-        } as MediaTrackConstraints,
+        audio: audioConstraints,
       });
 
       const mimeType = chooseMimeType();
@@ -175,16 +225,15 @@ export default function VoiceCaptureButton({
           type: blob.type,
         });
 
-        // Always show preview so you can hear what the phone actually recorded
+        // Preview what the browser actually recorded
         if (audioPreviewUrl) {
           URL.revokeObjectURL(audioPreviewUrl);
         }
         setAudioPreviewUrl(URL.createObjectURL(blob));
 
-        // If the blob is tiny, we basically captured no usable audio
         if (blob.size < 2000) {
           setError(
-            "We barely captured any audio. Try holding the phone closer and speaking a bit longer."
+            "We barely captured any audio. Try speaking closer to the mic, or pick a different microphone source."
           );
           setLoading(false);
           return;
@@ -264,10 +313,12 @@ export default function VoiceCaptureButton({
     setRecording(false);
   }
 
+  const showMicSelector = audioInputs.length > 1;
+
   return (
     <div className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
           <h3 className="text-sm font-semibold">Voice capture</h3>
           <p className="text-xs text-slate-400">
             Tap, speak your messy thoughts, and let AIProd clean it up.
@@ -278,6 +329,29 @@ export default function VoiceCaptureButton({
               ? "Auto-save as note"
               : "Review before saving"}
           </p>
+
+          {showMicSelector && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-[10px] text-slate-400">Mic:</span>
+              <select
+                className="text-[10px] bg-slate-950 border border-slate-700 rounded-lg px-2 py-1"
+                value={selectedDeviceId === "auto" ? "" : selectedDeviceId}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedDeviceId(value || "auto");
+                }}
+              >
+                <option value="">
+                  Auto (browser default)
+                </option>
+                {audioInputs.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || d.deviceId}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <button
