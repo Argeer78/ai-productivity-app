@@ -4,9 +4,19 @@ import { useEffect, useRef, useState } from "react";
 
 type StructuredResult = {
   note?: string;
+  note_category?: string;
   actions?: string[];
-  tasks?: { title: string; due: string | null }[];
-  reminder?: { time: string | null; reason: string | null };
+  tasks?: {
+    title: string;
+    due_natural?: string | null;
+    due_iso?: string | null;
+    priority?: "low" | "medium" | "high" | null;
+  }[];
+  reminder?: {
+    time_natural?: string | null;
+    time_iso?: string | null;
+    reason?: string | null;
+  };
   summary?: string;
 };
 
