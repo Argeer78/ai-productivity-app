@@ -447,6 +447,8 @@ export default function NotesPage() {
   setVoiceTasksMessage("");
 
   try {
+    const nowIso = new Date().toISOString();
+
     const rows = voiceSuggestedTasks.map((t) => {
       let dueIso: string | null = null;
 
@@ -455,33 +457,65 @@ export default function NotesPage() {
         dueIso = new Date(t.due).toISOString();
       }
 
-      // Keep this minimal to match your tasks schema safely
       const row: any = {
         user_id: user.id,
         title: t.title,
-        is_done: false,
+        description: null,
+        completed: false,
+        created_at: nowIso,
+        completed_at: null,
+        category: null,
+        time_from: null,
+        time_to: null,
+        reminder_enabled: false,
+        reminder_at: null,
+        reminder_sent_at: null,
       };
 
       if (dueIso) {
         row.due_date = dueIso;
+      } else {
+        row.due_date = null;
       }
 
-      // You can add more OPTIONAL fields here later
       return row;
     });
 
     console.log("[voice-tasks] inserting rows:", rows);
 
-    const { error } = await supabase.from("tasks").insert(rows);
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(rows)
+      .select("id");
+
+    console.log("[voice-tasks] insert result:", { data, error });
 
     if (error) {
-      console.error("[voice-tasks] insert error", error);
+      let extra = "";
+      try {
+        extra = JSON.stringify(
+          {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          },
+          null,
+          2
+        );
+      } catch {
+        // ignore
+      }
+
+      console.error("[voice-tasks] insert error full:", error);
       setError(
         "Failed to create tasks from your voice note: " +
-          (error.message || error.details || "")
+          (error.message || error.details || extra || "Unknown error")
       );
     } else {
-      setVoiceTasksMessage(`Created ${rows.length} tasks from your voice note.`);
+      setVoiceTasksMessage(
+        `Created ${rows.length} tasks from your voice note.`
+      );
       setVoiceSuggestedTasks([]);
       track("voice_tasks_created", { count: rows.length });
     }
