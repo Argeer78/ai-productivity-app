@@ -2,11 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Props = {
-  userId: string;
-  mode: "review" | "autosave";
-};
-
 type StructuredResult = {
   note?: string;
   actions?: string[];
@@ -15,7 +10,22 @@ type StructuredResult = {
   summary?: string;
 };
 
-export default function VoiceCaptureButton({ userId, mode }: Props) {
+type Props = {
+  userId: string;
+  mode: "review" | "autosave";
+  resetKey?: number;
+  onResult?: (payload: {
+    rawText: string | null;
+    structured: StructuredResult | null;
+  }) => void;
+};
+
+export default function VoiceCaptureButton({
+  userId,
+  mode,
+  resetKey,
+  onResult,
+}: Props) {
   const [recording, setRecording] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,16 +36,23 @@ export default function VoiceCaptureButton({ userId, mode }: Props) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Cleanup: stop tracks if still active
       if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stream
-          .getTracks()
-          .forEach((t) => t.stop());
+        mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
       }
     };
   }, []);
+
+  // Reset when parent changes resetKey (e.g. after note save)
+  useEffect(() => {
+    if (resetKey === undefined) return;
+    setRawText(null);
+    setStructured(null);
+    setSavedNoteId(null);
+    setError(null);
+  }, [resetKey]);
 
   async function startRecording() {
     setError(null);
@@ -62,7 +79,6 @@ export default function VoiceCaptureButton({ userId, mode }: Props) {
       recorder.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
 
-        // Send to backend
         setLoading(true);
         setSavedNoteId(null);
 
@@ -83,10 +99,18 @@ export default function VoiceCaptureButton({ userId, mode }: Props) {
             console.error("[VoiceCapture] server error:", json);
             setError(json.error || "Server error");
           } else {
-            setRawText(json.rawText || null);
-            setStructured(json.structured || null);
+            const rt = json.rawText || null;
+            const st = (json.structured || null) as StructuredResult | null;
+
+            setRawText(rt);
+            setStructured(st);
+
             if (json.noteId) {
               setSavedNoteId(json.noteId as string);
+            }
+
+            if (onResult) {
+              onResult({ rawText: rt, structured: st });
             }
           }
         } catch (err) {
@@ -109,9 +133,7 @@ export default function VoiceCaptureButton({ userId, mode }: Props) {
   function stopRecording() {
     if (!mediaRecorderRef.current) return;
     mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream
-      .getTracks()
-      .forEach((t) => t.stop());
+    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
     setRecording(false);
   }
 
@@ -119,9 +141,7 @@ export default function VoiceCaptureButton({ userId, mode }: Props) {
     <div className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold">
-            Voice capture
-          </h3>
+          <h3 className="text-sm font-semibold">Voice capture</h3>
           <p className="text-xs text-slate-400">
             Tap, speak your messy thoughts, and let AIProd clean it up.
           </p>

@@ -103,7 +103,7 @@ export default function NotesPage() {
 
   // 🆕 Voice capture mode toggle: "review" or "autosave"
   const [voiceMode, setVoiceMode] = useState<"review" | "autosave">("review");
-
+  const [voiceResetKey, setVoiceResetKey] = useState(0);
   function handleShareNote(note: Note) {
     if (!note?.content) return;
 
@@ -130,6 +130,32 @@ export default function NotesPage() {
 
     track("ask_ai_from_note");
   }
+  function handleVoiceResult(payload: {
+  rawText: string | null;
+  structured: any | null;
+}) {
+  const s = payload.structured;
+
+  // Prefer the cleaned-up note from AI
+  if (s && s.note && typeof s.note === "string") {
+    const noteText = s.note as string;
+    setContent(noteText);
+
+    // If user hasn't typed a title and smart title is ON, generate from first line
+    if (!title.trim() && autoTitleEnabled) {
+      const firstLine = noteText.trim().split("\n")[0];
+      const maxLen = 60;
+      const generated =
+        firstLine.length <= maxLen
+          ? firstLine
+          : firstLine.slice(0, maxLen) + "…";
+      setTitle(generated);
+    }
+  } else if (payload.rawText) {
+    // Fallback to raw transcript if no structured note
+    setContent(payload.rawText);
+  }
+}
 
   // Load user
   useEffect(() => {
@@ -245,7 +271,7 @@ export default function NotesPage() {
     setTitle("");
     setContent("");
     setNewCategory("");
-
+    setVoiceResetKey((prev) => prev + 1);
     await fetchNotes();
     track("note_created");
 
@@ -535,8 +561,13 @@ export default function NotesPage() {
 
             {/* Voice capture */}
             <div className="mt-2">
-              <VoiceCaptureButton userId={userId} mode={voiceMode} />
-            </div>
+  <VoiceCaptureButton
+    userId={userId}
+    mode={voiceMode}
+    resetKey={voiceResetKey}
+    onResult={handleVoiceResult}
+  />
+</div>
 
             <button
               type="submit"
