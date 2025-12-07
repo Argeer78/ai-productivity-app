@@ -1,4 +1,3 @@
-// app/api/voice/capture/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -6,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(req: Request) {
@@ -39,24 +38,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // Debug info for us (shows up in server logs)
-    console.log("[voice-capture] file:", {
-      name: (file as any).name,
-      type: file.type,
-      size: file.size,
-    });
-
     // 1) Transcribe audio
     const transcription = await openai.audio.transcriptions.create({
       file,
-      model: "whisper-1",     // 🔒 very robust model
-      language: "en",          // 🔒 force English (change to "el" if you speak Greek)
-      temperature: 0,
+      model: "gpt-4o-transcribe", // or "whisper-1"
     });
 
     const rawText = transcription.text?.trim() || "";
-    console.log("[voice-capture] transcript:", rawText);
-
     if (!rawText) {
       return NextResponse.json(
         { ok: false, error: "Transcription is empty" },
@@ -64,7 +52,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) Structure it with a chat model
+    // 2) Ask the model for structured JSON
     const systemPrompt = `
 You are an assistant that turns messy spoken notes into structured productivity data.
 
@@ -76,20 +64,21 @@ Given the transcript of what the user said, produce a JSON object with:
 - "tasks": an array of objects:
     {
       "title": string,
-      "due_natural": string | null,  // e.g. "tomorrow at 5pm"
-      "due_iso": string | null,      // ISO datetime if you can infer it, otherwise null
+      "due_natural": string | null,  // e.g. "tomorrow morning"
+      "due_iso": string | null,      // ISO 8601 UTC date-time, e.g. "2025-12-10T09:00:00Z"
       "priority": "low" | "medium" | "high" | null
     }
 - "reminder": an object
     {
-      "time_natural": string | null, // e.g. "this evening", "in 2 hours"
-      "time_iso": string | null,     // ISO datetime if you can infer it, otherwise null
-      "reason": string | null        // why this reminder matters
+      "time_natural": string | null, // e.g. "this evening"
+      "time_iso": string | null,     // ISO 8601 UTC date-time, or null
+      "reason": string | null        // why the reminder is needed
     }
 - "summary": 1–2 sentence summary (string)
 
-If something is not present (e.g. no clear due date or reminder), use null.
-Return ONLY valid JSON. Do not include any extra commentary.
+If some information (like precise time) is not clearly stated, set the ISO field to null and use a natural-language description instead.
+
+Return ONLY valid JSON – no markdown, no commentary.
     `.trim();
 
     const completion = await openai.chat.completions.create({
@@ -104,33 +93,15 @@ Return ONLY valid JSON. Do not include any extra commentary.
 
     const content = completion.choices[0]?.message?.content;
     if (!content) {
-      console.error("[voice-capture] Empty AI structuring response");
       return NextResponse.json(
         { ok: false, error: "Empty AI response" },
         { status: 500 }
       );
     }
 
-    let structured: {
-      note?: string;
-      note_category?: string;
-      actions?: string[];
-      tasks?: {
-        title: string;
-        due_natural?: string | null;
-        due_iso?: string | null;
-        priority?: "low" | "medium" | "high" | null;
-      }[];
-      reminder?: {
-        time_natural?: string | null;
-        time_iso?: string | null;
-        reason?: string | null;
-      };
-      summary?: string;
-    };
-
+    let parsed: any;
     try {
-      structured = JSON.parse(content);
+      parsed = JSON.parse(content);
     } catch (err) {
       console.error("[voice-capture] Failed to parse JSON:", err, content);
       return NextResponse.json(
@@ -139,28 +110,108 @@ Return ONLY valid JSON. Do not include any extra commentary.
       );
     }
 
-    // 3) Optionally auto-save as a note if user chose autosave
+    // 3) Normalize shape so frontend always sees due_natural / due_iso / time_natural / time_iso
+    const tasks = Array.isArray(parsed.tasks)
+      ? parsed.tasks.map((t: any) => {
+          const title = typeof t.title === "string" ? t.title : "";
+
+          // backwards compatibility: if model ever returns "due" field
+          let dueIso = t.due_iso ?? null;
+          let dueNatural = t.due_natural ?? null;
+
+          if (!dueIso && typeof t.due === "string" && t.due.trim()) {
+            const raw = t.due.trim();
+            const ms = Date.parse(raw);
+            if (!Number.isNaN(ms)) {
+              dueIso = new Date(ms).toISOString();
+            } else {
+              dueNatural = raw;
+            }
+          }
+
+          return {
+            title,
+            due_natural:
+              typeof dueNatural === "string" && dueNatural.trim()
+                ? dueNatural.trim()
+                : null,
+            due_iso: typeof dueIso === "string" ? dueIso : null,
+            priority:
+              t.priority === "low" ||
+              t.priority === "medium" ||
+              t.priority === "high"
+                ? t.priority
+                : null,
+          };
+        })
+      : [];
+
+    const reminderRaw = parsed.reminder || {};
+    let timeIso = reminderRaw.time_iso ?? null;
+    let timeNatural = reminderRaw.time_natural ?? null;
+
+    if (!timeIso && typeof reminderRaw.time === "string" && reminderRaw.time.trim()) {
+      const raw = reminderRaw.time.trim();
+      const ms = Date.parse(raw);
+      if (!Number.isNaN(ms)) {
+        timeIso = new Date(ms).toISOString();
+      } else {
+        timeNatural = raw;
+      }
+    }
+
+    const reminder = {
+      time_natural:
+        typeof timeNatural === "string" && timeNatural.trim()
+          ? timeNatural.trim()
+          : null,
+      time_iso: typeof timeIso === "string" ? timeIso : null,
+      reason:
+        typeof reminderRaw.reason === "string" && reminderRaw.reason.trim()
+          ? reminderRaw.reason.trim()
+          : null,
+    };
+
+    const structured = {
+      note:
+        typeof parsed.note === "string" && parsed.note.trim()
+          ? parsed.note.trim()
+          : null,
+      note_category:
+        typeof parsed.note_category === "string" && parsed.note_category.trim()
+          ? parsed.note_category.trim()
+          : null,
+      actions: Array.isArray(parsed.actions)
+        ? parsed.actions
+            .filter((a: any) => typeof a === "string" && a.trim())
+            .map((a: string) => a.trim())
+        : [],
+      tasks,
+      reminder,
+      summary:
+        typeof parsed.summary === "string" && parsed.summary.trim()
+          ? parsed.summary.trim()
+          : null,
+    };
+
+    // 4) Optionally auto-insert note if mode === "autosave"
     let noteId: string | null = null;
     if (mode === "autosave" && structured.note) {
-      try {
-        const { data, error } = await supabaseAdmin
-          .from("notes")
-          .insert({
-            user_id: userId,
-            title: structured.summary || "Voice capture",
-            content: structured.note,
-            category: structured.note_category || null,
-          })
-          .select("id")
-          .single();
+      const { data, error } = await supabaseAdmin
+        .from("notes")
+        .insert({
+          user_id: userId,
+          title: structured.summary || "Voice capture",
+          content: structured.note,
+          category: structured.note_category || null,
+        })
+        .select("id")
+        .single();
 
-        if (error) {
-          console.error("[voice-capture] Failed to insert note:", error);
-        } else {
-          noteId = data.id;
-        }
-      } catch (err) {
-        console.error("[voice-capture] Exception inserting note:", err);
+      if (error) {
+        console.error("[voice-capture] Failed to insert note:", error);
+      } else {
+        noteId = data.id;
       }
     }
 

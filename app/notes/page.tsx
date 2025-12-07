@@ -504,9 +504,18 @@ export default function NotesPage() {
     const rows = voiceSuggestedTasks.map((t) => {
       let dueIso: string | null = null;
 
-      // Prefer AI's ISO time if present & valid
+      // 1) Prefer AI's ISO
       if (t.due_iso && !Number.isNaN(Date.parse(t.due_iso))) {
         dueIso = new Date(t.due_iso).toISOString();
+      } else {
+        // 2) Fallback: maybe server still sent a plain "due" field at some point
+        const anyTask = t as any;
+        if (typeof anyTask.due === "string" && anyTask.due.trim()) {
+          const ms = Date.parse(anyTask.due.trim());
+          if (!Number.isNaN(ms)) {
+            dueIso = new Date(ms).toISOString();
+          }
+        }
       }
 
       const row: any = {
@@ -525,10 +534,9 @@ export default function NotesPage() {
         due_date: dueIso, // can be null
       };
 
-      // If we have a due date → also set reminder
       if (dueIso) {
         row.reminder_enabled = true;
-        row.reminder_at = dueIso; // you can subtract 30min here if you want pre-reminders
+        row.reminder_at = dueIso; // same as due; adjust earlier if you want
       }
 
       return row;
@@ -570,10 +578,9 @@ export default function NotesPage() {
         `Created ${rows.length} tasks from your voice note.`
       );
       setVoiceSuggestedTasks([]);
-      // You *could* call fetchNotes() or fetch tasks list here if needed
-      // track analytics
-      // @ts-ignore – track comes from useAnalytics
-      track("voice_tasks_created", { count: rows.length });
+
+      // optional: analytics
+      // track("voice_tasks_created", { count: rows.length });
     }
   } catch (err) {
     console.error("[voice-tasks] unexpected error", err);
