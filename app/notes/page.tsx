@@ -15,6 +15,80 @@ function getTodayString() {
   return new Date().toISOString().split("T")[0];
 }
 
+// 🔧 Helper: rough natural-language → ISO datetime for labels like “tomorrow morning”
+function resolveNaturalDue(label: string): string | null {
+  if (!label) return null;
+
+  const text = label.toLowerCase();
+  const now = new Date();
+
+  // Base date = today 09:00
+  let target = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    9,
+    0,
+    0,
+    0
+  );
+
+  // --- Day offset ---
+  if (text.includes("tomorrow")) {
+    target.setDate(target.getDate() + 1);
+  } else if (text.includes("next week")) {
+    target.setDate(target.getDate() + 7);
+  } else if (text.includes("today")) {
+    // keep today
+  } else if (text.includes("tonight")) {
+    // tonight → today
+  }
+
+  // --- Time-of-day keywords ---
+  if (text.includes("morning")) {
+    // you said you like 08:00 for “morning”
+    target.setHours(8, 0, 0, 0);
+  } else if (text.includes("noon")) {
+    target.setHours(12, 0, 0, 0);
+  } else if (text.includes("afternoon")) {
+    target.setHours(15, 0, 0, 0);
+  } else if (text.includes("evening") || text.includes("tonight")) {
+    // you said ~20:00 for “evening”
+    target.setHours(20, 0, 0, 0);
+  }
+
+  // --- Explicit times: “8am”, “8 pm”, “20:00” etc ---
+  const timeMatch = text.match(
+    /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?|\b(\d{1,2}):(\d{2})\b/
+  );
+
+  if (timeMatch) {
+    let hour: number | null = null;
+    let minute: number | null = null;
+
+    if (timeMatch[1]) {
+      // "8" or "8:30" with am/pm
+      hour = parseInt(timeMatch[1], 10);
+      minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      const ampm = timeMatch[3];
+
+      if (ampm === "pm" && hour < 12) hour += 12;
+      if (ampm === "am" && hour === 12) hour = 0;
+    } else if (timeMatch[4] && timeMatch[5]) {
+      // "20:00" style
+      hour = parseInt(timeMatch[4], 10);
+      minute = parseInt(timeMatch[5], 10);
+    }
+
+    if (hour !== null && minute !== null) {
+      target.setHours(hour, minute, 0, 0);
+    }
+  }
+
+  // Return as UTC ISO
+  return target.toISOString();
+}
+
 type SupabaseUser = {
   id: string;
   email?: string | null;
@@ -247,7 +321,11 @@ export default function NotesPage() {
         }
 
         // If we don't have a label yet, fallback to natural string
-        if (!dueLabel && typeof t.due_natural === "string" && t.due_natural.trim()) {
+        if (
+          !dueLabel &&
+          typeof t.due_natural === "string" &&
+          t.due_natural.trim()
+        ) {
           dueLabel = t.due_natural.trim();
         }
 
@@ -423,7 +501,10 @@ export default function NotesPage() {
 
     const newCount = data.count + 1;
 
-    await supabase.from("ai_usage").update({ count: newCount }).eq("id", data.id);
+    await supabase
+      .from("ai_usage")
+      .update({ count: newCount })
+      .eq("id", data.id);
 
     setAiCountToday(newCount);
     return newCount;
@@ -529,131 +610,135 @@ export default function NotesPage() {
   }
 
   /// ✅ Create tasks from voiceSuggestedTasks with due date + time + reminders + category
-async function handleCreateTasksFromVoice() {
-  if (!user) return;
-  if (voiceSuggestedTasks.length === 0) return;
+  async function handleCreateTasksFromVoice() {
+    if (!user) return;
+    if (voiceSuggestedTasks.length === 0) return;
 
-  setCreatingTasks(true);
-  setError("");
-  setVoiceTasksMessage("");
+    setCreatingTasks(true);
+    setError("");
+    setVoiceTasksMessage("");
 
-  try {
-    const now = new Date();
+    try {
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
 
-    const pad = (n: number) => n.toString().padStart(2, "0");
+      const rows = voiceSuggestedTasks.map((t) => {
+        let dueIso: string | null = t.dueIso || null;
 
-    const rows = voiceSuggestedTasks.map((t) => {
-      let dueIso: string | null = t.dueIso || null;
-
-      // If we don't have an explicit ISO but the label looks like a date, we can try parsing it
-      if (!dueIso && t.dueLabel) {
-        const parsed = Date.parse(t.dueLabel);
-        if (!Number.isNaN(parsed)) {
-          dueIso = new Date(parsed).toISOString();
+        // If we don't have an explicit ISO but the label looks like a date, we can try parsing it
+        if (!dueIso && t.dueLabel) {
+          const parsed = Date.parse(t.dueLabel);
+          if (!Number.isNaN(parsed)) {
+            dueIso = new Date(parsed).toISOString();
+          } else {
+            // Fallback: our own natural-language helper (e.g. "tomorrow morning")
+            dueIso = resolveNaturalDue(t.dueLabel);
+          }
         }
-      }
 
-      let reminderAt: string | null = null;
-      let timeFrom: string | null = null;
-      let timeTo: string | null = null;
-      let dueDateForColumn: string | null = null;
+        let reminderAt: string | null = null;
+        let timeFrom: string | null = null;
+        let timeTo: string | null = null;
+        let dueDateForColumn: string | null = null;
 
-      if (dueIso) {
-        const due = new Date(dueIso);
+        if (dueIso) {
+          const due = new Date(dueIso);
 
-        // Use the same ISO in the DB; Tasks page slices date part for the datepicker
-        dueDateForColumn = dueIso;
+          // Use the same ISO in the DB; Tasks page slices date part for the datepicker
+          dueDateForColumn = dueIso;
 
-        // Build local time_from / time_to from the due datetime
-        const local = new Date(due); // get local wall time
-        const h = local.getHours();
-        const m = local.getMinutes();
+          // Build local time_from / time_to from the due datetime
+          const local = new Date(due); // get local wall time
+          const h = local.getHours();
+          const m = local.getMinutes();
 
-        timeFrom = `${pad(h)}:${pad(m)}`;
-        const end = new Date(local.getTime() + 60 * 60 * 1000); // +1 hour slot
-        timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+          timeFrom = `${pad(h)}:${pad(m)}`;
+          const end = new Date(local.getTime() + 60 * 60 * 1000); // +1 hour slot
+          timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
 
-        // Enable reminder if it's at least 1 minute in the future
-        const oneMinuteFromNow = new Date(now.getTime() + 60_000);
-        if (due > oneMinuteFromNow) {
-          reminderAt = dueIso;
-        } else {
-          reminderAt = null;
+          // Enable reminder at that due time (don't fallback to "now")
+          const oneMinuteFromNow = new Date(now.getTime() + 60_000);
+          if (due > oneMinuteFromNow) {
+            reminderAt = dueIso;
+          } else {
+            reminderAt = null;
+          }
         }
-      }
 
-      const row: any = {
-        user_id: user.id,
-        title: t.title,
-        description: null,
-        completed: false,
-        created_at: now.toISOString(),
-        completed_at: null,
+        const row: any = {
+          user_id: user.id,
+          title: t.title,
+          description: null,
+          completed: false,
+          created_at: now.toISOString(),
+          completed_at: null,
 
-        // 🔹 Auto-suggest category from the note's category (if any)
-        category: newCategory || null,
+          // 🔹 Auto-suggest category from the note's category (if any)
+          category: newCategory || null,
 
-        // 🔹 Pre-fill time range in Tasks UI
-        time_from: timeFrom,
-        time_to: timeTo,
+          // 🔹 Pre-fill time range in Tasks UI
+          time_from: timeFrom,
+          time_to: timeTo,
 
-        // 🔹 Date picker value (just uses the date part)
-        due_date: dueDateForColumn, // can be null if no usable date
+          // 🔹 Date picker value (just uses the date part)
+          due_date: dueDateForColumn, // can be null if no usable date
 
-        // 🔹 Reminders
-        reminder_enabled: !!reminderAt,
-        reminder_at: reminderAt,
-        reminder_sent_at: null,
-      };
+          // 🔹 Reminders
+          reminder_enabled: !!reminderAt,
+          reminder_at: reminderAt,
+          reminder_sent_at: null,
+        };
 
-      return row;
-    });
+        return row;
+      });
 
-    console.log("[voice-tasks] inserting rows:", rows);
+      console.log("[voice-tasks] inserting rows:", rows);
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert(rows)
-      .select("id, due_date, reminder_enabled, reminder_at, time_from, time_to, category");
-
-    console.log("[voice-tasks] insert result:", { data, error });
-
-    if (error) {
-      let extra = "";
-      try {
-        extra = JSON.stringify(
-          {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code,
-          },
-          null,
-          2
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert(rows)
+        .select(
+          "id, due_date, reminder_enabled, reminder_at, time_from, time_to, category"
         );
-      } catch {
-        // ignore
-      }
 
-      console.error("[voice-tasks] insert error full:", error);
-      setError(
-        "Failed to create tasks from your voice note: " +
-          (error.message || error.details || extra || "Unknown error")
-      );
-    } else {
-      setVoiceTasksMessage(
-        `Created ${rows.length} tasks from your voice note.`
-      );
-      setVoiceSuggestedTasks([]);
-      // optional: track("voice_tasks_created", { count: rows.length });
+      console.log("[voice-tasks] insert result:", { data, error });
+
+      if (error) {
+        let extra = "";
+        try {
+          extra = JSON.stringify(
+            {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+            },
+            null,
+            2
+          );
+        } catch {
+          // ignore
+        }
+
+        console.error("[voice-tasks] insert error full:", error);
+        setError(
+          "Failed to create tasks from your voice note: " +
+            (error.message || error.details || extra || "Unknown error")
+        );
+      } else {
+        setVoiceTasksMessage(
+          `Created ${rows.length} tasks from your voice note.`
+        );
+        setVoiceSuggestedTasks([]);
+        // optional: track("voice_tasks_created", { count: rows.length });
+      }
+    } catch (err) {
+      console.error("[voice-tasks] unexpected error", err);
+      setError("Unexpected error while creating tasks (check console).");
+    } finally {
+      setCreatingTasks(false);
     }
-  } catch (err) {
-    console.error("[voice-tasks] unexpected error", err);
-    setError("Unexpected error while creating tasks (check console).");
-  } finally {
-    setCreatingTasks(false);
   }
-}
 
   if (checkingUser) {
     return (
@@ -699,8 +784,8 @@ async function handleCreateTasksFromVoice() {
             <div>
               <h2 className="text-lg font-semibold">Create a new note</h2>
               <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                Use AI to summarize, bullet, or rewrite your notes. Capture ideas
-                with your voice, too.
+                Use AI to summarize, bullet, or rewrite your notes. Capture
+                ideas with your voice, too.
               </p>
             </div>
             <button
@@ -979,9 +1064,7 @@ async function handleCreateTasksFromVoice() {
                     </div>
                   )}
 
-                  {/* COLLAPSED VIEW: title + category only (already handled above) */}
-
-                  {/* EXPANDED VIEW: show full content + buttons */}
+                  {/* EXPANDED VIEW */}
                   {!isEditing && isOpen && (
                     <>
                       {note.content && (
