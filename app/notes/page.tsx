@@ -508,10 +508,10 @@ export default function NotesPage() {
       if (t.due_iso && !Number.isNaN(Date.parse(t.due_iso))) {
         dueIso = new Date(t.due_iso).toISOString();
       } else {
-        // 2) Fallback: maybe server still sent a plain "due" field at some point
-        const anyTask = t as any;
-        if (typeof anyTask.due === "string" && anyTask.due.trim()) {
-          const ms = Date.parse(anyTask.due.trim());
+        // 2) Fallback: if anything like "due" exists as a plain string
+        const anyT = t as any;
+        if (typeof anyT.due === "string" && anyT.due.trim()) {
+          const ms = Date.parse(anyT.due.trim());
           if (!Number.isNaN(ms)) {
             dueIso = new Date(ms).toISOString();
           }
@@ -534,9 +534,10 @@ export default function NotesPage() {
         due_date: dueIso, // can be null
       };
 
+      // If we have a valid due date, auto-enable reminder
       if (dueIso) {
         row.reminder_enabled = true;
-        row.reminder_at = dueIso; // same as due; adjust earlier if you want
+        row.reminder_at = dueIso; // you can shift earlier if you want
       }
 
       return row;
@@ -578,9 +579,7 @@ export default function NotesPage() {
         `Created ${rows.length} tasks from your voice note.`
       );
       setVoiceSuggestedTasks([]);
-
-      // optional: analytics
-      // track("voice_tasks_created", { count: rows.length });
+      // optional: track("voice_tasks_created", { count: rows.length });
     }
   } catch (err) {
     console.error("[voice-tasks] unexpected error", err);
