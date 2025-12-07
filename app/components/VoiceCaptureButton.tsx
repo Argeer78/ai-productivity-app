@@ -42,6 +42,7 @@ export default function VoiceCaptureButton({
   const [rawText, setRawText] = useState<string | null>(null);
   const [structured, setStructured] = useState<StructuredResult | null>(null);
   const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -53,8 +54,11 @@ export default function VoiceCaptureButton({
       if (mediaRecorderRef.current) {
         mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
       }
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl);
+      }
     };
-  }, []);
+  }, [audioPreviewUrl]);
 
   // Reset when parent changes resetKey (e.g. after note save)
   useEffect(() => {
@@ -63,7 +67,11 @@ export default function VoiceCaptureButton({
     setStructured(null);
     setSavedNoteId(null);
     setError(null);
-  }, [resetKey]);
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(null);
+    }
+  }, [resetKey, audioPreviewUrl]);
 
   function getSupportError(): string | null {
     if (typeof window === "undefined") return "Not in a browser environment.";
@@ -124,9 +132,21 @@ export default function VoiceCaptureButton({
       const mimeType = chooseMimeType();
       mimeTypeRef.current = mimeType;
 
-      const MR = (window as any).MediaRecorder as typeof MediaRecorder;
+      const MR = (window as any).MediaRecorder as
+        | typeof MediaRecorder
+        | undefined;
+
+      if (!MR) {
+        setError(
+          "MediaRecorder is not available in this browser. Try the latest Chrome or Safari."
+        );
+        return;
+      }
+
       const recorder =
-        mimeType && MR ? new MR(stream, { mimeType }) : new MR(stream);
+        mimeType && MR
+          ? new MR(stream, { mimeType })
+          : new MR(stream);
 
       chunksRef.current = [];
 
@@ -139,6 +159,16 @@ export default function VoiceCaptureButton({
       recorder.onstop = async () => {
         const type = mimeTypeRef.current || "audio/webm";
         const blob = new Blob(chunksRef.current, { type });
+
+        console.log("[VoiceCapture] blob on client:", {
+          size: blob.size,
+          type: blob.type,
+        });
+
+        if (audioPreviewUrl) {
+          URL.revokeObjectURL(audioPreviewUrl);
+        }
+        setAudioPreviewUrl(URL.createObjectURL(blob));
 
         setLoading(true);
         setSavedNoteId(null);
@@ -257,6 +287,13 @@ export default function VoiceCaptureButton({
       )}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
+
+      {audioPreviewUrl && (
+        <div className="mt-2">
+          <p className="text-[10px] text-slate-400">Last recording preview:</p>
+          <audio controls src={audioPreviewUrl} className="mt-1 w-full" />
+        </div>
+      )}
 
       {rawText && (
         <div className="mt-2 space-y-2 text-xs">
