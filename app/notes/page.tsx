@@ -491,104 +491,97 @@ export default function NotesPage() {
 
   // 🆕 Create tasks from voiceSuggestedTasks with time + priority + link back to note
   async function handleCreateTasksFromVoice() {
-    if (!user) return;
-    if (voiceSuggestedTasks.length === 0) return;
+  if (!user) return;
+  if (voiceSuggestedTasks.length === 0) return;
 
-    setCreatingTasks(true);
-    setError("");
-    setVoiceTasksMessage("");
+  setCreatingTasks(true);
+  setError("");
+  setVoiceTasksMessage("");
 
-    try {
-      const nowIso = new Date().toISOString();
+  try {
+    const nowIso = new Date().toISOString();
 
-      const rows = voiceSuggestedTasks.map((t) => {
-        let dueIso: string | null = null;
+    const rows = voiceSuggestedTasks.map((t) => {
+      let dueIso: string | null = null;
 
-        // Prefer AI-provided ISO, fallback to parsing natural language if possible
-        if (t.due_iso && !Number.isNaN(Date.parse(t.due_iso))) {
-          dueIso = new Date(t.due_iso).toISOString();
-        } else if (t.due_natural && !Number.isNaN(Date.parse(t.due_natural))) {
-          dueIso = new Date(t.due_natural).toISOString();
-        }
-
-        const row: any = {
-          user_id: user.id,
-          title: t.title,
-          description: null,
-          completed: false,
-          created_at: nowIso,
-          completed_at: null,
-          category: null,
-          time_from: null,
-          time_to: null,
-          reminder_enabled: false,
-          reminder_at: null,
-          reminder_sent_at: null,
-          priority: t.priority || "medium",
-        };
-
-        if (dueIso) {
-          row.due_date = dueIso;
-          // 🔔 also set reminder by default
-          row.reminder_enabled = true;
-          row.reminder_at = dueIso;
-        } else {
-          row.due_date = null;
-        }
-
-        // 🔗 link back to note if autosaved
-        if (voiceSourceNoteId) {
-          row.source_note_id = voiceSourceNoteId;
-        }
-
-        return row;
-      });
-
-      console.log("[voice-tasks] inserting rows:", rows);
-
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert(rows)
-        .select("id");
-
-      console.log("[voice-tasks] insert result:", { data, error });
-
-      if (error) {
-        let extra = "";
-        try {
-          extra = JSON.stringify(
-            {
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code,
-            },
-            null,
-            2
-          );
-        } catch {
-          // ignore
-        }
-
-        console.error("[voice-tasks] insert error full:", error);
-        setError(
-          "Failed to create tasks from your voice note: " +
-            (error.message || error.details || extra || "Unknown error")
-        );
-      } else {
-        setVoiceTasksMessage(
-          `Created ${rows.length} tasks from your voice note.`
-        );
-        setVoiceSuggestedTasks([]);
-        track("voice_tasks_created", { count: rows.length });
+      // Prefer AI's ISO time if present & valid
+      if (t.due_iso && !Number.isNaN(Date.parse(t.due_iso))) {
+        dueIso = new Date(t.due_iso).toISOString();
       }
-    } catch (err) {
-      console.error("[voice-tasks] unexpected error", err);
-      setError("Unexpected error while creating tasks (check console).");
-    } finally {
-      setCreatingTasks(false);
+
+      const row: any = {
+        user_id: user.id,
+        title: t.title,
+        description: null,
+        completed: false,
+        created_at: nowIso,
+        completed_at: null,
+        category: null,
+        time_from: null,
+        time_to: null,
+        reminder_enabled: false,
+        reminder_at: null,
+        reminder_sent_at: null,
+        due_date: dueIso, // can be null
+      };
+
+      // If we have a due date → also set reminder
+      if (dueIso) {
+        row.reminder_enabled = true;
+        row.reminder_at = dueIso; // you can subtract 30min here if you want pre-reminders
+      }
+
+      return row;
+    });
+
+    console.log("[voice-tasks] inserting rows:", rows);
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(rows)
+      .select("id");
+
+    console.log("[voice-tasks] insert result:", { data, error });
+
+    if (error) {
+      let extra = "";
+      try {
+        extra = JSON.stringify(
+          {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          },
+          null,
+          2
+        );
+      } catch {
+        // ignore
+      }
+
+      console.error("[voice-tasks] insert error full:", error);
+      setError(
+        "Failed to create tasks from your voice note: " +
+          (error.message || error.details || extra || "Unknown error")
+      );
+    } else {
+      setVoiceTasksMessage(
+        `Created ${rows.length} tasks from your voice note.`
+      );
+      setVoiceSuggestedTasks([]);
+      // You *could* call fetchNotes() or fetch tasks list here if needed
+      // track analytics
+      // @ts-ignore – track comes from useAnalytics
+      track("voice_tasks_created", { count: rows.length });
     }
+  } catch (err) {
+    console.error("[voice-tasks] unexpected error", err);
+    setError("Unexpected error while creating tasks (check console).");
+  } finally {
+    setCreatingTasks(false);
   }
+}
 
   if (checkingUser) {
     return (
