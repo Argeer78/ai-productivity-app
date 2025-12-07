@@ -58,7 +58,8 @@ export default function VoiceCaptureButton({
         URL.revokeObjectURL(audioPreviewUrl);
       }
     };
-  }, [audioPreviewUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reset when parent changes resetKey (e.g. after note save)
   useEffect(() => {
@@ -144,9 +145,7 @@ export default function VoiceCaptureButton({
       }
 
       const recorder =
-        mimeType && MR
-          ? new MR(stream, { mimeType })
-          : new MR(stream);
+        mimeType && MR ? new MR(stream, { mimeType }) : new MR(stream);
 
       chunksRef.current = [];
 
@@ -273,6 +272,12 @@ export default function VoiceCaptureButton({
           <span>{recording ? "Stop recording" : "Start recording"}</span>
         </button>
       </div>
+
+      {recording && (
+        <p className="mt-1 text-[10px] text-red-300">
+          Recording… tap “Stop recording” when you’re done.
+        </p>
+      )}
 
       {savedNoteId && (
         <p className="text-[10px] text-emerald-400">
