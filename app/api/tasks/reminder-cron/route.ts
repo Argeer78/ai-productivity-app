@@ -1,15 +1,111 @@
-// app/api/cron/reminder/route.ts
+// app/api/tasks/reminder-cron/route.ts
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import webPush from "web-push";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderEmail } from "@/lib/emailTasks";
+import webpush from "web-push";
 
 export const runtime = "nodejs";
+
+// --- Push setup --------------------------------------------------------
+
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+
+if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  console.warn(
+    "[reminder-cron] VAPID keys missing – push notifications will be skipped."
+  );
+} else {
+  webpush.setVapidDetails(
+    "mailto:hello@aiprod.app",
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+}
+
+async function sendPushToUser(userId: string, payload: any) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    console.log("[reminder-cron] Skipping push – VAPID keys not configured.");
+    return;
+  }
+
+  const { data: subs, error } = await supabaseAdmin
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error(
+      "[reminder-cron] error fetching push_subscriptions for user",
+      userId,
+      error
+    );
+    return;
+  }
+
+  if (!subs || subs.length === 0) {
+    console.log("[reminder-cron] no push subscriptions for user", userId);
+    return;
+  }
+
+  const notificationPayload = JSON.stringify(payload);
+
+  for (const s of subs) {
+    const subscription = {
+      endpoint: s.endpoint,
+      keys: {
+        p256dh: s.p256dh,
+        auth: s.auth,
+      },
+    };
+
+    try {
+      await webpush.sendNotification(subscription as any, notificationPayload);
+      console.log(
+        "[reminder-cron] push sent to",
+        s.endpoint,
+        "for user",
+        userId
+      );
+    } catch (err: any) {
+      const status = err?.statusCode;
+      console.error(
+        "[reminder-cron] push error for endpoint",
+        s.endpoint,
+        "status:",
+        status,
+        "message:",
+        err?.body || err?.message
+      );
+
+      // 404/410 = subscription is dead → remove it
+      if (status === 404 || status === 410) {
+        try {
+          await supabaseAdmin
+            .from("push_subscriptions")
+            .delete()
+            .eq("endpoint", s.endpoint);
+          console.log(
+            "[reminder-cron] removed dead subscription",
+            s.endpoint
+          );
+        } catch (cleanupErr) {
+          console.error(
+            "[reminder-cron] failed cleaning up dead subscription",
+            cleanupErr
+          );
+        }
+      }
+    }
+  }
+}
+
+// --- Cron auth ---------------------------------------------------------
 
 function checkCronAuth(req: Request): NextResponse | null {
   const CRON_SECRET = process.env.CRON_SECRET;
 
+  // In dev, skip auth for manual testing
   if (process.env.NODE_ENV === "development") {
     return null;
   }
@@ -42,116 +138,10 @@ function checkCronAuth(req: Request): NextResponse | null {
   return null;
 }
 
-// ---------- PUSH SETUP ----------
-
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-
-if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-  console.warn(
-    "[reminder-cron] Missing VAPID keys – push notifications for reminders will be skipped."
-  );
-} else {
-  webPush.setVapidDetails(
-    "mailto:hello@aiprod.app",
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-  );
-}
-
-type PushSubscriptionRow = {
-  id: string;
-  user_id: string;
-  subscription: any; // stored JSON from browser PushSubscription
-};
-
-/**
- * Send a push notification to all subscriptions of a user for a task reminder.
- */
-async function sendTaskReminderPush(params: {
-  userId: string;
-  taskTitle: string;
-  reminderAt?: string | null;
-}) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    // VAPID not configured → silently skip push
-    return;
-  }
-
-  const { userId, taskTitle, reminderAt } = params;
-
-  const { data: subs, error } = await supabaseAdmin
-    .from("push_subscriptions")
-    .select("id, user_id, subscription")
-    .eq("user_id", userId);
-
-  if (error) {
-    console.error(
-      "[reminder-cron] Failed to load push_subscriptions for user",
-      userId,
-      error
-    );
-    return;
-  }
-
-  if (!subs || subs.length === 0) {
-    console.log(
-      "[reminder-cron] No push subscriptions found for user",
-      userId
-    );
-    return;
-  }
-
-  const title = "Task reminder";
-  const whenLabel = reminderAt
-    ? new Date(reminderAt).toLocaleString()
-    : "now";
-
-  const body = `“${taskTitle}” is due ${whenLabel}.`;
-  const url = "https://aiprod.app/tasks";
-
-  const payload = JSON.stringify({
-    title,
-    body,
-    url,
-    tag: "task-reminder",
-  });
-
-  for (const row of subs as PushSubscriptionRow[]) {
-    try {
-      await webPush.sendNotification(row.subscription, payload);
-      console.log(
-        "[reminder-cron] Push sent to subscription",
-        row.id,
-        "for user",
-        userId
-      );
-    } catch (err: any) {
-      console.error(
-        "[reminder-cron] Failed to send push to subscription",
-        row.id,
-        err?.statusCode || err?.message || err
-      );
-
-      // Clean up dead endpoints (410 / 404)
-      const statusCode = err?.statusCode || err?.status;
-      if (statusCode === 404 || statusCode === 410) {
-        console.log(
-          "[reminder-cron] Removing stale subscription",
-          row.id
-        );
-        await supabaseAdmin
-          .from("push_subscriptions")
-          .delete()
-          .eq("id", row.id);
-      }
-    }
-  }
-}
-
-// ---------- MAIN CRON HANDLER ----------
+// --- Main handler ------------------------------------------------------
 
 export async function GET(req: Request) {
+  // 0) Auth check
   const authError = checkCronAuth(req);
   if (authError) return authError;
 
@@ -166,7 +156,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    console.log("[reminder-cron] running at", nowIso);
 
     // 1) Find due tasks
     const { data: tasks, error } = await supabaseAdmin
@@ -178,10 +171,10 @@ export async function GET(req: Request) {
       .is("reminder_sent_at", null)
       .lte("reminder_at", nowIso)
       .order("reminder_at", { ascending: true })
-      .limit(50);
+      .limit(100);
 
     if (error) {
-      console.error("[reminder-cron] Query error:", error);
+      console.error("[reminder-cron] query error:", error);
       return NextResponse.json(
         { ok: false, error: "Failed to fetch tasks" },
         { status: 500 }
@@ -189,15 +182,15 @@ export async function GET(req: Request) {
     }
 
     if (!tasks || tasks.length === 0) {
-      console.log("[reminder-cron] No due tasks found");
+      console.log("[reminder-cron] no due tasks found");
       return NextResponse.json({ ok: true, processed: 0, sent: 0 });
     }
 
-    console.log("[reminder-cron] Found due tasks:", tasks.length);
+    console.log("[reminder-cron] found due tasks:", tasks.length);
 
     let sentCount = 0;
 
-    for (const task of tasks as any[]) {
+    for (const task of tasks) {
       const title = task.title || "Untitled task";
 
       try {
@@ -207,7 +200,7 @@ export async function GET(req: Request) {
 
         if (userError || !userData?.user?.email) {
           console.error(
-            "[reminder-cron] Could not fetch user email for user_id",
+            "[reminder-cron] could not fetch user email for user_id",
             task.user_id,
             userError
           );
@@ -217,15 +210,15 @@ export async function GET(req: Request) {
         const email = userData.user.email;
 
         console.log(
-          "[reminder-cron] Sending reminder for task",
+          "[reminder-cron] sending reminder for task",
           task.id,
           "to",
           email,
-          "at",
+          "reminder_at=",
           task.reminder_at
         );
 
-        // 3a) Send email
+        // 3a) Send email reminder
         await sendTaskReminderEmail({
           to: email,
           taskTitle: title,
@@ -233,11 +226,16 @@ export async function GET(req: Request) {
           dueAt: task.reminder_at,
         });
 
-        // 3b) Send push
-        await sendTaskReminderPush({
-          userId: task.user_id,
-          taskTitle: title,
-          reminderAt: task.reminder_at,
+        // 3b) Send push reminder (if subscription + VAPID configured)
+        await sendPushToUser(task.user_id, {
+          title: "Task reminder",
+          body: title,
+          data: {
+            taskId: task.id,
+            url: "https://aiprod.app/tasks",
+          },
+          icon: "/icons/icon-192x192.png",
+          badge: "/icons/badge-72x72.png",
         });
 
         // 4) Mark as sent
@@ -248,7 +246,7 @@ export async function GET(req: Request) {
 
         if (updateError) {
           console.error(
-            "[reminder-cron] Failed to update reminder_sent_at for task",
+            "[reminder-cron] failed to update reminder_sent_at for task",
             task.id,
             updateError
           );
@@ -258,7 +256,7 @@ export async function GET(req: Request) {
         sentCount += 1;
       } catch (err) {
         console.error(
-          "[reminder-cron] Error while processing task",
+          "[reminder-cron] error while processing task",
           task.id,
           err
         );
@@ -271,7 +269,7 @@ export async function GET(req: Request) {
       sent: sentCount,
     });
   } catch (err) {
-    console.error("[reminder-cron] Unexpected error:", err);
+    console.error("[reminder-cron] unexpected error:", err);
     return NextResponse.json(
       { ok: false, error: "Unexpected error" },
       { status: 500 }

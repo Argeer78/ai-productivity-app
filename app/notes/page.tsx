@@ -501,8 +501,7 @@ if (structured && Array.isArray(structured.tasks)) {
     setDeletingId(null);
   }
 
-  // ✅ Create tasks from voiceSuggestedTasks with dueIso + reminders
- // Create tasks from voiceSuggestedTasks with dueIso + reminders
+  // Create tasks from voiceSuggestedTasks with due date + reminders
 async function handleCreateTasksFromVoice() {
   if (!user) return;
   if (voiceSuggestedTasks.length === 0) return;
@@ -515,6 +514,28 @@ async function handleCreateTasksFromVoice() {
     const nowIso = new Date().toISOString();
 
     const rows = voiceSuggestedTasks.map((t) => {
+      let dueIso: string | null = null;
+
+      // 1) Prefer AI's ISO field directly
+      if (typeof t.due_iso === "string" && t.due_iso.trim()) {
+        const parsed = Date.parse(t.due_iso);
+        if (!Number.isNaN(parsed)) {
+          dueIso = new Date(parsed).toISOString();
+        }
+      }
+
+      // 2) Fallback: try parsing due_natural if present
+      if (!dueIso && typeof t.due_natural === "string" && t.due_natural.trim()) {
+        const parsed = Date.parse(t.due_natural.trim());
+        if (!Number.isNaN(parsed)) {
+          dueIso = new Date(parsed).toISOString();
+        }
+      }
+
+      // 3) If we STILL don't have anything, we can still set a reminder “now”
+      //    so that reminders are never silently missing.
+      const reminderAt = dueIso || nowIso;
+
       const row: any = {
         user_id: user.id,
         title: t.title,
@@ -525,17 +546,11 @@ async function handleCreateTasksFromVoice() {
         category: null,
         time_from: null,
         time_to: null,
-        reminder_enabled: false,
-        reminder_at: null,
+        reminder_enabled: true,     // 🔥 always enable
+        reminder_at: reminderAt,    // 🔥 use dueIso or now
         reminder_sent_at: null,
-        due_date: t.dueIso, // can be null
+        due_date: dueIso,           // may be null if AI gave no real date
       };
-
-      // If we have a valid due date, auto-enable reminder
-      if (t.dueIso) {
-        row.reminder_enabled = true;
-        row.reminder_at = t.dueIso;
-      }
 
       return row;
     });
@@ -576,8 +591,7 @@ async function handleCreateTasksFromVoice() {
         `Created ${rows.length} tasks from your voice note.`
       );
       setVoiceSuggestedTasks([]);
-      // optional analytics:
-      // track("voice_tasks_created", { count: rows.length });
+      // optional: track("voice_tasks_created", { count: rows.length });
     }
   } catch (err) {
     console.error("[voice-tasks] unexpected error", err);
