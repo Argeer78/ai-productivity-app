@@ -502,96 +502,97 @@ export default function NotesPage() {
     setDeletingId(null);
   }
 
-  // ✅ Create tasks from voiceSuggestedTasks with due date + reminders
-  async function handleCreateTasksFromVoice() {
-    if (!user) return;
-    if (voiceSuggestedTasks.length === 0) return;
+ // ✅ Create tasks from voiceSuggestedTasks with due date + sane reminders
+async function handleCreateTasksFromVoice() {
+  if (!user) return;
+  if (voiceSuggestedTasks.length === 0) return;
 
-    setCreatingTasks(true);
-    setError("");
-    setVoiceTasksMessage("");
+  setCreatingTasks(true);
+  setError("");
+  setVoiceTasksMessage("");
 
-    try {
-      const nowIso = new Date().toISOString();
+  try {
+    const nowIso = new Date().toISOString();
 
-      const rows = voiceSuggestedTasks.map((t) => {
-        let dueIso: string | null = t.dueIso || null;
+    const rows = voiceSuggestedTasks.map((t) => {
+      let dueIso: string | null = t.dueIso || null;
 
-        // If we don't have an explicit ISO, we can try parsing the label
-        if (!dueIso && t.dueLabel) {
-          const parsed = Date.parse(t.dueLabel);
-          if (!Number.isNaN(parsed)) {
-            dueIso = new Date(parsed).toISOString();
-          }
+      // If we don't have an explicit ISO but the label looks like a date, we can try parsing it
+      if (!dueIso && t.dueLabel) {
+        const parsed = Date.parse(t.dueLabel);
+        if (!Number.isNaN(parsed)) {
+          dueIso = new Date(parsed).toISOString();
         }
-
-        // Reminder time: use dueIso if we have it, otherwise "now"
-        const reminderAt = dueIso || nowIso;
-
-        const row: any = {
-          user_id: user.id,
-          title: t.title,
-          description: null,
-          completed: false,
-          created_at: nowIso,
-          completed_at: null,
-          category: null,
-          time_from: null,
-          time_to: null,
-          due_date: dueIso,            // may be null if AI didn't give a real date
-          reminder_enabled: true,      // ✅ always enable for voice-created tasks
-          reminder_at: reminderAt,     // ✅ cron + push/email will use this
-          reminder_sent_at: null,
-        };
-
-        return row;
-      });
-
-      console.log("[voice-tasks] inserting rows:", rows);
-
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert(rows)
-        .select("id, due_date, reminder_enabled, reminder_at");
-
-      console.log("[voice-tasks] insert result:", { data, error });
-
-      if (error) {
-        let extra = "";
-        try {
-          extra = JSON.stringify(
-            {
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code,
-            },
-            null,
-            2
-          );
-        } catch {
-          // ignore
-        }
-
-        console.error("[voice-tasks] insert error full:", error);
-        setError(
-          "Failed to create tasks from your voice note: " +
-            (error.message || error.details || extra || "Unknown error")
-        );
-      } else {
-        setVoiceTasksMessage(
-          `Created ${rows.length} tasks from your voice note.`
-        );
-        setVoiceSuggestedTasks([]);
-        // optional: track("voice_tasks_created", { count: rows.length });
       }
-    } catch (err) {
-      console.error("[voice-tasks] unexpected error", err);
-      setError("Unexpected error while creating tasks (check console).");
-    } finally {
-      setCreatingTasks(false);
+
+      // ❗ We do NOT fallback to `nowIso` anymore.
+      // Only set reminder if we actually have a due date.
+      const reminderAt: string | null = dueIso || null;
+
+      const row: any = {
+        user_id: user.id,
+        title: t.title,
+        description: null,
+        completed: false,
+        created_at: nowIso,
+        completed_at: null,
+        category: null,
+        time_from: null,
+        time_to: null,
+        due_date: dueIso,             // may be null if AI didn't give a real date
+        reminder_enabled: !!reminderAt,
+        reminder_at: reminderAt,
+        reminder_sent_at: null,
+      };
+
+      return row;
+    });
+
+    console.log("[voice-tasks] inserting rows:", rows);
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(rows)
+      .select("id, due_date, reminder_enabled, reminder_at");
+
+    console.log("[voice-tasks] insert result:", { data, error });
+
+    if (error) {
+      let extra = "";
+      try {
+        extra = JSON.stringify(
+          {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          },
+          null,
+          2
+        );
+      } catch {
+        // ignore
+      }
+
+      console.error("[voice-tasks] insert error full:", error);
+      setError(
+        "Failed to create tasks from your voice note: " +
+          (error.message || error.details || extra || "Unknown error")
+      );
+    } else {
+      setVoiceTasksMessage(
+        `Created ${rows.length} tasks from your voice note.`
+      );
+      setVoiceSuggestedTasks([]);
+      // optional: track("voice_tasks_created", { count: rows.length });
     }
+  } catch (err) {
+    console.error("[voice-tasks] unexpected error", err);
+    setError("Unexpected error while creating tasks (check console).");
+  } finally {
+    setCreatingTasks(false);
   }
+}
 
   if (checkingUser) {
     return (
