@@ -72,8 +72,10 @@ export default function VoiceCaptureButton({
       return "Your browser does not support microphone recording. Try updating your browser.";
     }
 
-    // @ts-expect-error – MediaRecorder may not exist on older mobile browsers
-    if (typeof MediaRecorder === "undefined") {
+    const hasMediaRecorder =
+      typeof (window as any).MediaRecorder !== "undefined";
+
+    if (!hasMediaRecorder) {
       return "This browser does not support audio recording. On mobile, try the latest Chrome or Safari.";
     }
 
@@ -81,18 +83,18 @@ export default function VoiceCaptureButton({
   }
 
   function chooseMimeType(): string | "" {
-    // @ts-expect-error – MediaRecorder may not exist on older platforms
-    if (typeof MediaRecorder === "undefined") return "";
+    if (typeof window === "undefined") return "";
 
-    // Prefer webm if available
-    // @ts-expect-error
-    if (MediaRecorder.isTypeSupported?.("audio/webm")) {
+    const MR = (window as any).MediaRecorder;
+    if (!MR || typeof MR.isTypeSupported !== "function") {
+      return "";
+    }
+
+    if (MR.isTypeSupported("audio/webm")) {
       return "audio/webm";
     }
 
-    // Fallback for Safari / iOS (often supports mp4)
-    // @ts-expect-error
-    if (MediaRecorder.isTypeSupported?.("audio/mp4")) {
+    if (MR.isTypeSupported("audio/mp4")) {
       return "audio/mp4";
     }
 
@@ -108,7 +110,11 @@ export default function VoiceCaptureButton({
     const supportError = getSupportError();
     if (supportError) {
       setError(supportError);
-      console.warn("[VoiceCapture] Support error:", supportError, navigator.userAgent);
+      console.warn(
+        "[VoiceCapture] Support error:",
+        supportError,
+        typeof navigator !== "undefined" ? navigator.userAgent : ""
+      );
       return;
     }
 
@@ -118,11 +124,11 @@ export default function VoiceCaptureButton({
       const mimeType = chooseMimeType();
       mimeTypeRef.current = mimeType;
 
-      // @ts-expect-error – MediaRecorder type is not fully known
-      const recorder: MediaRecorder =
-        mimeType && // if we have a valid mimeType, pass it in
-        // @ts-expect-error
-        new MediaRecorder(stream, { mimeType });
+      const MR = (window as any).MediaRecorder as typeof MediaRecorder;
+      const recorder =
+        mimeType && MR
+          ? new MR(stream, { mimeType })
+          : new MR(stream);
 
       chunksRef.current = [];
 
@@ -141,7 +147,6 @@ export default function VoiceCaptureButton({
 
         try {
           const formData = new FormData();
-          // Use file extension based on mime type
           const ext = type.includes("mp4") ? "mp4" : "webm";
           formData.append("file", blob, `voice-note.${ext}`);
           formData.append("userId", userId);
