@@ -6,6 +6,7 @@ import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
 import { useAnalytics } from "@/lib/analytics";
+import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 
 const FREE_DAILY_LIMIT = 5;
 const PRO_DAILY_LIMIT = 50;
@@ -46,20 +47,26 @@ const NOTE_CATEGORIES = [
 // Theme-aware category badges
 const noteCategoryStyles: Record<string, string> = {
   Work: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
-  Personal: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
-  Ideas: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Personal:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Ideas:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
   "Meeting Notes":
     "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
-  Study: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
-  Journal: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
-  Planning: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
-  Research: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
-  Other: "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-subtle)]",
+  Study:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Journal:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Planning:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Research:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
+  Other:
+    "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-subtle)]",
 };
 
 export default function NotesPage() {
   const { track } = useAnalytics();
-
   const [user, setUser] = useState<SupabaseUser>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
@@ -90,6 +97,12 @@ export default function NotesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // 🆕 Smart title toggle
+  const [autoTitleEnabled, setAutoTitleEnabled] = useState(true);
+
+  // 🆕 Voice capture mode toggle: "review" or "autosave"
+  const [voiceMode, setVoiceMode] = useState<"review" | "autosave">("review");
 
   function handleShareNote(note: Note) {
     if (!note?.content) return;
@@ -196,9 +209,23 @@ export default function NotesPage() {
     e.preventDefault();
     if (!user) return;
 
+    // Keep original behavior: need at least title OR content
     if (!title.trim() && !content.trim()) {
       setError("Please enter a title or content.");
       return;
+    }
+
+    setError("");
+
+    // 🆕 Smart title: if title empty, toggle ON, and we have content → generate from first line
+    let finalTitle = title;
+    if (!finalTitle.trim() && autoTitleEnabled && content.trim()) {
+      const firstLine = content.trim().split("\n")[0];
+      const maxLen = 60;
+      finalTitle =
+        firstLine.length <= maxLen
+          ? firstLine
+          : firstLine.slice(0, maxLen) + "…";
     }
 
     setLoading(true);
@@ -207,7 +234,7 @@ export default function NotesPage() {
 
     await supabase.from("notes").insert([
       {
-        title,
+        title: finalTitle || null,
         content,
         user_id: user.id,
         created_at: createdAtIso,
@@ -247,10 +274,7 @@ export default function NotesPage() {
 
     const newCount = data.count + 1;
 
-    await supabase
-      .from("ai_usage")
-      .update({ count: newCount })
-      .eq("id", data.id);
+    await supabase.from("ai_usage").update({ count: newCount }).eq("id", data.id);
 
     setAiCountToday(newCount);
     return newCount;
@@ -263,7 +287,6 @@ export default function NotesPage() {
   ) {
     if (!noteContent?.trim()) return;
 
-    // ✅ Guard: make sure we have a user before using user.id
     if (!user) {
       setError("You need to be logged in to use AI on notes.");
       return;
@@ -293,7 +316,7 @@ export default function NotesPage() {
       .from("notes")
       .update({ ai_result: data.result })
       .eq("id", noteId)
-      .eq("user_id", user.id); // ✅ safe now because of the guard above
+      .eq("user_id", user.id);
 
     if (updateError) {
       console.error("[notes] AI result update error", updateError);
@@ -381,6 +404,8 @@ export default function NotesPage() {
     );
   }
 
+  const userId = user.id as string;
+
   const filteredNotes =
     categoryFilter === "all"
       ? notes
@@ -397,7 +422,8 @@ export default function NotesPage() {
             <div>
               <h2 className="text-lg font-semibold">Create a new note</h2>
               <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                Use AI to summarize, bullet, or rewrite your notes.
+                Use AI to summarize, bullet, or rewrite your notes. Capture ideas
+                with your voice, too.
               </p>
             </div>
             <button
@@ -445,6 +471,23 @@ export default function NotesPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Smart title toggle */}
+              <div className="flex items-center gap-1">
+                <input
+                  id="auto-title"
+                  type="checkbox"
+                  checked={autoTitleEnabled}
+                  onChange={(e) => setAutoTitleEnabled(e.target.checked)}
+                  className="h-3 w-3"
+                />
+                <label
+                  htmlFor="auto-title"
+                  className="cursor-pointer text-[11px]"
+                >
+                  Smart title from content
+                </label>
+              </div>
             </div>
 
             <textarea
@@ -454,19 +497,51 @@ export default function NotesPage() {
               onChange={(e) => setContent(e.target.value)}
             />
 
-            <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+            <div className="flex flex-col gap-2 text-[11px] text-[var(--text-muted)]">
               <span>
                 Plan: <span className="font-semibold">{plan}</span> • AI today:{" "}
                 <span className="font-semibold">
                   {aiCountToday}/{dailyLimit}
                 </span>
               </span>
+
+              {/* Voice capture mode toggle */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px]">Voice capture mode:</span>
+                <button
+                  type="button"
+                  onClick={() => setVoiceMode("review")}
+                  className={`px-2 py-1 rounded-full border text-[10px] ${
+                    voiceMode === "review"
+                      ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
+                      : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                  }`}
+                >
+                  Review first
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoiceMode("autosave")}
+                  className={`px-2 py-1 rounded-full border text-[10px] ${
+                    voiceMode === "autosave"
+                      ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
+                      : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                  }`}
+                >
+                  Auto-save note
+                </button>
+              </div>
+            </div>
+
+            {/* Voice capture */}
+            <div className="mt-2">
+              <VoiceCaptureButton userId={userId} mode={voiceMode} />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-50"
+              className="mt-3 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-50"
             >
               {loading ? "Saving..." : "Save note"}
             </button>
@@ -603,9 +678,7 @@ export default function NotesPage() {
                         </button>
 
                         <button
-                          onClick={() =>
-                            handleAskAssistantAboutNote(note)
-                          }
+                          onClick={() => handleAskAssistantAboutNote(note)}
                           className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
                           🤖 Ask AI
@@ -664,9 +737,7 @@ export default function NotesPage() {
 
                       <textarea
                         value={editContent}
-                        onChange={(e) =>
-                          setEditContent(e.target.value)
-                        }
+                        onChange={(e) => setEditContent(e.target.value)}
                         className="w-full min-h-[100px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
 
