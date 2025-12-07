@@ -164,6 +164,7 @@ export default function VoiceCaptureButton({
           type: blob.type,
         });
 
+        // 🔊 Store preview URL so user can play back what was recorded
         if (audioPreviewUrl) {
           URL.revokeObjectURL(audioPreviewUrl);
         }
@@ -295,7 +296,9 @@ export default function VoiceCaptureButton({
 
       {audioPreviewUrl && (
         <div className="mt-2">
-          <p className="text-[10px] text-slate-400">Last recording preview:</p>
+          <p className="text-[10px] text-slate-400">
+            Preview your last recording (tap ▶):
+          </p>
           <audio controls src={audioPreviewUrl} className="mt-1 w-full" />
         </div>
       )}
