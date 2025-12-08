@@ -166,6 +166,13 @@ const noteCategoryStyles: Record<string, string> = {
     "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-subtle)]",
 };
 
+type NoteAIGeneratedTask = {
+  title: string;
+  due_natural?: string | null;
+  due_iso?: string | null;
+  priority?: "low" | "medium" | "high" | null;
+};
+
 export default function NotesPage() {
   const { track } = useAnalytics();
   const [user, setUser] = useState<SupabaseUser>(null);
@@ -318,9 +325,11 @@ export default function NotesPage() {
         // 1) Prefer explicit ISO from the model
         if (typeof t.due_iso === "string" && t.due_iso.trim()) {
           dueIso = t.due_iso.trim();
-          const parsed = Date.parse(dueIso);
-          if (!Number.isNaN(parsed)) {
-            dueLabel = new Date(parsed).toLocaleString();
+          if (dueIso) {
+            const parsed = Date.parse(dueIso);
+            if (!Number.isNaN(parsed)) {
+              dueLabel = new Date(parsed).toLocaleString();
+            }
           }
         }
 
@@ -370,13 +379,6 @@ export default function NotesPage() {
     }
   }
 
-type NoteAIGeneratedTask = {
-  title: string;
-  due_natural?: string | null;
-  due_iso?: string | null;
-  priority?: "low" | "medium" | "high" | null;
-};
-
   // 🆕 Generate tasks from a note using backend AI endpoint
   async function handleGenerateTasksFromNote(note: Note) {
     if (!user) {
@@ -424,9 +426,11 @@ type NoteAIGeneratedTask = {
         // Prefer explicit ISO if provided
         if (typeof t.due_iso === "string" && t.due_iso.trim()) {
           dueIso = t.due_iso.trim();
-          const parsed = Date.parse(dueIso);
-          if (!Number.isNaN(parsed)) {
-            dueLabel = new Date(parsed).toLocaleString();
+          if (dueIso) {
+            const parsed = Date.parse(dueIso);
+            if (!Number.isNaN(parsed)) {
+              dueLabel = new Date(parsed).toLocaleString();
+            }
           }
         }
 
@@ -869,7 +873,7 @@ type NoteAIGeneratedTask = {
     }
   }
 
-    /// ✅ Create tasks from an existing note (typed or saved) using AI
+  /// ✅ Create tasks from an existing note (typed or saved) using AI
   async function handleCreateTasksFromNote(note: Note) {
     if (!user) return;
     if (!note.content || !note.content.trim()) {
@@ -1031,7 +1035,7 @@ type NoteAIGeneratedTask = {
       : notes.filter((n) => (n.category || "") === categoryFilter);
 
   return (
-    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md*p-8 pb-24">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8 pb-24">
       {/* pb-24 so bottom buttons (feedback) don't hide behind floating UI */}
       <AppHeader active="notes" />
 
@@ -1330,7 +1334,7 @@ type NoteAIGeneratedTask = {
                       )}
 
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {/* 🆕 Tasks from note */}
+                        {/* 🆕 Tasks from note (suggestions in panel) */}
                         <button
                           onClick={() => handleGenerateTasksFromNote(note)}
                           disabled={noteTasksLoadingId === note.id}
@@ -1389,7 +1393,7 @@ type NoteAIGeneratedTask = {
                           🤖 Ask AI
                         </button>
 
-                         {/* 🧩 NEW: Create tasks from this note */}
+                        {/* 🧩 NEW: Directly create tasks from this note */}
                         <button
                           onClick={() => handleCreateTasksFromNote(note)}
                           disabled={creatingTasks}
