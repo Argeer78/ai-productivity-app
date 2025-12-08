@@ -2,103 +2,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderEmail } from "@/lib/emailTasks";
-import webpush from "web-push";
+import { sendTaskReminderPush } from "@/lib/pushServer";
 
 export const runtime = "nodejs";
-
-// --- Push setup --------------------------------------------------------
-
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-
-if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-  console.warn(
-    "[reminder-cron] VAPID keys missing – push notifications will be skipped."
-  );
-} else {
-  webpush.setVapidDetails(
-    "mailto:hello@aiprod.app",
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-  );
-}
-
-async function sendPushToUser(userId: string, payload: any) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.log("[reminder-cron] Skipping push – VAPID keys not configured.");
-    return;
-  }
-
-  const { data: subs, error } = await supabaseAdmin
-    .from("push_subscriptions")
-    .select("endpoint, p256dh, auth")
-    .eq("user_id", userId);
-
-  if (error) {
-    console.error(
-      "[reminder-cron] error fetching push_subscriptions for user",
-      userId,
-      error
-    );
-    return;
-  }
-
-  if (!subs || subs.length === 0) {
-    console.log("[reminder-cron] no push subscriptions for user", userId);
-    return;
-  }
-
-  const notificationPayload = JSON.stringify(payload);
-
-  for (const s of subs) {
-    const subscription = {
-      endpoint: s.endpoint,
-      keys: {
-        p256dh: s.p256dh,
-        auth: s.auth,
-      },
-    };
-
-    try {
-      await webpush.sendNotification(subscription as any, notificationPayload);
-      console.log(
-        "[reminder-cron] push sent to",
-        s.endpoint,
-        "for user",
-        userId
-      );
-    } catch (err: any) {
-      const status = err?.statusCode;
-      console.error(
-        "[reminder-cron] push error for endpoint",
-        s.endpoint,
-        "status:",
-        status,
-        "message:",
-        err?.body || err?.message
-      );
-
-      // 404/410 = subscription is dead → remove it
-      if (status === 404 || status === 410) {
-        try {
-          await supabaseAdmin
-            .from("push_subscriptions")
-            .delete()
-            .eq("endpoint", s.endpoint);
-          console.log(
-            "[reminder-cron] removed dead subscription",
-            s.endpoint
-          );
-        } catch (cleanupErr) {
-          console.error(
-            "[reminder-cron] failed cleaning up dead subscription",
-            cleanupErr
-          );
-        }
-      }
-    }
-  }
-}
 
 // --- Cron auth ---------------------------------------------------------
 
@@ -226,17 +132,39 @@ export async function GET(req: Request) {
           dueAt: task.reminder_at,
         });
 
-        // 3b) Send push reminder (if subscription + VAPID configured)
-        await sendPushToUser(task.user_id, {
-          title: "Task reminder",
-          body: title,
-          data: {
-            taskId: task.id,
-            url: "https://aiprod.app/tasks",
-          },
-          icon: "/icons/icon-192x192.png",
-          badge: "/icons/badge-72x72.png",
-        });
+        // 3b) Send push reminder(s) for this user, if any
+        const { data: subs, error: subsError } = await supabaseAdmin
+          .from("push_subscriptions")
+          .select("endpoint, p256dh, auth")
+          .eq("user_id", task.user_id);
+
+        if (subsError) {
+          console.error(
+            "[reminder-cron] error fetching push_subscriptions for user",
+            task.user_id,
+            subsError
+          );
+        } else if (!subs || subs.length === 0) {
+          console.log(
+            "[reminder-cron] no push subscriptions for user",
+            task.user_id
+          );
+        } else {
+          for (const sub of subs) {
+            await sendTaskReminderPush(
+              {
+                endpoint: sub.endpoint,
+                p256dh: sub.p256dh,
+                auth: sub.auth,
+              },
+              {
+                taskId: task.id,
+                title,
+                note: task.description,
+              }
+            );
+          }
+        }
 
         // 4) Mark as sent
         const { error: updateError } = await supabaseAdmin
