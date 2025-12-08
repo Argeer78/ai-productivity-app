@@ -370,6 +370,13 @@ export default function NotesPage() {
     }
   }
 
+type NoteAIGeneratedTask = {
+  title: string;
+  due_natural?: string | null;
+  due_iso?: string | null;
+  priority?: "low" | "medium" | "high" | null;
+};
+
   // 🆕 Generate tasks from a note using backend AI endpoint
   async function handleGenerateTasksFromNote(note: Note) {
     if (!user) {
@@ -862,6 +869,135 @@ export default function NotesPage() {
     }
   }
 
+    /// ✅ Create tasks from an existing note (typed or saved) using AI
+  async function handleCreateTasksFromNote(note: Note) {
+    if (!user) return;
+    if (!note.content || !note.content.trim()) {
+      setError("This note is empty, nothing to turn into tasks.");
+      return;
+    }
+
+    setCreatingTasks(true);
+    setError("");
+    setVoiceTasksMessage("");
+
+    try {
+      // 1) Ask backend to extract tasks from the note
+      const res = await fetch("/api/notes/to-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: note.content,
+          noteCategory: note.category || null,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        console.error("[notes] note→tasks API error:", json);
+        setError(json?.error || "Failed to generate tasks from this note.");
+        return;
+      }
+
+      const tasksFromAI: NoteAIGeneratedTask[] = Array.isArray(json.tasks)
+        ? json.tasks
+        : [];
+
+      if (tasksFromAI.length === 0) {
+        setError("AI did not find any clear tasks in this note.");
+        return;
+      }
+
+      // 2) Insert into tasks table (similar logic as voice tasks)
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
+
+      const rows = tasksFromAI.map((t) => {
+        let dueIso: string | null = t.due_iso || null;
+
+        if (!dueIso && t.due_natural) {
+          const parsed = Date.parse(t.due_natural);
+          if (!Number.isNaN(parsed)) {
+            dueIso = new Date(parsed).toISOString();
+          }
+        }
+
+        let reminderAt: string | null = null;
+        let timeFrom: string | null = null;
+        let timeTo: string | null = null;
+        let dueDateForColumn: string | null = null;
+
+        if (dueIso) {
+          const due = new Date(dueIso);
+          dueDateForColumn = dueIso; // tasks page slices date part
+
+          const local = new Date(due);
+          const h = local.getHours();
+          const m = local.getMinutes();
+
+          timeFrom = `${pad(h)}:${pad(m)}`;
+          const end = new Date(local.getTime() + 60 * 60 * 1000); // +1h
+          timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+
+          const oneMinuteFromNow = new Date(now.getTime() + 60_000);
+          if (due > oneMinuteFromNow) {
+            reminderAt = dueIso;
+          } else {
+            reminderAt = null;
+          }
+        }
+
+        return {
+          user_id: user.id,
+          title: t.title || "(Untitled task)",
+          description: null,
+          completed: false,
+          created_at: now.toISOString(),
+          completed_at: null,
+
+          // Use the note's category as a hint for the task
+          category: note.category || null,
+
+          time_from: timeFrom,
+          time_to: timeTo,
+          due_date: dueDateForColumn,
+
+          reminder_enabled: !!reminderAt,
+          reminder_at: reminderAt,
+          reminder_sent_at: null,
+        };
+      });
+
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert(rows)
+        .select("id, title, due_date, time_from, time_to, reminder_at");
+
+      if (error) {
+        console.error("[notes] insert tasks from note error:", error);
+        setError(
+          "Failed to save tasks created from this note: " +
+            (error.message || error.details || "")
+        );
+        return;
+      }
+
+      console.log("[notes] tasks created from note:", data);
+
+      setVoiceTasksMessage(
+        `Created ${rows.length} task${
+          rows.length > 1 ? "s" : ""
+        } from this note.`
+      );
+    } catch (err) {
+      console.error("[notes] unexpected error in handleCreateTasksFromNote:", err);
+      setError("Unexpected error while creating tasks from this note.");
+    } finally {
+      setCreatingTasks(false);
+    }
+  }
+
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
@@ -1251,6 +1387,15 @@ export default function NotesPage() {
                           className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
                           🤖 Ask AI
+                        </button>
+
+                         {/* 🧩 NEW: Create tasks from this note */}
+                        <button
+                          onClick={() => handleCreateTasksFromNote(note)}
+                          disabled={creatingTasks}
+                          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
+                        >
+                          {creatingTasks ? "Creating tasks…" : "🧩 Tasks"}
                         </button>
 
                         {/* Edit */}
