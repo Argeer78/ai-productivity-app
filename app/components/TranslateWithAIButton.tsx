@@ -22,15 +22,15 @@ type TranslationResponse = {
 };
 
 // Hard limits for page translation to control cost & speed
-const MAX_NODES_PER_PAGE = 500;
+const MAX_NODES_PER_PAGE = 600;
 const MAX_TOTAL_CHARS = 50000;
 
 // Per-request batch limits (for progressive translation)
-const MAX_BATCH_NODES = 50;
+const MAX_BATCH_NODES = 60;
 const MAX_BATCH_CHARS = 5000;
 
-const VISIBLE_NODE_MULTIPLIER = 1.5; // how far below viewport we still consider "important"
 const SEPARATOR = "\n\n----\n\n";
+const CONCURRENCY = 2; // how many batches to process in parallel
 
 // Collect text nodes, skipping the translation modal itself
 function getTranslatableTextNodes(): Text[] {
@@ -97,6 +97,9 @@ export default function TranslateWithAIButton() {
 
   // track where auto-translation was last applied
   const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
+
+  // cache: "langCode::originalText" -> translatedText
+  const cacheRef = useRef<Map<string, string>>(new Map());
 
   // ----- initial language: saved or browser language -----
   useEffect(() => {
@@ -214,7 +217,7 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation (progressive chunks) -----
+  // ----- page translation (progressive chunks + cache + concurrency) -----
   async function translatePageWithLang(
     lang: Language,
     opts?: { auto?: boolean }
@@ -232,44 +235,40 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      // 1️⃣ Prioritize "above the fold" text for speed
-      let nodesToUse: Text[] = allNodes;
+      // Use the entire page; rely on caps to limit cost
+      const nodesToUse: Text[] = allNodes;
 
-      if (typeof window !== "undefined") {
-        const vh = window.innerHeight || 800;
-
-        const visibleOrNear = allNodes.filter((node) => {
-          const el = node.parentElement;
-          if (!el) return false;
-          const rect = el.getBoundingClientRect();
-          // anything up to ~1.5x viewport height down is considered important
-          return rect.top < vh * VISIBLE_NODE_MULTIPLIER;
-        });
-
-        if (visibleOrNear.length > 10) {
-          nodesToUse = visibleOrNear;
-        }
-      }
-
-      // 2️⃣ Apply global caps (nodes + characters)
+      // 2️⃣ Apply global caps (nodes + characters) + cache
       const selectedNodes: Text[] = [];
       let globalChars = 0;
+      const langCode = lang.code.toLowerCase();
 
       for (const node of nodesToUse) {
         if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
 
-        const text = node.textContent || "";
-        const len = text.length;
-
+        const original = node.textContent || "";
+        const len = original.length;
         if (len < 3) continue;
+
         if (globalChars + len > MAX_TOTAL_CHARS) break;
+
+        const cacheKey = `${langCode}::${original}`;
+        const cached = cacheRef.current.get(cacheKey);
+
+        if (cached) {
+          // Instant translation from cache
+          node.textContent = cached;
+          continue;
+        }
 
         selectedNodes.push(node);
         globalChars += len;
       }
 
       if (!selectedNodes.length) {
-        setErrorMsg("Not enough text to translate on this page.");
+        setTranslatedText(
+          `Used cached translations. Nothing new to translate for ${lang.label}.`
+        );
         setLoading(false);
         return;
       }
@@ -318,10 +317,7 @@ export default function TranslateWithAIButton() {
       let translatedSnippets = 0;
       let translatedChars = 0;
 
-      // 4️⃣ Process batches sequentially, applying each as we go
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-
+      async function processBatch(batch: Batch, batchIndex: number) {
         const joined = batch.nodes
           .map((n) => n.textContent || "")
           .join(SEPARATOR);
@@ -342,45 +338,65 @@ export default function TranslateWithAIButton() {
         if (!res.ok || !data?.translation) {
           if (res.status === 413) {
             console.warn("[translate-page] batch payload too long", data);
-            setErrorMsg(
-              "This page is very long. Some sections were skipped because they exceed the translation limit."
+            throw new Error(
+              "This page batch is very long and was skipped (413)."
             );
-            break;
           }
 
           if (res.status === 429) {
             console.warn("[translate-page] rate limited", data);
-            setErrorMsg(
+            throw new Error(
               data?.error ||
-                "AI translation is temporarily rate-limited. Some parts may be untranslated."
+                "AI translation is temporarily rate-limited for this batch."
             );
-            break;
           }
 
           console.error("[translate-page] server error", res.status, data);
-          setErrorMsg(
+          throw new Error(
             data?.error ||
               `Failed to translate part of the page (status ${res.status}).`
           );
-          break;
         }
 
         const parts = String(data.translation).split(SEPARATOR);
         const m = Math.min(parts.length, batch.nodes.length);
 
         for (let j = 0; j < m; j++) {
-          batch.nodes[j].textContent = parts[j];
+          const node = batch.nodes[j];
+          const original = node.textContent || "";
+          const translated = parts[j];
+
+          node.textContent = translated;
+
+          const cacheKey = `${langCode}::${original}`;
+          cacheRef.current.set(cacheKey, translated);
         }
 
-        translatedSnippets += m;
-        translatedChars += batch.charCount;
+        return { snippets: m, chars: batch.charCount };
+      }
 
-        const isLastBatch = i === batches.length - 1;
+      // 4️⃣ Process batches with small concurrency, applying each as we go
+      for (let i = 0; i < batches.length; i += CONCURRENCY) {
+        const slice = batches.slice(i, i + CONCURRENCY);
+
+        const results = await Promise.allSettled(
+          slice.map((batch, idx) => processBatch(batch, i + idx))
+        );
+
+        for (const r of results) {
+          if (r.status === "fulfilled") {
+            translatedSnippets += r.value.snippets;
+            translatedChars += r.value.chars;
+          } else {
+            console.error("[translate-page] batch failed", r.reason);
+            setErrorMsg(
+              "Some parts of the page could not be translated. Please try again or reload."
+            );
+          }
+        }
 
         setTranslatedText(
-          isLastBatch
-            ? `Translated ${translatedSnippets} snippets (~${translatedChars} characters) to ${lang.label}.`
-            : `Translated ${translatedSnippets}/${totalSnippets} snippets so far…`
+          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`
         );
       }
 
@@ -400,7 +416,9 @@ export default function TranslateWithAIButton() {
       }
     } catch (err) {
       console.error("[translate-page] error", err);
-      setErrorMsg("Network error while translating the page.");
+      if (!errorMsg) {
+        setErrorMsg("Network error while translating the page.");
+      }
     } finally {
       setLoading(false);
     }
@@ -712,50 +730,50 @@ export default function TranslateWithAIButton() {
                 <p className="text-[11px] text-red-400">{errorMsg}</p>
               )}
 
-            {/* Actions */}
-<div className="flex flex-wrap items-center gap-2 justify-between">
-  <div className="flex flex-wrap gap-2">
-    <button
-      type="button"
-      onClick={handleTranslateText}
-      disabled={loading || !selectedLang}
-      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
-    >
-      {loading
-        ? "Translating…"
-        : `Translate text to ${selectedLang?.label ?? "…"}`}
-    </button>
+              {/* Actions */}
+              <div className="flex flex-wrap items-center gap-2 justify-between">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTranslateText}
+                    disabled={loading || !selectedLang}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
+                  >
+                    {loading
+                      ? "Translating…"
+                      : `Translate text to ${selectedLang?.label ?? "…"}`}
+                  </button>
 
-    <button
-      type="button"
-      onClick={handleTranslatePage}
-      disabled={loading || !selectedLang}
-      className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] font-medium text-[var(--text-main)] disabled:opacity-60"
-    >
-      {loading ? "Working on page…" : "Translate this page"}
-    </button>
+                  <button
+                    type="button"
+                    onClick={handleTranslatePage}
+                    disabled={loading || !selectedLang}
+                    className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] font-medium text-[var(--text-main)] disabled:opacity-60"
+                  >
+                    {loading ? "Working on page…" : "Translate this page"}
+                  </button>
 
-    {/* 🔁 Auto-translate the whole app (no theme vars) */}
-    <button
-      type="button"
-      onClick={handleTranslateSite}
-      disabled={loading || !selectedLang}
-      className="px-4 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-medium text-white disabled:opacity-60"
-    >
-      {loading
-        ? "Applying auto-translation…"
-        : "Auto-translate app"}
-    </button>
-  </div>
+                  {/* 🔁 Auto-translate the whole app */}
+                  <button
+                    type="button"
+                    onClick={handleTranslateSite}
+                    disabled={loading || !selectedLang}
+                    className="px-4 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-medium text-white disabled:opacity-60"
+                  >
+                    {loading
+                      ? "Applying auto-translation…"
+                      : "Auto-translate app"}
+                  </button>
+                </div>
 
-  <button
-    type="button"
-    onClick={() => setOpen(false)}
-    className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
-  >
-    Close
-  </button>
-</div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
+                >
+                  Close
+                </button>
+              </div>
 
               {/* Result / status */}
               {translatedText && (
