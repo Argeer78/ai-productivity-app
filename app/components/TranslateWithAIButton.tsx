@@ -12,7 +12,6 @@ import {
   REGION_ORDER,
   LS_PREF_LANG,
   LS_LAST_PATH,
-  LS_AUTO_MODE,
   type Language,
 } from "@/lib/translateLanguages";
 import { useLanguage } from "@/app/components/LanguageProvider";
@@ -88,16 +87,24 @@ function resolveLanguage(code: string | null | undefined): Language | null {
   lang =
     LANGUAGES.find((l) => {
       const lc = l.code.toLowerCase();
-      return lc === base || lc.startsWith(base + "-");
+      const lcBase = lc.split("-")[0];
+      return lc === base || lcBase === base;
     }) || null;
 
   return lang;
 }
 
+// Helper: is this "English" in any variant?
+function isEnglishCode(code: string | undefined | null): boolean {
+  if (!code) return false;
+  const base = code.toLowerCase().split("-")[0];
+  return base === "en";
+}
+
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
-  // App UI language, used as a *hint* for default target language
+  // App UI language (from your LanguageProvider)
   const languageCtx = useLanguage();
   const uiLangCode = languageCtx?.lang || "en";
 
@@ -119,13 +126,10 @@ export default function TranslateWithAIButton() {
   const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  // track where auto-translation was last applied
-  const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
-
   // cache: "langCode::originalText" -> translatedText
   const cacheRef = useRef<Map<string, string>>(new Map());
 
-  // ----- initial language: LS_PREF_LANG → UI language → browser language -----
+  // ----- initial language: LS_PREF_LANG → browser language → UI language -----
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -138,14 +142,19 @@ export default function TranslateWithAIButton() {
         lang = resolveLanguage(savedLangCode);
       }
 
-      // 2) If none, prefer app UI language
+      // 2) If none, use browser language
+      if (!lang && typeof navigator !== "undefined" && navigator.language) {
+        lang = resolveLanguage(navigator.language);
+      }
+
+      // 3) Fallback to app UI language
       if (!lang && uiLangCode) {
         lang = resolveLanguage(uiLangCode);
       }
 
-      // 3) Fallback to browser language
-      if (!lang && typeof navigator !== "undefined" && navigator.language) {
-        lang = resolveLanguage(navigator.language);
+      // 4) Final fallback to first LANGUAGES entry
+      if (!lang && LANGUAGES.length > 0) {
+        lang = LANGUAGES[0];
       }
 
       if (lang) {
@@ -181,12 +190,12 @@ export default function TranslateWithAIButton() {
 
   function handleOpen() {
     try {
-      // 🔄 Re-read preferred language whenever we open the modal,
-      // so any changes in Settings are reflected immediately
+      // Re-sync from LS_PREF_LANG on open, so settings changes are applied
       if (typeof window !== "undefined") {
         const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
         const freshLang =
           resolveLanguage(savedLangCode) ||
+          resolveLanguage(navigator.language) ||
           resolveLanguage(uiLangCode) ||
           selectedLang;
 
@@ -216,6 +225,9 @@ export default function TranslateWithAIButton() {
       setErrorMsg("Please type or paste some text to translate.");
       return;
     }
+
+    // If user language is English, still allow manual text translation
+    // (for translating foreign text into English), so we don't block here.
 
     setErrorMsg("");
     setLoading(true);
@@ -273,10 +285,16 @@ export default function TranslateWithAIButton() {
   }
 
   // ----- page translation (progressive chunks + cache + concurrency) -----
-  async function translatePageWithLang(
-    lang: Language,
-    opts?: { auto?: boolean }
-  ) {
+  async function translatePageWithLang(lang: Language) {
+    // 🔒 SAFETY: never pay to translate English → English
+    if (isEnglishCode(lang.code)) {
+      setErrorMsg(
+        "The app is already in English. Skipping AI page translation to avoid unnecessary usage."
+      );
+      setTranslatedText("");
+      return;
+    }
+
     setErrorMsg("");
     setTranslatedText("Preparing page for translation…");
     setLoading(true);
@@ -379,7 +397,7 @@ export default function TranslateWithAIButton() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: texts, // array, for server-side caching per snippet (when you add it)
+            text: texts,
             targetLang: lang.code,
           }),
         });
@@ -456,19 +474,9 @@ export default function TranslateWithAIButton() {
         );
       }
 
-      // 5️⃣ Persist preference + auto-mode flag
+      // 5️⃣ Persist last path (optional, no auto mode)
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(LS_PREF_LANG, lang.code);
         window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
-
-        if (opts?.auto) {
-          window.localStorage.setItem(LS_AUTO_MODE, "1");
-        }
-      }
-
-      // 6️⃣ Remember that we translated this path in this session
-      if (pathname) {
-        setAutoAppliedPath(pathname);
       }
     } catch (err) {
       console.error("[translate-page] error", err);
@@ -482,43 +490,11 @@ export default function TranslateWithAIButton() {
 
   function handleTranslatePage() {
     if (!selectedLang) return;
-    translatePageWithLang(selectedLang, { auto: false });
+    translatePageWithLang(selectedLang);
   }
 
-  // “Translate AI Hub (auto)” – enable auto mode
-  function handleTranslateSite() {
-    if (!selectedLang) return;
-    translatePageWithLang(selectedLang, { auto: true });
-  }
-
-  // ----- auto-apply translation when navigating (auto-mode) -----
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!pathname) return;
-
-    try {
-      const autoMode = window.localStorage.getItem(LS_AUTO_MODE);
-      if (autoMode !== "1") return;
-
-      const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
-      if (!savedLangCode) return;
-
-      // avoid re-applying on the same page
-      if (autoAppliedPath === pathname) return;
-
-      const lang = resolveLanguage(savedLangCode);
-      if (!lang) return;
-
-      // keep UI in sync
-      setSelectedLang(lang);
-
-      // fire-and-forget translate – we don't block navigation on it
-      translatePageWithLang(lang, { auto: true });
-    } catch (err) {
-      console.error("[translate-auto] error", err);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]); // depends on route changes only
+  // 🚫 NO AUTO-TRANSLATE ON NAVIGATION ANYMORE
+  // (removed LS_AUTO_MODE, autoAppliedPath, and the pathname useEffect)
 
   // ----- drag logic -----
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
@@ -806,17 +782,7 @@ export default function TranslateWithAIButton() {
                     {loading ? "Working on page…" : "Translate this page"}
                   </button>
 
-                  {/* 🔁 Auto-translate the whole app */}
-                  <button
-                    type="button"
-                    onClick={handleTranslateSite}
-                    disabled={loading || !selectedLang}
-                    className="px-4 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-medium text-white disabled:opacity-60"
-                  >
-                    {loading
-                      ? "Applying auto-translation…"
-                      : "Auto-translate app"}
-                  </button>
+                  {/* NOTE: Auto-translate app has been removed to avoid unwanted usage */}
                 </div>
 
                 <button
