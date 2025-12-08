@@ -8,8 +8,15 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-const SEPARATOR = "\n\n----\n\n";
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || process.env.CRON_SECRET || "";
+const ADMIN_KEY =
+  process.env.NEXT_PUBLIC_ADMIN_KEY || process.env.CRON_SECRET || "";
+
+const BATCH_SIZE = 40; // safe size; adjust if you want
+
+type BatchItem = {
+  key: UiTranslationKey;
+  text: string;
+};
 
 export async function POST(req: Request) {
   try {
@@ -42,17 +49,17 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get all keys we care about
+    // 1) Get all keys we care about
     const keys = Object.keys(UI_STRINGS) as UiTranslationKey[];
 
-    // Check which ones already exist
+    // 2) Check which ones already exist in DB
     const { data: existing, error: existingErr } = await supabaseAdmin
       .from("ui_translations")
       .select("key")
       .eq("language_code", languageCode);
 
     if (existingErr) {
-      console.error("[ui-translations] fetch existing error", existingErr);
+      console.error("[ui-translations/sync] fetch existing error", existingErr);
       return NextResponse.json(
         { ok: false, error: "Failed to fetch existing translations" },
         { status: 500 }
@@ -73,83 +80,137 @@ export async function POST(req: Request) {
       );
     }
 
-    // Join all English texts into one prompt
-    const toTranslate = missingKeys.map((k) => UI_STRINGS[k]).join(SEPARATOR);
+    let createdTotal = 0;
 
-    const systemPrompt = `
+    // 3) Process missing keys in batches
+    for (let i = 0; i < missingKeys.length; i += BATCH_SIZE) {
+      const batchKeys = missingKeys.slice(i, i + BATCH_SIZE);
+      const batchItems: BatchItem[] = batchKeys.map((key) => ({
+        key,
+        text: UI_STRINGS[key],
+      }));
+
+      const systemPrompt = `
 You are translating the user interface of a productivity web app (notes, tasks, planner, weekly reports).
 
+Target language: ${languageCode}
+
 Goals:
-- Sound like a native speaker in the target language (${languageCode}).
+- Sound like a native speaker in the target language.
 - Prefer concise, natural UI labels over literal translations.
 - Maintain the app's friendly but professional tone.
 - Do NOT translate variable placeholders like {name}, {date}, {count}.
 - Preserve punctuation and emojis where they add meaning.
 - Keep capitalization consistent with common UI conventions in the target language.
 
-You will receive multiple UI strings concatenated together.
-Each original snippet is separated by the line:
-${SEPARATOR}
-Return the translations in the exact same order, using the same separator line.
-Do NOT add numbering, quotes, bullet points, or extra commentary.
+Return ONLY valid JSON with this shape:
+
+{
+  "items": [
+    { "key": "some.ui.key", "translated": "Translated text" },
+    ...
+  ]
+}
+
+The "key" values must match exactly the keys you are given.
 `.trim();
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.2,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: toTranslate },
-      ],
-    });
+      const userPrompt = `
+Translate the following UI strings.
 
-    const raw =
-      completion.choices[0]?.message?.content?.trim() || "";
+Input (JSON):
 
-    if (!raw) {
-      return NextResponse.json(
-        { ok: false, error: "OpenAI returned an empty translation" },
-        { status: 500 }
-      );
-    }
+${JSON.stringify(
+  batchItems.map((item) => ({
+    key: item.key,
+    text: item.text,
+  })),
+  null,
+  2
+)}
 
-    const parts = raw.split(SEPARATOR).map((p) => p.trim());
+Remember: respond with JSON ONLY, no explanation.
+`.trim();
 
-    if (parts.length !== missingKeys.length) {
-      console.warn(
-        "[ui-translations] mismatch parts vs keys",
-        parts.length,
-        missingKeys.length
-      );
-    }
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      });
 
-    const rows = missingKeys.map((key, idx) => ({
-      key,
-      language_code: languageCode,
-      text: parts[idx] || UI_STRINGS[key], // fallback to English if mismatch
-    }));
+      const raw = completion.choices[0]?.message?.content?.trim() || "{}";
 
-    const { error: insertErr } = await supabaseAdmin
-      .from("ui_translations")
-      .upsert(rows, { onConflict: "key,language_code" });
+      let parsed: {
+        items?: { key?: string; translated?: string }[];
+      };
 
-    if (insertErr) {
-      console.error("[ui-translations] upsert error", insertErr);
-      return NextResponse.json(
-        { ok: false, error: "Failed to save translations" },
-        { status: 500 }
-      );
+      try {
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        console.error(
+          "[ui-translations/sync] JSON parse error for batch",
+          err,
+          raw
+        );
+        continue; // skip this batch; or you could throw
+      }
+
+      const items = parsed.items || [];
+      if (!Array.isArray(items) || items.length === 0) {
+        console.warn(
+          "[ui-translations/sync] empty items array for batch starting at index",
+          i
+        );
+        continue;
+      }
+
+      // 4) Map to rows for DB
+      const rows = items
+        .map((item) => {
+          const key = item.key as UiTranslationKey | undefined;
+          const translated =
+            typeof item.translated === "string"
+              ? item.translated.trim()
+              : "";
+
+          if (!key || !translated) return null;
+
+          return {
+            key,
+            language_code: languageCode,
+            text: translated,
+          };
+        })
+        .filter(Boolean) as { key: string; language_code: string; text: string }[];
+
+      if (rows.length === 0) continue;
+
+      const { error: insertErr } = await supabaseAdmin
+        .from("ui_translations")
+        .upsert(rows, { onConflict: "key,language_code" });
+
+      if (insertErr) {
+        console.error("[ui-translations/sync] upsert error", insertErr);
+        continue;
+      }
+
+      createdTotal += rows.length;
     }
 
     return NextResponse.json(
       {
         ok: true,
-        created: rows.length,
+        created: createdTotal,
+        missing: missingKeys.length,
       },
       { status: 200 }
     );
   } catch (err) {
-    console.error("[ui-translations] sync route error", err);
+    console.error("[ui-translations/sync] route error", err);
     return NextResponse.json(
       { ok: false, error: "Unexpected server error" },
       { status: 500 }
