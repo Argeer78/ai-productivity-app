@@ -12,13 +12,15 @@ import {
   REGION_ORDER,
   LS_PREF_LANG,
   LS_LAST_PATH,
+  LS_AUTO_MODE,
   type Language,
 } from "@/lib/translateLanguages";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import { supabase } from "@/lib/supabaseClient";
 
 type TranslationResponse =
-  | { translation: string; error?: string | null }
-  | { translation: string[]; error?: string | null };
+  | { translation?: string; error?: string | null }
+  | { translation?: string[]; error?: string | null };
 
 // Hard limits for page translation to control cost & speed
 const MAX_NODES_PER_PAGE = 600;
@@ -72,10 +74,24 @@ function getTranslatableTextNodes(): Text[] {
   return nodes;
 }
 
+// Helper: dedupe & clean strings
+function uniqueCleanStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of values) {
+    const trimmed = v.trim();
+    if (!trimmed) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
-  // App UI language (from provider), used only as a fallback hint
+  // App UI language, used as a hint for default target language
   const languageCtx = useLanguage();
   const uiLangCode = languageCtx?.lang || "en";
 
@@ -97,7 +113,10 @@ export default function TranslateWithAIButton() {
   const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  // cache: "langCode::originalText" -> translatedText
+  // track where auto-translation was last applied
+  const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
+
+  // in-memory cache: "langCode::originalTextTrimmed" -> translatedText
   const cacheRef = useRef<Map<string, string>>(new Map());
 
   // ----- initial language: LS_PREF_LANG → UI language → browser language -----
@@ -120,18 +139,15 @@ export default function TranslateWithAIButton() {
       if (!lang && uiLangCode) {
         const uiBase = uiLangCode.split("-")[0].toLowerCase();
         lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === uiBase
-          ) || null;
+          LANGUAGES.find((l) => l.code.toLowerCase() === uiBase) || null;
       }
 
       // 3) Fallback to browser language
       if (!lang && typeof navigator !== "undefined" && navigator.language) {
         const browserBase = navigator.language.split("-")[0].toLowerCase();
         lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === browserBase
-          ) || null;
+          LANGUAGES.find((l) => l.code.toLowerCase() === browserBase) ||
+          null;
       }
 
       if (lang) {
@@ -142,7 +158,7 @@ export default function TranslateWithAIButton() {
     }
   }, [uiLangCode]);
 
-  // keep LS_PREF_LANG in sync when selectedLang changes
+  // Keep LS_PREF_LANG in sync when selectedLang changes
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!selectedLang) return;
@@ -181,19 +197,68 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- basic text translation -----
-  async function handleTranslateText() {
-    if (!selectedLang) return;
-    if (!sourceText.trim()) {
-      setErrorMsg("Please type or paste some text to translate.");
-      return;
+  // ====== SUPABASE HELPERS (translation memory) ======
+
+  async function fetchCachedForTexts(
+    langCode: string,
+    originals: string[]
+  ): Promise<Map<string, string>> {
+    const cleaned = uniqueCleanStrings(originals);
+    if (!cleaned.length) return new Map();
+
+    // Supabase "in" has limits, but our global caps are small enough
+    const { data, error } = await supabase
+      .from("page_translations")
+      .select("original_text, translated_text")
+      .eq("language_code", langCode)
+      .in("original_text", cleaned);
+
+    if (error) {
+      console.error("[page_translations] fetch error", error);
+      return new Map();
     }
 
-    // If target language is effectively English, don't waste API calls
-    const code = selectedLang.code.toLowerCase();
-    if (code === "en" || code === "en-us" || code === "en-gb") {
-      setTranslatedText(sourceText);
-      setErrorMsg("");
+    const result = new Map<string, string>();
+    for (const row of data || []) {
+      if (!row.original_text || !row.translated_text) continue;
+      result.set(row.original_text.trim(), row.translated_text);
+    }
+    return result;
+  }
+
+  async function saveNewTranslations(
+    langCode: string,
+    pairs: { original: string; translated: string }[]
+  ) {
+    if (!pairs.length) return;
+    try {
+      const rows = pairs.map((p) => ({
+        language_code: langCode,
+        original_text: p.original.trim(),
+        translated_text: p.translated,
+      }));
+
+      // Upsert to avoid duplicates (requires unique index on language_code+original_text ideally)
+      const { error } = await supabase
+        .from("page_translations")
+        .upsert(rows, { onConflict: "language_code,original_text" } as any);
+
+      if (error) {
+        console.error("[page_translations] upsert error", error);
+      }
+    } catch (err) {
+      console.error("[page_translations] saveNewTranslations error", err);
+    }
+  }
+
+  // ----- basic text translation (with Supabase cache) -----
+  async function handleTranslateText() {
+    if (!selectedLang) return;
+    const raw = sourceText || "";
+    const trimmed = raw.trim();
+
+    if (!trimmed) {
+      setErrorMsg("Please type or paste some text to translate.");
       return;
     }
 
@@ -201,12 +266,34 @@ export default function TranslateWithAIButton() {
     setLoading(true);
     setTranslatedText("");
 
+    const langCode = selectedLang.code.toLowerCase();
+    const cacheKey = `${langCode}::${trimmed}`;
+
     try {
+      // 1️⃣ in-memory cache
+      const cachedMem = cacheRef.current.get(cacheKey);
+      if (cachedMem) {
+        setTranslatedText(cachedMem);
+        setLoading(false);
+        return;
+      }
+
+      // 2️⃣ Supabase translation memory
+      const cachedMap = await fetchCachedForTexts(langCode, [trimmed]);
+      const cached = cachedMap.get(trimmed);
+      if (cached) {
+        cacheRef.current.set(cacheKey, cached);
+        setTranslatedText(cached);
+        setLoading(false);
+        return;
+      }
+
+      // 3️⃣ No cache: call AI
       const res = await fetch("/api/ai-translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: sourceText,
+          text: trimmed,
           targetLang: selectedLang.code,
         }),
       });
@@ -215,7 +302,7 @@ export default function TranslateWithAIButton() {
         | TranslationResponse
         | null;
 
-      if (!res.ok || !data) {
+      if (!res.ok || !data?.translation) {
         if (res.status === 413) {
           setErrorMsg(
             "This text is too long for a single translation. Please split it into smaller chunks and try again."
@@ -237,13 +324,17 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      if (Array.isArray((data as any).translation)) {
-        setTranslatedText(
-          (data as any).translation.join("\n\n----------------\n\n")
-        );
-      } else {
-        setTranslatedText((data as any).translation || "");
-      }
+      const translated = Array.isArray((data as any).translation)
+        ? (data as any).translation.join("\n\n----------------\n\n")
+        : ((data as any).translation as string);
+
+      setTranslatedText(translated);
+
+      // Save to memory + Supabase
+      cacheRef.current.set(cacheKey, translated);
+      await saveNewTranslations(langCode, [
+        { original: trimmed, translated },
+      ]);
     } catch (err) {
       console.error("[translate-text] fetch error", err);
       setErrorMsg("Network error while calling translation API.");
@@ -252,20 +343,13 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation (progressive chunks + cache + concurrency) -----
-  async function translatePageWithLang(lang: Language) {
-    // If the selected language is English, do NOT translate
-    const code = lang.code.toLowerCase();
-    if (code === "en" || code === "en-us" || code === "en-gb") {
-      setErrorMsg("");
-      setTranslatedText(
-        "Page is already in English and target language is English – nothing to translate."
-      );
-      return;
-    }
-
+  // ----- page translation (Supabase cache + optional AI for missing snippets) -----
+  async function translatePageWithLang(
+    lang: Language,
+    opts?: { auto?: boolean }
+  ) {
     setErrorMsg("");
-    setTranslatedText("Preparing page for translation…");
+    setTranslatedText("Checking cached translations…");
     setLoading(true);
 
     try {
@@ -277,13 +361,13 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      const nodesToUse: Text[] = allNodes;
-
-      const selectedNodes: Text[] = [];
-      let globalChars = 0;
       const langCode = lang.code.toLowerCase();
 
-      for (const node of nodesToUse) {
+      // 1️⃣ Apply global caps, prepare node list
+      const selectedNodes: Text[] = [];
+      let globalChars = 0;
+
+      for (const node of allNodes) {
         if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
 
         const original = node.textContent || "";
@@ -292,38 +376,105 @@ export default function TranslateWithAIButton() {
 
         if (globalChars + len > MAX_TOTAL_CHARS) break;
 
-        const cacheKey = `${langCode}::${original}`;
-        const cached = cacheRef.current.get(cacheKey);
-
-        if (cached) {
-          node.textContent = cached; // Instant translation
-          continue;
-        }
-
         selectedNodes.push(node);
         globalChars += len;
       }
 
       if (!selectedNodes.length) {
-        setTranslatedText(
-          `Used cached translations. Nothing new to translate for ${lang.label}.`
-        );
+        setErrorMsg("There was nothing suitable to translate on this page.");
         setLoading(false);
         return;
       }
 
+      // 2️⃣ First, try apply cached translations (memory + Supabase) to ALL selected nodes
+      const originals = selectedNodes.map((n) => (n.textContent || "").trim());
+
+      // Supabase cache
+      const supabaseMap = await fetchCachedForTexts(langCode, originals);
+
+      let usedCacheCount = 0;
+      const nodesNeedingAI: Text[] = [];
+
+      for (const node of selectedNodes) {
+        const raw = node.textContent || "";
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+
+        const memKey = `${langCode}::${trimmed}`;
+
+        // In-memory cache
+        if (cacheRef.current.has(memKey)) {
+          const translated = cacheRef.current.get(memKey)!;
+          if (translated && translated !== raw) {
+            node.textContent = translated;
+            usedCacheCount += 1;
+          }
+          continue;
+        }
+
+        // Supabase cache
+        const cached = supabaseMap.get(trimmed);
+        if (cached) {
+          if (cached !== raw) {
+            node.textContent = cached;
+            usedCacheCount += 1;
+          }
+          cacheRef.current.set(memKey, cached);
+          continue;
+        }
+
+        // No cache → this node may need AI (depending on mode)
+        nodesNeedingAI.push(node);
+      }
+
+      // 3️⃣ If auto-mode: **only use cache, never AI**
+      if (opts?.auto) {
+        setTranslatedText(
+          `Loaded ${usedCacheCount} cached snippets for ${lang.label}. Remaining text is still in the original language (no AI used in auto-mode).`
+        );
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(LS_PREF_LANG, lang.code);
+          window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
+          window.localStorage.setItem(LS_AUTO_MODE, "1");
+        }
+        if (pathname) setAutoAppliedPath(pathname);
+        setLoading(false);
+        return;
+      }
+
+      // 4️⃣ Manual "Translate this page": use AI only for missing snippets
       const totalSnippets = selectedNodes.length;
-      const totalChars = selectedNodes.reduce(
-        (sum, n) => sum + ((n.textContent || "").length || 0),
-        0
+
+const totalChars = selectedNodes.reduce<number>((sum, n) => {
+  const text = n.textContent ?? "";
+  return sum + text.length;
+}, 0);
+
+      if (!nodesNeedingAI.length) {
+        setTranslatedText(
+          `All ${totalSnippets} snippets were translated from cache for ${lang.label}.`
+        );
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(LS_PREF_LANG, lang.code);
+          window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
+        }
+        if (pathname) setAutoAppliedPath(pathname);
+        setLoading(false);
+        return;
+      }
+
+      setTranslatedText(
+        `Used ${usedCacheCount} cached snippets. Translating ${nodesNeedingAI.length} remaining snippets with AI…`
       );
 
+      // 5️⃣ Build batches for AI (only nodesNeedingAI)
       type Batch = { nodes: Text[]; charCount: number };
       const batches: Batch[] = [];
       let currentNodes: Text[] = [];
       let currentChars = 0;
 
-      for (const node of selectedNodes) {
+      for (const node of nodesNeedingAI) {
         const text = node.textContent || "";
         const len = text.length;
 
@@ -347,12 +498,14 @@ export default function TranslateWithAIButton() {
       }
 
       if (!batches.length) {
-        setErrorMsg("There was nothing suitable to translate on this page.");
+        setTranslatedText(
+          `Used ${usedCacheCount} cached snippets. Nothing left to translate with AI.`
+        );
         setLoading(false);
         return;
       }
 
-      let translatedSnippets = 0;
+      let translatedSnippets = usedCacheCount;
       let translatedChars = 0;
 
       async function processBatch(batch: Batch) {
@@ -362,7 +515,7 @@ export default function TranslateWithAIButton() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: texts, // array, for server-side caching per snippet
+            text: texts, // array, server should handle per-snippet
             targetLang: lang.code,
           }),
         });
@@ -399,22 +552,31 @@ export default function TranslateWithAIButton() {
           : texts;
 
         const m = Math.min(translatedArray.length, batch.nodes.length);
+        const toSave: { original: string; translated: string }[] = [];
 
         for (let j = 0; j < m; j++) {
           const node = batch.nodes[j];
-          const original = node.textContent || "";
-          const newText = translatedArray[j] ?? original;
+          const originalRaw = node.textContent || "";
+          const original = originalRaw.trim();
+          const newText = translatedArray[j] ?? originalRaw;
 
           node.textContent = newText;
 
-          const cacheKey = `${langCode}::${original}`;
-          cacheRef.current.set(cacheKey, newText);
+          const memKey = `${langCode}::${original}`;
+          cacheRef.current.set(memKey, newText);
+
+          if (original && newText && newText !== originalRaw) {
+            toSave.push({ original, translated: newText });
+          }
         }
+
+        // Save batch translations into Supabase
+        await saveNewTranslations(langCode, toSave);
 
         return { snippets: m, chars: batch.charCount };
       }
 
-      // Process batches with small concurrency
+      // 6️⃣ Process batches with small concurrency, applying each as we go
       for (let i = 0; i < batches.length; i += CONCURRENCY) {
         const slice = batches.slice(i, i + CONCURRENCY);
 
@@ -435,14 +597,21 @@ export default function TranslateWithAIButton() {
         }
 
         setTranslatedText(
-          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`
+          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}.`
         );
       }
 
-      // Persist last path (for debugging / future logic if needed)
+      // 7️⃣ Persist preference + auto-mode flag (only LS_AUTO_MODE when auto)
       if (typeof window !== "undefined") {
+        window.localStorage.setItem(LS_PREF_LANG, lang.code);
         window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
+
+        if (opts?.auto) {
+          window.localStorage.setItem(LS_AUTO_MODE, "1");
+        }
       }
+
+      if (pathname) setAutoAppliedPath(pathname);
     } catch (err) {
       console.error("[translate-page] error", err);
       if (!errorMsg) {
@@ -455,8 +624,47 @@ export default function TranslateWithAIButton() {
 
   function handleTranslatePage() {
     if (!selectedLang) return;
-    translatePageWithLang(selectedLang);
+    // Manual: uses cache first, then AI for missing
+    translatePageWithLang(selectedLang, { auto: false });
   }
+
+  // “Translate AI Hub (auto)” – enable auto mode (cache-only, no AI)
+  function handleTranslateSite() {
+    if (!selectedLang) return;
+    translatePageWithLang(selectedLang, { auto: true });
+  }
+
+  // ----- auto-apply translation when navigating (auto-mode, cache-only) -----
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!pathname) return;
+
+    try {
+      const autoMode = window.localStorage.getItem(LS_AUTO_MODE);
+      if (autoMode !== "1") return; // auto mode must be explicitly enabled
+
+      const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
+      if (!savedLangCode) return;
+
+      // avoid re-applying on the same page
+      if (autoAppliedPath === pathname) return;
+
+      const lang =
+        LANGUAGES.find(
+          (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
+        ) || null;
+      if (!lang) return;
+
+      // keep UI in sync
+      setSelectedLang(lang);
+
+      // cache-only auto-translate (no AI)
+      translatePageWithLang(lang, { auto: true });
+    } catch (err) {
+      console.error("[translate-auto] error", err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   // ----- drag logic -----
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
@@ -559,7 +767,7 @@ export default function TranslateWithAIButton() {
                     Translate with AI
                   </p>
                   <p className="text-[10px] text-[var(--text-muted)]">
-                    Select your language and translate text or the page.
+                    Uses cached translations first, then AI only when needed.
                   </p>
                 </div>
               </div>
@@ -742,6 +950,18 @@ export default function TranslateWithAIButton() {
                     className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] font-medium text-[var(--text-main)] disabled:opacity-60"
                   >
                     {loading ? "Working on page…" : "Translate this page"}
+                  </button>
+
+                  {/* 🔁 Auto-translate the whole app (cache-only, no AI) */}
+                  <button
+                    type="button"
+                    onClick={handleTranslateSite}
+                    disabled={loading || !selectedLang}
+                    className="px-4 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-medium text-white disabled:opacity-60"
+                  >
+                    {loading
+                      ? "Applying cached translations…"
+                      : "Auto-translate app (cache only)"}
                   </button>
                 </div>
 
