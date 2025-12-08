@@ -16,11 +16,10 @@ import {
   type Language,
 } from "@/lib/translateLanguages";
 import { useLanguage } from "@/app/components/LanguageProvider";
-import { supabase } from "@/lib/supabaseClient";
 
 type TranslationResponse =
-  | { translation?: string; error?: string | null }
-  | { translation?: string[]; error?: string | null };
+  | { translation: string; error?: string | null }
+  | { translation: string[]; error?: string | null };
 
 // Hard limits for page translation to control cost & speed
 const MAX_NODES_PER_PAGE = 600;
@@ -74,24 +73,10 @@ function getTranslatableTextNodes(): Text[] {
   return nodes;
 }
 
-// Helper: dedupe & clean strings
-function uniqueCleanStrings(values: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const v of values) {
-    const trimmed = v.trim();
-    if (!trimmed) continue;
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    out.push(trimmed);
-  }
-  return out;
-}
-
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
-  // App UI language, used as a hint for default target language
+  // App UI language, used only as a *hint* for default target language
   const languageCtx = useLanguage();
   const uiLangCode = languageCtx?.lang || "en";
 
@@ -116,7 +101,7 @@ export default function TranslateWithAIButton() {
   // track where auto-translation was last applied
   const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
 
-  // in-memory cache: "langCode::originalTextTrimmed" -> translatedText
+  // cache: "langCode::originalText" -> translatedText
   const cacheRef = useRef<Map<string, string>>(new Map());
 
   // ----- initial language: LS_PREF_LANG → UI language → browser language -----
@@ -127,7 +112,7 @@ export default function TranslateWithAIButton() {
       const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       let lang: Language | null = null;
 
-      // 1) Prefer saved manual choice from Settings
+      // 1) Prefer saved manual choice (from Settings or previous selection)
       if (savedLangCode) {
         lang =
           LANGUAGES.find(
@@ -146,8 +131,9 @@ export default function TranslateWithAIButton() {
       if (!lang && typeof navigator !== "undefined" && navigator.language) {
         const browserBase = navigator.language.split("-")[0].toLowerCase();
         lang =
-          LANGUAGES.find((l) => l.code.toLowerCase() === browserBase) ||
-          null;
+          LANGUAGES.find(
+            (l) => l.code.toLowerCase() === browserBase
+          ) || null;
       }
 
       if (lang) {
@@ -158,16 +144,8 @@ export default function TranslateWithAIButton() {
     }
   }, [uiLangCode]);
 
-  // Keep LS_PREF_LANG in sync when selectedLang changes
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!selectedLang) return;
-    try {
-      window.localStorage.setItem(LS_PREF_LANG, selectedLang.code);
-    } catch (err) {
-      console.error("[translate] save selectedLang error", err);
-    }
-  }, [selectedLang]);
+  // ❌ REMOVED: effect that overwrote LS_PREF_LANG on every selectedLang change
+  // That effect was causing your preferred language to revert to English.
 
   // center modal when opening
   useEffect(() => {
@@ -197,67 +175,10 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ====== SUPABASE HELPERS (translation memory) ======
-
-  async function fetchCachedForTexts(
-    langCode: string,
-    originals: string[]
-  ): Promise<Map<string, string>> {
-    const cleaned = uniqueCleanStrings(originals);
-    if (!cleaned.length) return new Map();
-
-    // Supabase "in" has limits, but our global caps are small enough
-    const { data, error } = await supabase
-      .from("page_translations")
-      .select("original_text, translated_text")
-      .eq("language_code", langCode)
-      .in("original_text", cleaned);
-
-    if (error) {
-      console.error("[page_translations] fetch error", error);
-      return new Map();
-    }
-
-    const result = new Map<string, string>();
-    for (const row of data || []) {
-      if (!row.original_text || !row.translated_text) continue;
-      result.set(row.original_text.trim(), row.translated_text);
-    }
-    return result;
-  }
-
-  async function saveNewTranslations(
-    langCode: string,
-    pairs: { original: string; translated: string }[]
-  ) {
-    if (!pairs.length) return;
-    try {
-      const rows = pairs.map((p) => ({
-        language_code: langCode,
-        original_text: p.original.trim(),
-        translated_text: p.translated,
-      }));
-
-      // Upsert to avoid duplicates (requires unique index on language_code+original_text ideally)
-      const { error } = await supabase
-        .from("page_translations")
-        .upsert(rows, { onConflict: "language_code,original_text" } as any);
-
-      if (error) {
-        console.error("[page_translations] upsert error", error);
-      }
-    } catch (err) {
-      console.error("[page_translations] saveNewTranslations error", err);
-    }
-  }
-
-  // ----- basic text translation (with Supabase cache) -----
+  // ----- basic text translation -----
   async function handleTranslateText() {
     if (!selectedLang) return;
-    const raw = sourceText || "";
-    const trimmed = raw.trim();
-
-    if (!trimmed) {
+    if (!sourceText.trim()) {
       setErrorMsg("Please type or paste some text to translate.");
       return;
     }
@@ -266,34 +187,12 @@ export default function TranslateWithAIButton() {
     setLoading(true);
     setTranslatedText("");
 
-    const langCode = selectedLang.code.toLowerCase();
-    const cacheKey = `${langCode}::${trimmed}`;
-
     try {
-      // 1️⃣ in-memory cache
-      const cachedMem = cacheRef.current.get(cacheKey);
-      if (cachedMem) {
-        setTranslatedText(cachedMem);
-        setLoading(false);
-        return;
-      }
-
-      // 2️⃣ Supabase translation memory
-      const cachedMap = await fetchCachedForTexts(langCode, [trimmed]);
-      const cached = cachedMap.get(trimmed);
-      if (cached) {
-        cacheRef.current.set(cacheKey, cached);
-        setTranslatedText(cached);
-        setLoading(false);
-        return;
-      }
-
-      // 3️⃣ No cache: call AI
       const res = await fetch("/api/ai-translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: trimmed,
+          text: sourceText,
           targetLang: selectedLang.code,
         }),
       });
@@ -302,7 +201,7 @@ export default function TranslateWithAIButton() {
         | TranslationResponse
         | null;
 
-      if (!res.ok || !data?.translation) {
+      if (!res.ok || !data) {
         if (res.status === 413) {
           setErrorMsg(
             "This text is too long for a single translation. Please split it into smaller chunks and try again."
@@ -324,17 +223,13 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      const translated = Array.isArray((data as any).translation)
-        ? (data as any).translation.join("\n\n----------------\n\n")
-        : ((data as any).translation as string);
-
-      setTranslatedText(translated);
-
-      // Save to memory + Supabase
-      cacheRef.current.set(cacheKey, translated);
-      await saveNewTranslations(langCode, [
-        { original: trimmed, translated },
-      ]);
+      if (Array.isArray((data as any).translation)) {
+        setTranslatedText(
+          (data as any).translation.join("\n\n----------------\n\n")
+        );
+      } else {
+        setTranslatedText((data as any).translation || "");
+      }
     } catch (err) {
       console.error("[translate-text] fetch error", err);
       setErrorMsg("Network error while calling translation API.");
@@ -343,13 +238,13 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation (Supabase cache + optional AI for missing snippets) -----
+  // ----- page translation (progressive chunks + cache + concurrency) -----
   async function translatePageWithLang(
     lang: Language,
     opts?: { auto?: boolean }
   ) {
     setErrorMsg("");
-    setTranslatedText("Checking cached translations…");
+    setTranslatedText("Preparing page for translation…");
     setLoading(true);
 
     try {
@@ -361,13 +256,13 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      const langCode = lang.code.toLowerCase();
+      const nodesToUse: Text[] = allNodes;
 
-      // 1️⃣ Apply global caps, prepare node list
       const selectedNodes: Text[] = [];
       let globalChars = 0;
+      const langCode = lang.code.toLowerCase();
 
-      for (const node of allNodes) {
+      for (const node of nodesToUse) {
         if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
 
         const original = node.textContent || "";
@@ -376,105 +271,38 @@ export default function TranslateWithAIButton() {
 
         if (globalChars + len > MAX_TOTAL_CHARS) break;
 
+        const cacheKey = `${langCode}::${original}`;
+        const cached = cacheRef.current.get(cacheKey);
+
+        if (cached) {
+          node.textContent = cached;
+          continue;
+        }
+
         selectedNodes.push(node);
         globalChars += len;
       }
 
       if (!selectedNodes.length) {
-        setErrorMsg("There was nothing suitable to translate on this page.");
-        setLoading(false);
-        return;
-      }
-
-      // 2️⃣ First, try apply cached translations (memory + Supabase) to ALL selected nodes
-      const originals = selectedNodes.map((n) => (n.textContent || "").trim());
-
-      // Supabase cache
-      const supabaseMap = await fetchCachedForTexts(langCode, originals);
-
-      let usedCacheCount = 0;
-      const nodesNeedingAI: Text[] = [];
-
-      for (const node of selectedNodes) {
-        const raw = node.textContent || "";
-        const trimmed = raw.trim();
-        if (!trimmed) continue;
-
-        const memKey = `${langCode}::${trimmed}`;
-
-        // In-memory cache
-        if (cacheRef.current.has(memKey)) {
-          const translated = cacheRef.current.get(memKey)!;
-          if (translated && translated !== raw) {
-            node.textContent = translated;
-            usedCacheCount += 1;
-          }
-          continue;
-        }
-
-        // Supabase cache
-        const cached = supabaseMap.get(trimmed);
-        if (cached) {
-          if (cached !== raw) {
-            node.textContent = cached;
-            usedCacheCount += 1;
-          }
-          cacheRef.current.set(memKey, cached);
-          continue;
-        }
-
-        // No cache → this node may need AI (depending on mode)
-        nodesNeedingAI.push(node);
-      }
-
-      // 3️⃣ If auto-mode: **only use cache, never AI**
-      if (opts?.auto) {
         setTranslatedText(
-          `Loaded ${usedCacheCount} cached snippets for ${lang.label}. Remaining text is still in the original language (no AI used in auto-mode).`
+          `Used cached translations. Nothing new to translate for ${lang.label}.`
         );
-
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(LS_PREF_LANG, lang.code);
-          window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
-          window.localStorage.setItem(LS_AUTO_MODE, "1");
-        }
-        if (pathname) setAutoAppliedPath(pathname);
         setLoading(false);
         return;
       }
 
-      // 4️⃣ Manual "Translate this page": use AI only for missing snippets
       const totalSnippets = selectedNodes.length;
-
-const totalChars = selectedNodes.reduce<number>((sum, n) => {
-  const text = n.textContent ?? "";
-  return sum + text.length;
-}, 0);
-
-      if (!nodesNeedingAI.length) {
-        setTranslatedText(
-          `All ${totalSnippets} snippets were translated from cache for ${lang.label}.`
-        );
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(LS_PREF_LANG, lang.code);
-          window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
-        }
-        if (pathname) setAutoAppliedPath(pathname);
-        setLoading(false);
-        return;
-      }
-
-      setTranslatedText(
-        `Used ${usedCacheCount} cached snippets. Translating ${nodesNeedingAI.length} remaining snippets with AI…`
+      const totalChars = selectedNodes.reduce(
+        (sum, n) => sum + ((n.textContent || "").length || 0),
+        0
       );
 
-      // 5️⃣ Build batches for AI (only nodesNeedingAI)
       type Batch = { nodes: Text[]; charCount: number };
       const batches: Batch[] = [];
       let currentNodes: Text[] = [];
       let currentChars = 0;
 
-      for (const node of nodesNeedingAI) {
+      for (const node of selectedNodes) {
         const text = node.textContent || "";
         const len = text.length;
 
@@ -498,14 +326,12 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
       }
 
       if (!batches.length) {
-        setTranslatedText(
-          `Used ${usedCacheCount} cached snippets. Nothing left to translate with AI.`
-        );
+        setErrorMsg("There was nothing suitable to translate on this page.");
         setLoading(false);
         return;
       }
 
-      let translatedSnippets = usedCacheCount;
+      let translatedSnippets = 0;
       let translatedChars = 0;
 
       async function processBatch(batch: Batch) {
@@ -515,7 +341,7 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: texts, // array, server should handle per-snippet
+            text: texts,
             targetLang: lang.code,
           }),
         });
@@ -552,31 +378,21 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
           : texts;
 
         const m = Math.min(translatedArray.length, batch.nodes.length);
-        const toSave: { original: string; translated: string }[] = [];
 
         for (let j = 0; j < m; j++) {
           const node = batch.nodes[j];
-          const originalRaw = node.textContent || "";
-          const original = originalRaw.trim();
-          const newText = translatedArray[j] ?? originalRaw;
+          const original = node.textContent || "";
+          const newText = translatedArray[j] ?? original;
 
           node.textContent = newText;
 
-          const memKey = `${langCode}::${original}`;
-          cacheRef.current.set(memKey, newText);
-
-          if (original && newText && newText !== originalRaw) {
-            toSave.push({ original, translated: newText });
-          }
+          const cacheKey = `${langCode}::${original}`;
+          cacheRef.current.set(cacheKey, newText);
         }
-
-        // Save batch translations into Supabase
-        await saveNewTranslations(langCode, toSave);
 
         return { snippets: m, chars: batch.charCount };
       }
 
-      // 6️⃣ Process batches with small concurrency, applying each as we go
       for (let i = 0; i < batches.length; i += CONCURRENCY) {
         const slice = batches.slice(i, i + CONCURRENCY);
 
@@ -597,11 +413,11 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
         }
 
         setTranslatedText(
-          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}.`
+          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`
         );
       }
 
-      // 7️⃣ Persist preference + auto-mode flag (only LS_AUTO_MODE when auto)
+      // 5️⃣ Persist preference + auto-mode flag (this is fine – user explicitly triggered it)
       if (typeof window !== "undefined") {
         window.localStorage.setItem(LS_PREF_LANG, lang.code);
         window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
@@ -611,7 +427,9 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
         }
       }
 
-      if (pathname) setAutoAppliedPath(pathname);
+      if (pathname) {
+        setAutoAppliedPath(pathname);
+      }
     } catch (err) {
       console.error("[translate-page] error", err);
       if (!errorMsg) {
@@ -624,29 +442,26 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
 
   function handleTranslatePage() {
     if (!selectedLang) return;
-    // Manual: uses cache first, then AI for missing
     translatePageWithLang(selectedLang, { auto: false });
   }
 
-  // “Translate AI Hub (auto)” – enable auto mode (cache-only, no AI)
   function handleTranslateSite() {
     if (!selectedLang) return;
     translatePageWithLang(selectedLang, { auto: true });
   }
 
-  // ----- auto-apply translation when navigating (auto-mode, cache-only) -----
+  // auto-apply translation when navigating (auto-mode)
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!pathname) return;
 
     try {
       const autoMode = window.localStorage.getItem(LS_AUTO_MODE);
-      if (autoMode !== "1") return; // auto mode must be explicitly enabled
+      if (autoMode !== "1") return;
 
       const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       if (!savedLangCode) return;
 
-      // avoid re-applying on the same page
       if (autoAppliedPath === pathname) return;
 
       const lang =
@@ -655,10 +470,7 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
         ) || null;
       if (!lang) return;
 
-      // keep UI in sync
       setSelectedLang(lang);
-
-      // cache-only auto-translate (no AI)
       translatePageWithLang(lang, { auto: true });
     } catch (err) {
       console.error("[translate-auto] error", err);
@@ -666,7 +478,7 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  // ----- drag logic -----
+  // drag logic
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragging(true);
@@ -704,7 +516,7 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
     };
   }, [dragging]);
 
-  // ----- language helpers -----
+  // language helpers
   const popularLanguages = LANGUAGES.filter(
     (l) => l.region === "Popular"
   ).sort((a, b) => a.label.localeCompare(b.label));
@@ -732,7 +544,6 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
         }).filter((g) => g !== null) as { region: string; items: Language[] }[])
       : [];
 
-  // ----- render -----
   return (
     <>
       <button
@@ -767,7 +578,7 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
                     Translate with AI
                   </p>
                   <p className="text-[10px] text-[var(--text-muted)]">
-                    Uses cached translations first, then AI only when needed.
+                    Select your language and translate text or the page.
                   </p>
                 </div>
               </div>
@@ -806,7 +617,16 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
                           <button
                             key={`${lang.code}-${lang.label}`}
                             type="button"
-                            onClick={() => setSelectedLang(lang)}
+                            onClick={() => {
+                              setSelectedLang(lang);
+                              // 🔐 Persist preference only when user picks a language
+                              if (typeof window !== "undefined") {
+                                window.localStorage.setItem(
+                                  LS_PREF_LANG,
+                                  lang.code
+                                );
+                              }
+                            }}
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                               isSelected
                                 ? "bg-indigo-600 text-white"
@@ -830,7 +650,6 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
                     )
                   ) : (
                     <>
-                      {/* Most popular */}
                       {popularLanguages.length > 0 && (
                         <div>
                           <div className="flex items-center gap-1 mb-1 px-1">
@@ -850,7 +669,15 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
                                 <button
                                   key={`${lang.code}-${lang.label}-popular`}
                                   type="button"
-                                  onClick={() => setSelectedLang(lang)}
+                                  onClick={() => {
+                                    setSelectedLang(lang);
+                                    if (typeof window !== "undefined") {
+                                      window.localStorage.setItem(
+                                        LS_PREF_LANG,
+                                        lang.code
+                                      );
+                                    }
+                                  }}
                                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                                     isSelected
                                       ? "bg-indigo-600 text-white"
@@ -871,7 +698,6 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
                         </div>
                       )}
 
-                      {/* Regions */}
                       {groupedByRegion.map((group) => (
                         <div key={group.region}>
                           <p className="text-[10px] font-semibold text-[var(--text-muted)] px-1 mb-1">
@@ -886,7 +712,15 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
                                 <button
                                   key={`${lang.code}-${lang.label}-${group.region}`}
                                   type="button"
-                                  onClick={() => setSelectedLang(lang)}
+                                  onClick={() => {
+                                    setSelectedLang(lang);
+                                    if (typeof window !== "undefined") {
+                                      window.localStorage.setItem(
+                                        LS_PREF_LANG,
+                                        lang.code
+                                      );
+                                    }
+                                  }}
                                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                                     isSelected
                                       ? "bg-indigo-600 text-white"
@@ -952,7 +786,6 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
                     {loading ? "Working on page…" : "Translate this page"}
                   </button>
 
-                  {/* 🔁 Auto-translate the whole app (cache-only, no AI) */}
                   <button
                     type="button"
                     onClick={handleTranslateSite}
@@ -960,8 +793,8 @@ const totalChars = selectedNodes.reduce<number>((sum, n) => {
                     className="px-4 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-medium text-white disabled:opacity-60"
                   >
                     {loading
-                      ? "Applying cached translations…"
-                      : "Auto-translate app (cache only)"}
+                      ? "Applying auto-translation…"
+                      : "Auto-translate app"}
                   </button>
                 </div>
 
