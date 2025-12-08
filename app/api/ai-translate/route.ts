@@ -7,11 +7,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-// Supabase server-side client (uses SERVICE_ROLE for easy upsert)
-// If you prefer anon key + RLS, you can use NEXT_PUBLIC_SUPABASE_ANON_KEY here instead.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  // anon key is enough if RLS allows it
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 type Body = {
@@ -37,11 +36,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Normalise to array so we can handle string | string[]
     const isArrayInput = Array.isArray(text);
     const texts: string[] = isArrayInput ? (text as string[]) : [String(text)];
 
-    // Basic safety limits (mirror your client limits loosely)
     const totalChars = texts.reduce((sum, t) => sum + (t?.length || 0), 0);
     if (totalChars > 50000) {
       return NextResponse.json(
@@ -50,21 +47,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // If targetLang looks like English, you *can* short-circuit here
-    // so you don't pay to "translate" English → English:
-    const target = targetLang.toLowerCase();
-    if (target === "en" || target === "en-us" || target === "en-gb") {
+    // Do not translate English -> English (no cost)
+    const t = targetLang.toLowerCase();
+    if (t === "en" || t === "en-us" || t === "en-gb") {
       return NextResponse.json({
         translation: isArrayInput ? texts : texts[0],
       });
     }
 
-    // 1) Look up existing translations in Supabase
+    // 1) Look up cached translations
     const uniqueTexts = Array.from(
-      new Set(texts.map((t) => (t || "").trim()).filter(Boolean))
+      new Set(texts.map((v) => (v || "").trim()).filter(Boolean))
     );
 
-    let cachedMap = new Map<string, string>();
+    const cachedMap = new Map<string, string>();
 
     if (uniqueTexts.length > 0) {
       const { data: cached, error: cachedErr } = await supabase
@@ -82,7 +78,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2) Decide which snippets still need translation
     const results: (string | null)[] = new Array(texts.length).fill(null);
     const toTranslate: { index: number; original: string }[] = [];
 
@@ -101,36 +96,29 @@ export async function POST(req: Request) {
       }
     });
 
-    // 3) Call OpenAI **only for missing snippets**
+    // 2) Call OpenAI only for missing snippets
     if (toTranslate.length > 0) {
-      const newOriginals = toTranslate.map((item) => item.original);
+      const originals = toTranslate.map((x) => x.original);
+      const translated = await translateWithOpenAI(originals, targetLang);
 
-      const newTranslations = await translateWithOpenAI(
-        newOriginals,
-        targetLang
-      );
-
-      // 4) Fill results + prepare rows to upsert into Supabase
       const rowsToUpsert: TranslationRow[] = [];
 
       toTranslate.forEach((item, i) => {
-        const translated = newTranslations[i] ?? item.original;
-        results[item.index] = translated;
+        const newText = translated[i] ?? item.original;
+        results[item.index] = newText;
 
         rowsToUpsert.push({
           target_lang: targetLang,
           original_text: item.original,
-          translated_text: translated,
+          translated_text: newText,
         });
       });
 
-      // 5) Upsert to Supabase so future calls are free
+      // 3) Upsert cache
       if (rowsToUpsert.length > 0) {
         const { error: upsertErr } = await supabase
           .from("page_translations")
-          .upsert(rowsToUpsert, {
-            onConflict: "target_lang,original_text",
-          });
+          .upsert(rowsToUpsert, { onConflict: "target_lang,original_text" });
 
         if (upsertErr) {
           console.error("[ai-translate] Supabase upsert error", upsertErr);
@@ -138,12 +126,12 @@ export async function POST(req: Request) {
       }
     }
 
-    const finalTranslations = results.map((r, i) => r ?? texts[i]);
+    const final = results.map((r, i) => r ?? texts[i]);
 
     return NextResponse.json({
-      translation: isArrayInput ? finalTranslations : finalTranslations[0],
+      translation: isArrayInput ? final : final[0],
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[ai-translate] fatal error", err);
     return NextResponse.json(
       { error: "Internal error while translating." },
@@ -152,7 +140,6 @@ export async function POST(req: Request) {
   }
 }
 
-// --- Helper: call OpenAI once for an array of snippets ---
 async function translateWithOpenAI(
   snippets: string[],
   targetLang: string
@@ -177,19 +164,18 @@ ${JSON.stringify(snippets)}
     temperature: 0,
   });
 
-  const content = completion.choices[0]?.message?.content?.trim() || "[]";
+  const raw = completion.choices[0]?.message?.content?.trim() || "[]";
 
   try {
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.map((x, i) =>
-        typeof x === "string" ? x : snippets[i] ?? ""
+      return parsed.map((v, i) =>
+        typeof v === "string" ? v : snippets[i] ?? ""
       );
     }
   } catch (e) {
-    console.error("[ai-translate] JSON parse error, returning originals", e);
+    console.error("[ai-translate] JSON parse error, using originals", e);
   }
 
-  // Fallback: if the model didn’t follow instructions, just return originals
   return snippets;
 }

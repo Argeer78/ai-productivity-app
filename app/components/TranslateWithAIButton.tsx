@@ -11,6 +11,7 @@ import {
   LANGUAGES,
   REGION_ORDER,
   LS_PREF_LANG,
+  LS_LAST_PATH,
   type Language,
 } from "@/lib/translateLanguages";
 import { useLanguage } from "@/app/components/LanguageProvider";
@@ -74,8 +75,9 @@ function getTranslatableTextNodes(): Text[] {
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
-  // App UI language, used only as a *hint* for default target language
-  const { lang: uiLangCode } = useLanguage();
+  // App UI language (from provider), used only as a fallback hint
+  const languageCtx = useLanguage();
+  const uiLangCode = languageCtx?.lang || "en";
 
   const [open, setOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState<Language | null>(
@@ -95,7 +97,7 @@ export default function TranslateWithAIButton() {
   const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  // simple in-memory cache: "langCode::originalText" -> translatedText
+  // cache: "langCode::originalText" -> translatedText
   const cacheRef = useRef<Map<string, string>>(new Map());
 
   // ----- initial language: LS_PREF_LANG → UI language → browser language -----
@@ -103,15 +105,10 @@ export default function TranslateWithAIButton() {
     if (typeof window === "undefined") return;
 
     try {
-      // Make sure any old auto-mode flags from previous versions are ignored
-      // (we no longer auto-translate on navigation at all).
-      // If you still have LS_AUTO_MODE in localStorage, it will now do nothing.
-      // window.localStorage.removeItem(LS_AUTO_MODE) // optional clean-up if you still have that constant
-
       const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       let lang: Language | null = null;
 
-      // 1) Prefer Settings → Preferred translation language
+      // 1) Prefer saved manual choice from Settings
       if (savedLangCode) {
         lang =
           LANGUAGES.find(
@@ -119,7 +116,7 @@ export default function TranslateWithAIButton() {
           ) || null;
       }
 
-      // 2) If none, prefer app UI language (LanguageProvider)
+      // 2) If none, prefer app UI language
       if (!lang && uiLangCode) {
         const uiBase = uiLangCode.split("-")[0].toLowerCase();
         lang =
@@ -184,11 +181,19 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- basic text translation (manual only) -----
+  // ----- basic text translation -----
   async function handleTranslateText() {
     if (!selectedLang) return;
     if (!sourceText.trim()) {
       setErrorMsg("Please type or paste some text to translate.");
+      return;
+    }
+
+    // If target language is effectively English, don't waste API calls
+    const code = selectedLang.code.toLowerCase();
+    if (code === "en" || code === "en-us" || code === "en-gb") {
+      setTranslatedText(sourceText);
+      setErrorMsg("");
       return;
     }
 
@@ -247,8 +252,18 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation (manual only, no auto-mode) -----
+  // ----- page translation (progressive chunks + cache + concurrency) -----
   async function translatePageWithLang(lang: Language) {
+    // If the selected language is English, do NOT translate
+    const code = lang.code.toLowerCase();
+    if (code === "en" || code === "en-us" || code === "en-gb") {
+      setErrorMsg("");
+      setTranslatedText(
+        "Page is already in English and target language is English – nothing to translate."
+      );
+      return;
+    }
+
     setErrorMsg("");
     setTranslatedText("Preparing page for translation…");
     setLoading(true);
@@ -262,10 +277,8 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      // Use the entire page; rely on caps to limit cost
       const nodesToUse: Text[] = allNodes;
 
-      // Apply global caps (nodes + characters) + cache
       const selectedNodes: Text[] = [];
       let globalChars = 0;
       const langCode = lang.code.toLowerCase();
@@ -283,8 +296,7 @@ export default function TranslateWithAIButton() {
         const cached = cacheRef.current.get(cacheKey);
 
         if (cached) {
-          // Instant translation from cache
-          node.textContent = cached;
+          node.textContent = cached; // Instant translation
           continue;
         }
 
@@ -306,7 +318,6 @@ export default function TranslateWithAIButton() {
         0
       );
 
-      // Build batches
       type Batch = { nodes: Text[]; charCount: number };
       const batches: Batch[] = [];
       let currentNodes: Text[] = [];
@@ -351,7 +362,7 @@ export default function TranslateWithAIButton() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: texts, // array, for potential server-side caching per snippet
+            text: texts, // array, for server-side caching per snippet
             targetLang: lang.code,
           }),
         });
@@ -403,7 +414,7 @@ export default function TranslateWithAIButton() {
         return { snippets: m, chars: batch.charCount };
       }
 
-      // Process batches with small concurrency, applying each as we go
+      // Process batches with small concurrency
       for (let i = 0; i < batches.length; i += CONCURRENCY) {
         const slice = batches.slice(i, i + CONCURRENCY);
 
@@ -426,6 +437,11 @@ export default function TranslateWithAIButton() {
         setTranslatedText(
           `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`
         );
+      }
+
+      // Persist last path (for debugging / future logic if needed)
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
       }
     } catch (err) {
       console.error("[translate-page] error", err);

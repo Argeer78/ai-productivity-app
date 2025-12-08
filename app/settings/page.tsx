@@ -6,7 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import { useAnalytics } from "@/lib/analytics";
-import { LANGUAGES, LS_PREF_LANG } from "@/lib/translateLanguages";
+import { LS_PREF_LANG } from "@/lib/translateLanguages";
 import NotificationSettings from "@/app/components/NotificationSettings";
 import { useTheme, type ThemeId } from "@/app/components/ThemeProvider";
 import { subscribeToPush } from "@/lib/pushClient";
@@ -26,18 +26,6 @@ const TONE_OPTIONS: { value: Tone; label: string }[] = [
   { value: "casual", label: "Casual" },
 ];
 
-// Precompute unique language options once (for translation target dropdown)
-const languageOptions = (() => {
-  const seen = new Set<string>();
-
-  return LANGUAGES.filter((lang) => {
-    const key = `${lang.code}-${lang.label}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).sort((a, b) => a.label.localeCompare(b.label));
-})();
-
 // Theme options for the picker
 const THEME_OPTIONS: { value: ThemeId; label: string }[] = [
   { value: "default", label: "Dark (default)" },
@@ -54,10 +42,6 @@ const THEME_OPTIONS: { value: ThemeId; label: string }[] = [
 export default function SettingsPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
-  const { lang, setLang } = useLanguage();
-
-  // 🌐 Preferred translation language (for TranslateWithAIButton)
-  const [preferredLangCode, setPreferredLangCode] = useState<string>("");
 
   const [tone, setTone] = useState<Tone>("balanced");
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
@@ -213,22 +197,19 @@ export default function SettingsPage() {
           // so the theme you pick and what's in localStorage wins.
         }
 
-        // Preferred translation language from localStorage
-                if (typeof window !== "undefined") {
+        // Optional: if LS_PREF_LANG already exists, sync LanguageProvider once
+        if (typeof window !== "undefined") {
           const lsLang = window.localStorage.getItem(LS_PREF_LANG);
           if (lsLang) {
-            setPreferredLangCode(lsLang);
-
-            const base = lsLang.split("-")[0];
+            const base = lsLang.split("-")[0] as Lang;
             const supported = SUPPORTED_LANGS.find(
               (entry) => entry.code === base
             );
             if (supported) {
-              setLang(base as Lang);
+              setAppLang(base);
             }
           }
         }
-
       } catch (err: any) {
         console.error(err);
         setError("Failed to load your settings.");
@@ -238,7 +219,7 @@ export default function SettingsPage() {
     }
 
     loadProfile();
-  }, [user]);
+  }, [user, setAppLang]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -270,20 +251,11 @@ export default function SettingsPage() {
         return;
       }
 
-            // Save preferred translation language to localStorage + sync UI language
+      // LS_PREF_LANG is already synced on dropdown change,
+      // but we can also re-enforce here just in case:
       if (typeof window !== "undefined") {
-        if (preferredLangCode) {
-          window.localStorage.setItem(LS_PREF_LANG, preferredLangCode);
-
-          const base = preferredLangCode.split("-")[0];
-          const supported = SUPPORTED_LANGS.find(
-            (entry) => entry.code === base
-          );
-          if (supported) {
-            setLang(base as Lang);
-          }
-        } else {
-          window.localStorage.removeItem(LS_PREF_LANG);
+        if (appLang) {
+          window.localStorage.setItem(LS_PREF_LANG, appLang);
         }
       }
 
@@ -309,7 +281,6 @@ export default function SettingsPage() {
     setPushStatus(null);
 
     try {
-      // This will throw if anything goes wrong
       await subscribeToPush(user.id);
 
       setPushEnabled(true);
@@ -362,7 +333,6 @@ export default function SettingsPage() {
         await sub.unsubscribe();
       }
 
-      // Optionally also remove from DB for this user
       try {
         await fetch("/api/push/unsubscribe", {
           method: "POST",
@@ -678,48 +648,30 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* 🌐 App UI language */}
+              {/* 🌐 Single language dropdown (app language + translator default) */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
-                  App language
+                  Language
                 </label>
                 <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                  This changes the language of menus, navigation, and built-in texts.
+                  This changes the app interface language and is used as the default
+                  target for the “Translate with AI” button.
                 </p>
                 <select
                   value={appLang}
-                  onChange={(e) => setAppLang(e.target.value as Lang)}
+                  onChange={(e) => {
+                    const newLang = e.target.value as Lang;
+                    setAppLang(newLang);
+                    if (typeof window !== "undefined") {
+                      // Also drive TranslateWithAIButton default
+                      window.localStorage.setItem(LS_PREF_LANG, newLang);
+                    }
+                  }}
                   className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
                 >
                   {SUPPORTED_LANGS.map((opt) => (
                     <option key={opt.code} value={opt.code}>
                       {opt.label ?? opt.code.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Preferred translation language */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
-                  Preferred translation language
-                </label>
-                <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                  Used as the default target for the “Translate with AI” button and
-                  auto-translation across the app.
-                </p>
-                <select
-                  value={preferredLangCode}
-                  onChange={(e) => setPreferredLangCode(e.target.value)}
-                  className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
-                >
-                  <option value="">Use my browser language</option>
-                  {languageOptions.map((lang) => (
-                    <option
-                      key={`${lang.code}-${lang.label}`}
-                      value={lang.code}
-                    >
-                      {lang.flag} {lang.label}
                     </option>
                   ))}
                 </select>
