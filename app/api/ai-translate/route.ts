@@ -1,272 +1,195 @@
 // app/api/ai-translate/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createClient } from "@supabase/supabase-js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-type TranslateRequestBody = {
-  text?: string | string[];
-  targetLang?: string;
+// Supabase server-side client (uses SERVICE_ROLE for easy upsert)
+// If you prefer anon key + RLS, you can use NEXT_PUBLIC_SUPABASE_ANON_KEY here instead.
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+type Body = {
+  text: string | string[];
+  targetLang: string;
 };
 
-type BatchResult = {
-  translations: string[];
+type TranslationRow = {
+  target_lang: string;
+  original_text: string;
+  translated_text: string;
 };
-
-function normalizeText(text: string): string {
-  return text.trim();
-}
-
-async function translateBatchWithCache(
-  texts: string[],
-  targetLang: string
-): Promise<BatchResult> {
-  const normTexts = texts.map((t) => normalizeText(t));
-  const langCode = targetLang.toLowerCase();
-
-  // 1) Fetch existing translations from Supabase
-  const { data: existing, error: existingErr } = await supabaseAdmin
-    .from("page_translations")
-    .select("original_text, translated_text")
-    .eq("language_code", langCode)
-    .in("original_text", normTexts);
-
-  if (existingErr) {
-    console.error("[ai-translate] fetch cache error", existingErr);
-  }
-
-  const cacheMap = new Map<string, string>();
-  (existing || []).forEach((row) => {
-    cacheMap.set(normalizeText(row.original_text), row.translated_text);
-  });
-
-  // 2) Build result array and find missing indices
-  const result: string[] = [];
-  const missingIndices: number[] = [];
-  const missingItems: { index: number; text: string }[] = [];
-
-  normTexts.forEach((t, idx) => {
-    const cached = cacheMap.get(t);
-    if (cached) {
-      result[idx] = cached;
-    } else {
-      result[idx] = ""; // placeholder
-      missingIndices.push(idx);
-      missingItems.push({ index: idx, text: t });
-    }
-  });
-
-  // If everything was cached, we’re done
-  if (missingItems.length === 0) {
-    return { translations: result };
-  }
-
-  // 3) Call OpenAI for missing ones only
-  const systemPrompt = `
-You are a translation engine for a productivity web app.
-Translate each item in an array of snippets into the requested target language.
-
-- Keep meaning and tone.
-- Be natural and concise.
-- Do NOT translate placeholders like {name}, {date}, {count}.
-- Preserve punctuation and emojis where they add meaning.
-
-Return ONLY valid JSON with this shape:
-
-{
-  "items": [
-    { "index": 0, "translated": "..." },
-    { "index": 1, "translated": "..." },
-    ...
-  ]
-}
-
-"index" must match the index in the provided "items" array.
-`.trim();
-
-  const userPrompt = `
-Target language: ${langCode}
-
-Input items (JSON):
-
-${JSON.stringify(
-  missingItems.map((item) => ({
-    index: item.index,
-    text: item.text,
-  })),
-  null,
-  2
-)}
-
-Remember: respond with JSON only.
-`.trim();
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.3,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  });
-
-  const raw = completion.choices[0]?.message?.content?.trim() || "{}";
-
-  let parsed: {
-    items?: { index?: number; translated?: string }[];
-  };
-
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    console.error("[ai-translate] JSON parse error", err, raw);
-    throw new Error("Failed to parse translation response");
-  }
-
-  const items = parsed.items || [];
-
-  // 4) Apply new translations to result and prepare rows to insert
-  const rowsToInsert: {
-    language_code: string;
-    original_text: string;
-    translated_text: string;
-  }[] = [];
-
-  for (const item of items) {
-    if (
-      typeof item.index === "number" &&
-      item.index >= 0 &&
-      item.index < normTexts.length &&
-      typeof item.translated === "string"
-    ) {
-      const idx = item.index;
-      const translated = item.translated.trim();
-      const original = normTexts[idx];
-
-      result[idx] = translated;
-
-      rowsToInsert.push({
-        language_code: langCode,
-        original_text: original,
-        translated_text: translated,
-      });
-    }
-  }
-
-  // 5) Store new translations in Supabase (ignore errors)
-  if (rowsToInsert.length > 0) {
-    const { error: insertErr } = await supabaseAdmin
-      .from("page_translations")
-      .upsert(rowsToInsert, {
-        onConflict: "language_code,original_text",
-      });
-
-    if (insertErr) {
-      console.error("[ai-translate] upsert cache error", insertErr);
-    }
-  }
-
-  return { translations: result };
-}
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as
-      | TranslateRequestBody
-      | null;
+    const body = (await req.json()) as Body;
+    const { text, targetLang } = body || {};
 
-    if (!body || body.text == null || !body.targetLang) {
+    if (!text || !targetLang) {
       return NextResponse.json(
-        { translation: null, error: "Missing text or targetLang" },
+        { error: "Missing text or targetLang" },
         { status: 400 }
       );
     }
 
-    const targetLang = String(body.targetLang).trim();
-    if (!targetLang) {
+    // Normalise to array so we can handle string | string[]
+    const isArrayInput = Array.isArray(text);
+    const texts: string[] = isArrayInput ? (text as string[]) : [String(text)];
+
+    // Basic safety limits (mirror your client limits loosely)
+    const totalChars = texts.reduce((sum, t) => sum + (t?.length || 0), 0);
+    if (totalChars > 50000) {
       return NextResponse.json(
-        { translation: null, error: "Invalid targetLang" },
-        { status: 400 }
+        { error: "Payload too large" },
+        { status: 413 }
       );
     }
 
-    // CASE 1: Single string (backwards compatible)
-    if (typeof body.text === "string") {
-      const text = body.text.trim();
-
-      if (!text) {
-        return NextResponse.json(
-          { translation: "", error: null },
-          { status: 200 }
-        );
-      }
-
-      const { translations } = await translateBatchWithCache(
-        [text],
-        targetLang
-      );
-
-      return NextResponse.json(
-        {
-          translation: translations[0] ?? "",
-          error: null,
-        },
-        { status: 200 }
-      );
+    // If targetLang looks like English, you *can* short-circuit here
+    // so you don't pay to "translate" English → English:
+    const target = targetLang.toLowerCase();
+    if (target === "en" || target === "en-us" || target === "en-gb") {
+      return NextResponse.json({
+        translation: isArrayInput ? texts : texts[0],
+      });
     }
 
-    // CASE 2: Array of strings
-    if (Array.isArray(body.text)) {
-      const texts = body.text.map((t) => String(t ?? ""));
-
-      if (texts.every((t) => !t.trim())) {
-        return NextResponse.json(
-          { translation: texts, error: null },
-          { status: 200 }
-        );
-      }
-
-      const { translations } = await translateBatchWithCache(
-        texts,
-        targetLang
-      );
-
-      return NextResponse.json(
-        {
-          translation: translations,
-          error: null,
-        },
-        { status: 200 }
-      );
-    }
-
-    return NextResponse.json(
-      { translation: null, error: "Invalid text payload" },
-      { status: 400 }
+    // 1) Look up existing translations in Supabase
+    const uniqueTexts = Array.from(
+      new Set(texts.map((t) => (t || "").trim()).filter(Boolean))
     );
+
+    let cachedMap = new Map<string, string>();
+
+    if (uniqueTexts.length > 0) {
+      const { data: cached, error: cachedErr } = await supabase
+        .from("page_translations")
+        .select("original_text, translated_text")
+        .eq("target_lang", targetLang)
+        .in("original_text", uniqueTexts);
+
+      if (cachedErr) {
+        console.error("[ai-translate] Supabase select error", cachedErr);
+      } else if (cached) {
+        for (const row of cached as TranslationRow[]) {
+          cachedMap.set(row.original_text, row.translated_text);
+        }
+      }
+    }
+
+    // 2) Decide which snippets still need translation
+    const results: (string | null)[] = new Array(texts.length).fill(null);
+    const toTranslate: { index: number; original: string }[] = [];
+
+    texts.forEach((snippet, index) => {
+      const original = (snippet || "").trim();
+      if (!original) {
+        results[index] = "";
+        return;
+      }
+
+      const cached = cachedMap.get(original);
+      if (cached) {
+        results[index] = cached;
+      } else {
+        toTranslate.push({ index, original });
+      }
+    });
+
+    // 3) Call OpenAI **only for missing snippets**
+    if (toTranslate.length > 0) {
+      const newOriginals = toTranslate.map((item) => item.original);
+
+      const newTranslations = await translateWithOpenAI(
+        newOriginals,
+        targetLang
+      );
+
+      // 4) Fill results + prepare rows to upsert into Supabase
+      const rowsToUpsert: TranslationRow[] = [];
+
+      toTranslate.forEach((item, i) => {
+        const translated = newTranslations[i] ?? item.original;
+        results[item.index] = translated;
+
+        rowsToUpsert.push({
+          target_lang: targetLang,
+          original_text: item.original,
+          translated_text: translated,
+        });
+      });
+
+      // 5) Upsert to Supabase so future calls are free
+      if (rowsToUpsert.length > 0) {
+        const { error: upsertErr } = await supabase
+          .from("page_translations")
+          .upsert(rowsToUpsert, {
+            onConflict: "target_lang,original_text",
+          });
+
+        if (upsertErr) {
+          console.error("[ai-translate] Supabase upsert error", upsertErr);
+        }
+      }
+    }
+
+    const finalTranslations = results.map((r, i) => r ?? texts[i]);
+
+    return NextResponse.json({
+      translation: isArrayInput ? finalTranslations : finalTranslations[0],
+    });
   } catch (err: any) {
-    console.error("[ai-translate] error", err);
-
-    const msg =
-      typeof err?.message === "string" ? err.message : "Unknown error";
-    const isRateLimit =
-      msg.toLowerCase().includes("rate") &&
-      msg.toLowerCase().includes("limit");
-
-    const status = isRateLimit ? 429 : 500;
-
+    console.error("[ai-translate] fatal error", err);
     return NextResponse.json(
-      {
-        translation: null,
-        error: isRateLimit
-          ? "AI translation is being rate-limited. Please try again in a few seconds."
-          : "Translation service temporarily unavailable.",
-      },
-      { status }
+      { error: "Internal error while translating." },
+      { status: 500 }
     );
   }
+}
+
+// --- Helper: call OpenAI once for an array of snippets ---
+async function translateWithOpenAI(
+  snippets: string[],
+  targetLang: string
+): Promise<string[]> {
+  if (snippets.length === 0) return [];
+
+  const prompt = `
+You are a translation engine.
+
+- Translate EACH item in the JSON array into ${targetLang}.
+- Keep markdown, emojis and formatting as much as possible.
+- Do NOT add numbering, explanations or extra text.
+- Your entire response MUST be a valid JSON array of strings, same length and order as the input.
+
+Input JSON array:
+${JSON.stringify(snippets)}
+`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0,
+  });
+
+  const content = completion.choices[0]?.message?.content?.trim() || "[]";
+
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) {
+      return parsed.map((x, i) =>
+        typeof x === "string" ? x : snippets[i] ?? ""
+      );
+    }
+  } catch (e) {
+    console.error("[ai-translate] JSON parse error, returning originals", e);
+  }
+
+  // Fallback: if the model didn’t follow instructions, just return originals
+  return snippets;
 }
