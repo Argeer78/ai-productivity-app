@@ -54,6 +54,7 @@ const THEME_OPTIONS: { value: ThemeId; label: string }[] = [
 export default function SettingsPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+  const { lang, setLang } = useLanguage();
 
   // 🌐 Preferred translation language (for TranslateWithAIButton)
   const [preferredLangCode, setPreferredLangCode] = useState<string>("");
@@ -213,12 +214,21 @@ export default function SettingsPage() {
         }
 
         // Preferred translation language from localStorage
-        if (typeof window !== "undefined") {
+                if (typeof window !== "undefined") {
           const lsLang = window.localStorage.getItem(LS_PREF_LANG);
           if (lsLang) {
             setPreferredLangCode(lsLang);
+
+            const base = lsLang.split("-")[0];
+            const supported = SUPPORTED_LANGS.find(
+              (entry) => entry.code === base
+            );
+            if (supported) {
+              setLang(base as Lang);
+            }
           }
         }
+
       } catch (err: any) {
         console.error(err);
         setError("Failed to load your settings.");
@@ -260,10 +270,18 @@ export default function SettingsPage() {
         return;
       }
 
-      // Save preferred translation language to localStorage
+            // Save preferred translation language to localStorage + sync UI language
       if (typeof window !== "undefined") {
         if (preferredLangCode) {
           window.localStorage.setItem(LS_PREF_LANG, preferredLangCode);
+
+          const base = preferredLangCode.split("-")[0];
+          const supported = SUPPORTED_LANGS.find(
+            (entry) => entry.code === base
+          );
+          if (supported) {
+            setLang(base as Lang);
+          }
         } else {
           window.localStorage.removeItem(LS_PREF_LANG);
         }
