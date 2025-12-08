@@ -2,14 +2,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderEmail } from "@/lib/emailTasks";
-import {
-  sendTaskReminderPush,
-  SubscriptionRow,
-} from "@/lib/pushServer";
+import { sendTaskReminderPush } from "@/lib/pushServer";
 
 export const runtime = "nodejs";
-
-// --- Cron auth ---------------------------------------------------------
 
 function checkCronAuth(req: Request): NextResponse | null {
   const CRON_SECRET = process.env.CRON_SECRET;
@@ -47,10 +42,7 @@ function checkCronAuth(req: Request): NextResponse | null {
   return null;
 }
 
-// --- Main handler ------------------------------------------------------
-
 export async function GET(req: Request) {
-  // 0) Auth check
   const authError = checkCronAuth(req);
   if (authError) return authError;
 
@@ -67,10 +59,9 @@ export async function GET(req: Request) {
   try {
     const now = new Date();
     const nowIso = now.toISOString();
-
     console.log("[reminder-cron] running at", nowIso);
 
-    // 1) Find due tasks
+    // 1) Find due tasks that have a reminder enabled and not yet sent
     const { data: tasks, error } = await supabaseAdmin
       .from("tasks")
       .select(
@@ -153,23 +144,34 @@ export async function GET(req: Request) {
             task.user_id
           );
         } else {
-          console.log(
-            "[reminder-cron] sending push to",
-            subs.length,
-            "subscriptions for user",
-            task.user_id
-          );
-
-          for (const s of subs as SubscriptionRow[]) {
-            await sendTaskReminderPush(s, {
-              taskId: task.id,
-              title,
-              note: task.description,
-            });
+          // 3c) Send push for each subscription
+          for (const sub of subs) {
+            try {
+              await sendTaskReminderPush(
+                {
+                  endpoint: sub.endpoint,
+                  p256dh: sub.p256dh,
+                  auth: sub.auth,
+                },
+                {
+                  taskId: task.id,
+                  title,
+                  note: task.description ?? null,
+                }
+              );
+            } catch (pushErr) {
+              console.error(
+                "[reminder-cron] push error for user",
+                task.user_id,
+                "task",
+                task.id,
+                pushErr
+              );
+            }
           }
         }
 
-        // 4) Mark as sent
+        // 4) Mark as sent so we don't send it again
         const { error: updateError } = await supabaseAdmin
           .from("tasks")
           .update({ reminder_sent_at: new Date().toISOString() })

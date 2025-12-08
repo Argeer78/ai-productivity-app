@@ -6,10 +6,9 @@ const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
 const subject = process.env.VAPID_SUBJECT || "mailto:hello@aiprod.app";
 
-// Configure VAPID once, centrally
 if (!publicKey || !privateKey) {
-  console.warn(
-    "[pushServer] Missing VAPID keys – push notifications will NOT be sent."
+  throw new Error(
+    "[pushServer] Missing VAPID keys – push notifications will NOT work."
   );
 } else {
   webpush.setVapidDetails(subject, publicKey, privateKey);
@@ -31,13 +30,6 @@ export async function sendTaskReminderPush(
   sub: SubscriptionRow,
   payload: TaskPushPayload
 ) {
-  if (!publicKey || !privateKey) {
-    console.log(
-      "[pushServer] Skipping push – VAPID keys not configured in environment."
-    );
-    return;
-  }
-
   if (!payload.taskId || !payload.title) {
     console.error("[pushServer] Invalid payload: Missing taskId or title.");
     return;
@@ -65,20 +57,18 @@ export async function sendTaskReminderPush(
     );
     console.log("[pushServer] Push sent to", sub.endpoint);
   } catch (err: any) {
-    const status = err?.statusCode;
     console.error(
       "[pushServer] Failed to send push notification:",
-      status,
+      err?.statusCode,
       err?.body || err
     );
 
-    // Clean up dead subscriptions
-    if (status === 404 || status === 410) {
+    if (err?.statusCode === 410 || err?.statusCode === 404) {
+      console.log(
+        "[pushServer] Subscription expired, removing from DB:",
+        sub.endpoint
+      );
       try {
-        console.log(
-          "[pushServer] Subscription expired, removing from DB:",
-          sub.endpoint
-        );
         await supabaseAdmin
           .from("push_subscriptions")
           .delete()
