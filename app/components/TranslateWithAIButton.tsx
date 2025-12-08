@@ -22,12 +22,12 @@ type TranslationResponse = {
 };
 
 // Hard limits for page translation to control cost & speed
-const MAX_NODES_PER_PAGE = 200;
-const MAX_TOTAL_CHARS = 20000;
+const MAX_NODES_PER_PAGE = 500;
+const MAX_TOTAL_CHARS = 50000;
 
 // Per-request batch limits (for progressive translation)
-const MAX_BATCH_NODES = 30;
-const MAX_BATCH_CHARS = 4000;
+const MAX_BATCH_NODES = 50;
+const MAX_BATCH_CHARS = 5000;
 
 const VISIBLE_NODE_MULTIPLIER = 1.5; // how far below viewport we still consider "important"
 const SEPARATOR = "\n\n----\n\n";
