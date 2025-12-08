@@ -46,14 +46,14 @@ function resolveNaturalDue(label: string): string | null {
 
   // --- Time-of-day keywords ---
   if (text.includes("morning")) {
-    // you said you like 08:00 for “morning”
+    // morning → 08:00
     target.setHours(8, 0, 0, 0);
   } else if (text.includes("noon")) {
     target.setHours(12, 0, 0, 0);
   } else if (text.includes("afternoon")) {
     target.setHours(15, 0, 0, 0);
   } else if (text.includes("evening") || text.includes("tonight")) {
-    // you said ~20:00 for “evening”
+    // evening → 20:00
     target.setHours(20, 0, 0, 0);
   }
 
@@ -109,7 +109,7 @@ type AiMode = "summarize" | "bullets" | "rewrite";
 // ✅ Normalized voice task suggestion shape for the UI + task creation
 type VoiceTaskSuggestion = {
   title: string;
-  dueIso: string | null;   // machine-usable ISO datetime (UTC)
+  dueIso: string | null; // machine-usable ISO datetime (UTC)
   dueLabel: string | null; // human-readable label for the UI
   priority?: "low" | "medium" | "high" | null;
 };
@@ -208,7 +208,7 @@ export default function NotesPage() {
   // For resetting voice capture after save / reset button
   const [voiceResetKey, setVoiceResetKey] = useState(0);
 
-  // Voice → suggested tasks from AI (normalized)
+  // Voice / note → suggested tasks from AI (normalized)
   const [voiceSuggestedTasks, setVoiceSuggestedTasks] = useState<
     VoiceTaskSuggestion[]
   >([]);
@@ -217,6 +217,11 @@ export default function NotesPage() {
 
   // ✅ Accordion state for notes (open/closed)
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([]);
+
+  // 🆕 Loading state per-note for "Tasks from note"
+  const [noteTasksLoadingId, setNoteTasksLoadingId] = useState<string | null>(
+    null
+  );
 
   function toggleNoteOpen(id: string) {
     setOpenNoteIds((prev) =>
@@ -299,7 +304,7 @@ export default function NotesPage() {
       }
     }
 
-    // 3) Normalize tasks into VoiceTaskSuggestion[]
+    // 3) Normalize tasks into VoiceTaskSuggestion[] (with natural-language fallback → ISO)
     if (structured && Array.isArray(structured.tasks)) {
       const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
         const rawTitle =
@@ -310,23 +315,37 @@ export default function NotesPage() {
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
 
-        // Use explicit ISO from the model directly (it's already UTC)
+        // 1) Prefer explicit ISO from the model
         if (typeof t.due_iso === "string" && t.due_iso.trim()) {
           dueIso = t.due_iso.trim();
           const parsed = Date.parse(dueIso);
           if (!Number.isNaN(parsed)) {
-            // Nicely formatted label in *local* time for the UI
             dueLabel = new Date(parsed).toLocaleString();
           }
         }
 
-        // If we don't have a label yet, fallback to natural string
+        // 2) If there's a natural-language due and no ISO, try to resolve it
         if (
-          !dueLabel &&
+          !dueIso &&
           typeof t.due_natural === "string" &&
           t.due_natural.trim()
         ) {
-          dueLabel = t.due_natural.trim();
+          const natural = t.due_natural.trim();
+
+          // Try to convert phrases like "tomorrow morning" → ISO
+          const resolved = resolveNaturalDue(natural);
+          if (resolved) {
+            dueIso = resolved;
+            const parsed = Date.parse(resolved);
+            if (!Number.isNaN(parsed)) {
+              dueLabel = new Date(parsed).toLocaleString();
+            }
+          }
+
+          // If we still don't have a label, use the natural text
+          if (!dueLabel) {
+            dueLabel = natural;
+          }
         }
 
         return {
@@ -348,6 +367,112 @@ export default function NotesPage() {
     } else {
       setVoiceSuggestedTasks([]);
       setVoiceTasksMessage("");
+    }
+  }
+
+  // 🆕 Generate tasks from a note using backend AI endpoint
+  async function handleGenerateTasksFromNote(note: Note) {
+    if (!user) {
+      setError("You need to be logged in to create tasks from notes.");
+      return;
+    }
+    if (!note.content?.trim()) return;
+
+    setError("");
+    setVoiceTasksMessage("");
+    setNoteTasksLoadingId(note.id);
+
+    try {
+      const res = await fetch("/api/ai/note-to-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noteId: note.id,
+          content: note.content,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.ok) {
+        console.error("[note-to-tasks] error:", data);
+        setError(
+          data?.error || "Failed to generate tasks from this note. Try again."
+        );
+        setNoteTasksLoadingId(null);
+        return;
+      }
+
+      const rawTasks = Array.isArray(data.tasks) ? data.tasks : [];
+
+      const suggestions: VoiceTaskSuggestion[] = rawTasks.map((t: any) => {
+        const rawTitle =
+          typeof t.title === "string" && t.title.trim()
+            ? t.title.trim()
+            : "(Untitled task)";
+
+        let dueIso: string | null = null;
+        let dueLabel: string | null = null;
+
+        // Prefer explicit ISO if provided
+        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
+          dueIso = t.due_iso.trim();
+          const parsed = Date.parse(dueIso);
+          if (!Number.isNaN(parsed)) {
+            dueLabel = new Date(parsed).toLocaleString();
+          }
+        }
+
+        // If no ISO, try to resolve natural language
+        if (
+          !dueIso &&
+          typeof t.due_natural === "string" &&
+          t.due_natural.trim()
+        ) {
+          const natural = t.due_natural.trim();
+          const resolved = resolveNaturalDue(natural);
+          if (resolved) {
+            dueIso = resolved;
+            const parsed = Date.parse(resolved);
+            if (!Number.isNaN(parsed)) {
+              dueLabel = new Date(parsed).toLocaleString();
+            }
+          }
+          if (!dueLabel) {
+            dueLabel = natural;
+          }
+        }
+
+        return {
+          title: rawTitle,
+          dueIso,
+          dueLabel,
+          priority:
+            t.priority === "low" ||
+            t.priority === "medium" ||
+            t.priority === "high"
+              ? t.priority
+              : null,
+        };
+      });
+
+      const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
+      setVoiceSuggestedTasks(nonEmpty);
+
+      if (nonEmpty.length > 0) {
+        setVoiceTasksMessage(
+          `Generated ${nonEmpty.length} task suggestion${
+            nonEmpty.length > 1 ? "s" : ""
+          } from the note.`
+        );
+      } else {
+        setVoiceTasksMessage("No clear tasks were found in this note.");
+      }
+    } catch (err) {
+      console.error("[note-to-tasks] unexpected error:", err);
+      setError("Unexpected error while generating tasks from this note.");
+    } finally {
+      setNoteTasksLoadingId(null);
     }
   }
 
@@ -610,127 +735,132 @@ export default function NotesPage() {
   }
 
   /// ✅ Create tasks from voiceSuggestedTasks with due date + time + reminders + category
-async function handleCreateTasksFromVoice() {
-  if (!user) return;
-  if (voiceSuggestedTasks.length === 0) return;
+  async function handleCreateTasksFromVoice() {
+    if (!user) return;
+    if (voiceSuggestedTasks.length === 0) return;
 
-  setCreatingTasks(true);
-  setError("");
-  setVoiceTasksMessage("");
+    setCreatingTasks(true);
+    setError("");
+    setVoiceTasksMessage("");
 
-  try {
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, "0");
+    try {
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
 
-    const rows = voiceSuggestedTasks.map((t) => {
-      let dueIso: string | null = t.dueIso || null;
+      const rows = voiceSuggestedTasks.map((t) => {
+        let dueIso: string | null = t.dueIso || null;
 
-      // If we don't have an explicit ISO but the label looks like a date, we can try parsing it
-      if (!dueIso && t.dueLabel) {
-        const parsed = Date.parse(t.dueLabel);
-        if (!Number.isNaN(parsed)) {
-          dueIso = new Date(parsed).toISOString();
+        // If we don't have an explicit ISO but the label looks like a date, try parsing
+        if (!dueIso && t.dueLabel) {
+          const parsed = Date.parse(t.dueLabel);
+          if (!Number.isNaN(parsed)) {
+            dueIso = new Date(parsed).toISOString();
+          } else {
+            // Last fallback: try natural-language resolver
+            const resolved = resolveNaturalDue(t.dueLabel);
+            if (resolved) {
+              dueIso = resolved;
+            }
+          }
         }
-      }
 
-      let reminderAt: string | null = null;
-      let timeFrom: string | null = null;
-      let timeTo: string | null = null;
-      let dueDateForColumn: string | null = null;
+        let reminderAt: string | null = null;
+        let timeFrom: string | null = null;
+        let timeTo: string | null = null;
+        let dueDateForColumn: string | null = null;
 
-      if (dueIso) {
-        const due = new Date(dueIso);
+        if (dueIso) {
+          const due = new Date(dueIso);
 
-        // Store full ISO (tasks page slices date part for the datepicker)
-        dueDateForColumn = dueIso;
+          // Store full ISO (tasks page slices date part for the datepicker)
+          dueDateForColumn = dueIso;
 
-        // Build local time_from / time_to from the due datetime
-        const local = new Date(due); // local wall time
-        const h = local.getHours();
-        const m = local.getMinutes();
+          // Build local time_from / time_to from the due datetime
+          const local = new Date(due); // local wall time
+          const h = local.getHours();
+          const m = local.getMinutes();
 
-        timeFrom = `${pad(h)}:${pad(m)}`;
-        const end = new Date(local.getTime() + 60 * 60 * 1000); // +1 hour slot
-        timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+          timeFrom = `${pad(h)}:${pad(m)}`;
+          const end = new Date(local.getTime() + 60 * 60 * 1000); // +1 hour slot
+          timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
 
-        // 🔥 ALWAYS set reminder if we have a dueIso
-        reminderAt = dueIso;
-      }
+          // 🔥 ALWAYS set reminder if we have a dueIso
+          reminderAt = dueIso;
+        }
 
-      const row: any = {
-        user_id: user.id,
-        title: t.title,
-        description: null,
-        completed: false,
-        created_at: now.toISOString(),
-        completed_at: null,
+        const row: any = {
+          user_id: user.id,
+          title: t.title,
+          description: null,
+          completed: false,
+          created_at: now.toISOString(),
+          completed_at: null,
 
-        // 🔹 Auto-suggest category from the note's category (if any)
-        category: newCategory || null,
+          // 🔹 Auto-suggest category from the note's category (if any)
+          category: newCategory || null,
 
-        // 🔹 Pre-fill time range in Tasks UI
-        time_from: timeFrom,
-        time_to: timeTo,
+          // 🔹 Pre-fill time range in Tasks UI
+          time_from: timeFrom,
+          time_to: timeTo,
 
-        // 🔹 Date picker value
-        due_date: dueDateForColumn, // can be null if no usable date
+          // 🔹 Date picker value
+          due_date: dueDateForColumn, // can be null if no usable date
 
-        // 🔹 Reminders
-        reminder_enabled: !!reminderAt,
-        reminder_at: reminderAt,
-        reminder_sent_at: null,
-      };
+          // 🔹 Reminders
+          reminder_enabled: !!reminderAt,
+          reminder_at: reminderAt,
+          reminder_sent_at: null,
+        };
 
-      return row;
-    });
+        return row;
+      });
 
-    console.log("[voice-tasks] inserting rows:", rows);
+      console.log("[voice-tasks] inserting rows:", rows);
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert(rows)
-      .select(
-        "id, due_date, reminder_enabled, reminder_at, time_from, time_to, category"
-      );
-
-    console.log("[voice-tasks] insert result:", { data, error });
-
-    if (error) {
-      let extra = "";
-      try {
-        extra = JSON.stringify(
-          {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code,
-          },
-          null,
-          2
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert(rows)
+        .select(
+          "id, due_date, reminder_enabled, reminder_at, time_from, time_to, category"
         );
-      } catch {
-        // ignore
-      }
 
-      console.error("[voice-tasks] insert error full:", error);
-      setError(
-        "Failed to create tasks from your voice note: " +
-          (error.message || error.details || extra || "Unknown error")
-      );
-    } else {
-      setVoiceTasksMessage(
-        `Created ${rows.length} tasks from your voice note.`
-      );
-      setVoiceSuggestedTasks([]);
-      // optional: track("voice_tasks_created", { count: rows.length });
+      console.log("[voice-tasks] insert result:", { data, error });
+
+      if (error) {
+        let extra = "";
+        try {
+          extra = JSON.stringify(
+            {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+            },
+            null,
+            2
+          );
+        } catch {
+          // ignore
+        }
+
+        console.error("[voice-tasks] insert error full:", error);
+        setError(
+          "Failed to create tasks from your note/voice: " +
+            (error.message || error.details || extra || "Unknown error")
+        );
+      } else {
+        setVoiceTasksMessage(
+          `Created ${rows.length} tasks from your note/voice.`
+        );
+        setVoiceSuggestedTasks([]);
+      }
+    } catch (err) {
+      console.error("[voice-tasks] unexpected error", err);
+      setError("Unexpected error while creating tasks (check console).");
+    } finally {
+      setCreatingTasks(false);
     }
-  } catch (err) {
-    console.error("[voice-tasks] unexpected error", err);
-    setError("Unexpected error while creating tasks (check console).");
-  } finally {
-    setCreatingTasks(false);
   }
-}
 
   if (checkingUser) {
     return (
@@ -765,7 +895,7 @@ async function handleCreateTasksFromVoice() {
       : notes.filter((n) => (n.category || "") === categoryFilter);
 
   return (
-    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8 pb-24">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md*p-8 pb-24">
       {/* pb-24 so bottom buttons (feedback) don't hide behind floating UI */}
       <AppHeader active="notes" />
 
@@ -906,13 +1036,11 @@ async function handleCreateTasksFromVoice() {
               )}
             </div>
 
-            {/* Suggested tasks from voice */}
+            {/* Suggested tasks (from voice or note) */}
             {voiceSuggestedTasks.length > 0 && (
               <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px]">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold">
-                    Suggested tasks from your voice note
-                  </p>
+                  <p className="font-semibold">Suggested tasks</p>
                   {voiceTasksMessage && (
                     <span className="text-[10px] text-emerald-400">
                       {voiceTasksMessage}
@@ -1066,6 +1194,17 @@ async function handleCreateTasksFromVoice() {
                       )}
 
                       <div className="mt-3 flex flex-wrap gap-2">
+                        {/* 🆕 Tasks from note */}
+                        <button
+                          onClick={() => handleGenerateTasksFromNote(note)}
+                          disabled={noteTasksLoadingId === note.id}
+                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
+                        >
+                          {noteTasksLoadingId === note.id
+                            ? "Finding tasks..."
+                            : "⚡ Tasks from note"}
+                        </button>
+
                         {/* AI Buttons */}
                         <button
                           onClick={() =>
