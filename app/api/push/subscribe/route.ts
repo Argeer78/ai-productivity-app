@@ -61,7 +61,7 @@ export async function POST(req: Request) {
           auth,
           subscription, // Store full subscription object
         },
-        { onConflict: "user_id" } // Prevent duplicates based on user_id
+        { onConflict: "user_id,endpoint" } // Prevent duplicates based on user_id
       );
 
     if (error) {
