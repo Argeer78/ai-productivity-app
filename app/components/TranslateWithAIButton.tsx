@@ -93,20 +93,14 @@ export default function TranslateWithAIButton() {
   const { t } = useUiI18n(uiLangCode);
 
   // --- helper so raw keys never leak into UI ---
-  function label(
-    key: string,
-    fallback: string,
-    params?: Record<string, any>
-  ): string {
-    const val = params ? t(key, params) : t(key);
+  function label(key: string, fallback: string): string {
+    const val = t(key);
     if (!val || val === key) return fallback;
     return val;
   }
 
   const [open, setOpen] = useState(false);
-  const [selectedLang, setSelectedLang] = useState<Language | null>(
-    LANGUAGES.find((l) => l.region === "Popular") || LANGUAGES[0]
-  );
+  const [selectedLang, setSelectedLang] = useState<Language | null>(null);
   const [search, setSearch] = useState("");
   const [sourceText, setSourceText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
@@ -127,24 +121,15 @@ export default function TranslateWithAIButton() {
   // cache: "langCode::originalText" -> translatedText
   const cacheRef = useRef<Map<string, string>>(new Map());
 
-  // ----- initial language: saved or browser/ UI language -----
+  // ----- choose target language from SETTINGS first, then fallback to LS / browser -----
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     try {
-      const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       let lang: Language | null = null;
 
-      // 1) Prefer saved manual choice
-      if (savedLangCode) {
-        lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
-          ) || null;
-      }
-
-      // 2) If none, prefer app UI language
-      if (!lang && uiLangCode) {
+      // 1️⃣ app UI language from settings (preferred)
+      if (uiLangCode) {
         const uiBase = uiLangCode.split("-")[0].toLowerCase();
         lang =
           LANGUAGES.find(
@@ -152,7 +137,18 @@ export default function TranslateWithAIButton() {
           ) || null;
       }
 
-      // 3) Fallback to browser language
+      // 2️⃣ fallback: old saved preference, if we didn't find above
+      if (!lang) {
+        const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
+        if (savedLangCode) {
+          lang =
+            LANGUAGES.find(
+              (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
+            ) || null;
+        }
+      }
+
+      // 3️⃣ fallback: browser
       if (!lang && typeof navigator !== "undefined" && navigator.language) {
         const browserBase = navigator.language.split("-")[0].toLowerCase();
         lang =
@@ -161,24 +157,23 @@ export default function TranslateWithAIButton() {
           ) || null;
       }
 
+      // 4️⃣ ultimate fallback: first in LANGUAGES
+      if (!lang) {
+        lang =
+          LANGUAGES.find((l) => l.region === "Popular") || LANGUAGES[0] || null;
+      }
+
       if (lang) {
         setSelectedLang(lang);
+        // keep LS_PREF_LANG in sync so auto-mode can reuse it if needed
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(LS_PREF_LANG, lang.code);
+        }
       }
     } catch (err) {
       console.error("[translate] load initial language error", err);
     }
   }, [uiLangCode]);
-
-  // keep LS_PREF_LANG in sync when selectedLang changes
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!selectedLang) return;
-    try {
-      window.localStorage.setItem(LS_PREF_LANG, selectedLang.code);
-    } catch (err) {
-      console.error("[translate] save selectedLang error", err);
-    }
-  }, [selectedLang]);
 
   // center modal when opening
   useEffect(() => {
@@ -204,10 +199,7 @@ export default function TranslateWithAIButton() {
       console.error("[translate] open modal error", err);
       setSourceText("");
       setErrorMsg(
-        label(
-          "translate.error.readPage",
-          "Could not read the page content."
-        )
+        label("translate.error.readPage", "Could not read the page content.")
       );
       setOpen(true);
     }
@@ -509,12 +501,7 @@ export default function TranslateWithAIButton() {
         const progressFallback = `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`;
 
         setTranslatedText(
-          label("translate.status.progress", progressFallback, {
-            translatedSnippets,
-            totalSnippets,
-            translatedChars,
-            lang: lang.label,
-          })
+          label("translate.status.progress", progressFallback)
         );
       }
 
@@ -567,15 +554,26 @@ export default function TranslateWithAIButton() {
       const autoMode = window.localStorage.getItem(LS_AUTO_MODE);
       if (autoMode !== "1") return;
 
-      const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
-      if (!savedLangCode) return;
+      // 👉 Prefer settings language for auto mode too
+      let desiredCode: string | null = null;
+
+      if (uiLangCode) {
+        desiredCode = uiLangCode.split("-")[0].toLowerCase();
+      } else {
+        const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
+        if (savedLangCode) {
+          desiredCode = savedLangCode.toLowerCase();
+        }
+      }
+
+      if (!desiredCode) return;
 
       // avoid re-applying on the same page
       if (autoAppliedPath === pathname) return;
 
       const lang =
         LANGUAGES.find(
-          (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
+          (l) => l.code.toLowerCase() === desiredCode
         ) || null;
       if (!lang) return;
 
@@ -588,7 +586,7 @@ export default function TranslateWithAIButton() {
       console.error("[translate-auto] error", err);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]); // depends on route changes only
+  }, [pathname, uiLangCode]); // depends on route + settings language
 
   // ----- drag logic -----
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
@@ -664,13 +662,7 @@ export default function TranslateWithAIButton() {
         onClick={handleOpen}
         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-card) 60%,transparent)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
       >
-        <span>
-          🌎{" "}
-          {label(
-            "translate.buttonLabel",
-            "Translate with AI"
-          )}
-        </span>
+        <span>🌎 {label("translate.buttonLabel", "Translate with AI")}</span>
       </button>
 
       {open && (
@@ -694,10 +686,7 @@ export default function TranslateWithAIButton() {
                 <span className="text-lg">🌎</span>
                 <div>
                   <p className="text-xs font-semibold text-[var(--text-main)]">
-                    {label(
-                      "translate.modal.title",
-                      "Translate with AI"
-                    )}
+                    {label("translate.modal.title", "Translate with AI")}
                   </p>
                   <p className="text-[10px] text-[var(--text-muted)]">
                     {label(
@@ -709,8 +698,7 @@ export default function TranslateWithAIButton() {
                     <p className="text-[9px] text-[var(--text-muted)] mt-0.5">
                       {label(
                         "translate.modal.uiLanguageInfo",
-                        `Your app UI language is ${currentLangLabel}. Use this tool for page content or custom text.`,
-                        { currentLangLabel }
+                        `Your app UI language is ${currentLangLabel}. Use this tool for page content or custom text.`
                       )}
                     </p>
                   )}
@@ -730,10 +718,7 @@ export default function TranslateWithAIButton() {
               {/* Language picker */}
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  {label(
-                    "translate.targetLanguage.label",
-                    "Target language"
-                  )}
+                  {label("translate.targetLanguage.label", "Target language")}
                 </label>
                 <input
                   type="text"
@@ -778,8 +763,7 @@ export default function TranslateWithAIButton() {
                       <p className="text-[11px] text-[var(--text-muted)] px-1">
                         {label(
                           "translate.targetLanguage.noneFound",
-                          `No languages found for “${search}”.`,
-                          { search }
+                          `No languages found for “${search}”.`
                         )}
                       </p>
                     )
@@ -872,10 +856,7 @@ export default function TranslateWithAIButton() {
               {/* Text to translate */}
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  {label(
-                    "translate.textToTranslate.label",
-                    "Text to translate"
-                  )}
+                  {label("translate.textToTranslate.label", "Text to translate")}
                 </label>
                 <textarea
                   value={sourceText}
@@ -909,8 +890,7 @@ export default function TranslateWithAIButton() {
                         )
                       : label(
                           "translate.actions.translateText",
-                          `Translate text to ${selectedLang?.label ?? "…"}`,
-                          { langLabel: selectedLang?.label ?? "…" }
+                          `Translate text to ${selectedLang?.label ?? "…"}`
                         )}
                   </button>
 
@@ -963,10 +943,7 @@ export default function TranslateWithAIButton() {
               {translatedText && (
                 <div className="mt-2">
                   <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    {label(
-                      "translate.status.label",
-                      "Translation status"
-                    )}
+                    {label("translate.status.label", "Translation status")}
                   </p>
                   <div className="rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 90%,transparent)] p-2 max-h-52 overflow-y-auto text-[11px] text-[var(--text-main)] whitespace-pre-wrap">
                     {translatedText}
