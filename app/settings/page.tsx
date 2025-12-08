@@ -11,6 +11,10 @@ import NotificationSettings from "@/app/components/NotificationSettings";
 import { useTheme, type ThemeId } from "@/app/components/ThemeProvider";
 import { subscribeToPush } from "@/lib/pushClient";
 
+// 🧠 App UI language (LanguageProvider + i18n)
+import { useLanguage } from "@/app/components/LanguageProvider";
+import { SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
+
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
 
@@ -22,7 +26,7 @@ const TONE_OPTIONS: { value: Tone; label: string }[] = [
   { value: "casual", label: "Casual" },
 ];
 
-// Precompute unique language options once
+// Precompute unique language options once (for translation target dropdown)
 const languageOptions = (() => {
   const seen = new Set<string>();
 
@@ -51,6 +55,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
+  // 🌐 Preferred translation language (for TranslateWithAIButton)
   const [preferredLangCode, setPreferredLangCode] = useState<string>("");
 
   const [tone, setTone] = useState<Tone>("balanced");
@@ -77,8 +82,11 @@ export default function SettingsPage() {
 
   const { track } = useAnalytics();
 
-  // Theme context (from ThemeProvider)
+  // 🎨 Theme context (from ThemeProvider)
   const { theme, setTheme } = useTheme();
+
+  // 🧠 App UI language context (this controls all `t()` translations)
+  const { lang: appLang, setLang: setAppLang } = useLanguage();
 
   // Check existing push subscription on this device
   useEffect(() => {
@@ -652,22 +660,22 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* AI tone */}
+              {/* 🌐 App UI language */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
-                  AI tone
+                  App language
                 </label>
                 <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                  This affects the assistant, templates, and planner tone.
+                  This changes the language of menus, navigation, and built-in texts.
                 </p>
                 <select
-                  value={tone}
-                  onChange={(e) => setTone(e.target.value as Tone)}
+                  value={appLang}
+                  onChange={(e) => setAppLang(e.target.value as Lang)}
                   className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
                 >
-                  {TONE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
+                  {SUPPORTED_LANGS.map((opt) => (
+                    <option key={opt.code} value={opt.code}>
+                      {opt.label ?? opt.code.toUpperCase()}
                     </option>
                   ))}
                 </select>

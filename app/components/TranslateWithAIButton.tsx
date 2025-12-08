@@ -73,10 +73,31 @@ function getTranslatableTextNodes(): Text[] {
   return nodes;
 }
 
+// Helper: resolve a Language from any code variant (e.g. "el" or "el-GR")
+function resolveLanguage(code: string | null | undefined): Language | null {
+  if (!code) return null;
+  const raw = code.toLowerCase();
+  const base = raw.split("-")[0];
+
+  // 1) Exact code match
+  let lang =
+    LANGUAGES.find((l) => l.code.toLowerCase() === raw) || null;
+  if (lang) return lang;
+
+  // 2) Match same base ("el" ↔ "el-GR")
+  lang =
+    LANGUAGES.find((l) => {
+      const lc = l.code.toLowerCase();
+      return lc === base || lc.startsWith(base + "-");
+    }) || null;
+
+  return lang;
+}
+
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
-  // App UI language, used only as a *hint* for default target language
+  // App UI language, used as a *hint* for default target language
   const languageCtx = useLanguage();
   const uiLangCode = languageCtx?.lang || "en";
 
@@ -112,30 +133,19 @@ export default function TranslateWithAIButton() {
       const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       let lang: Language | null = null;
 
-      // 1) Prefer saved manual choice
+      // 1) Prefer saved manual choice (preferred translation language)
       if (savedLangCode) {
-        lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
-          ) || null;
+        lang = resolveLanguage(savedLangCode);
       }
 
       // 2) If none, prefer app UI language
       if (!lang && uiLangCode) {
-        const uiBase = uiLangCode.split("-")[0].toLowerCase();
-        lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === uiBase
-          ) || null;
+        lang = resolveLanguage(uiLangCode);
       }
 
       // 3) Fallback to browser language
       if (!lang && typeof navigator !== "undefined" && navigator.language) {
-        const browserBase = navigator.language.split("-")[0].toLowerCase();
-        lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === browserBase
-          ) || null;
+        lang = resolveLanguage(navigator.language);
       }
 
       if (lang) {
@@ -171,6 +181,20 @@ export default function TranslateWithAIButton() {
 
   function handleOpen() {
     try {
+      // 🔄 Re-read preferred language whenever we open the modal,
+      // so any changes in Settings are reflected immediately
+      if (typeof window !== "undefined") {
+        const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
+        const freshLang =
+          resolveLanguage(savedLangCode) ||
+          resolveLanguage(uiLangCode) ||
+          selectedLang;
+
+        if (freshLang) {
+          setSelectedLang(freshLang);
+        }
+      }
+
       const selection = window.getSelection()?.toString().trim() || "";
       setSourceText(selection || "");
       setTranslatedText("");
@@ -482,10 +506,7 @@ export default function TranslateWithAIButton() {
       // avoid re-applying on the same page
       if (autoAppliedPath === pathname) return;
 
-      const lang =
-        LANGUAGES.find(
-          (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
-        ) || null;
+      const lang = resolveLanguage(savedLangCode);
       if (!lang) return;
 
       // keep UI in sync
