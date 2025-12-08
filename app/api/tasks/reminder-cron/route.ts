@@ -2,7 +2,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderEmail } from "@/lib/emailTasks";
-import { sendTaskReminderPush } from "@/lib/pushServer";
+import {
+  sendTaskReminderPush,
+  SubscriptionRow,
+} from "@/lib/pushServer";
 
 export const runtime = "nodejs";
 
@@ -132,7 +135,7 @@ export async function GET(req: Request) {
           dueAt: task.reminder_at,
         });
 
-        // 3b) Send push reminder(s) for this user, if any
+        // 3b) Fetch push subscriptions for this user
         const { data: subs, error: subsError } = await supabaseAdmin
           .from("push_subscriptions")
           .select("endpoint, p256dh, auth")
@@ -150,19 +153,19 @@ export async function GET(req: Request) {
             task.user_id
           );
         } else {
-          for (const sub of subs) {
-            await sendTaskReminderPush(
-              {
-                endpoint: sub.endpoint,
-                p256dh: sub.p256dh,
-                auth: sub.auth,
-              },
-              {
-                taskId: task.id,
-                title,
-                note: task.description,
-              }
-            );
+          console.log(
+            "[reminder-cron] sending push to",
+            subs.length,
+            "subscriptions for user",
+            task.user_id
+          );
+
+          for (const s of subs as SubscriptionRow[]) {
+            await sendTaskReminderPush(s, {
+              taskId: task.id,
+              title,
+              note: task.description,
+            });
           }
         }
 
