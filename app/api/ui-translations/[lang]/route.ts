@@ -1,72 +1,71 @@
 // app/api/ui-translations/[lang]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { UI_STRINGS, UiTranslationKey } from "@/lib/uiStrings";
+import { UI_STRINGS, type UiTranslationKey } from "@/lib/uiStrings";
 
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ lang: string }> }
 ) {
   try {
+    // NOTE: with your Next version, params is a Promise
     const { lang } = await context.params;
-    const rawCode = (lang || "en").toLowerCase();
 
-    // Handle lang like "el-GR" vs "el"
-    const candidates = [
-      rawCode,
-      rawCode.split("-")[0], // base language
-    ];
-
-    // Try to load translations for the most specific code that exists
-    let languageCodeUsed: string | null = null;
-    let translationsFromDb: Record<string, string> = {};
-
-    for (const code of candidates) {
-      if (!code) continue;
-
-      const { data, error } = await supabaseAdmin
-        .from("ui_translations")
-        .select("key, text")
-        .eq("language_code", code);
-
-      if (error) {
-        console.error("[ui-translations] fetch error", error, "for", code);
-        continue;
-      }
-
-      if (data && data.length > 0) {
-        languageCodeUsed = code;
-        translationsFromDb = data.reduce<Record<string, string>>(
-          (acc, row) => {
-            acc[row.key] = row.text;
-            return acc;
-          },
-          {}
-        );
-        break;
-      }
+    const codeRaw = (lang || "en").trim();
+    if (!codeRaw) {
+      return NextResponse.json(
+        { ok: false, error: "Missing language code" },
+        { status: 400 }
+      );
     }
 
-    // If nothing in DB, we fall back to English only.
-    if (!languageCodeUsed) {
-      languageCodeUsed = "en";
-      translationsFromDb = {};
+    const code = codeRaw.toLowerCase();
+    const baseLang = code.split("-")[0]; // e.g. "el-gr" -> "el"
+
+    const languageCode = baseLang || "en";
+
+    // 1) Start with English defaults from UI_STRINGS
+    const base = UI_STRINGS; // this is your master EN map
+    const translations: Record<string, string> = {};
+
+    (Object.keys(base) as UiTranslationKey[]).forEach((key) => {
+      translations[key] = base[key]; // default English
+    });
+
+    // 2) Load overrides from Supabase, if any
+    const { data, error } = await supabaseAdmin
+      .from("ui_translations")
+      .select("key, text")
+      .eq("language_code", languageCode);
+
+    if (error) {
+      console.error("[ui-translations] fetch error", error);
+      // We still return English so the UI works
+      return NextResponse.json(
+        {
+          ok: true,
+          languageCode: "en",
+          translations,
+        },
+        { status: 200 }
+      );
     }
 
-    // Build final translations object:
-    // every key in UI_STRINGS must have a value.
-    const merged: Record<string, string> = {};
-    const keys = Object.keys(UI_STRINGS) as UiTranslationKey[];
-
-    for (const key of keys) {
-      merged[key] = translationsFromDb[key] ?? UI_STRINGS[key];
+    if (data) {
+      for (const row of data) {
+        if (!row.key || typeof row.text !== "string") continue;
+        // Only override keys we know about
+        if (row.key in translations) {
+          translations[row.key] = row.text;
+        }
+      }
     }
 
     return NextResponse.json(
       {
         ok: true,
-        languageCode: languageCodeUsed,
-        translations: merged,
+        languageCode,
+        translations,
       },
       { status: 200 }
     );

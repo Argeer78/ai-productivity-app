@@ -8,6 +8,7 @@ import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import InstallAppButton from "@/app/components/InstallAppButton";
 import Image from "next/image";
+import { useUiI18n } from "@/lib/useUiI18n";
 
 type HeaderProps = {
   active?:
@@ -34,8 +35,36 @@ export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
 
   const languageCtx = useLanguage() as any;
+
+  // Try to infer the language code from your LanguageProvider
+  const uiLangCode: string =
+    languageCtx?.code ||
+    languageCtx?.languageCode ||
+    languageCtx?.language ||
+    "en";
+
   const currentLangLabel: string | null =
-    languageCtx?.label || languageCtx?.language || null;
+    languageCtx?.label || languageCtx?.languageLabel || null;
+
+  // Load UI translations for the current language
+  const { t } = useUiI18n(uiLangCode);
+
+  // --- small helpers so "nav." keys never leak into the UI ---
+
+  function navLabel(key: string, fallback: string) {
+    const fullKey = `nav.${key}`;
+    const val = t(fullKey);
+    // If the translation is missing or equal to the key itself, use fallback
+    if (!val || val === fullKey) return fallback;
+    return val;
+  }
+
+  function authLabel(key: "login" | "logout", fallback: string) {
+    const fullKey = `auth.${key}`;
+    const val = t(fullKey);
+    if (!val || val === fullKey) return fallback;
+    return val;
+  }
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -107,36 +136,69 @@ export default function AppHeader({ active }: HeaderProps) {
     }
   }
 
-  // Mobile routes with nice labels + admin gating
+  // Mobile routes with translated labels + admin gating
   const mobileRoutes: {
     key: HeaderProps["active"];
     label: string;
     href: string;
     adminOnly?: boolean;
   }[] = [
-    { key: "dashboard", label: "Dashboard", href: "/dashboard" },
-    { key: "notes", label: "Notes", href: "/notes" },
-    { key: "tasks", label: "Tasks", href: "/tasks" },
-    { key: "planner", label: "Planner", href: "/planner" },
-    { key: "ai-chat", label: "AI Hub Chat", href: "/ai-chat" },
-    { key: "templates", label: "Templates", href: "/templates" },
-    { key: "daily-success", label: "Daily Success", href: "/daily-success" },
+    {
+      key: "dashboard",
+      label: navLabel("dashboard", "Dashboard"),
+      href: "/dashboard",
+    },
+    { key: "notes", label: navLabel("notes", "Notes"), href: "/notes" },
+    { key: "tasks", label: navLabel("tasks", "Tasks"), href: "/tasks" },
+    {
+      key: "planner",
+      label: navLabel("planner", "Planner"),
+      href: "/planner",
+    },
+    {
+      key: "ai-chat",
+      label: navLabel("aiChat", "AI Hub Chat"),
+      href: "/ai-chat",
+    },
+    {
+      key: "templates",
+      label: navLabel("templates", "Templates"),
+      href: "/templates",
+    },
+    {
+      key: "daily-success",
+      label: navLabel("dailySuccess", "Daily Success"),
+      href: "/daily-success",
+    },
     {
       key: "weekly-reports",
-      label: "Weekly Reports",
+      label: navLabel("weeklyReports", "Weekly Reports"),
       href: "/weekly-reports",
     },
-    { key: "travel", label: "Travel Planner", href: "/travel" },
-    { key: "my-trips", label: "My Trips", href: "/my-trips" },
+    { key: "travel", label: navLabel("travel", "Travel Planner"), href: "/travel" },
+    { key: "my-trips", label: navLabel("myTrips", "My Trips"), href: "/my-trips" },
     {
       key: "feedback",
-      label: "Feedback",
+      label: navLabel("feedback", "Feedback"),
       href: "/feedback",
       adminOnly: true,
     },
-    { key: "changelog", label: "What’s new", href: "/changelog" },
-    { key: "settings", label: "Settings", href: "/settings" },
-    { key: "admin", label: "Admin", href: "/admin", adminOnly: true },
+    {
+      key: "changelog",
+      label: navLabel("changelog", "What’s new"),
+      href: "/changelog",
+    },
+    {
+      key: "settings",
+      label: navLabel("settings", "Settings"),
+      href: "/settings",
+    },
+    {
+      key: "admin",
+      label: navLabel("admin", "Admin"),
+      href: "/admin",
+      adminOnly: true,
+    },
   ];
 
   return (
@@ -166,7 +228,7 @@ export default function AppHeader({ active }: HeaderProps) {
               active === "dashboard" ? navLinkActive : navLinkInactive
             }`}
           >
-            Dashboard
+            {navLabel("dashboard", "Dashboard")}
           </Link>
 
           {/* Apps dropdown */}
@@ -177,7 +239,7 @@ export default function AppHeader({ active }: HeaderProps) {
               appsActive ? "text-[var(--accent)] bg-[var(--accent-soft)]" : ""
             }`}
           >
-            Apps{" "}
+            {navLabel("apps", "Apps")}{" "}
             <span className="text-[11px] opacity-80">
               {appsOpen ? "▲" : "▼"}
             </span>
@@ -216,7 +278,7 @@ export default function AppHeader({ active }: HeaderProps) {
             href="/settings"
             className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
           >
-            Settings
+            {navLabel("settings", "Settings")}
           </Link>
 
           {userEmail ? (
@@ -225,14 +287,14 @@ export default function AppHeader({ active }: HeaderProps) {
               onClick={handleLogout}
               className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
             >
-              {loggingOut ? "…" : "Log out"}
+              {loggingOut ? "…" : authLabel("logout", "Log out")}
             </button>
           ) : (
             <Link
               href="/auth"
               className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
             >
-              Log in
+              {authLabel("login", "Log in")}
             </Link>
           )}
         </div>
@@ -243,49 +305,49 @@ export default function AppHeader({ active }: HeaderProps) {
             <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95 shadow-xl p-3 w-[380px]">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <Link href="/dashboard" className={appsItemBase}>
-                  Dashboard
+                  {navLabel("dashboard", "Dashboard")}
                 </Link>
                 <Link href="/notes" className={appsItemBase}>
-                  Notes
+                  {navLabel("notes", "Notes")}
                 </Link>
                 <Link href="/tasks" className={appsItemBase}>
-                  Tasks
+                  {navLabel("tasks", "Tasks")}
                 </Link>
                 <Link href="/planner" className={appsItemBase}>
-                  Planner
+                  {navLabel("planner", "Planner")}
                 </Link>
                 <Link href="/ai-chat" className={appsItemBase}>
-                  AI Hub Chat
+                  {navLabel("aiChat", "AI Hub Chat")}
                 </Link>
                 <Link href="/templates" className={appsItemBase}>
-                  Templates
+                  {navLabel("templates", "Templates")}
                 </Link>
                 <Link href="/daily-success" className={appsItemBase}>
-                  Daily Success
+                  {navLabel("dailySuccess", "Daily Success")}
                 </Link>
                 <Link href="/weekly-reports" className={appsItemBase}>
-                  Weekly Reports
+                  {navLabel("weeklyReports", "Weekly Reports")}
                 </Link>
                 <Link href="/my-trips" className={appsItemBase}>
-                  My Trips
+                  {navLabel("myTrips", "My Trips")}
                 </Link>
                 <Link href="/travel" className={appsItemBase}>
-                  Travel Planner
+                  {navLabel("travel", "Travel Planner")}
                 </Link>
 
                 {isAdmin && (
                   <Link href="/feedback" className={appsItemBase}>
-                    Feedback
+                    {navLabel("feedback", "Feedback")}
                   </Link>
                 )}
 
                 <Link href="/changelog" className={appsItemBase}>
-                  What’s new
+                  {navLabel("changelog", "What’s new")}
                 </Link>
 
                 {isAdmin && (
                   <Link href="/admin" className={appsItemBase}>
-                    Admin
+                    {navLabel("admin", "Admin")}
                   </Link>
                 )}
               </div>
@@ -304,7 +366,7 @@ export default function AppHeader({ active }: HeaderProps) {
             href="/settings"
             className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
           >
-            Settings
+            {navLabel("settings", "Settings")}
           </Link>
 
           {userEmail ? (
@@ -313,14 +375,14 @@ export default function AppHeader({ active }: HeaderProps) {
               onClick={handleLogout}
               className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
             >
-              {loggingOut ? "…" : "Log out"}
+              {loggingOut ? "…" : authLabel("logout", "Log out")}
             </button>
           ) : (
             <Link
               href="/auth"
               className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
             >
-              Log in
+              {authLabel("login", "Log in")}
             </Link>
           )}
         </div>
