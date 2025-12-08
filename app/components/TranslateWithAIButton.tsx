@@ -29,7 +29,6 @@ const MAX_TOTAL_CHARS = 50000;
 const MAX_BATCH_NODES = 60;
 const MAX_BATCH_CHARS = 5000;
 
-const SEPARATOR = "\n\n----\n\n";
 const CONCURRENCY = 2; // how many batches to process in parallel
 
 // Collect text nodes, skipping the translation modal itself
@@ -318,21 +317,19 @@ export default function TranslateWithAIButton() {
       let translatedChars = 0;
 
       async function processBatch(batch: Batch, batchIndex: number) {
-        const joined = batch.nodes
-          .map((n) => n.textContent || "")
-          .join(SEPARATOR);
+        const texts = batch.nodes.map((n) => n.textContent || "");
 
         const res = await fetch("/api/ai-translate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            text: joined,
+            text: texts, // 👈 array, for server-side caching per snippet
             targetLang: lang.code,
           }),
         });
 
         const data = (await res.json().catch(() => null)) as
-          | { translation?: string; error?: string }
+          | { translation?: string[]; error?: string }
           | null;
 
         if (!res.ok || !data?.translation) {
@@ -358,18 +355,21 @@ export default function TranslateWithAIButton() {
           );
         }
 
-        const parts = String(data.translation).split(SEPARATOR);
-        const m = Math.min(parts.length, batch.nodes.length);
+        const translated = Array.isArray(data.translation)
+          ? data.translation
+          : texts;
+
+        const m = Math.min(translated.length, batch.nodes.length);
 
         for (let j = 0; j < m; j++) {
           const node = batch.nodes[j];
           const original = node.textContent || "";
-          const translated = parts[j];
+          const newText = translated[j] ?? original;
 
-          node.textContent = translated;
+          node.textContent = newText;
 
           const cacheKey = `${langCode}::${original}`;
-          cacheRef.current.set(cacheKey, translated);
+          cacheRef.current.set(cacheKey, newText);
         }
 
         return { snippets: m, chars: batch.charCount };
