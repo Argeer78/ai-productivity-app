@@ -38,10 +38,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1) Transcribe audio
+    // 1) 🎙 Transcribe audio (auto language detection, keep original language)
     const transcription = await openai.audio.transcriptions.create({
       file,
-      model: "gpt-4o-transcribe", // or "whisper-1"
+      model: "whisper-1", // auto-detect language & transcribe in the same language
     });
 
     const rawText = transcription.text?.trim() || "";
@@ -52,29 +52,35 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) Ask the model for structured JSON
+    // 2) 🤖 Ask the model for structured JSON in the *user's language*
     const systemPrompt = `
 You are an assistant that turns messy spoken notes into structured productivity data.
 
+IMPORTANT LANGUAGE RULES:
+- First, detect the language from the transcript.
+- ALWAYS keep user-facing text in the SAME language the user spoke.
+- Do NOT translate the user's words into another language.
+- Only JSON keys, category names, and priority values are in English.
+
 Given the transcript of what the user said, produce a JSON object with:
 
-- "note": a cleaned-up note text (string)
-- "note_category": short category like "Work", "Personal", "Ideas", etc. (string or null)
-- "actions": an array of short bullet-like action items (strings)
+- "note": a cleaned-up note text (string, in the user's language)
+- "note_category": short category like "Work", "Personal", "Ideas", "Meeting Notes", "Study", "Journal", "Planning", "Research", "Other" (string or null)
+- "actions": an array of short bullet-like action items (strings, in the user's language)
 - "tasks": an array of objects:
     {
-      "title": string,
-      "due_natural": string | null,  // e.g. "tomorrow morning"
+      "title": string (in the user's language),
+      "due_natural": string | null,  // e.g. "αύριο το πρωί", "mañana por la mañana" — keep original language
       "due_iso": string | null,      // ISO 8601 UTC date-time, e.g. "2025-12-10T09:00:00Z"
       "priority": "low" | "medium" | "high" | null
     }
 - "reminder": an object
     {
-      "time_natural": string | null, // e.g. "this evening"
+      "time_natural": string | null, // e.g. "αργότερα σήμερα", "ce soir", "this evening" — in the user's language
       "time_iso": string | null,     // ISO 8601 UTC date-time, or null
-      "reason": string | null        // why the reminder is needed
+      "reason": string | null        // why the reminder is needed (in the user's language)
     }
-- "summary": 1–2 sentence summary (string)
+- "summary": 1–2 sentence summary (string, in the user's language)
 
 If some information (like precise time) is not clearly stated, set the ISO field to null and use a natural-language description instead.
 
@@ -110,7 +116,9 @@ Return ONLY valid JSON – no markdown, no commentary.
       );
     }
 
-    // 3) Normalize shape so frontend always sees due_natural / due_iso / time_natural / time_iso
+    // 3) ✅ Normalize shape so frontend always sees
+    //    due_natural / due_iso / time_natural / time_iso
+
     const tasks = Array.isArray(parsed.tasks)
       ? parsed.tasks.map((t: any) => {
           const title = typeof t.title === "string" ? t.title : "";
@@ -194,7 +202,7 @@ Return ONLY valid JSON – no markdown, no commentary.
           : null,
     };
 
-    // 4) Optionally auto-insert note if mode === "autosave"
+    // 4) 📝 Optionally auto-insert note if mode === "autosave"
     let noteId: string | null = null;
     if (mode === "autosave" && structured.note) {
       const { data, error } = await supabaseAdmin
