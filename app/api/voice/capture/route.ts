@@ -56,50 +56,39 @@ export async function POST(req: Request) {
     const systemPrompt = `
 You are an assistant that turns messy spoken notes into structured productivity data.
 
-IMPORTANT LANGUAGE RULES:
-- First, detect the language from the transcript.
-- ALWAYS keep user-facing text in the SAME language the user spoke.
-- Do NOT translate the user's words into another language.
-- Only JSON keys, category names, and priority values are in English.
-
-DATE/TIME & DEFAULTS (VERY IMPORTANT):
-- Whenever the user clearly implies a due time (even fuzzy like "tomorrow morning", "αύριο το πρωί", "mañana por la mañana"):
-  - You MUST fill "due_iso" with a concrete ISO 8601 UTC datetime.
-  - Use these DEFAULT LOCAL TIMES when the user doesn't give an exact clock time:
-    - "morning" / "πρωί" / similar → 08:00 local
-    - "noon" / "μεσημέρι" → 12:00 local
-    - "afternoon" / "απόγευμα" / "afternoon time" → 15:00 local
-    - "evening" / "βράδυ" / "this evening" → 20:00 local
-    - "tonight" / "σήμερα το βράδυ" (if clearly evening/night) → 21:00 local
-  - If the user only says a day (e.g. "tomorrow", "αύριο") with no time, use 09:00 local.
-
-- ALWAYS assume the user’s phrases ("tomorrow", "next Monday") refer to dates in their local timezone TODAY, then convert that to UTC for "due_iso".
-
-- Only leave "due_iso" as null if the timing is truly vague and has no clear day (e.g. "sometime soon", "κάποια στιγμή").
+IMPORTANT:
+- First, detect the user's language from the transcript.
+- Then, write ALL HUMAN-TEXT FIELDS in that same language.
+- JSON KEYS must always stay in English exactly as specified below.
 
 Given the transcript of what the user said, produce a JSON object with:
 
 - "note": a cleaned-up note text (string, in the user's language)
-- "note_category": short category like "Work", "Personal", "Ideas", "Meeting Notes", "Study", "Journal", "Planning", "Research", "Other" (string or null)
+- "note_category": a short category like "Work", "Personal", "Ideas", etc. 
+    (string or null, in the user's language if possible)
 - "actions": an array of short bullet-like action items (strings, in the user's language)
 - "tasks": an array of objects:
     {
-      "title": string (in the user's language),
-      "due_natural": string | null,  // e.g. "αύριο το πρωί", "mañana por la mañana" — keep original language
-      "due_iso": string | null,      // ISO 8601 UTC date-time, e.g. "2025-12-10T09:00:00Z"
+      "title": string,              // in the user's language
+      "due_natural": string | null, // e.g. "αύριο το πρωί", "κατά τις 8 το βράδυ"
+      "due_iso": string | null,     // ISO 8601 UTC datetime, e.g. "2025-12-10T09:00:00Z"
       "priority": "low" | "medium" | "high" | null
     }
 - "reminder": an object
     {
-      "time_natural": string | null, // e.g. "αργότερα σήμερα", "ce soir", "this evening" — in the user's language
-      "time_iso": string | null,     // ISO 8601 UTC date-time, or null
-      "reason": string | null        // why the reminder is needed (in the user's language)
+      "time_natural": string | null, // e.g. "απόψε", "this evening", in the user's language
+      "time_iso": string | null,     // ISO 8601 UTC datetime, or null
+      "reason": string | null        // why the reminder is needed, in the user's language
     }
 - "summary": 1–2 sentence summary (string, in the user's language)
 
-If some information (like precise time) is not clearly stated, set the ISO field to null and use a natural-language description instead.
+Rules:
 
-Return ONLY valid JSON – no markdown, no commentary.
+- If the user clearly gives a precise date/time, fill the ISO fields (due_iso, time_iso) with correct UTC ISO 8601.
+- If the time is vague or not clearly stated, set the ISO field to null and ONLY use a natural-language description in the corresponding "..._natural" field.
+- Do NOT invent exact times or dates if the user didn't clearly specify them.
+- Keep the JSON well-formed and valid.
+- Return ONLY valid JSON – no markdown, no commentary, no backticks.
 `.trim();
 
     const completion = await openai.chat.completions.create({
