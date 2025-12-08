@@ -62,6 +62,21 @@ IMPORTANT LANGUAGE RULES:
 - Do NOT translate the user's words into another language.
 - Only JSON keys, category names, and priority values are in English.
 
+DATE/TIME & DEFAULTS (VERY IMPORTANT):
+- Whenever the user clearly implies a due time (even fuzzy like "tomorrow morning", "αύριο το πρωί", "mañana por la mañana"):
+  - You MUST fill "due_iso" with a concrete ISO 8601 UTC datetime.
+  - Use these DEFAULT LOCAL TIMES when the user doesn't give an exact clock time:
+    - "morning" / "πρωί" / similar → 08:00 local
+    - "noon" / "μεσημέρι" → 12:00 local
+    - "afternoon" / "απόγευμα" / "afternoon time" → 15:00 local
+    - "evening" / "βράδυ" / "this evening" → 20:00 local
+    - "tonight" / "σήμερα το βράδυ" (if clearly evening/night) → 21:00 local
+  - If the user only says a day (e.g. "tomorrow", "αύριο") with no time, use 09:00 local.
+
+- ALWAYS assume the user’s phrases ("tomorrow", "next Monday") refer to dates in their local timezone TODAY, then convert that to UTC for "due_iso".
+
+- Only leave "due_iso" as null if the timing is truly vague and has no clear day (e.g. "sometime soon", "κάποια στιγμή").
+
 Given the transcript of what the user said, produce a JSON object with:
 
 - "note": a cleaned-up note text (string, in the user's language)
@@ -85,7 +100,7 @@ Given the transcript of what the user said, produce a JSON object with:
 If some information (like precise time) is not clearly stated, set the ISO field to null and use a natural-language description instead.
 
 Return ONLY valid JSON – no markdown, no commentary.
-    `.trim();
+`.trim();
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
