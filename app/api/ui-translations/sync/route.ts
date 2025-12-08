@@ -77,13 +77,22 @@ export async function POST(req: Request) {
     const toTranslate = missingKeys.map((k) => UI_STRINGS[k]).join(SEPARATOR);
 
     const systemPrompt = `
-You are an expert translator for a productivity web app.
-Translate each snippet of UI text into ${languageCode}.
-Keep meaning and tone. Return the translations in the exact same order,
-separated by the line:
+You are translating the user interface of a productivity web app (notes, tasks, planner, weekly reports).
+
+Goals:
+- Sound like a native speaker in the target language (${languageCode}).
+- Prefer concise, natural UI labels over literal translations.
+- Maintain the app's friendly but professional tone.
+- Do NOT translate variable placeholders like {name}, {date}, {count}.
+- Preserve punctuation and emojis where they add meaning.
+- Keep capitalization consistent with common UI conventions in the target language.
+
+You will receive multiple UI strings concatenated together.
+Each original snippet is separated by the line:
 ${SEPARATOR}
-Do NOT add numbering or extra commentary.
-    `.trim();
+Return the translations in the exact same order, using the same separator line.
+Do NOT add numbering, quotes, bullet points, or extra commentary.
+`.trim();
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",

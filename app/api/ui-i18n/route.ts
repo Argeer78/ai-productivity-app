@@ -1,58 +1,61 @@
 // app/api/ui-i18n/route.ts
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { UI_STRINGS, UiTranslationKey } from "@/lib/uiStrings";
 
-// In-memory demo translations.
-// Later you can load from Supabase instead.
-const TRANSLATIONS: Record<string, Record<string, string>> = {
-  en: {
-    "nav.dashboard": "Dashboard",
-    "nav.notes": "Notes",
-    "nav.tasks": "Tasks",
-    "nav.planner": "Planner",
-    "nav.aiChat": "AI Hub Chat",
-    "nav.templates": "Templates",
-    "nav.dailySuccess": "Daily Success",
-    "nav.weeklyReports": "Weekly Reports",
-    "nav.travel": "Travel Planner",
-    "nav.myTrips": "My Trips",
-    "nav.feedback": "Feedback",
-    "nav.changelog": "What’s new",
-    "nav.settings": "Settings",
-    "nav.admin": "Admin",
-  },
-  el: {
-    "nav.dashboard": "Πίνακας ελέγχου",
-    "nav.notes": "Σημειώσεις",
-    "nav.tasks": "Εργασίες",
-    "nav.planner": "Πλάνο",
-    "nav.aiChat": "AI Hub Chat",
-    "nav.templates": "Πρότυπα",
-    "nav.dailySuccess": "Daily Success",
-    "nav.weeklyReports": "Εβδομαδιαίες αναφορές",
-    "nav.travel": "Travel Planner",
-    "nav.myTrips": "Τα ταξίδια μου",
-    "nav.feedback": "Ανατροφοδότηση",
-    "nav.changelog": "Τι νέο υπάρχει",
-    "nav.settings": "Ρυθμίσεις",
-    "nav.admin": "Διαχειριστής",
-  },
-};
-
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const lang = (searchParams.get("lang") || "en").toLowerCase();
+    const langParam = (searchParams.get("lang") || "en").toLowerCase();
 
-    const translations =
-      TRANSLATIONS[lang] ||
-      TRANSLATIONS[lang.split("-")[0]] ||
-      TRANSLATIONS.en ||
-      {};
+    const candidates = [langParam, langParam.split("-")[0]];
+
+    let languageCodeUsed: string | null = null;
+    let translationsFromDb: Record<string, string> = {};
+
+    for (const code of candidates) {
+      if (!code) continue;
+
+      const { data, error } = await supabaseAdmin
+        .from("ui_translations")
+        .select("key, text")
+        .eq("language_code", code);
+
+      if (error) {
+        console.error("[ui-i18n] fetch error", error, "for", code);
+        continue;
+      }
+
+      if (data && data.length > 0) {
+        languageCodeUsed = code;
+        translationsFromDb = data.reduce<Record<string, string>>(
+          (acc, row) => {
+            acc[row.key] = row.text;
+            return acc;
+          },
+          {}
+        );
+        break;
+      }
+    }
+
+    if (!languageCodeUsed) {
+      languageCodeUsed = "en";
+      translationsFromDb = {};
+    }
+
+    const merged: Record<string, string> = {};
+    const keys = Object.keys(UI_STRINGS) as UiTranslationKey[];
+
+    for (const key of keys) {
+      merged[key] = translationsFromDb[key] ?? UI_STRINGS[key];
+    }
 
     return NextResponse.json(
       {
         ok: true,
-        translations,
+        languageCode: languageCodeUsed,
+        translations: merged,
       },
       { status: 200 }
     );

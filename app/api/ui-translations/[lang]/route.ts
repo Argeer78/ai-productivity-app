@@ -1,63 +1,72 @@
 // app/api/ui-translations/[lang]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
-
-// Simple demo translations – replace with Supabase later if you like
-const TRANSLATIONS: Record<string, Record<string, string>> = {
-  en: {
-    "nav.dashboard": "Dashboard",
-    "nav.notes": "Notes",
-    "nav.tasks": "Tasks",
-    "nav.planner": "Planner",
-    "nav.aiChat": "AI Hub Chat",
-    "nav.templates": "Templates",
-    "nav.dailySuccess": "Daily Success",
-    "nav.weeklyReports": "Weekly Reports",
-    "nav.travel": "Travel Planner",
-    "nav.myTrips": "My Trips",
-    "nav.feedback": "Feedback",
-    "nav.changelog": "What’s new",
-    "nav.settings": "Settings",
-    "nav.admin": "Admin",
-  },
-  el: {
-    "nav.dashboard": "Πίνακας ελέγχου",
-    "nav.notes": "Σημειώσεις",
-    "nav.tasks": "Εργασίες",
-    "nav.planner": "Πλάνο",
-    "nav.aiChat": "AI Hub Chat",
-    "nav.templates": "Πρότυπα",
-    "nav.dailySuccess": "Daily Success",
-    "nav.weeklyReports": "Εβδομαδιαίες αναφορές",
-    "nav.travel": "Travel Planner",
-    "nav.myTrips": "Τα ταξίδια μου",
-    "nav.feedback": "Ανατροφοδότηση",
-    "nav.changelog": "Τι νέο υπάρχει",
-    "nav.settings": "Ρυθμίσεις",
-    "nav.admin": "Διαχειριστής",
-  },
-};
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { UI_STRINGS, UiTranslationKey } from "@/lib/uiStrings";
 
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ lang: string }> }
 ) {
   try {
-    // NOTE: with your Next version, params is a Promise
     const { lang } = await context.params;
+    const rawCode = (lang || "en").toLowerCase();
 
-    const code = (lang || "en").toLowerCase();
+    // Handle lang like "el-GR" vs "el"
+    const candidates = [
+      rawCode,
+      rawCode.split("-")[0], // base language
+    ];
 
-    const translations =
-      TRANSLATIONS[code] ||
-      TRANSLATIONS[code.split("-")[0]] ||
-      TRANSLATIONS.en ||
-      {};
+    // Try to load translations for the most specific code that exists
+    let languageCodeUsed: string | null = null;
+    let translationsFromDb: Record<string, string> = {};
+
+    for (const code of candidates) {
+      if (!code) continue;
+
+      const { data, error } = await supabaseAdmin
+        .from("ui_translations")
+        .select("key, text")
+        .eq("language_code", code);
+
+      if (error) {
+        console.error("[ui-translations] fetch error", error, "for", code);
+        continue;
+      }
+
+      if (data && data.length > 0) {
+        languageCodeUsed = code;
+        translationsFromDb = data.reduce<Record<string, string>>(
+          (acc, row) => {
+            acc[row.key] = row.text;
+            return acc;
+          },
+          {}
+        );
+        break;
+      }
+    }
+
+    // If nothing in DB, we fall back to English only.
+    if (!languageCodeUsed) {
+      languageCodeUsed = "en";
+      translationsFromDb = {};
+    }
+
+    // Build final translations object:
+    // every key in UI_STRINGS must have a value.
+    const merged: Record<string, string> = {};
+    const keys = Object.keys(UI_STRINGS) as UiTranslationKey[];
+
+    for (const key of keys) {
+      merged[key] = translationsFromDb[key] ?? UI_STRINGS[key];
+    }
 
     return NextResponse.json(
       {
         ok: true,
-        languageCode: code,
-        translations,
+        languageCode: languageCodeUsed,
+        translations: merged,
       },
       { status: 200 }
     );
