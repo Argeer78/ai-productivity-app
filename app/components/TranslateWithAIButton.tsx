@@ -22,8 +22,8 @@ type TranslationResponse =
   | { translation: string[]; error?: string | null };
 
 // Hard limits for page translation to control cost & speed
-const MAX_NODES_PER_PAGE = 600;
-const MAX_TOTAL_CHARS = 50000;
+const MAX_NODES_PER_PAGE = 1000;
+const MAX_TOTAL_CHARS = 100000;
 
 // Per-request batch limits (for progressive translation)
 const MAX_BATCH_NODES = 60;
