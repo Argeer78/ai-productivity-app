@@ -25,6 +25,11 @@ type TranslationRow = {
   translated_text: string;
 };
 
+// normalize text so that spacing / newlines don't create separate keys
+function normalize(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Body;
@@ -57,67 +62,77 @@ export async function POST(req: Request) {
       });
     }
 
-    // 1) Look up cached translations
-    const uniqueTexts = Array.from(
-      new Set(texts.map((v) => (v || "").trim()).filter(Boolean))
+    // Precompute normalized versions for caching
+    const normalizedTexts = texts.map((t) => normalize(t || ""));
+    const uniqueNormalized = Array.from(
+      new Set(normalizedTexts.filter(Boolean))
     );
 
     const cachedMap = new Map<string, string>();
 
-    if (uniqueTexts.length > 0) {
+    // 1) Look up cached translations for normalized originals
+    if (uniqueNormalized.length > 0) {
       const { data: cached, error: cachedErr } = await supabase
         .from("page_translations")
         .select("language_code, original_text, translated_text")
         .eq("language_code", langCode)
-        .in("original_text", uniqueTexts);
+        .in("original_text", uniqueNormalized);
 
       if (cachedErr) {
         console.error("[ai-translate] Supabase select error", cachedErr);
       } else if (cached) {
         for (const row of cached as TranslationRow[]) {
-          const original = (row.original_text || "").trim();
+          const originalNorm = normalize(row.original_text || "");
           const translated = (row.translated_text || "").trim();
-          if (!original || !translated) continue;
-          if (original === translated) continue; // ignore bad rows
-          cachedMap.set(original, translated);
+          if (!originalNorm || !translated) continue;
+          if (originalNorm === translated) continue; // ignore bad rows
+          cachedMap.set(originalNorm, translated);
         }
       }
     }
 
     const results: (string | null)[] = new Array(texts.length).fill(null);
-    const toTranslate: { index: number; original: string }[] = [];
+    const toTranslate: { index: number; original: string; normalized: string }[] =
+      [];
 
+    // 2) Fill from cache or mark for translation
     texts.forEach((snippet, index) => {
-      const original = (snippet || "").trim();
-      if (!original) {
+      const original = snippet || "";
+      const norm = normalizedTexts[index];
+
+      if (!norm) {
         results[index] = "";
         return;
       }
 
-      const cached = cachedMap.get(original);
+      const cached = cachedMap.get(norm);
       if (cached) {
         results[index] = cached;
       } else {
-        toTranslate.push({ index, original });
+        toTranslate.push({ index, original, normalized: norm });
       }
     });
 
-    // 2) Call OpenAI only for missing snippets
+    // 3) Call OpenAI only for missing snippets
     if (toTranslate.length > 0) {
-      const originals = toTranslate.map((x) => x.original);
-      const translated = await translateWithOpenAI(originals, langCode);
+      const originalsForModel = toTranslate.map((x) => x.normalized);
+      const translated = await translateWithOpenAI(
+        originalsForModel,
+        langCode
+      );
 
       const rowsToUpsert: TranslationRow[] = [];
 
       toTranslate.forEach((item, i) => {
-        const newText = (translated[i] ?? item.original).trim();
+        const modelOutput = translated[i];
+        const newText = (modelOutput ?? item.normalized).trim();
         results[item.index] = newText;
 
-        // Save only real translations
-        if (newText && newText !== item.original.trim()) {
+        // Save only real translations (different from normalized original)
+        if (newText && newText !== item.normalized) {
           rowsToUpsert.push({
             language_code: langCode,
-            original_text: item.original,
+            original_text: item.normalized, // ⬅ stored normalized
             translated_text: newText,
           });
         }
@@ -127,7 +142,7 @@ export async function POST(req: Request) {
         const { error: upsertErr } = await supabase
           .from("page_translations")
           .upsert(rowsToUpsert, {
-            // needs UNIQUE(language_code, original_text) on the table
+            // UNIQUE(language_code, original_text) on the table
             onConflict: "language_code,original_text",
           });
 
