@@ -25,6 +25,12 @@ type TranslationResponse =
 const MAX_NODES_PER_PAGE = 600;
 const MAX_TOTAL_CHARS = 50000;
 
+// Per-request batch limits (for progressive translation)
+const MAX_BATCH_NODES = 60;
+const MAX_BATCH_CHARS = 5000;
+
+const CONCURRENCY = 2; // how many batches to process in parallel
+
 // Collect text nodes, skipping the translation modal itself
 function getTranslatableTextNodes(): Text[] {
   if (typeof document === "undefined") return [];
@@ -94,9 +100,6 @@ export default function TranslateWithAIButton() {
 
   // track where auto-translation was last applied
   const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
-
-  // cache: "langCode::originalText" -> translatedText (in-memory only)
-  const cacheRef = useRef<Map<string, string>>(new Map());
 
   // ----- initial language: LS_PREF_LANG → UI language → browser language -----
   useEffect(() => {
@@ -229,7 +232,7 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation (React-safe, single request) -----
+  // ----- page translation (progressive chunks, backend cache handles Supabase/OpenAI) -----
   async function translatePageWithLang(
     lang: Language,
     opts?: { auto?: boolean }
@@ -239,7 +242,6 @@ export default function TranslateWithAIButton() {
     setLoading(true);
 
     try {
-      // 1️⃣ Collect all translatable nodes
       const allNodes = getTranslatableTextNodes();
 
       if (!allNodes.length) {
@@ -248,127 +250,151 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      // Apply global caps
-      const nodesWithinLimits: Text[] = [];
+      const selectedNodes: Text[] = [];
       let globalChars = 0;
+      const langCode = lang.code.toLowerCase();
 
       for (const node of allNodes) {
-        if (nodesWithinLimits.length >= MAX_NODES_PER_PAGE) break;
+        if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
 
-        const text = node.textContent || "";
-        const len = text.length;
-
+        const original = node.textContent || "";
+        const len = original.length;
         if (len < 3) continue;
+
         if (globalChars + len > MAX_TOTAL_CHARS) break;
 
-        nodesWithinLimits.push(node);
+        selectedNodes.push(node);
         globalChars += len;
       }
 
-      if (!nodesWithinLimits.length) {
+      if (!selectedNodes.length) {
         setErrorMsg("There was nothing suitable to translate on this page.");
         setLoading(false);
         return;
       }
 
-      // 2️⃣ Build unique list of texts to translate
-      const originalTexts = nodesWithinLimits.map((n) => n.textContent || "");
-      const uniqueTexts = Array.from(
-        new Set(originalTexts.map((t) => t.trim()))
-      ).filter(Boolean);
+      const totalSnippets = selectedNodes.length;
+      const totalChars = selectedNodes.reduce(
+        (sum, n) => sum + ((n.textContent || "").length || 0),
+        0
+      );
 
-      if (!uniqueTexts.length) {
+      type Batch = { nodes: Text[]; charCount: number };
+      const batches: Batch[] = [];
+      let currentNodes: Text[] = [];
+      let currentChars = 0;
+
+      for (const node of selectedNodes) {
+        const text = node.textContent || "";
+        const len = text.length;
+
+        const wouldExceedNodes =
+          currentNodes.length >= MAX_BATCH_NODES && currentNodes.length > 0;
+        const wouldExceedChars =
+          currentChars + len > MAX_BATCH_CHARS && currentChars > 0;
+
+        if (wouldExceedNodes || wouldExceedChars) {
+          batches.push({ nodes: currentNodes, charCount: currentChars });
+          currentNodes = [];
+          currentChars = 0;
+        }
+
+        currentNodes.push(node);
+        currentChars += len;
+      }
+
+      if (currentNodes.length) {
+        batches.push({ nodes: currentNodes, charCount: currentChars });
+      }
+
+      if (!batches.length) {
         setErrorMsg("There was nothing suitable to translate on this page.");
         setLoading(false);
         return;
       }
-
-      // 3️⃣ Call API once for all unique texts
-      const res = await fetch("/api/ai-translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: uniqueTexts,
-          targetLang: lang.code,
-        }),
-      });
-
-      const data = (await res.json().catch(() => null)) as
-        | { translation?: string[] | string; error?: string }
-        | null;
-
-      if (!res.ok || !data?.translation) {
-        if (res.status === 413) {
-          setErrorMsg(
-            "This page is too long to translate in one go. Please try a smaller section."
-          );
-          setLoading(false);
-          return;
-        }
-
-        if (res.status === 429) {
-          setErrorMsg(
-            data?.error ||
-              "AI translation is temporarily rate-limited. Please try again in a few seconds."
-          );
-          setLoading(false);
-          return;
-        }
-
-        console.error("[translate-page] server error", res.status, data);
-        setErrorMsg(
-          data?.error ||
-            `Failed to translate this page (status ${res.status}).`
-        );
-        setLoading(false);
-        return;
-      }
-
-      // 4️⃣ Build map: original -> translated
-      const translatedArray = Array.isArray(data.translation)
-        ? data.translation
-        : uniqueTexts;
-
-      const translationMap = new Map<string, string>();
-      for (let i = 0; i < uniqueTexts.length; i++) {
-        const original = uniqueTexts[i];
-        const translated = translatedArray[i] ?? original;
-        translationMap.set(original, translated);
-      }
-
-      // 5️⃣ Re-scan DOM and apply translations using the map
-      const langCode = lang.code.toLowerCase();
-      const finalNodes = getTranslatableTextNodes(); // fresh nodes after any React re-renders
 
       let translatedSnippets = 0;
       let translatedChars = 0;
 
-      for (const node of finalNodes) {
-        const original = (node.textContent || "").trim();
-        if (!original) continue;
+      async function processBatch(batch: Batch) {
+        const texts = batch.nodes.map((n) => n.textContent || "");
 
-        const translated = translationMap.get(original);
-        if (!translated) continue;
+        const res = await fetch("/api/ai-translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: texts,
+            targetLang: lang.code,
+          }),
+        });
 
-        node.textContent = translated;
-        translatedSnippets++;
-        translatedChars += translated.length;
+        const data = (await res.json().catch(() => null)) as
+          | { translation?: string[] | string; error?: string }
+          | null;
 
-        // warm local cache
-        cacheRef.current.set(`${langCode}::${original}`, translated);
+        if (!res.ok || !data?.translation) {
+          if (res.status === 413) {
+            console.warn("[translate-page] batch payload too long", data);
+            throw new Error(
+              "This page batch is very long and was skipped (413)."
+            );
+          }
+
+          if (res.status === 429) {
+            console.warn("[translate-page] rate limited", data);
+            throw new Error(
+              data?.error ||
+                "AI translation is temporarily rate-limited for this batch."
+            );
+          }
+
+          console.error("[translate-page] server error", res.status, data);
+          throw new Error(
+            data?.error ||
+              `Failed to translate part of the page (status ${res.status}).`
+          );
+        }
+
+        const translatedArray = Array.isArray(data.translation)
+          ? data.translation
+          : texts;
+
+        const m = Math.min(translatedArray.length, batch.nodes.length);
+
+        for (let j = 0; j < m; j++) {
+          const node = batch.nodes[j];
+          const newText = (translatedArray[j] ?? node.textContent) || "";
+          node.textContent = newText;
+        }
+
+        return { snippets: m, chars: batch.charCount };
       }
 
-      if (!translatedSnippets) {
-        setTranslatedText(
-          `Loaded ${uniqueTexts.length} translations for ${lang.label}, but the current page content did not match them exactly.`
+      for (let i = 0; i < batches.length; i += CONCURRENCY) {
+        const slice = batches.slice(i, i + CONCURRENCY);
+
+        const results = await Promise.allSettled(
+          slice.map((batch) => processBatch(batch))
         );
-      } else {
+
+        for (const r of results) {
+          if (r.status === "fulfilled") {
+            translatedSnippets += r.value.snippets;
+            translatedChars += r.value.chars;
+          } else {
+            console.error("[translate-page] batch failed", r.reason);
+            setErrorMsg(
+              "Some parts of the page could not be translated. Please try again or reload."
+            );
+          }
+        }
+
         setTranslatedText(
-          `Translated ${translatedSnippets} snippets (~${translatedChars} characters) to ${lang.label} using cached translations.`
+          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars}/${totalChars} characters) to ${lang.label}…`
         );
       }
 
-      // 6️⃣ Persist preference + auto-mode flag
+      // Persist preference + auto-mode flag
       if (typeof window !== "undefined") {
         window.localStorage.setItem(LS_PREF_LANG, lang.code);
         window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
