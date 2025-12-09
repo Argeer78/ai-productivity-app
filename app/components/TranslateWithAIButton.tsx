@@ -23,8 +23,8 @@ type TranslationResponse = {
 };
 
 // Hard limits for page translation to control cost & speed
-const MAX_NODES_PER_PAGE = 600;
-const MAX_TOTAL_CHARS = 50000;
+const MAX_NODES_PER_PAGE = 2000;
+const MAX_TOTAL_CHARS = 150000;
 
 // Per-request batch limits (for progressive translation)
 const MAX_BATCH_NODES = 60;
@@ -261,8 +261,8 @@ export default function TranslateWithAIButton() {
         const text = node.textContent || "";
         const trimmed = text.trim();
         const len = trimmed.length;
-        if (len < 3) continue;
 
+        // ⬇️ removed len < 3 filter so even very short snippets get translated
         if (globalChars + len > MAX_TOTAL_CHARS) break;
 
         selectedNodes.push(node);
