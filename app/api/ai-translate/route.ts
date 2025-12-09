@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     if (uniqueTexts.length > 0) {
       const { data: cached, error: cachedErr } = await supabase
         .from("page_translations")
-        .select("original_text, translated_text")
+        .select("language_code, original_text, translated_text")
         .eq("language_code", langCode) // ✅ matches your schema
         .in("original_text", uniqueTexts);
 
