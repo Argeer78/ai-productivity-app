@@ -18,8 +18,10 @@ type Body = {
   targetLang: string;
 };
 
+// matches your table: page_translations
+// id, language_code, original_text, translated_text, created_at
 type TranslationRow = {
-  target_lang: string;
+  language_code: string;
   original_text: string;
   translated_text: string;
 };
@@ -47,9 +49,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Do not translate English -> English (no cost)
-    const t = targetLang.toLowerCase();
-    if (t === "en" || t === "en-us" || t === "en-gb") {
+    // Normalize language code (store in lowercase)
+    const langCode = targetLang.toLowerCase();
+
+    // ⚠️ Do not translate English -> English (no cost)
+    if (langCode === "en" || langCode === "en-us" || langCode === "en-gb") {
       return NextResponse.json({
         translation: isArrayInput ? texts : texts[0],
       });
@@ -66,14 +70,22 @@ export async function POST(req: Request) {
       const { data: cached, error: cachedErr } = await supabase
         .from("page_translations")
         .select("original_text, translated_text")
-        .eq("target_lang", targetLang)
+        .eq("language_code", langCode) // ✅ matches your schema
         .in("original_text", uniqueTexts);
 
       if (cachedErr) {
         console.error("[ai-translate] Supabase select error", cachedErr);
       } else if (cached) {
         for (const row of cached as TranslationRow[]) {
-          cachedMap.set(row.original_text, row.translated_text);
+          const original = (row.original_text || "").trim();
+          const translated = (row.translated_text || "").trim();
+          if (!original || !translated) continue;
+
+          // 🚫 Ignore bogus cache like original === translated
+          // (these are often leftovers from the old bug)
+          if (original === translated) continue;
+
+          cachedMap.set(original, translated);
         }
       }
     }
@@ -99,26 +111,33 @@ export async function POST(req: Request) {
     // 2) Call OpenAI only for missing snippets
     if (toTranslate.length > 0) {
       const originals = toTranslate.map((x) => x.original);
-      const translated = await translateWithOpenAI(originals, targetLang);
+      const translated = await translateWithOpenAI(originals, langCode);
 
       const rowsToUpsert: TranslationRow[] = [];
 
       toTranslate.forEach((item, i) => {
-        const newText = translated[i] ?? item.original;
+        const newText = (translated[i] ?? item.original).trim();
         results[item.index] = newText;
 
-        rowsToUpsert.push({
-          target_lang: targetLang,
-          original_text: item.original,
-          translated_text: newText,
-        });
+        // Only upsert *useful* translations
+        if (newText && newText !== item.original.trim()) {
+          rowsToUpsert.push({
+            language_code: langCode,
+            original_text: item.original,
+            translated_text: newText,
+          });
+        }
       });
 
       // 3) Upsert cache
       if (rowsToUpsert.length > 0) {
         const { error: upsertErr } = await supabase
           .from("page_translations")
-          .upsert(rowsToUpsert, { onConflict: "target_lang,original_text" });
+          .upsert(rowsToUpsert, {
+            // Ensure you created a unique constraint on (language_code, original_text)
+            // e.g. in Supabase: CONSTRAINT page_translations_lang_original_key UNIQUE (language_code, original_text)
+            onConflict: "language_code,original_text",
+          });
 
         if (upsertErr) {
           console.error("[ai-translate] Supabase upsert error", upsertErr);
