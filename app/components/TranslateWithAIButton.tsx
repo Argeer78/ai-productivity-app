@@ -15,21 +15,20 @@ import {
   LS_AUTO_MODE,
   type Language,
 } from "@/lib/translateLanguages";
-import { useLanguage } from "@/app/components/LanguageProvider";
 
 type TranslationResponse =
-  | { translation: string; error?: string | null }
-  | { translation: string[]; error?: string | null };
+  | { translation?: string; error?: string }
+  | { translation?: string[]; error?: string };
 
 // Hard limits for page translation to control cost & speed
-const MAX_NODES_PER_PAGE = 600;
-const MAX_TOTAL_CHARS = 50000;
+const MAX_NODES_PER_PAGE = 500;
+const MAX_TOTAL_CHARS = 5000;
 
 // Per-request batch limits (for progressive translation)
-const MAX_BATCH_NODES = 60;
-const MAX_BATCH_CHARS = 5000;
+const MAX_BATCH_NODES = 65;
+const MAX_BATCH_CHARS = 10000;
 
-const CONCURRENCY = 2;
+const VISIBLE_NODE_MULTIPLIER = 1.5;
 
 // Collect text nodes, skipping the translation modal itself
 function getTranslatableTextNodes(): Text[] {
@@ -76,10 +75,6 @@ function getTranslatableTextNodes(): Text[] {
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
-  // App UI language, only used as a hint
-  const languageCtx = useLanguage();
-  const uiLangCode = languageCtx?.lang || "en";
-
   const [open, setOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState<Language | null>(
     LANGUAGES.find((l) => l.region === "Popular") || LANGUAGES[0]
@@ -101,7 +96,7 @@ export default function TranslateWithAIButton() {
   // track where auto-translation was last applied
   const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
 
-  // ----- Initial language: LS_PREF_LANG → UI language → browser language -----
+  // ----- initial language: LS_PREF_LANG → browser language -----
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -109,7 +104,6 @@ export default function TranslateWithAIButton() {
       const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       let lang: Language | null = null;
 
-      // 1) Preferred from Settings (or previous picker)
       if (savedLangCode) {
         lang =
           LANGUAGES.find(
@@ -117,14 +111,6 @@ export default function TranslateWithAIButton() {
           ) || null;
       }
 
-      // 2) If none, use app UI language
-      if (!lang && uiLangCode) {
-        const uiBase = uiLangCode.split("-")[0].toLowerCase();
-        lang =
-          LANGUAGES.find((l) => l.code.toLowerCase() === uiBase) || null;
-      }
-
-      // 3) Fallback: browser language
       if (!lang && typeof navigator !== "undefined" && navigator.language) {
         const browserBase = navigator.language.split("-")[0].toLowerCase();
         lang =
@@ -139,9 +125,9 @@ export default function TranslateWithAIButton() {
     } catch (err) {
       console.error("[translate] load initial language error", err);
     }
-  }, [uiLangCode]);
+  }, []);
 
-  // Center modal when opening
+  // center modal when opening
   useEffect(() => {
     if (open && typeof window !== "undefined") {
       const vw = window.innerWidth;
@@ -169,7 +155,7 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- Basic text translation -----
+  // ----- basic text translation -----
   async function handleTranslateText() {
     if (!selectedLang) return;
     if (!sourceText.trim()) {
@@ -195,7 +181,7 @@ export default function TranslateWithAIButton() {
         | TranslationResponse
         | null;
 
-      if (!res.ok || !data) {
+      if (!res.ok || !data?.translation) {
         if (res.status === 413) {
           setErrorMsg(
             "This text is too long for a single translation. Please split it into smaller chunks and try again."
@@ -212,17 +198,16 @@ export default function TranslateWithAIButton() {
 
         console.error("[translate-text] server error", res.status, data);
         setErrorMsg(
-          (data as any)?.error || `Failed to translate (status ${res.status}).`
+          (data as any)?.error ||
+            `Failed to translate (status ${res.status}).`
         );
         return;
       }
 
-      if (Array.isArray((data as any).translation)) {
-        setTranslatedText(
-          (data as any).translation.join("\n\n----------------\n\n")
-        );
+      if (Array.isArray(data.translation)) {
+        setTranslatedText(data.translation.join("\n\n"));
       } else {
-        setTranslatedText((data as any).translation || "");
+        setTranslatedText(data.translation);
       }
     } catch (err) {
       console.error("[translate-text] fetch error", err);
@@ -232,7 +217,7 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- Page translation (batched) -----
+  // ----- page translation (progressive chunks, server-side cache) -----
   async function translatePageWithLang(
     lang: Language,
     opts?: { auto?: boolean }
@@ -250,17 +235,35 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      const nodesToUse: Text[] = allNodes;
+      // 1️⃣ Prioritize "above the fold" text for speed
+      let nodesToUse: Text[] = allNodes;
+
+      if (typeof window !== "undefined") {
+        const vh = window.innerHeight || 800;
+
+        const visibleOrNear = allNodes.filter((node) => {
+          const el = node.parentElement;
+          if (!el) return false;
+          const rect = el.getBoundingClientRect();
+          return rect.top < vh * VISIBLE_NODE_MULTIPLIER;
+        });
+
+        if (visibleOrNear.length > 10) {
+          nodesToUse = visibleOrNear;
+        }
+      }
+
+      // 2️⃣ Apply global caps (nodes + characters)
       const selectedNodes: Text[] = [];
       let globalChars = 0;
 
       for (const node of nodesToUse) {
         if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
 
-        const original = node.textContent || "";
-        const len = original.length;
-        if (len < 3) continue;
+        const text = node.textContent || "";
+        const len = text.length;
 
+        if (len < 3) continue;
         if (globalChars + len > MAX_TOTAL_CHARS) break;
 
         selectedNodes.push(node);
@@ -268,7 +271,7 @@ export default function TranslateWithAIButton() {
       }
 
       if (!selectedNodes.length) {
-        setErrorMsg("There was nothing suitable to translate on this page.");
+        setErrorMsg("Not enough text to translate on this page.");
         setLoading(false);
         return;
       }
@@ -279,6 +282,7 @@ export default function TranslateWithAIButton() {
         0
       );
 
+      // 3️⃣ Build batches
       type Batch = { nodes: Text[]; charCount: number };
       const batches: Batch[] = [];
       let currentNodes: Text[] = [];
@@ -316,7 +320,10 @@ export default function TranslateWithAIButton() {
       let translatedSnippets = 0;
       let translatedChars = 0;
 
-      async function processBatch(batch: Batch) {
+      // 4️⃣ Process batches sequentially, applying each as we go
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+
         const texts = batch.nodes.map((n) => n.textContent || "");
 
         const res = await fetch("/api/ai-translate", {
@@ -325,36 +332,37 @@ export default function TranslateWithAIButton() {
           body: JSON.stringify({
             text: texts,
             targetLang: lang.code,
-            // 🔹 auto-mode = cache-only (no OpenAI), manual = full translation
-            cacheOnly: opts?.auto === true,
           }),
         });
 
         const data = (await res.json().catch(() => null)) as
-          | { translation?: string[] | string; error?: string }
+          | TranslationResponse
           | null;
 
         if (!res.ok || !data?.translation) {
           if (res.status === 413) {
             console.warn("[translate-page] batch payload too long", data);
-            throw new Error(
-              "This page batch is very long and was skipped (413)."
+            setErrorMsg(
+              "This page is very long. Some sections were skipped because they exceed the translation limit."
             );
+            break;
           }
 
           if (res.status === 429) {
             console.warn("[translate-page] rate limited", data);
-            throw new Error(
-              data?.error ||
-                "AI translation is temporarily rate-limited for this batch."
+            setErrorMsg(
+              (data as any)?.error ||
+                "AI translation is temporarily rate-limited. Some parts may be untranslated."
             );
+            break;
           }
 
           console.error("[translate-page] server error", res.status, data);
-          throw new Error(
-            data?.error ||
+          setErrorMsg(
+            (data as any)?.error ||
               `Failed to translate part of the page (status ${res.status}).`
           );
+          break;
         }
 
         const translatedArray = Array.isArray(data.translation)
@@ -364,43 +372,26 @@ export default function TranslateWithAIButton() {
         const m = Math.min(translatedArray.length, batch.nodes.length);
 
         for (let j = 0; j < m; j++) {
-  const node = batch.nodes[j];
-
-  const candidate = translatedArray[j] as string | undefined;
-  const fallback = node.textContent || "";
-  const newText = candidate != null ? candidate : fallback;
-
-  node.textContent = newText;
-}
-
-        return { snippets: m, chars: batch.charCount };
-      }
-
-      for (let i = 0; i < batches.length; i += CONCURRENCY) {
-        const slice = batches.slice(i, i + CONCURRENCY);
-
-        const results = await Promise.allSettled(
-          slice.map((batch) => processBatch(batch))
-        );
-
-        for (const r of results) {
-          if (r.status === "fulfilled") {
-            translatedSnippets += r.value.snippets;
-            translatedChars += r.value.chars;
-          } else {
-            console.error("[translate-page] batch failed", r.reason);
-            setErrorMsg(
-              "Some parts of the page could not be translated. Please try again or reload."
-            );
-          }
+          const node = batch.nodes[j];
+          const fallback = node.textContent || "";
+          const newText =
+            (translatedArray[j] as string | undefined) || fallback || "";
+          node.textContent = newText;
         }
 
+        translatedSnippets += m;
+        translatedChars += batch.charCount;
+
+        const isLastBatch = i === batches.length - 1;
+
         setTranslatedText(
-          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`
+          isLastBatch
+            ? `Translated ${translatedSnippets} snippets (~${translatedChars} characters) to ${lang.label}.`
+            : `Translated ${translatedSnippets}/${totalSnippets} snippets so far…`
         );
       }
 
-      // Persist preference + auto-mode flag
+      // 5️⃣ Persist preference + auto-mode flag
       if (typeof window !== "undefined") {
         window.localStorage.setItem(LS_PREF_LANG, lang.code);
         window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
@@ -410,32 +401,29 @@ export default function TranslateWithAIButton() {
         }
       }
 
+      // 6️⃣ Remember that we translated this path in this session
       if (pathname) {
         setAutoAppliedPath(pathname);
       }
     } catch (err) {
       console.error("[translate-page] error", err);
-      if (!errorMsg) {
-        setErrorMsg("Network error while translating the page.");
-      }
+      setErrorMsg("Network error while translating the page.");
     } finally {
       setLoading(false);
     }
   }
 
-  // Manual page translation (full: cache + OpenAI)
   function handleTranslatePage() {
     if (!selectedLang) return;
     translatePageWithLang(selectedLang, { auto: false });
   }
 
-  // Auto-translate entire app (cache-only on navigation)
   function handleTranslateSite() {
     if (!selectedLang) return;
     translatePageWithLang(selectedLang, { auto: true });
   }
 
-  // Auto-apply translation when navigating (if auto-mode enabled)
+  // ----- auto-apply translation when navigating (auto-mode) -----
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!pathname) return;
@@ -501,7 +489,7 @@ export default function TranslateWithAIButton() {
     };
   }, [dragging]);
 
-  // language helpers
+  // ----- language helpers -----
   const popularLanguages = LANGUAGES.filter(
     (l) => l.region === "Popular"
   ).sort((a, b) => a.label.localeCompare(b.label));
@@ -602,15 +590,7 @@ export default function TranslateWithAIButton() {
                           <button
                             key={`${lang.code}-${lang.label}`}
                             type="button"
-                            onClick={() => {
-                              setSelectedLang(lang);
-                              if (typeof window !== "undefined") {
-                                window.localStorage.setItem(
-                                  LS_PREF_LANG,
-                                  lang.code
-                                );
-                              }
-                            }}
+                            onClick={() => setSelectedLang(lang)}
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                               isSelected
                                 ? "bg-indigo-600 text-white"
@@ -634,6 +614,7 @@ export default function TranslateWithAIButton() {
                     )
                   ) : (
                     <>
+                      {/* Most popular */}
                       {popularLanguages.length > 0 && (
                         <div>
                           <div className="flex items-center gap-1 mb-1 px-1">
@@ -653,15 +634,7 @@ export default function TranslateWithAIButton() {
                                 <button
                                   key={`${lang.code}-${lang.label}-popular`}
                                   type="button"
-                                  onClick={() => {
-                                    setSelectedLang(lang);
-                                    if (typeof window !== "undefined") {
-                                      window.localStorage.setItem(
-                                        LS_PREF_LANG,
-                                        lang.code
-                                      );
-                                    }
-                                  }}
+                                  onClick={() => setSelectedLang(lang)}
                                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                                     isSelected
                                       ? "bg-indigo-600 text-white"
@@ -682,6 +655,7 @@ export default function TranslateWithAIButton() {
                         </div>
                       )}
 
+                      {/* Regions */}
                       {groupedByRegion.map((group) => (
                         <div key={group.region}>
                           <p className="text-[10px] font-semibold text-[var(--text-muted)] px-1 mb-1">
@@ -696,15 +670,7 @@ export default function TranslateWithAIButton() {
                                 <button
                                   key={`${lang.code}-${lang.label}-${group.region}`}
                                   type="button"
-                                  onClick={() => {
-                                    setSelectedLang(lang);
-                                    if (typeof window !== "undefined") {
-                                      window.localStorage.setItem(
-                                        LS_PREF_LANG,
-                                        lang.code
-                                      );
-                                    }
-                                  }}
+                                  onClick={() => setSelectedLang(lang)}
                                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                                     isSelected
                                       ? "bg-indigo-600 text-white"
