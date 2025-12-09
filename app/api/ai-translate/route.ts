@@ -15,10 +15,9 @@ const supabase = createClient(
 type Body = {
   text: string | string[];
   targetLang: string;
-  cacheOnly?: boolean; // 🔹 when true => ONLY use Supabase cache, no OpenAI
 };
 
-// Your table columns:
+// table: page_translations
 // id, language_code, original_text, translated_text, created_at
 type TranslationRow = {
   language_code: string;
@@ -29,7 +28,7 @@ type TranslationRow = {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Body;
-    const { text, targetLang, cacheOnly } = body || {};
+    const { text, targetLang } = body || {};
 
     if (!text || !targetLang) {
       return NextResponse.json(
@@ -51,14 +50,14 @@ export async function POST(req: Request) {
 
     const langCode = targetLang.toLowerCase();
 
-    // Don't ever translate English -> English (no cost)
+    // If user explicitly asks for English, just echo (no cost)
     if (langCode === "en" || langCode === "en-us" || langCode === "en-gb") {
       return NextResponse.json({
         translation: isArrayInput ? texts : texts[0],
       });
     }
 
-    // 1) Look up cached translations in Supabase
+    // 1) Look up cached translations
     const uniqueTexts = Array.from(
       new Set(texts.map((v) => (v || "").trim()).filter(Boolean))
     );
@@ -79,10 +78,7 @@ export async function POST(req: Request) {
           const original = (row.original_text || "").trim();
           const translated = (row.translated_text || "").trim();
           if (!original || !translated) continue;
-
-          // ignore junk entries
-          if (original === translated) continue;
-
+          if (original === translated) continue; // ignore bad rows
           cachedMap.set(original, translated);
         }
       }
@@ -106,20 +102,7 @@ export async function POST(req: Request) {
       }
     });
 
-    // 2) cacheOnly mode: do NOT call OpenAI, just return originals for uncached
-    if (cacheOnly) {
-      toTranslate.forEach((item) => {
-        results[item.index] = item.original;
-      });
-
-      const finalCacheOnly = results.map((r, i) => r ?? texts[i]);
-
-      return NextResponse.json({
-        translation: isArrayInput ? finalCacheOnly : finalCacheOnly[0],
-      });
-    }
-
-    // 3) Normal mode (manual "Translate this page"): call OpenAI for missing snippets
+    // 2) Call OpenAI only for missing snippets
     if (toTranslate.length > 0) {
       const originals = toTranslate.map((x) => x.original);
       const translated = await translateWithOpenAI(originals, langCode);
@@ -130,6 +113,7 @@ export async function POST(req: Request) {
         const newText = (translated[i] ?? item.original).trim();
         results[item.index] = newText;
 
+        // Save only real translations
         if (newText && newText !== item.original.trim()) {
           rowsToUpsert.push({
             language_code: langCode,
@@ -143,7 +127,7 @@ export async function POST(req: Request) {
         const { error: upsertErr } = await supabase
           .from("page_translations")
           .upsert(rowsToUpsert, {
-            // IMPORTANT: ensure you have UNIQUE(language_code, original_text)
+            // needs UNIQUE(language_code, original_text) on the table
             onConflict: "language_code,original_text",
           });
 
