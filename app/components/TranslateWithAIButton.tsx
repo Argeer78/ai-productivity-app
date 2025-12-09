@@ -327,67 +327,90 @@ export default function TranslateWithAIButton() {
       let translatedChars = 0;
 
       async function processBatch(batch: Batch) {
-        // IMPORTANT: normalize text before sending, so it matches Supabase cache rows
-        const texts = batch.nodes.map((n) =>
-          normalizeForCache(n.textContent || "")
-        );
+  // Normalize text values exactly as backend expects
+  let texts = batch.nodes
+    .map((n) => normalizeForCache(n.textContent || ""))
+    .map((t) => t.length === 0 ? "" : t);
 
-        const res = await fetch("/api/ai-translate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: texts,
-            targetLang: lang.code,
-          }),
-        });
+  // ❗ Filter out junk-only batches
+  const hasRealText = texts.some((t) => t.length > 2);
+  if (!hasRealText) {
+    return { snippets: 0, chars: 0 }; // skip batch
+  }
 
-        const data = (await res.json().catch(() => null)) as
-          | { translation?: string[] | string; error?: string }
-          | null;
+  // Remove empty or meaningless entries
+  const filteredNodes: Text[] = [];
+  const filteredTexts: string[] = [];
 
-        if (!res.ok || !data?.translation) {
-          if (res.status === 413) {
-            console.warn("[translate-page] batch payload too long", data);
-            throw new Error(
-              "This page batch is very long and was skipped (413)."
-            );
-          }
+  for (let i = 0; i < texts.length; i++) {
+    const t = texts[i];
 
-          if (res.status === 429) {
-            console.warn("[translate-page] rate limited", data);
-            throw new Error(
-              data?.error ||
-                "AI translation is temporarily rate-limited for this batch."
-            );
-          }
+    // skip empty / single punctuation / invisible garbage
+    if (!t || t.length < 2 || /^[\p{P}\p{S}]+$/u.test(t)) continue;
 
-          console.error("[translate-page] server error", res.status, data);
-          throw new Error(
-            data?.error ||
-              `Failed to translate part of the page (status ${res.status}).`
-          );
-        }
+    filteredNodes.push(batch.nodes[i]);
+    filteredTexts.push(t);
+  }
 
-        const translatedArray = Array.isArray(data.translation)
-          ? (data.translation as string[])
-          : texts;
+  // If everything was junk, skip
+  if (filteredTexts.length === 0) {
+    return { snippets: 0, chars: 0 };
+  }
 
-        const m = Math.min(translatedArray.length, batch.nodes.length);
+  // Call API with cleaned batch
+  const res = await fetch("/api/ai-translate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: filteredTexts,
+      targetLang: lang.code,
+    }),
+  });
 
-        for (let j = 0; j < m; j++) {
-          const node = batch.nodes[j];
-          const fallback = node.textContent || "";
-          const candidate = translatedArray[j];
-          const newText =
-            (typeof candidate === "string" && candidate.length > 0
-              ? candidate
-              : fallback) || "";
+  const data = (await res.json().catch(() => null)) as
+    | { translation?: string[] | string; error?: string }
+    | null;
 
-          node.textContent = newText;
-        }
+  if (!res.ok || !data?.translation) {
+    if (res.status === 413) {
+      console.warn("[translate-page] batch payload too long", data);
+      throw new Error("This page batch is very long and was skipped (413).");
+    }
 
-        return { snippets: m, chars: batch.charCount };
-      }
+    if (res.status === 429) {
+      console.warn("[translate-page] rate limited", data);
+      throw new Error(
+        data?.error ||
+          "AI translation is temporarily rate-limited for this batch."
+      );
+    }
+
+    console.error("[translate-page] server error", res.status, data);
+    throw new Error(
+      data?.error || `Failed to translate part of the page (status ${res.status}).`
+    );
+  }
+
+  const translatedArray = Array.isArray(data.translation)
+    ? (data.translation as string[])
+    : filteredTexts;
+
+  // Apply translation back into the DOM
+  for (let j = 0; j < translatedArray.length; j++) {
+    const node = filteredNodes[j];
+    const candidate = translatedArray[j];
+
+    const fallback = node.textContent || "";
+    const newText =
+      (typeof candidate === "string" && candidate.length > 0
+        ? candidate
+        : fallback) || "";
+
+    node.textContent = newText;
+  }
+
+  return { snippets: filteredTexts.length, chars: batch.charCount };
+}
 
       // 3) Process batches with small concurrency, applying each as we go
       for (let i = 0; i < batches.length; i += CONCURRENCY) {
