@@ -38,8 +38,8 @@ const MAX_TOTAL_CHARS = 150000;
 /* -------------------------------------------------------
    Per-batch limits
 ------------------------------------------------------- */
-const MAX_BATCH_NODES = 60;
-const MAX_BATCH_CHARS = 5000;
+const MAX_BATCH_NODES = 150;
+const MAX_BATCH_CHARS = 15000;
 const CONCURRENCY = 2;
 
 /* -------------------------------------------------------
