@@ -22,22 +22,31 @@ type TranslationResponse = {
   error?: string | null;
 };
 
-// 🔧 Normalize text so cache lookups match Supabase rows
+/* -------------------------------------------------------
+   Normalization so Supabase cache keys match every time
+------------------------------------------------------- */
 function normalizeForCache(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-// Hard limits for page translation to control cost & speed
+/* -------------------------------------------------------
+   Global hard caps for page translate
+------------------------------------------------------- */
 const MAX_NODES_PER_PAGE = 20000;
 const MAX_TOTAL_CHARS = 150000;
 
-// Per-request batch limits (for progressive translation)
+/* -------------------------------------------------------
+   Per-batch limits
+------------------------------------------------------- */
 const MAX_BATCH_NODES = 60;
 const MAX_BATCH_CHARS = 5000;
+const CONCURRENCY = 2;
 
-const CONCURRENCY = 2; // how many batches to process in parallel
-
-// Collect text nodes, skipping the translation modal itself
+/* -------------------------------------------------------
+   NEW patched acceptNode — filters out ALL non-visible,
+   zero-size, hidden, or layout nodes so we don't send
+   garbage strings to the API or cache.
+------------------------------------------------------- */
 function getTranslatableTextNodes(): Text[] {
   if (typeof document === "undefined") return [];
 
@@ -49,18 +58,35 @@ function getTranslatableTextNodes(): Text[] {
         const parent = (node as Text).parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
 
-        // Skip modal
+        // Skip translation modal
         if (parent.closest("[data-translate-modal='1']")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        // Skip scripts etc.
+        const tag = parent.tagName.toLowerCase();
+        if (
+          ["script", "style", "noscript", "textarea"].includes(tag) ||
+          parent.closest("code, pre, kbd, svg")
+        ) {
           return NodeFilter.FILTER_REJECT;
         }
 
         const text = node.textContent || "";
         if (!text.trim()) return NodeFilter.FILTER_REJECT;
 
-        const tag = parent.tagName.toLowerCase();
+        // NEW — filter invisible or zero-size elements
+        const rect = parent.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        // Skip elements that are visually hidden
+        const style = window.getComputedStyle(parent);
         if (
-          ["script", "style", "noscript", "textarea"].includes(tag) ||
-          parent.closest("code, pre, kbd, svg")
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.opacity === "0"
         ) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -79,13 +105,17 @@ function getTranslatableTextNodes(): Text[] {
   return nodes;
 }
 
+/* -------------------------------------------------------
+   MAIN COMPONENT
+------------------------------------------------------- */
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
-  // App UI language, used only as a *hint* for default target language
+  // UI language
   const languageCtx = useLanguage();
   const uiLangCode = languageCtx?.lang || "en";
 
+  // modal + text state
   const [open, setOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState<Language | null>(
     LANGUAGES.find((l) => l.region === "Popular") || LANGUAGES[0]
@@ -96,18 +126,21 @@ export default function TranslateWithAIButton() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // drag state
-  const [position, setPosition] = useState<{ top: number; left: number }>({
-    top: 0,
-    left: 0,
-  });
+  /* -------------------------------------------------------
+     Dragging modal
+  ------------------------------------------------------- */
+  const [position, setPosition] = useState({ top: 0, left: 0 });
   const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  // track where auto-translation was last applied
+  /* -------------------------------------------------------
+     Auto-translation tracking
+  ------------------------------------------------------- */
   const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
 
-  // ----- initial language: LS_PREF_LANG → UI language → browser language -----
+  /* -------------------------------------------------------
+     Language initialization
+  ------------------------------------------------------- */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -115,7 +148,6 @@ export default function TranslateWithAIButton() {
       const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       let lang: Language | null = null;
 
-      // 1) Prefer saved manual choice (from Settings or previous selection)
       if (savedLangCode) {
         lang =
           LANGUAGES.find(
@@ -123,42 +155,39 @@ export default function TranslateWithAIButton() {
           ) || null;
       }
 
-      // 2) If none, prefer app UI language
       if (!lang && uiLangCode) {
         const uiBase = uiLangCode.split("-")[0].toLowerCase();
         lang =
           LANGUAGES.find((l) => l.code.toLowerCase() === uiBase) || null;
       }
 
-      // 3) Fallback to browser language
-      if (!lang && typeof navigator !== "undefined" && navigator.language) {
+      if (!lang && navigator.language) {
         const browserBase = navigator.language.split("-")[0].toLowerCase();
         lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === browserBase
-          ) || null;
+          LANGUAGES.find((l) => l.code.toLowerCase() === browserBase) ||
+          null;
       }
 
-      if (lang) {
-        setSelectedLang(lang);
-      }
+      if (lang) setSelectedLang(lang);
     } catch (err) {
-      console.error("[translate] load initial language error", err);
+      console.error("[translate] language init error", err);
     }
   }, [uiLangCode]);
 
-  // center modal when opening
+  /* -------------------------------------------------------
+     Center modal when opened
+  ------------------------------------------------------- */
   useEffect(() => {
     if (open && typeof window !== "undefined") {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
       setPosition({
-        top: vh * 0.15,
-        left: vw / 2,
+        top: window.innerHeight * 0.15,
+        left: window.innerWidth / 2,
       });
     }
   }, [open]);
-
+  /* -------------------------------------------------------
+     Open modal (grab selected text if available)
+  ------------------------------------------------------- */
   function handleOpen() {
     try {
       const selection = window.getSelection()?.toString().trim() || "";
@@ -175,7 +204,9 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- basic text translation -----
+  /* -------------------------------------------------------
+     BASIC TEXT TRANSLATION
+  ------------------------------------------------------- */
   async function handleTranslateText() {
     if (!selectedLang) return;
     if (!sourceText.trim()) {
@@ -204,33 +235,16 @@ export default function TranslateWithAIButton() {
         | null;
 
       if (!res.ok || !data) {
-        if (res.status === 413) {
-          setErrorMsg(
-            "This text is too long for a single translation. Please split it into smaller chunks and try again."
-          );
-          return;
-        }
-        if (res.status === 429) {
-          setErrorMsg(
-            (data as any)?.error ||
-              "AI translation is temporarily rate-limited. Please try again in a few seconds."
-          );
-          return;
-        }
-
-        console.error("[translate-text] server error", res.status, data);
         setErrorMsg(
-          (data as any)?.error || `Failed to translate (status ${res.status}).`
+          data?.error || `Failed to translate (status ${res.status}).`
         );
         return;
       }
 
       if (Array.isArray(data.translation)) {
-        setTranslatedText(
-          data.translation.join("\n\n----------------\n\n")
-        );
+        setTranslatedText(data.translation.join("\n\n----------------\n\n"));
       } else {
-        setTranslatedText((data.translation as string) || "");
+        setTranslatedText(data.translation || "");
       }
     } catch (err) {
       console.error("[translate-text] fetch error", err);
@@ -240,7 +254,9 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation: simple, let Supabase handle caching -----
+  /* -------------------------------------------------------
+     FULL PAGE TRANSLATION — BATCHED — SUPABASE-CACHED
+  ------------------------------------------------------- */
   async function translatePageWithLang(
     lang: Language,
     opts?: { auto?: boolean }
@@ -258,7 +274,14 @@ export default function TranslateWithAIButton() {
         return;
       }
 
-      // 1) Apply global caps (nodes + characters)
+      console.log("[DEBUG] Total raw text nodes found:", allNodes.length);
+      allNodes.slice(0, 50).forEach((n, i) => {
+        console.log(`[NODE ${i}]`, JSON.stringify(n.textContent));
+      });
+
+      /* -----------------------------
+         GLOBAL LIMITS
+      ----------------------------- */
       const selectedNodes: Text[] = [];
       let globalChars = 0;
 
@@ -266,10 +289,8 @@ export default function TranslateWithAIButton() {
         if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
 
         const text = node.textContent || "";
-        const trimmed = text.trim();
-        const len = trimmed.length;
+        const len = text.trim().length;
 
-        // keep even very short snippets this time
         if (globalChars + len > MAX_TOTAL_CHARS) break;
 
         selectedNodes.push(node);
@@ -284,13 +305,16 @@ export default function TranslateWithAIButton() {
 
       const totalSnippets = selectedNodes.length;
       const totalChars = selectedNodes.reduce(
-        (sum, n) => sum + ((n.textContent || "").length || 0),
+        (sum, n) => sum + (n.textContent?.length || 0),
         0
       );
 
-      // 2) Build batches
+      /* -----------------------------
+         BUILD BATCHES
+      ----------------------------- */
       type Batch = { nodes: Text[]; charCount: number };
       const batches: Batch[] = [];
+
       let currentNodes: Text[] = [];
       let currentChars = 0;
 
@@ -298,12 +322,12 @@ export default function TranslateWithAIButton() {
         const text = node.textContent || "";
         const len = text.length;
 
-        const wouldExceedNodes =
+        const exceedsNodeLimit =
           currentNodes.length >= MAX_BATCH_NODES && currentNodes.length > 0;
-        const wouldExceedChars =
+        const exceedsCharLimit =
           currentChars + len > MAX_BATCH_CHARS && currentChars > 0;
 
-        if (wouldExceedNodes || wouldExceedChars) {
+        if (exceedsNodeLimit || exceedsCharLimit) {
           batches.push({ nodes: currentNodes, charCount: currentChars });
           currentNodes = [];
           currentChars = 0;
@@ -318,70 +342,72 @@ export default function TranslateWithAIButton() {
       }
 
       if (!batches.length) {
-        setErrorMsg("There was nothing suitable to translate on this page.");
+        setErrorMsg("Nothing to translate.");
         setLoading(false);
         return;
       }
 
+      /* -----------------------------
+         BATCH PROCESSOR—CACHE FRIENDLY
+      ----------------------------- */
+      async function processBatch(batch: Batch) {
+        const rawTexts = batch.nodes.map((n) => n.textContent || "");
+        const texts = rawTexts.map((t) => normalizeForCache(t));
+
+        // Remove only empty items
+        const filteredNodes: Text[] = [];
+        const filteredTexts: string[] = [];
+
+        for (let i = 0; i < texts.length; i++) {
+          if (!texts[i].trim()) continue;
+          filteredNodes.push(batch.nodes[i]);
+          filteredTexts.push(texts[i]);
+        }
+
+        if (filteredTexts.length === 0) {
+          return { snippets: 0, chars: 0 };
+        }
+
+        const res = await fetch("/api/ai-translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: filteredTexts,
+            targetLang: lang.code,
+          }),
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | { translation?: string[] | string; error?: string }
+          | null;
+
+        if (!res.ok || !data?.translation) {
+          throw new Error(data?.error || "Batch translation failed");
+        }
+
+        const translatedArray = Array.isArray(data.translation)
+          ? data.translation
+          : filteredTexts;
+
+        // APPLY TRANSLATION TO DOM
+        for (let j = 0; j < translatedArray.length; j++) {
+          const node = filteredNodes[j];
+          const text = translatedArray[j] || node.textContent || "";
+          node.textContent = text;
+        }
+
+        return {
+          snippets: filteredTexts.length,
+          chars: batch.charCount,
+        };
+      }
+
+      /* -----------------------------
+         PROCESS BATCHES WITH CONCURRENCY
+      ----------------------------- */
       let translatedSnippets = 0;
       let translatedChars = 0;
 
-      async function processBatch(batch: Batch) {
-  // Normalize texts so DB keys match
-  const texts = batch.nodes.map((n) =>
-    normalizeForCache(n.textContent || "")
-  );
-
-  // Keep EVERYTHING except empty strings
-  const filteredNodes: Text[] = [];
-  const filteredTexts: string[] = [];
-
-  for (let i = 0; i < texts.length; i++) {
-    const t = texts[i];
-
-    // remove only completely empty strings
-    if (!t || t.trim().length === 0) continue;
-
-    filteredNodes.push(batch.nodes[i]);
-    filteredTexts.push(t);
-  }
-
-  if (filteredTexts.length === 0) {
-    return { snippets: 0, chars: 0 };
-  }
-
-  const res = await fetch("/api/ai-translate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: filteredTexts,
-      targetLang: lang.code,
-    }),
-  });
-
-  const data = (await res.json().catch(() => null)) as
-    | { translation?: string[] | string; error?: string }
-    | null;
-
-  if (!res.ok || !data?.translation) {
-    throw new Error(data?.error || "Batch translation failed");
-  }
-
-  const translatedArray = Array.isArray(data.translation)
-    ? (data.translation as string[])
-    : filteredTexts;
-
-  // Apply translated text to DOM
-  for (let j = 0; j < translatedArray.length; j++) {
-    const node = filteredNodes[j];
-    const newText = translatedArray[j] || node.textContent || "";
-    node.textContent = newText;
-  }
-
-  return { snippets: filteredTexts.length, chars: batch.charCount };
-}
-
-      // 3) Process batches with small concurrency, applying each as we go
       for (let i = 0; i < batches.length; i += CONCURRENCY) {
         const slice = batches.slice(i, i + CONCURRENCY);
 
@@ -396,42 +422,40 @@ export default function TranslateWithAIButton() {
           } else {
             console.error("[translate-page] batch failed", r.reason);
             setErrorMsg(
-              "Some parts of the page could not be translated. Please try again or reload."
+              "Some parts of the page could not be translated. You can retry."
             );
           }
         }
 
         setTranslatedText(
-          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`
+          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} chars) to ${lang.label}…`
         );
       }
 
-      // 4️⃣ Persist preference + auto-mode flag
+      /* -----------------------------
+         SAVE USER PREFERENCES
+      ----------------------------- */
       if (typeof window !== "undefined") {
         window.localStorage.setItem(LS_PREF_LANG, lang.code);
-        window.localStorage.setItem(
-          LS_LAST_PATH,
-          window.location.pathname
-        );
+        window.localStorage.setItem(LS_LAST_PATH, pathname || "");
 
         if (opts?.auto) {
           window.localStorage.setItem(LS_AUTO_MODE, "1");
         }
       }
 
-      if (pathname) {
-        setAutoAppliedPath(pathname);
-      }
+      setAutoAppliedPath(pathname || "");
     } catch (err) {
       console.error("[translate-page] error", err);
-      if (!errorMsg) {
-        setErrorMsg("Network error while translating the page.");
-      }
+      setErrorMsg("Network error while translating the page.");
     } finally {
       setLoading(false);
     }
   }
 
+  /* -------------------------------------------------------
+     BUTTON ACTIONS
+  ------------------------------------------------------- */
   function handleTranslatePage() {
     if (!selectedLang) return;
     translatePageWithLang(selectedLang, { auto: false });
@@ -442,7 +466,9 @@ export default function TranslateWithAIButton() {
     translatePageWithLang(selectedLang, { auto: true });
   }
 
-  // auto-apply translation when navigating (auto-mode)
+  /* -------------------------------------------------------
+     AUTO-APPLY TRANSLATION ON NAVIGATION
+  ------------------------------------------------------- */
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!pathname) return;
@@ -460,6 +486,7 @@ export default function TranslateWithAIButton() {
         LANGUAGES.find(
           (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
         ) || null;
+
       if (!lang) return;
 
       setSelectedLang(lang);
@@ -470,7 +497,9 @@ export default function TranslateWithAIButton() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  // drag logic
+  /* -------------------------------------------------------
+     DRAG HANDLERS
+  ------------------------------------------------------- */
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragging(true);
@@ -478,7 +507,7 @@ export default function TranslateWithAIButton() {
   }
 
   useEffect(() => {
-    function handleMouseMove(e: MouseEvent) {
+    function move(e: MouseEvent) {
       if (!dragging) return;
 
       const start = dragStartRef.current;
@@ -492,26 +521,27 @@ export default function TranslateWithAIButton() {
       dragStartRef.current = { x: e.clientX, y: e.clientY };
     }
 
-    function handleMouseUp() {
+    function up() {
       setDragging(false);
       dragStartRef.current = null;
     }
 
     if (dragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
     }
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
     };
   }, [dragging]);
-
-  // language helpers
-  const popularLanguages = LANGUAGES.filter(
-    (l) => l.region === "Popular"
-  ).sort((a, b) => a.label.localeCompare(b.label));
+  /* -------------------------------------------------------
+     LANGUAGE PICKER HELPERS
+  ------------------------------------------------------- */
+  const popularLanguages = LANGUAGES.filter((l) => l.region === "Popular").sort(
+    (a, b) => a.label.localeCompare(b.label)
+  );
 
   const searchTerm = search.trim().toLowerCase();
 
@@ -526,26 +556,30 @@ export default function TranslateWithAIButton() {
   const groupedByRegion =
     !filteredLanguages
       ? (REGION_ORDER.map((region) => {
-          const items = LANGUAGES
-            .filter((l) => l.region === region)
-            .sort((a, b) => a.label.localeCompare(b.label));
+          const items = LANGUAGES.filter(
+            (l) => l.region === region
+          ).sort((a, b) => a.label.localeCompare(b.label));
 
           if (!items.length) return null;
-
           return { region, items };
-        }).filter((g) => g !== null) as { region: string; items: Language[] }[])
+        }).filter(Boolean) as { region: string; items: Language[] }[])
       : [];
 
+  /* -------------------------------------------------------
+     RENDER
+  ------------------------------------------------------- */
   return (
     <>
+      {/* Main button */}
       <button
         type="button"
         onClick={handleOpen}
         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-card) 60%,transparent)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
       >
-        <span>🌎 Translate with AI</span>
+        🌎 Translate with AI
       </button>
 
+      {/* Modal */}
       {open && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
           <div
@@ -574,6 +608,7 @@ export default function TranslateWithAIButton() {
                   </p>
                 </div>
               </div>
+
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -590,6 +625,7 @@ export default function TranslateWithAIButton() {
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   Target language
                 </label>
+
                 <input
                   type="text"
                   value={search}
@@ -598,6 +634,7 @@ export default function TranslateWithAIButton() {
                   className="w-full px-3 py-2 mb-2 rounded-xl bg-[var(--bg-body)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-main)]"
                 />
 
+                {/* Language results */}
                 <div className="max-h-52 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] p-2 space-y-2">
                   {filteredLanguages ? (
                     filteredLanguages.length ? (
@@ -605,6 +642,7 @@ export default function TranslateWithAIButton() {
                         const isSelected =
                           selectedLang?.code === lang.code &&
                           selectedLang?.label === lang.label;
+
                         return (
                           <button
                             key={`${lang.code}-${lang.label}`}
@@ -641,33 +679,32 @@ export default function TranslateWithAIButton() {
                     )
                   ) : (
                     <>
+                      {/* Popular languages */}
                       {popularLanguages.length > 0 && (
                         <div>
                           <div className="flex items-center gap-1 mb-1 px-1">
-                            <span className="text-[10px] text-amber-300">
-                              ⭐
-                            </span>
+                            <span className="text-[10px] text-amber-300">⭐</span>
                             <span className="text-[10px] font-semibold text-[var(--text-main)]">
                               Most popular
                             </span>
                           </div>
+
                           <div className="space-y-1 mb-2">
                             {popularLanguages.map((lang) => {
                               const isSelected =
                                 selectedLang?.code === lang.code &&
                                 selectedLang?.label === lang.label;
+
                               return (
                                 <button
                                   key={`${lang.code}-${lang.label}-popular`}
                                   type="button"
                                   onClick={() => {
                                     setSelectedLang(lang);
-                                    if (typeof window !== "undefined") {
-                                      window.localStorage.setItem(
-                                        LS_PREF_LANG,
-                                        lang.code
-                                      );
-                                    }
+                                    window.localStorage.setItem(
+                                      LS_PREF_LANG,
+                                      lang.code
+                                    );
                                   }}
                                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                                     isSelected
@@ -689,6 +726,7 @@ export default function TranslateWithAIButton() {
                         </div>
                       )}
 
+                      {/* Regions */}
                       {groupedByRegion.map((group) => (
                         <div key={group.region}>
                           <p className="text-[10px] font-semibold text-[var(--text-muted)] px-1 mb-1">
@@ -699,18 +737,17 @@ export default function TranslateWithAIButton() {
                               const isSelected =
                                 selectedLang?.code === lang.code &&
                                 selectedLang?.label === lang.label;
+
                               return (
                                 <button
                                   key={`${lang.code}-${lang.label}-${group.region}`}
                                   type="button"
                                   onClick={() => {
                                     setSelectedLang(lang);
-                                    if (typeof window !== "undefined") {
-                                      window.localStorage.setItem(
-                                        LS_PREF_LANG,
-                                        lang.code
-                                      );
-                                    }
+                                    window.localStorage.setItem(
+                                      LS_PREF_LANG,
+                                      lang.code
+                                    );
                                   }}
                                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
                                     isSelected
@@ -736,11 +773,12 @@ export default function TranslateWithAIButton() {
                 </div>
               </div>
 
-              {/* Text to translate */}
+              {/* Text input */}
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   Text to translate
                 </label>
+
                 <textarea
                   value={sourceText}
                   onChange={(e) => setSourceText(e.target.value)}
@@ -749,12 +787,12 @@ export default function TranslateWithAIButton() {
                 />
               </div>
 
-              {/* Error */}
+              {/* Error message */}
               {errorMsg && (
                 <p className="text-[11px] text-red-400">{errorMsg}</p>
               )}
 
-              {/* Actions */}
+              {/* Action buttons */}
               <div className="flex flex-wrap items-center gap-2 justify-between">
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -798,7 +836,7 @@ export default function TranslateWithAIButton() {
                 </button>
               </div>
 
-              {/* Result / status */}
+              {/* Translation status output */}
               {translatedText && (
                 <div className="mt-2">
                   <p className="text-[11px] text-[var(--text-muted)] mb-1">
