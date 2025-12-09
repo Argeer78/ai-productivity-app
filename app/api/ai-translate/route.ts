@@ -60,8 +60,14 @@ export async function POST(req: Request) {
     }
 
     // 1) Look up cached translations
+    //    IMPORTANT: use the *exact* text as key, not trimmed,
+    //    so it matches what’s in page_translations.original_text.
     const uniqueTexts = Array.from(
-      new Set(texts.map((v) => (v || "").trim()).filter(Boolean))
+      new Set(
+        texts
+          .map((v) => v ?? "")
+          .filter((v) => v.trim().length > 0) // ignore all-whitespace
+      )
     );
 
     const cachedMap = new Map<string, string>();
@@ -70,20 +76,21 @@ export async function POST(req: Request) {
       const { data: cached, error: cachedErr } = await supabase
         .from("page_translations")
         .select("language_code, original_text, translated_text")
-        .eq("language_code", langCode) // ✅ matches your schema
+        .eq("language_code", langCode)
         .in("original_text", uniqueTexts);
 
       if (cachedErr) {
         console.error("[ai-translate] Supabase select error", cachedErr);
       } else if (cached) {
         for (const row of cached as TranslationRow[]) {
-          const original = (row.original_text || "").trim();
-          const translated = (row.translated_text || "").trim();
-          if (!original || !translated) continue;
+          const original = row.original_text ?? "";
+          const translated = row.translated_text ?? "";
 
-          // 🚫 Ignore bogus cache like original === translated
-          // (these are often leftovers from the old bug)
-          if (original === translated) continue;
+          // skip empty rows just in case
+          if (!original.trim() || !translated.trim()) continue;
+
+          // also skip bogus cache where original===translated
+          if (original.trim() === translated.trim()) continue;
 
           cachedMap.set(original, translated);
         }
@@ -94,16 +101,20 @@ export async function POST(req: Request) {
     const toTranslate: { index: number; original: string }[] = [];
 
     texts.forEach((snippet, index) => {
-      const original = (snippet || "").trim();
-      if (!original) {
+      const original = snippet ?? "";
+
+      // skip empty / whitespace-only snippets
+      if (!original.trim()) {
         results[index] = "";
         return;
       }
 
       const cached = cachedMap.get(original);
       if (cached) {
+        // ✅ Use cached translation
         results[index] = cached;
       } else {
+        // needs OpenAI
         toTranslate.push({ index, original });
       }
     });
@@ -116,14 +127,16 @@ export async function POST(req: Request) {
       const rowsToUpsert: TranslationRow[] = [];
 
       toTranslate.forEach((item, i) => {
-        const newText = (translated[i] ?? item.original).trim();
+        const newTextRaw = translated[i] ?? item.original;
+        const newText = newTextRaw; // keep raw for DOM; we can trim only for checks
+
         results[item.index] = newText;
 
         // Only upsert *useful* translations
-        if (newText && newText !== item.original.trim()) {
+        if (newText.trim() && newText.trim() !== item.original.trim()) {
           rowsToUpsert.push({
             language_code: langCode,
-            original_text: item.original,
+            original_text: item.original, // exact text from DOM
             translated_text: newText,
           });
         }
@@ -134,8 +147,7 @@ export async function POST(req: Request) {
         const { error: upsertErr } = await supabase
           .from("page_translations")
           .upsert(rowsToUpsert, {
-            // Ensure you created a unique constraint on (language_code, original_text)
-            // e.g. in Supabase: CONSTRAINT page_translations_lang_original_key UNIQUE (language_code, original_text)
+            // Your table must have UNIQUE(language_code, original_text)
             onConflict: "language_code,original_text",
           });
 
