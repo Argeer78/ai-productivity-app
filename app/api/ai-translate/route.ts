@@ -9,16 +9,16 @@ const openai = new OpenAI({
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  // anon key is enough if RLS allows it
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 type Body = {
   text: string | string[];
   targetLang: string;
+  cacheOnly?: boolean; // 🔹 when true => ONLY use Supabase cache, no OpenAI
 };
 
-// matches your table: page_translations
+// Your table columns:
 // id, language_code, original_text, translated_text, created_at
 type TranslationRow = {
   language_code: string;
@@ -29,7 +29,7 @@ type TranslationRow = {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Body;
-    const { text, targetLang } = body || {};
+    const { text, targetLang, cacheOnly } = body || {};
 
     if (!text || !targetLang) {
       return NextResponse.json(
@@ -49,25 +49,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // Normalize language code (store in lowercase)
     const langCode = targetLang.toLowerCase();
 
-    // ⚠️ Do not translate English -> English (no cost)
+    // Don't ever translate English -> English (no cost)
     if (langCode === "en" || langCode === "en-us" || langCode === "en-gb") {
       return NextResponse.json({
         translation: isArrayInput ? texts : texts[0],
       });
     }
 
-    // 1) Look up cached translations
-    //    IMPORTANT: use the *exact* text as key, not trimmed,
-    //    so it matches what’s in page_translations.original_text.
+    // 1) Look up cached translations in Supabase
     const uniqueTexts = Array.from(
-      new Set(
-        texts
-          .map((v) => v ?? "")
-          .filter((v) => v.trim().length > 0) // ignore all-whitespace
-      )
+      new Set(texts.map((v) => (v || "").trim()).filter(Boolean))
     );
 
     const cachedMap = new Map<string, string>();
@@ -83,14 +76,12 @@ export async function POST(req: Request) {
         console.error("[ai-translate] Supabase select error", cachedErr);
       } else if (cached) {
         for (const row of cached as TranslationRow[]) {
-          const original = row.original_text ?? "";
-          const translated = row.translated_text ?? "";
+          const original = (row.original_text || "").trim();
+          const translated = (row.translated_text || "").trim();
+          if (!original || !translated) continue;
 
-          // skip empty rows just in case
-          if (!original.trim() || !translated.trim()) continue;
-
-          // also skip bogus cache where original===translated
-          if (original.trim() === translated.trim()) continue;
+          // ignore junk entries
+          if (original === translated) continue;
 
           cachedMap.set(original, translated);
         }
@@ -101,25 +92,34 @@ export async function POST(req: Request) {
     const toTranslate: { index: number; original: string }[] = [];
 
     texts.forEach((snippet, index) => {
-      const original = snippet ?? "";
-
-      // skip empty / whitespace-only snippets
-      if (!original.trim()) {
+      const original = (snippet || "").trim();
+      if (!original) {
         results[index] = "";
         return;
       }
 
       const cached = cachedMap.get(original);
       if (cached) {
-        // ✅ Use cached translation
         results[index] = cached;
       } else {
-        // needs OpenAI
         toTranslate.push({ index, original });
       }
     });
 
-    // 2) Call OpenAI only for missing snippets
+    // 2) cacheOnly mode: do NOT call OpenAI, just return originals for uncached
+    if (cacheOnly) {
+      toTranslate.forEach((item) => {
+        results[item.index] = item.original;
+      });
+
+      const finalCacheOnly = results.map((r, i) => r ?? texts[i]);
+
+      return NextResponse.json({
+        translation: isArrayInput ? finalCacheOnly : finalCacheOnly[0],
+      });
+    }
+
+    // 3) Normal mode (manual "Translate this page"): call OpenAI for missing snippets
     if (toTranslate.length > 0) {
       const originals = toTranslate.map((x) => x.original);
       const translated = await translateWithOpenAI(originals, langCode);
@@ -127,27 +127,23 @@ export async function POST(req: Request) {
       const rowsToUpsert: TranslationRow[] = [];
 
       toTranslate.forEach((item, i) => {
-        const newTextRaw = translated[i] ?? item.original;
-        const newText = newTextRaw; // keep raw for DOM; we can trim only for checks
-
+        const newText = (translated[i] ?? item.original).trim();
         results[item.index] = newText;
 
-        // Only upsert *useful* translations
-        if (newText.trim() && newText.trim() !== item.original.trim()) {
+        if (newText && newText !== item.original.trim()) {
           rowsToUpsert.push({
             language_code: langCode,
-            original_text: item.original, // exact text from DOM
+            original_text: item.original,
             translated_text: newText,
           });
         }
       });
 
-      // 3) Upsert cache
       if (rowsToUpsert.length > 0) {
         const { error: upsertErr } = await supabase
           .from("page_translations")
           .upsert(rowsToUpsert, {
-            // Your table must have UNIQUE(language_code, original_text)
+            // IMPORTANT: ensure you have UNIQUE(language_code, original_text)
             onConflict: "language_code,original_text",
           });
 

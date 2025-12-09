@@ -22,14 +22,14 @@ type TranslationResponse =
   | { translation: string[]; error?: string | null };
 
 // Hard limits for page translation to control cost & speed
-const MAX_NODES_PER_PAGE = 1000;
-const MAX_TOTAL_CHARS = 100000;
+const MAX_NODES_PER_PAGE = 600;
+const MAX_TOTAL_CHARS = 50000;
 
 // Per-request batch limits (for progressive translation)
 const MAX_BATCH_NODES = 60;
 const MAX_BATCH_CHARS = 5000;
 
-const CONCURRENCY = 2; // how many batches to process in parallel
+const CONCURRENCY = 2;
 
 // Collect text nodes, skipping the translation modal itself
 function getTranslatableTextNodes(): Text[] {
@@ -76,7 +76,7 @@ function getTranslatableTextNodes(): Text[] {
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
-  // App UI language, used only as a *hint* for default target language
+  // App UI language, only used as a hint
   const languageCtx = useLanguage();
   const uiLangCode = languageCtx?.lang || "en";
 
@@ -101,7 +101,7 @@ export default function TranslateWithAIButton() {
   // track where auto-translation was last applied
   const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
 
-  // ----- initial language: LS_PREF_LANG → UI language → browser language -----
+  // ----- Initial language: LS_PREF_LANG → UI language → browser language -----
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -109,7 +109,7 @@ export default function TranslateWithAIButton() {
       const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       let lang: Language | null = null;
 
-      // 1) Prefer saved manual choice (from Settings or previous selection)
+      // 1) Preferred from Settings (or previous picker)
       if (savedLangCode) {
         lang =
           LANGUAGES.find(
@@ -117,14 +117,14 @@ export default function TranslateWithAIButton() {
           ) || null;
       }
 
-      // 2) If none, prefer app UI language
+      // 2) If none, use app UI language
       if (!lang && uiLangCode) {
         const uiBase = uiLangCode.split("-")[0].toLowerCase();
         lang =
           LANGUAGES.find((l) => l.code.toLowerCase() === uiBase) || null;
       }
 
-      // 3) Fallback to browser language
+      // 3) Fallback: browser language
       if (!lang && typeof navigator !== "undefined" && navigator.language) {
         const browserBase = navigator.language.split("-")[0].toLowerCase();
         lang =
@@ -141,7 +141,7 @@ export default function TranslateWithAIButton() {
     }
   }, [uiLangCode]);
 
-  // center modal when opening
+  // Center modal when opening
   useEffect(() => {
     if (open && typeof window !== "undefined") {
       const vw = window.innerWidth;
@@ -169,7 +169,7 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- basic text translation -----
+  // ----- Basic text translation -----
   async function handleTranslateText() {
     if (!selectedLang) return;
     if (!sourceText.trim()) {
@@ -232,7 +232,7 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation (progressive chunks, backend cache handles Supabase/OpenAI) -----
+  // ----- Page translation (batched) -----
   async function translatePageWithLang(
     lang: Language,
     opts?: { auto?: boolean }
@@ -250,11 +250,11 @@ export default function TranslateWithAIButton() {
         return;
       }
 
+      const nodesToUse: Text[] = allNodes;
       const selectedNodes: Text[] = [];
       let globalChars = 0;
-      const langCode = lang.code.toLowerCase();
 
-      for (const node of allNodes) {
+      for (const node of nodesToUse) {
         if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
 
         const original = node.textContent || "";
@@ -325,6 +325,8 @@ export default function TranslateWithAIButton() {
           body: JSON.stringify({
             text: texts,
             targetLang: lang.code,
+            // 🔹 auto-mode = cache-only (no OpenAI), manual = full translation
+            cacheOnly: opts?.auto === true,
           }),
         });
 
@@ -362,10 +364,14 @@ export default function TranslateWithAIButton() {
         const m = Math.min(translatedArray.length, batch.nodes.length);
 
         for (let j = 0; j < m; j++) {
-          const node = batch.nodes[j];
-          const newText = (translatedArray[j] ?? node.textContent) || "";
-          node.textContent = newText;
-        }
+  const node = batch.nodes[j];
+
+  const candidate = translatedArray[j] as string | undefined;
+  const fallback = node.textContent || "";
+  const newText = candidate != null ? candidate : fallback;
+
+  node.textContent = newText;
+}
 
         return { snippets: m, chars: batch.charCount };
       }
@@ -390,7 +396,7 @@ export default function TranslateWithAIButton() {
         }
 
         setTranslatedText(
-          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars}/${totalChars} characters) to ${lang.label}…`
+          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`
         );
       }
 
@@ -417,17 +423,19 @@ export default function TranslateWithAIButton() {
     }
   }
 
+  // Manual page translation (full: cache + OpenAI)
   function handleTranslatePage() {
     if (!selectedLang) return;
     translatePageWithLang(selectedLang, { auto: false });
   }
 
+  // Auto-translate entire app (cache-only on navigation)
   function handleTranslateSite() {
     if (!selectedLang) return;
     translatePageWithLang(selectedLang, { auto: true });
   }
 
-  // auto-apply translation when navigating (auto-mode)
+  // Auto-apply translation when navigating (if auto-mode enabled)
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!pathname) return;
@@ -455,7 +463,7 @@ export default function TranslateWithAIButton() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  // drag logic
+  // ----- drag logic -----
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragging(true);
