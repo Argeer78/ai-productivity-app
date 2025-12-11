@@ -1,8 +1,7 @@
 // lib/useT.ts
 "use client";
 
-import { useLanguage } from "@/app/components/LanguageProvider";
-import { MESSAGES, DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
+import { useUiStrings } from "@/app/components/UiStringsProvider";
 
 type Namespace =
   | "home"
@@ -16,36 +15,35 @@ type Namespace =
   | "settings"
   | "aiChat"
   | "translate"
+  | "tools"
   | string;
 
-export function useT(namespace: Namespace) {
-  const languageCtx = useLanguage() as any;
+export function useT(namespace?: Namespace) {
+  const { lang, translations } = useUiStrings();
 
-  const ctxLang: string | undefined =
-    languageCtx?.lang ||
-    languageCtx?.code ||
-    languageCtx?.languageCode ||
-    languageCtx?.language;
+  function resolveKey(key: string): string {
+    if (!namespace) return key;
 
-  const lang: Locale =
-    (ctxLang && MESSAGES[ctxLang as Locale] ? (ctxLang as Locale) : DEFAULT_LOCALE);
+    // If it already looks namespaced, don't double-prefix
+    if (key.startsWith(namespace + ".") || key.includes(".")) {
+      return key;
+    }
 
-  const dict = MESSAGES[lang] || {};
+    return `${namespace}.${key}`;
+  }
 
-  // namespaced translation: "<namespace>.<key>"
   function t(key: string, fallback?: string): string {
-    const fullKey = `${namespace}.${key}`;
-    const value = dict[fullKey];
+    const fullKey = resolveKey(key);
+    const value = translations[fullKey];
 
     if (typeof value === "string") return value;
     if (typeof fallback === "string") return fallback;
     return fullKey; // debug missing key
   }
 
-  // common translation: "common.<key>"
   function tCommon(key: string, fallback?: string): string {
     const fullKey = `common.${key}`;
-    const value = dict[fullKey];
+    const value = translations[fullKey];
 
     if (typeof value === "string") return value;
     if (typeof fallback === "string") return fallback;

@@ -7,8 +7,13 @@ import OpenAI from "openai";
 // Server-side admin key (DO NOT expose this one to client)
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
-// Language codes you want to allow syncing for
+/**
+ * All language codes we want to support for AI sync.
+ * This should mirror (or be a subset of) the Locale type / SUPPORTED_LANGS
+ * in lib/i18n.ts, but we exclude "en" because English is our base.
+ */
 const SUPPORTED_TARGET_LANGS = [
+  // Original set
   "de",
   "es",
   "fr",
@@ -18,6 +23,24 @@ const SUPPORTED_TARGET_LANGS = [
   "tr",
   "ru",
   "ro",
+
+  // New ones
+  "ar", // Arabic (Standard)
+  "he", // Hebrew
+  "zh", // Chinese (Simplified)
+  "ja", // Japanese
+  "id", // Indonesian
+  "sr", // Serbian
+  "bg", // Bulgarian
+  "hu", // Hungarian
+  "pl", // Polish
+  "cs", // Czech
+  "da", // Danish
+  "sv", // Swedish
+  "nb", // Norwegian (Bokmål)
+  "nl", // Dutch (Netherlands)
+  "hi", // Hindi
+  "ko", // Korean
 ] as const;
 
 type TargetLangCode = (typeof SUPPORTED_TARGET_LANGS)[number];
@@ -26,7 +49,7 @@ function isSupportedTargetLang(code: string): code is TargetLangCode {
   return SUPPORTED_TARGET_LANGS.includes(code as TargetLangCode);
 }
 
-// For nicer prompts
+// For nicer prompts – label each language in English so the model knows what to do.
 const LANGUAGE_LABELS: Record<TargetLangCode, string> = {
   de: "German",
   es: "Spanish",
@@ -37,6 +60,23 @@ const LANGUAGE_LABELS: Record<TargetLangCode, string> = {
   tr: "Turkish",
   ru: "Russian",
   ro: "Romanian",
+
+  ar: "Arabic (Modern Standard)",
+  he: "Hebrew",
+  zh: "Chinese (Simplified)",
+  ja: "Japanese",
+  id: "Indonesian",
+  sr: "Serbian",
+  bg: "Bulgarian",
+  hu: "Hungarian",
+  pl: "Polish",
+  cs: "Czech",
+  da: "Danish",
+  sv: "Swedish",
+  nb: "Norwegian (Bokmål)",
+  nl: "Dutch (Netherlands)",
+  hi: "Hindi",
+  ko: "Korean",
 };
 
 const openai = new OpenAI({

@@ -1,3 +1,4 @@
+// app/components/LanguageProvider.tsx
 "use client";
 
 import {
@@ -9,9 +10,8 @@ import {
 } from "react";
 import {
   SUPPORTED_LANGS,
-  translate,
   type Lang,
-  type TranslationKey,
+  DEFAULT_LOCALE,
 } from "@/lib/i18n";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -19,7 +19,6 @@ type LanguageContextValue = {
   lang: Lang;
   label?: string;
   setLang: (l: Lang) => void;
-  t: (key: TranslationKey, fallback?: string) => string;
 };
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(
@@ -27,15 +26,16 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(
 );
 
 const LS_KEY = "aiprod_lang";
-const DEFAULT_LANG: Lang = "en";
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(DEFAULT_LANG);
+  const [lang, setLangState] = useState<Lang>(DEFAULT_LOCALE);
 
   // 1) Load from localStorage first (fast, no auth needed)
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(LS_KEY);
+    const stored =
+      window.localStorage.getItem(LS_KEY) ||
+      window.localStorage.getItem("uiLang"); // old key fallback
     if (
       stored &&
       SUPPORTED_LANGS.some((entry) => entry.code === stored)
@@ -75,6 +75,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
             setLangState(dbLang);
             if (typeof window !== "undefined") {
               window.localStorage.setItem(LS_KEY, dbLang);
+              window.localStorage.setItem("uiLang", dbLang); // keep RTL in sync
             }
           }
         }
@@ -95,6 +96,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     // Persist in localStorage
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LS_KEY, l);
+      // Also mirror to uiLang so RtlDirectionManager picks it up
+      window.localStorage.setItem("uiLang", l);
     }
 
     // Persist in Supabase profile (best effort)
@@ -118,9 +121,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     })();
   }
 
-  const tWithLang = (key: TranslationKey, fallback?: string) =>
-    translate(lang, key, fallback);
-
   const currentMeta = SUPPORTED_LANGS.find((entry) => entry.code === lang);
 
   return (
@@ -129,7 +129,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         lang,
         label: currentMeta?.label,
         setLang,
-        t: tWithLang,
       }}
     >
       {children}

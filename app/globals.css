@@ -259,3 +259,25 @@ body {
 :root[data-theme] body .border-indigo-500 {
   border-color: var(--accent) !important;
 }
+
+/* Basic RTL support */
+html[dir="rtl"] {
+  direction: rtl;
+}
+
+/* Text alignment tweaks */
+html[dir="rtl"] body {
+  text-align: right;
+}
+
+/* Inputs / textareas should align to the right in RTL */
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+  text-align: right;
+}
+
+/* Optional: make placeholder text right-aligned too */
+html[dir="rtl"] ::placeholder {
+  text-align: right;
+}

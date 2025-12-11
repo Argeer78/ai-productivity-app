@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
-import { SUPPORTED_LANGS } from "@/lib/i18n";
+import { SUPPORTED_LANGS, Locale } from "@/lib/i18n";
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
@@ -119,7 +119,9 @@ function AdminEmailTestPanel({
             <option value="daily">Daily digest style</option>
             <option value="weekly">Weekly report style</option>
             <option value="upgrade-pro">Stripe thank-you (Pro)</option>
-            <option value="upgrade-founder">Stripe thank-you (Founder)</option>
+            <option value="upgrade-founder">
+              Stripe thank-you (Founder)
+            </option>
           </select>
         </div>
 
@@ -157,16 +159,11 @@ export default function AdminHomePage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
 
-  // 🔹 UI header/nav translations sync (ui_translations / UI_STRINGS)
-  const [syncLang, setSyncLang] = useState<string>("el");
+  // 🔹 UI translations sync state
+  const [syncLang, setSyncLang] = useState<Locale>("el");
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
-
-  // 🔹 AI namespace translation (translations table, useT("namespace"))
-  const [aiNamespace, setAiNamespace] = useState<string>("tools");
-  const [aiTargetLang, setAiTargetLang] = useState<string>("es");
-  const [aiSyncLoading, setAiSyncLoading] = useState(false);
-  const [aiSyncStatus, setAiSyncStatus] = useState<string | null>(null);
+  const [syncAllLoading, setSyncAllLoading] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -217,7 +214,29 @@ export default function AdminHomePage() {
     loadStats();
   }, [authorized]);
 
-  // 🔹 Call /api/admin/ui-translation-sync (AI-based → ui_translations)
+  // Helper to sync a single language
+  async function syncLanguage(lang: Locale): Promise<number> {
+    const res = await fetch("/api/admin/ui-translation-sync", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Key": ADMIN_KEY,
+      },
+      body: JSON.stringify({
+        languageCode: lang,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({} as any));
+
+    if (!res.ok || !data?.ok) {
+      throw new Error(data?.error || `Failed to sync language ${lang}`);
+    }
+
+    return data.insertedOrUpdated ?? data.inserted ?? 0;
+  }
+
+  // 🔹 Single-language sync
   async function handleSyncUiTranslations() {
     if (!ADMIN_KEY) {
       setSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
@@ -228,24 +247,7 @@ export default function AdminHomePage() {
     setSyncStatus(null);
 
     try {
-      const res = await fetch("/api/admin/ui-translation-sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Admin-Key": ADMIN_KEY,
-        },
-        body: JSON.stringify({
-          languageCode: syncLang,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({} as any));
-
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "Failed to sync UI translations");
-      }
-
-      const count = data.insertedOrUpdated ?? 0;
+      const count = await syncLanguage(syncLang);
       setSyncStatus(
         `✅ Synced ${count} UI strings for language '${syncLang}'.`
       );
@@ -259,44 +261,36 @@ export default function AdminHomePage() {
     }
   }
 
-  // 🔹 Call /api/admin/ai-translate-namespace (AI → translations table)
-  async function handleAiTranslateNamespace() {
-    setAiSyncLoading(true);
-    setAiSyncStatus(null);
+  // 🔹 Sync ALL languages (except 'en') in sequence
+  async function handleSyncAllLanguages() {
+    if (!ADMIN_KEY) {
+      setSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
+      return;
+    }
 
-    try {
-      const res = await fetch("/api/admin/ai-translate-namespace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(ADMIN_KEY ? { "X-Admin-Key": ADMIN_KEY } : {}),
-        },
-        body: JSON.stringify({
-          fromLanguage: "en",
-          toLanguage: aiTargetLang,
-          namespace: aiNamespace,
-        }),
-      });
+    setSyncAllLoading(true);
+    setSyncStatus("Starting sync for all languages…");
 
-      const data = await res.json().catch(() => null as any);
+    const langs = SUPPORTED_LANGS.map((l) => l.code).filter(
+      (code) => code !== "en"
+    );
 
-      if (!res.ok || !data?.ok) {
-        throw new Error(
-          data?.error || "Failed to AI-translate namespace"
+    const lines: string[] = [];
+
+    for (const lang of langs) {
+      try {
+        const count = await syncLanguage(lang);
+        lines.push(`✅ ${lang}: ${count} strings synced.`);
+      } catch (err: any) {
+        console.error(`[admin] sync error for ${lang}`, err);
+        lines.push(
+          `❌ ${lang}: ${err?.message || "Failed to sync this language."}`
         );
       }
-
-      setAiSyncStatus(
-        `✅ Translated namespace "${aiNamespace}" from en → ${aiTargetLang}. Count: ${data.count}.`
-      );
-    } catch (err: any) {
-      console.error("[admin] AI translate namespace error", err);
-      setAiSyncStatus(
-        `❌ ${err?.message || "Failed to AI-translate namespace"}`
-      );
-    } finally {
-      setAiSyncLoading(false);
     }
+
+    setSyncStatus(lines.join("\n"));
+    setSyncAllLoading(false);
   }
 
   // Auth guards
@@ -349,6 +343,11 @@ export default function AdminHomePage() {
       </main>
     );
   }
+
+  // Group languages by region for the dropdown
+  const regions = Array.from(
+    new Set(SUPPORTED_LANGS.map((l) => l.region))
+  );
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
@@ -508,118 +507,70 @@ export default function AdminHomePage() {
             </Link>
           </div>
 
-          {/* UI translations sync panel (ui_translations / UI_STRINGS) */}
+          {/* UI translations sync panel */}
           <section className="mt-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
             <h2 className="text-sm font-semibold mb-1 text-[var(--text-main)]">
-              UI translations (header, nav, core labels)
+              UI translations (AI sync)
             </h2>
             <p className="text-[11px] text-[var(--text-muted)] mb-3">
-              Use AI to translate all English UI strings from{" "}
-              <code>UI_STRINGS</code> into another language and upsert them into{" "}
-              <code>ui_translations</code>.
+              Use AI to translate all English UI strings into another language
+              and upsert them into the <code>ui_translations</code> table.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div>
                 <label className="block text-[11px] text-[var(--text-main)] mb-1">
                   Target language
                 </label>
                 <select
                   value={syncLang}
-                  onChange={(e) => setSyncLang(e.target.value)}
-                  className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs"
+                  onChange={(e) =>
+                    setSyncLang(e.target.value as Locale)
+                  }
+                  className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs min-w-[220px]"
                 >
-                  {SUPPORTED_LANGS.filter((l) => l.code !== "en").map(
-                    (l) => (
-                      <option key={l.code} value={l.code}>
-                        {l.flag} {l.label} ({l.code})
-                      </option>
-                    )
-                  )}
+                  {regions.map((region) => (
+                    <optgroup key={region} label={region}>
+                      {SUPPORTED_LANGS.filter(
+                        (l) => l.region === region
+                      ).map((lang) => (
+                        <option key={lang.code} value={lang.code}>
+                          {lang.flag} {lang.label} ({lang.code})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
 
-              <button
-                type="button"
-                onClick={handleSyncUiTranslations}
-                disabled={syncLoading}
-                className="px-3 py-2 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium disabled:opacity-60"
-              >
-                {syncLoading ? "Syncing…" : "Sync UI translations"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSyncUiTranslations}
+                  disabled={syncLoading || syncAllLoading}
+                  className="px-3 py-2 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium disabled:opacity-60"
+                >
+                  {syncLoading
+                    ? "Syncing…"
+                    : "Sync selected language"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncAllLanguages}
+                  disabled={syncAllLoading || syncLoading}
+                  className="px-3 py-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs font-medium disabled:opacity-60"
+                >
+                  {syncAllLoading
+                    ? "Syncing all languages…"
+                    : "Sync ALL languages (except en)"}
+                </button>
+              </div>
             </div>
 
             {syncStatus && (
               <p className="mt-2 text-[11px] text-[var(--text-main)] whitespace-pre-line">
                 {syncStatus}
-              </p>
-            )}
-          </section>
-
-          {/* AI-based full namespace translation (translations table) */}
-          <section className="mt-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
-            <h2 className="text-sm font-semibold mb-1 text-[var(--text-main)]">
-              AI translation (full namespace)
-            </h2>
-            <p className="text-[11px] text-[var(--text-muted)] mb-3">
-              Translate all English strings for a namespace (e.g.{" "}
-              <code>tools</code>, <code>notes</code>, <code>tasks</code>,{" "}
-              <code>ai-task-creator</code>) into another language in the{" "}
-              <code>translations</code> table used by <code>useT()</code>.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end text-[11px]">
-              <div>
-                <label className="block text-[11px] text-[var(--text-main)] mb-1">
-                  Namespace
-                </label>
-                <select
-                  value={aiNamespace}
-                  onChange={(e) => setAiNamespace(e.target.value)}
-                  className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs"
-                >
-                  <option value="tools">tools</option>
-                  <option value="notes">notes</option>
-                  <option value="tasks">tasks</option>
-                  <option value="ai-task-creator">ai-task-creator</option>
-                  {/* add more namespaces you use with useT("...") */}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-[var(--text-main)] mb-1">
-                  Target language
-                </label>
-                <select
-                  value={aiTargetLang}
-                  onChange={(e) => setAiTargetLang(e.target.value)}
-                  className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs"
-                >
-                  {SUPPORTED_LANGS.filter((l) => l.code !== "en").map(
-                    (l) => (
-                      <option key={l.code} value={l.code}>
-                        {l.flag} {l.label} ({l.code})
-                      </option>
-                    )
-                  )}
-                </select>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleAiTranslateNamespace}
-                disabled={aiSyncLoading}
-                className="px-3 py-2 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium disabled:opacity-60"
-              >
-                {aiSyncLoading
-                  ? "Translating…"
-                  : "AI-translate namespace from English"}
-              </button>
-            </div>
-
-            {aiSyncStatus && (
-              <p className="mt-2 text-[11px] text-[var(--text-main)] whitespace-pre-line">
-                {aiSyncStatus}
               </p>
             )}
           </section>

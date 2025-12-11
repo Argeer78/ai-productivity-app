@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import type React from "react";
+import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type Msg = {
@@ -9,6 +11,13 @@ type Msg = {
 };
 
 export default function AIAssistant() {
+  const pathname = usePathname();
+
+  // 🔹 Hide assistant completely on the AI Chat page
+  if (pathname.startsWith("/ai-chat")) {
+    return null;
+  }
+
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -121,18 +130,18 @@ export default function AIAssistant() {
 
   return (
     <>
-      {/* Toggle button */}
+      {/* Toggle button – moved to bottom-left */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-4 right-4 z-40 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs shadow-lg"
+        className="fixed bottom-4 left-4 z-40 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs shadow-lg"
       >
         {open ? "Close AI" : "Open AI"}
       </button>
 
-      {/* Panel */}
+      {/* Panel – also bottom-left so it's aligned above the button */}
       {open && (
-        <div className="fixed bottom-16 right-4 z-40 w-full max-w-md border border-[var(--border-subtle)] rounded-2xl bg-[color-mix(in srgb,var(--bg-body) 95%,transparent)] backdrop-blur p-3 text-xs text-[var(--text-main)] shadow-xl">
+        <div className="fixed bottom-16 left-4 z-40 w-full max-w-md border border-[var(--border-subtle)] rounded-2xl bg-[color-mix(in srgb,var(--bg-body) 95%,transparent)] backdrop-blur p-3 text-xs text-[var(--text-main)] shadow-xl">
           <div className="flex items-center justify-between mb-2">
             <p className="font-semibold text-[13px]">AI Assistant</p>
             <button

@@ -3,8 +3,8 @@
 
 import { ReactNode } from "react";
 import { LanguageProvider } from "@/app/components/LanguageProvider";
+import { UiStringsProvider } from "@/app/components/UiStringsProvider";
 import AIAssistant from "@/app/components/AIAssistant";
-import { UiI18nProvider } from "@/app/components/UiI18nProvider";
 import PwaInstallPrompt from "@/app/components/PwaInstallPrompt";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
 
@@ -15,13 +15,13 @@ type AppShellProps = {
 export default function AppShell({ children }: AppShellProps) {
   return (
     <LanguageProvider>
-      <UiI18nProvider>
+      <UiStringsProvider>
         <ThemeProvider>
           {children}
           <AIAssistant />
           <PwaInstallPrompt />
         </ThemeProvider>
-      </UiI18nProvider>
+      </UiStringsProvider>
     </LanguageProvider>
   );
 }

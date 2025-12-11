@@ -8,39 +8,62 @@ export async function GET(
   context: { params: Promise<{ lang: string }> }
 ) {
   try {
-    // NOTE: with your Next version, params is a Promise
     const { lang } = await context.params;
 
-    const codeRaw = (lang || "en").trim();
-    if (!codeRaw) {
+    const raw = (lang || "en").trim();
+    if (!raw) {
       return NextResponse.json(
         { ok: false, error: "Missing language code" },
         { status: 400 }
       );
     }
 
-    const code = codeRaw.toLowerCase();
-    const baseLang = code.split("-")[0]; // e.g. "el-gr" -> "el"
+    const code = raw.toLowerCase();
+    const targetLang = code.split("-")[0] || "en"; // e.g. fr-FR -> fr
 
-    const languageCode = baseLang || "en";
-
-    // 1) Start with English defaults from UI_STRINGS
-    const base = UI_STRINGS; // this is your master EN map
-    const translations: Record<string, string> = {};
-
-    (Object.keys(base) as UiTranslationKey[]).forEach((key) => {
-      translations[key] = base[key]; // default English
-    });
-
-    // 2) Load overrides from Supabase, if any
-    const { data, error } = await supabaseAdmin
+    // 1) Load EN base from DB, fallback to UI_STRINGS
+    const { data: enRows, error: enError } = await supabaseAdmin
       .from("ui_translations")
       .select("key, text")
-      .eq("language_code", languageCode);
+      .eq("language_code", "en");
 
-    if (error) {
-      console.error("[ui-translations] fetch error", error);
-      // We still return English so the UI works
+    const enMap: Record<string, string> = {};
+
+    if (!enError && enRows && enRows.length > 0) {
+      for (const row of enRows) {
+        if (!row.key || typeof row.text !== "string") continue;
+        enMap[row.key] = row.text;
+      }
+    } else {
+      // fallback: nav + core keys from UI_STRINGS
+      (Object.keys(UI_STRINGS) as UiTranslationKey[]).forEach((key) => {
+        enMap[key] = UI_STRINGS[key];
+      });
+    }
+
+    // 2) If we are asking for English, just return EN map
+    if (targetLang === "en") {
+      return NextResponse.json(
+        {
+          ok: true,
+          languageCode: "en",
+          translations: enMap,
+        },
+        { status: 200 }
+      );
+    }
+
+    // 3) Load target language rows
+    const { data: targetRows, error: targetError } = await supabaseAdmin
+      .from("ui_translations")
+      .select("key, text")
+      .eq("language_code", targetLang);
+
+    const translations: Record<string, string> = { ...enMap }; // EN fallback
+
+    if (targetError) {
+      console.error("[ui-translations] target fetch error", targetError);
+      // fall back to EN only, but still return ok
       return NextResponse.json(
         {
           ok: true,
@@ -51,20 +74,28 @@ export async function GET(
       );
     }
 
-    if (data) {
-      for (const row of data) {
+    if (targetRows && targetRows.length > 0) {
+      for (const row of targetRows) {
         if (!row.key || typeof row.text !== "string") continue;
-        // Only override keys we know about
-        if (row.key in translations) {
-          translations[row.key] = row.text;
-        }
+        // override EN fallback with target language
+        translations[row.key] = row.text;
       }
+
+      return NextResponse.json(
+        {
+          ok: true,
+          languageCode: targetLang,
+          translations,
+        },
+        { status: 200 }
+      );
     }
 
+    // 4) No rows for that language -> EN fallback
     return NextResponse.json(
       {
         ok: true,
-        languageCode,
+        languageCode: "en",
         translations,
       },
       { status: 200 }

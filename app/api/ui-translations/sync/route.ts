@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { UI_STRINGS, type UiTranslationKey } from "@/lib/uiStrings";
 
-const ADMIN_KEY = process.env.ADMIN_KEY || process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+const ADMIN_KEY =
+  process.env.ADMIN_KEY || process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,22 +30,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // normalize like "es-ES" -> "es"
+    // normalize like "en-US" -> "en"
     const languageCode = rawLang.toLowerCase().split("-")[0];
+
+    // 🚫 This endpoint is ONLY for seeding English from UI_STRINGS.
+    if (languageCode !== "en") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "This endpoint only seeds English (en) from UI_STRINGS. " +
+            "Use /api/admin/ui-translation-sync to generate other languages.",
+        },
+        { status: 400 }
+      );
+    }
 
     // All keys from UI_STRINGS
     const entries = Object.entries(UI_STRINGS) as [UiTranslationKey, string][];
 
-    // 1) Load existing keys for that language
+    // 1) Load existing EN keys
     const { data: existingRows, error: existingError } = await supabaseAdmin
       .from("ui_translations")
       .select("key")
-      .eq("language_code", languageCode);
+      .eq("language_code", "en");
 
     if (existingError) {
       console.error("[ui-translations/sync] existingError", existingError);
       return NextResponse.json(
-        { ok: false, error: "Failed to load existing translations" },
+        { ok: false, error: "Failed to load existing EN translations" },
         { status: 500 }
       );
     }
@@ -59,13 +73,13 @@ export async function POST(req: NextRequest) {
     for (const [key, text] of entries) {
       if (existingKeys.has(key)) {
         toUpdate.push({
-          language_code: languageCode,
+          language_code: "en",
           key,
           text,
         });
       } else {
         toInsert.push({
-          language_code: languageCode,
+          language_code: "en",
           key,
           text,
         });
@@ -75,7 +89,7 @@ export async function POST(req: NextRequest) {
     let inserted = 0;
     let updated = 0;
 
-    // 2) Insert missing rows
+    // 2) Insert missing EN rows
     if (toInsert.length > 0) {
       const { error: insertError } = await supabaseAdmin
         .from("ui_translations")
@@ -84,20 +98,19 @@ export async function POST(req: NextRequest) {
       if (insertError) {
         console.error("[ui-translations/sync] insertError", insertError);
         return NextResponse.json(
-          { ok: false, error: "Failed to insert new translation rows" },
+          { ok: false, error: "Failed to insert new EN translation rows" },
           { status: 500 }
         );
       }
       inserted = toInsert.length;
     }
 
-    // 3) Update existing rows
-    // (update one-by-one to keep it simple & safe – admin-only, runs rarely)
+    // 3) Update existing EN rows from UI_STRINGS (rare, but useful if you edit copy)
     for (const row of toUpdate) {
       const { error: updateError } = await supabaseAdmin
         .from("ui_translations")
         .update({ text: row.text })
-        .eq("language_code", languageCode)
+        .eq("language_code", "en")
         .eq("key", row.key);
 
       if (updateError) {
@@ -109,7 +122,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
-            error: `Failed to update key "${row.key}"`,
+            error: `Failed to update EN key "${row.key}"`,
           },
           { status: 500 }
         );
@@ -120,10 +133,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ok: true,
-        languageCode,
+        languageCode: "en",
         inserted,
         updated,
         totalKeys: entries.length,
+        note:
+          "Only English was synced. For other languages, use /api/admin/ui-translation-sync.",
       },
       { status: 200 }
     );

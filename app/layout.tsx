@@ -5,6 +5,7 @@ import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
 import AppShell from "@/app/components/AppShell";
 import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
+import { RtlDirectionManager } from "@/app/components/RtlDirectionManager";
 
 const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
@@ -54,7 +55,9 @@ export default function RootLayout({
           domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
           trackLocalhost={false}
         >
-          <AppShell>{children}</AppShell>
+          <RtlDirectionManager>
+            <AppShell>{children}</AppShell>
+          </RtlDirectionManager>
         </PlausibleProvider>
 
         {/* ✅ Register the PWA service worker once at root */}
