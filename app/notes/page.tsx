@@ -299,109 +299,108 @@ export default function NotesPage() {
 
   // When voice capture finishes, fill content/title/category and capture tasks
   function handleVoiceResult(payload: {
-    rawText: string | null;
-    structured: VoiceStructured | null;
-  }) {
-    const structured = payload.structured;
+  rawText: string | null;
+  structured: VoiceStructured | null;
+}) {
+  const structured = payload.structured;
 
-    // 1) Note content + smart title
-    if (structured && structured.note && typeof structured.note === "string") {
-      const noteText = structured.note;
-      setContent(noteText);
+  // 1) Note content + smart title
+  if (structured && structured.note && typeof structured.note === "string") {
+    const noteText = structured.note;
+    setContent(noteText);
 
-      if (!title.trim() && autoTitleEnabled) {
-        const firstLine = noteText.trim().split("\n")[0];
-        const maxLen = 60;
-        const generated =
-          firstLine.length <= maxLen
-            ? firstLine
-            : firstLine.slice(0, maxLen) + "…";
-        setTitle(generated);
-      }
-    } else if (payload.rawText) {
-      setContent(payload.rawText);
+    if (!title.trim() && autoTitleEnabled) {
+      const firstLine = noteText.trim().split("\n")[0];
+      const maxLen = 60;
+      const generated =
+        firstLine.length <= maxLen
+          ? firstLine
+          : firstLine.slice(0, maxLen) + "…";
+      setTitle(generated);
     }
+  } else if (payload.rawText) {
+    setContent(payload.rawText);
+  }
 
-    // 2) Smart category from AI (only if user hasn't chosen one)
-    if (structured && structured.note_category && !newCategory) {
-      const cat = structured.note_category;
-      const allowedLower = NOTE_CATEGORIES.map((c) => c.toLowerCase());
-      const idx = allowedLower.indexOf(cat.toLowerCase());
-      if (idx >= 0) {
-        setNewCategory(NOTE_CATEGORIES[idx]);
-      } else if (cat.toLowerCase() === "other") {
-        setNewCategory("Other");
-      }
-    }
-
-    // 3) Normalize tasks into VoiceTaskSuggestion[] (with natural-language fallback → ISO)
-    if (structured && Array.isArray(structured.tasks)) {
-  const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((task) => {
-    const rawTitle =
-      typeof task.title === "string" && task.title.trim()
-        ? task.title.trim()
-        : t("tasks.untitled", "(Untitled task)");
-
-    let dueIso: string | null = null;
-    let dueLabel: string | null = null;
-
-    // 4) Prefer explicit ISO from the model
-    if (typeof task.due_iso === "string" && task.due_iso.trim()) {
-      dueIso = task.due_iso.trim();
-      if (dueIso) {
-        const parsed = Date.parse(dueIso);
-        if (!Number.isNaN(parsed)) {
-          dueLabel = new Date(parsed).toLocaleString();
-        }
-      }
-    }
-
-    // 5) If there's a natural-language due and no ISO, try to resolve it
-    if (
-      !dueIso &&
-      typeof task.due_natural === "string" &&
-      task.due_natural.trim()
-    ) {
-      const natural = task.due_natural.trim();
-
-      // Try to convert phrases like "tomorrow morning" → ISO
-      const resolved = resolveNaturalDue(natural);
-      if (resolved) {
-        dueIso = resolved;
-        const parsed = Date.parse(resolved);
-        if (!Number.isNaN(parsed)) {
-          dueLabel = new Date(parsed).toLocaleString();
-        }
-      }
-
-      // If we still don't have a label, use the natural text
-      if (!dueLabel) {
-        dueLabel = natural;
-      }
-    }
-
-    return {
-      title: rawTitle,
-      dueIso,
-      dueLabel,
-      priority:
-        task.priority === "low" ||
-        task.priority === "medium" ||
-        task.priority === "high"
-          ? task.priority
-          : null,
-    };
-  });
-}
-
-      const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
-      setVoiceSuggestedTasks(nonEmpty);
-      setVoiceTasksMessage("");
-    } else {
-      setVoiceSuggestedTasks([]);
-      setVoiceTasksMessage("");
+  // 2) Smart category from AI (only if user hasn't chosen one)
+  if (structured && structured.note_category && !newCategory) {
+    const cat = structured.note_category;
+    const allowedLower = NOTE_CATEGORIES.map((c) => c.toLowerCase());
+    const idx = allowedLower.indexOf(cat.toLowerCase());
+    if (idx >= 0) {
+      setNewCategory(NOTE_CATEGORIES[idx]);
+    } else if (cat.toLowerCase() === "other") {
+      setNewCategory("Other");
     }
   }
+
+  // 3) Normalize tasks into VoiceTaskSuggestion[] (with natural-language fallback → ISO)
+  if (structured && Array.isArray(structured.tasks)) {
+    const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((task) => {
+      const rawTitle =
+        typeof task.title === "string" && task.title.trim()
+          ? task.title.trim()
+          : t("tasks.untitled", "(Untitled task)");
+
+      let dueIso: string | null = null;
+      let dueLabel: string | null = null;
+
+      // 4) Prefer explicit ISO from the model
+      if (typeof task.due_iso === "string" && task.due_iso.trim()) {
+        dueIso = task.due_iso.trim();
+        if (dueIso) {
+          const parsed = Date.parse(dueIso);
+          if (!Number.isNaN(parsed)) {
+            dueLabel = new Date(parsed).toLocaleString();
+          }
+        }
+      }
+
+      // 5) If there's a natural-language due and no ISO, try to resolve it
+      if (
+        !dueIso &&
+        typeof task.due_natural === "string" &&
+        task.due_natural.trim()
+      ) {
+        const natural = task.due_natural.trim();
+
+        // Try to convert phrases like "tomorrow morning" → ISO
+        const resolved = resolveNaturalDue(natural);
+        if (resolved) {
+          dueIso = resolved;
+          const parsed = Date.parse(resolved);
+          if (!Number.isNaN(parsed)) {
+            dueLabel = new Date(parsed).toLocaleString();
+          }
+        }
+
+        // If we still don't have a label, use the natural text
+        if (!dueLabel) {
+          dueLabel = natural;
+        }
+      }
+
+      return {
+        title: rawTitle,
+        dueIso,
+        dueLabel,
+        priority:
+          task.priority === "low" ||
+          task.priority === "medium" ||
+          task.priority === "high"
+            ? task.priority
+            : null,
+      };
+    });
+
+    const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
+    setVoiceSuggestedTasks(nonEmpty);
+    setVoiceTasksMessage("");
+  } else {
+    setVoiceSuggestedTasks([]);
+    setVoiceTasksMessage("");
+  }
+}
 
   // 🆕 Generate tasks from a note using backend AI endpoint
   async function handleGenerateTasksFromNote(note: Note) {
@@ -447,58 +446,58 @@ export default function NotesPage() {
 
       const rawTasks = Array.isArray(data.tasks) ? data.tasks : [];
 
-      const suggestions: VoiceTaskSuggestion[] = rawTasks.map((t: any) => {
-        const rawTitle =
-          typeof t.title === "string" && t.title.trim()
-            ? t.title.trim()
-            : t("tasks.untitled", "(Untitled task)");
+     const suggestions: VoiceTaskSuggestion[] = rawTasks.map((task: any) => {
+  const rawTitle =
+    typeof task.title === "string" && task.title.trim()
+      ? task.title.trim()
+      : t("tasks.untitled", "(Untitled task)");
 
-        let dueIso: string | null = null;
-        let dueLabel: string | null = null;
+  let dueIso: string | null = null;
+  let dueLabel: string | null = null;
 
-        // Prefer explicit ISO if provided
-        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-          dueIso = t.due_iso.trim();
-          if (dueIso) {
-            const parsed = Date.parse(dueIso);
-            if (!Number.isNaN(parsed)) {
-              dueLabel = new Date(parsed).toLocaleString();
-            }
-          }
-        }
+  // Prefer explicit ISO if provided
+  if (typeof task.due_iso === "string" && task.due_iso.trim()) {
+    dueIso = task.due_iso.trim();
+    if (dueIso) {
+      const parsed = Date.parse(dueIso);
+      if (!Number.isNaN(parsed)) {
+        dueLabel = new Date(parsed).toLocaleString();
+      }
+    }
+  }
 
-        // If no ISO, try to resolve natural language
-        if (
-          !dueIso &&
-          typeof t.due_natural === "string" &&
-          t.due_natural.trim()
-        ) {
-          const natural = t.due_natural.trim();
-          const resolved = resolveNaturalDue(natural);
-          if (resolved) {
-            dueIso = resolved;
-            const parsed = Date.parse(resolved);
-            if (!Number.isNaN(parsed)) {
-              dueLabel = new Date(parsed).toLocaleString();
-            }
-          }
-          if (!dueLabel) {
-            dueLabel = natural;
-          }
-        }
+  // If no ISO, try to resolve natural language
+  if (
+    !dueIso &&
+    typeof task.due_natural === "string" &&
+    task.due_natural.trim()
+  ) {
+    const natural = task.due_natural.trim();
+    const resolved = resolveNaturalDue(natural);
+    if (resolved) {
+      dueIso = resolved;
+      const parsed = Date.parse(resolved);
+      if (!Number.isNaN(parsed)) {
+        dueLabel = new Date(parsed).toLocaleString();
+      }
+    }
+    if (!dueLabel) {
+      dueLabel = natural;
+    }
+  }
 
-        return {
-          title: rawTitle,
-          dueIso,
-          dueLabel,
-          priority:
-            t.priority === "low" ||
-            t.priority === "medium" ||
-            t.priority === "high"
-              ? t.priority
-              : null,
-        };
-      });
+  return {
+    title: rawTitle,
+    dueIso,
+    dueLabel,
+    priority:
+      task.priority === "low" ||
+      task.priority === "medium" ||
+      task.priority === "high"
+        ? task.priority
+        : null,
+  };
+});
 
       const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
       setVoiceSuggestedTasks(nonEmpty);
@@ -1013,61 +1012,64 @@ export default function NotesPage() {
       const now = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
 
-      const rows = tasksFromAI.map((t) => {
-        let dueIso: string | null = t.due_iso || null;
+     const rows = tasksFromAI.map((task) => {
+  let dueIso: string | null = task.due_iso || null;
 
-        if (!dueIso && t.due_natural) {
-          const parsed = Date.parse(t.due_natural);
-          if (!Number.isNaN(parsed)) {
-            dueIso = new Date(parsed).toISOString();
-          }
-        }
+  if (!dueIso && task.due_natural) {
+    const parsed = Date.parse(task.due_natural);
+    if (!Number.isNaN(parsed)) {
+      dueIso = new Date(parsed).toISOString();
+    }
+  }
 
-        let reminderAt: string | null = null;
-        let timeFrom: string | null = null;
-        let timeTo: string | null = null;
-        let dueDateForColumn: string | null = null;
+  let reminderAt: string | null = null;
+  let timeFrom: string | null = null;
+  let timeTo: string | null = null;
+  let dueDateForColumn: string | null = null;
 
-        if (dueIso) {
-          const due = new Date(dueIso);
-          dueDateForColumn = dueIso; // tasks page slices date part
+  if (dueIso) {
+    const due = new Date(dueIso);
+    dueDateForColumn = dueIso; // tasks page slices date part
 
-          const local = new Date(due);
-          const h = local.getHours();
-          const m = local.getMinutes();
+    const local = new Date(due);
+    const h = local.getHours();
+    const m = local.getMinutes();
 
-          timeFrom = `${pad(h)}:${pad(m)}`;
-          const end = new Date(local.getTime() + 60 * 60 * 1000); // +1h
-          timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+    const pad = (n: number) => n.toString().padStart(2, "0");
 
-          const oneMinuteFromNow = new Date(now.getTime() + 60_000);
-          if (due > oneMinuteFromNow) {
-            reminderAt = dueIso;
-          } else {
-            reminderAt = null;
-          }
-        }
+    timeFrom = `${pad(h)}:${pad(m)}`;
+    const end = new Date(local.getTime() + 60 * 60 * 1000); // +1h
+    timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
 
-        return {
-          user_id: user.id,
-          title: t.title || t("tasks.untitled", "(Untitled task)"),
-          description: null,
-          completed: false,
-          created_at: now.toISOString(),
-          completed_at: null,
+    const now = new Date();
+    const oneMinuteFromNow = new Date(now.getTime() + 60_000);
+    if (due > oneMinuteFromNow) {
+      reminderAt = dueIso;
+    } else {
+      reminderAt = null;
+    }
+  }
 
-          // Use the note's category as a hint for the task
-          category: note.category || null,
+  return {
+    user_id: user.id,
+    title: task.title || t("tasks.untitled", "(Untitled task)"),
+    description: null,
+    completed: false,
+    created_at: now.toISOString(),
+    completed_at: null,
 
-          time_from: timeFrom,
-          time_to: timeTo,
-          due_date: dueDateForColumn,
+    // Use the note's category as a hint for the task
+    category: note.category || null,
 
-          reminder_enabled: !!reminderAt,
-          reminder_at: reminderAt,
-          reminder_sent_at: null,
-        };
-      });
+    time_from: timeFrom,
+    time_to: timeTo,
+    due_date: dueDateForColumn,
+
+    reminder_enabled: !!reminderAt,
+    reminder_at: reminderAt,
+    reminder_sent_at: null,
+  };
+});
 
       const { data, error } = await supabase
         .from("tasks")
