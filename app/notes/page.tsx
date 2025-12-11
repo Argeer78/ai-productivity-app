@@ -336,62 +336,63 @@ export default function NotesPage() {
 
     // 3) Normalize tasks into VoiceTaskSuggestion[] (with natural-language fallback → ISO)
     if (structured && Array.isArray(structured.tasks)) {
-      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((task) => {
-        const rawTitle =
-          typeof task.title === "string" && task.title.trim()
-            ? task.title.trim()
-            : t("tasks.untitled", "(Untitled task)");
+  const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((task) => {
+    const rawTitle =
+      typeof task.title === "string" && task.title.trim()
+        ? task.title.trim()
+        : t("tasks.untitled", "(Untitled task)");
 
-        let dueIso: string | null = null;
-        let dueLabel: string | null = null;
+    let dueIso: string | null = null;
+    let dueLabel: string | null = null;
 
-        // 1) Prefer explicit ISO from the model
-        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-          dueIso = t.due_iso.trim();
-          if (dueIso) {
-            const parsed = Date.parse(dueIso);
-            if (!Number.isNaN(parsed)) {
-              dueLabel = new Date(parsed).toLocaleString();
-            }
-          }
+    // 4) Prefer explicit ISO from the model
+    if (typeof task.due_iso === "string" && task.due_iso.trim()) {
+      dueIso = task.due_iso.trim();
+      if (dueIso) {
+        const parsed = Date.parse(dueIso);
+        if (!Number.isNaN(parsed)) {
+          dueLabel = new Date(parsed).toLocaleString();
         }
+      }
+    }
 
-        // 2) If there's a natural-language due and no ISO, try to resolve it
-        if (
-          !dueIso &&
-          typeof t.due_natural === "string" &&
-          t.due_natural.trim()
-        ) {
-          const natural = t.due_natural.trim();
+    // 5) If there's a natural-language due and no ISO, try to resolve it
+    if (
+      !dueIso &&
+      typeof task.due_natural === "string" &&
+      task.due_natural.trim()
+    ) {
+      const natural = task.due_natural.trim();
 
-          // Try to convert phrases like "tomorrow morning" → ISO
-          const resolved = resolveNaturalDue(natural);
-          if (resolved) {
-            dueIso = resolved;
-            const parsed = Date.parse(resolved);
-            if (!Number.isNaN(parsed)) {
-              dueLabel = new Date(parsed).toLocaleString();
-            }
-          }
-
-          // If we still don't have a label, use the natural text
-          if (!dueLabel) {
-            dueLabel = natural;
-          }
+      // Try to convert phrases like "tomorrow morning" → ISO
+      const resolved = resolveNaturalDue(natural);
+      if (resolved) {
+        dueIso = resolved;
+        const parsed = Date.parse(resolved);
+        if (!Number.isNaN(parsed)) {
+          dueLabel = new Date(parsed).toLocaleString();
         }
+      }
 
-        return {
-          title: rawTitle,
-          dueIso,
-          dueLabel,
-          priority:
-            t.priority === "low" ||
-            t.priority === "medium" ||
-            t.priority === "high"
-              ? t.priority
-              : null,
-        };
-      });
+      // If we still don't have a label, use the natural text
+      if (!dueLabel) {
+        dueLabel = natural;
+      }
+    }
+
+    return {
+      title: rawTitle,
+      dueIso,
+      dueLabel,
+      priority:
+        task.priority === "low" ||
+        task.priority === "medium" ||
+        task.priority === "high"
+          ? task.priority
+          : null,
+    };
+  });
+}
 
       const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
       setVoiceSuggestedTasks(nonEmpty);
