@@ -707,7 +707,7 @@ const TOOLS: ToolDef[] = [
 ];
 
 export default function ToolsPage() {
-  const { t } = useT(tools);
+  const { t } = useT("tools");
   const [user, setUser] = useState<any | null>(null);
   const [, setCheckingUser] = useState(true);
 
