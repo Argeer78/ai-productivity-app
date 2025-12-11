@@ -1,3 +1,4 @@
+// app/admin/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -155,9 +156,10 @@ export default function AdminHomePage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
 
-  // 🔹 NEW: UI translations sync state
+  // 🔹 UI translations sync state
+  const [syncLang, setSyncLang] = useState<string>("el");
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
-  const [syncLoadingLang, setSyncLoadingLang] = useState<string | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -208,41 +210,45 @@ export default function AdminHomePage() {
     loadStats();
   }, [authorized]);
 
-  // 🔹 NEW: helper to trigger /api/ui-translations/sync
-  async function handleSyncUiTranslations(languageCode: string) {
-    setSyncLoadingLang(languageCode);
+  // 🔹 Call /api/admin/ui-translation-sync (AI-based)
+  async function handleSyncUiTranslations() {
+    if (!ADMIN_KEY) {
+      setSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
+      return;
+    }
+
+    setSyncLoading(true);
     setSyncStatus(null);
 
     try {
-      const res = await fetch("/api/ui-translations/sync", {
+      const res = await fetch("/api/admin/ui-translation-sync", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // optional: pass admin key if your sync route checks it
-          ...(ADMIN_KEY ? { "X-Admin-Key": ADMIN_KEY } : {}),
+          "X-Admin-Key": ADMIN_KEY,
         },
-        body: JSON.stringify({ languageCode }),
+        body: JSON.stringify({
+          languageCode: syncLang,
+        }),
       });
 
-      const data = await res.json().catch(() => null as any);
+      const data = await res.json().catch(() => ({} as any));
 
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error || "Failed to sync UI translations");
       }
 
-      const inserted = data.inserted ?? 0;
-      const updated = data.updated ?? 0;
-
+      const count = data.insertedOrUpdated ?? 0;
       setSyncStatus(
-        `✅ Synced UI strings for "${languageCode}". Inserted: ${inserted}, updated: ${updated}.`
+        `✅ Synced ${count} UI strings for language '${syncLang}'.`
       );
     } catch (err: any) {
-      console.error("[admin] ui-translations sync error", err);
+      console.error("[admin] sync UI translations error:", err);
       setSyncStatus(
-        `❌ ${err?.message || "Failed to sync UI translations"}`
+        `❌ ${err?.message || "Unexpected error while syncing translations."}`
       );
     } finally {
-      setSyncLoadingLang(null);
+      setSyncLoading(false);
     }
   }
 
@@ -455,44 +461,51 @@ export default function AdminHomePage() {
             </Link>
           </div>
 
-          {/* 🔹 NEW: UI translations sync panel */}
+          {/* UI translations sync panel */}
           <section className="mt-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
             <h2 className="text-sm font-semibold mb-1 text-[var(--text-main)]">
-              UI translations
+              UI translations (AI sync)
             </h2>
             <p className="text-[11px] text-[var(--text-muted)] mb-3">
-              Sync <code>UI_STRINGS</code> to the <code>ui_translations</code>{" "}
-              table. Use this after adding new keys in{" "}
-              <code>lib/uiStrings.ts</code>.
+              Use AI to translate all English UI strings into another language
+              and upsert them into the{" "}
+              <code>ui_translations</code> table.
             </p>
 
-            <div className="flex flex-wrap gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => handleSyncUiTranslations("el")}
-                disabled={!!syncLoadingLang}
-                className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-[11px] disabled:opacity-60"
-              >
-                {syncLoadingLang === "el"
-                  ? "Syncing Greek (el)…"
-                  : "Sync Greek (el)"}
-              </button>
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+              <div>
+                <label className="block text-[11px] text-[var(--text-main)] mb-1">
+                  Target language
+                </label>
+                <select
+                  value={syncLang}
+                  onChange={(e) => setSyncLang(e.target.value)}
+                  className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs"
+                >
+                  <option value="el">Greek (el)</option>
+                  <option value="es">Spanish (es)</option>
+                  <option value="de">German (de)</option>
+                  <option value="fr">French (fr)</option>
+                  <option value="it">Italian (it)</option>
+                  <option value="pt">Portuguese (pt)</option>
+                  <option value="tr">Turkish (tr)</option>
+                  <option value="ru">Russian (ru)</option>
+                  <option value="ro">Romanian (ro)</option>
+                </select>
+              </div>
 
-              {/* Example extra button if you add more locales later */}
               <button
                 type="button"
-                onClick={() => handleSyncUiTranslations("es")}
-                disabled={!!syncLoadingLang}
-                className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px] disabled:opacity-60"
+                onClick={handleSyncUiTranslations}
+                disabled={syncLoading}
+                className="px-3 py-2 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium disabled:opacity-60"
               >
-                {syncLoadingLang === "es"
-                  ? "Syncing Spanish (es)…"
-                  : "Sync Spanish (es)"}
+                {syncLoading ? "Syncing…" : "Sync UI translations"}
               </button>
             </div>
 
             {syncStatus && (
-              <p className="mt-1 text-[11px] text-[var(--text-main)] whitespace-pre-line">
+              <p className="mt-2 text-[11px] text-[var(--text-main)] whitespace-pre-line">
                 {syncStatus}
               </p>
             )}
@@ -503,8 +516,8 @@ export default function AdminHomePage() {
           <div className="mt-8 text-[11px] text-[var(--text-muted)]">
             <p>
               Tip: set <code>NEXT_PUBLIC_ADMIN_EMAIL</code>,{" "}
-              <code>NEXT_PUBLIC_ADMIN_KEY</code> and <code>ADMIN_KEY</code> in your
-              env to control who can access admin tools and protected APIs.
+              <code>NEXT_PUBLIC_ADMIN_KEY</code> and <code>ADMIN_KEY</code> in
+              your env to control who can access admin tools and protected APIs.
             </p>
           </div>
         </div>
