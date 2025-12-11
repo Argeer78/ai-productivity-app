@@ -336,10 +336,10 @@ export default function NotesPage() {
 
     // 3) Normalize tasks into VoiceTaskSuggestion[] (with natural-language fallback → ISO)
     if (structured && Array.isArray(structured.tasks)) {
-      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
+      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((task) => {
         const rawTitle =
-          typeof t.title === "string" && t.title.trim()
-            ? t.title.trim()
+          typeof task.title === "string" && task.title.trim()
+            ? task.title.trim()
             : t("tasks.untitled", "(Untitled task)");
 
         let dueIso: string | null = null;
