@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
+import { useT } from "@/lib/useT";
 
 const BOOKING_AFFILIATE_ID =
   process.env.NEXT_PUBLIC_BOOKING_AID || "";
@@ -112,6 +113,8 @@ function toISODateString(date: Date): string {
 }
 
 function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
+  const { t } = useT("travel");
+
   const [open, setOpen] = useState(false);
   const baseDate = value ? new Date(value + "T00:00:00") : new Date();
 
@@ -176,8 +179,12 @@ function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
         onClick={() => setOpen((v) => !v)}
         className="w-full text-left px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm flex items-center justify-between"
       >
-        <span className={value ? "text-[var(--text-main)]" : "text-[var(--text-muted)]"}>
-          {value || "Select date"}
+        <span
+          className={
+            value ? "text-[var(--text-main)]" : "text-[var(--text-muted)]"
+          }
+        >
+          {value || t("calendar.selectDate", "Select date")}
         </span>
         <span className="text-[11px] text-[var(--text-muted)]">📅</span>
       </button>
@@ -205,13 +212,13 @@ function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
           </div>
 
           <div className="grid grid-cols-7 gap-1 text-[10px] text-center mb-1 text-[var(--text-muted)]">
-            <div>Su</div>
-            <div>Mo</div>
-            <div>Tu</div>
-            <div>We</div>
-            <div>Th</div>
-            <div>Fr</div>
-            <div>Sa</div>
+            <div>{t("calendar.weekday.su", "Su")}</div>
+            <div>{t("calendar.weekday.mo", "Mo")}</div>
+            <div>{t("calendar.weekday.tu", "Tu")}</div>
+            <div>{t("calendar.weekday.we", "We")}</div>
+            <div>{t("calendar.weekday.th", "Th")}</div>
+            <div>{t("calendar.weekday.fr", "Fr")}</div>
+            <div>{t("calendar.weekday.sa", "Sa")}</div>
           </div>
 
           <div className="grid grid-cols-7 gap-1 text-[11px]">
@@ -229,11 +236,14 @@ function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
               let classes =
                 "h-7 rounded-lg flex items-center justify-center cursor-pointer transition ";
               if (isDisabled) {
-                classes += "text-[var(--text-muted)] opacity-40 cursor-not-allowed";
+                classes +=
+                  "text-[var(--text-muted)] opacity-40 cursor-not-allowed";
               } else if (isSelected) {
-                classes += "bg-[var(--accent)] text-[var(--bg-body)]";
+                classes +=
+                  "bg-[var(--accent)] text-[var(--bg-body)]";
               } else if (isToday) {
-                classes += "border border-[var(--accent)] text-[var(--text-main)]";
+                classes +=
+                  "border border-[var(--accent)] text-[var(--text-main)]";
               } else {
                 classes +=
                   "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]";
@@ -259,6 +269,8 @@ function CalendarInput({ label, value, onChange, min }: CalendarInputProps) {
 }
 
 export default function TravelPage() {
+  const { t } = useT("travel");
+
   // Auth (for saving trips)
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -375,7 +387,12 @@ export default function TravelPage() {
     setSaveMessage("");
 
     if (!destination || !checkin || !checkout) {
-      setPlanError("Please fill destination and dates first.");
+      setPlanError(
+        t(
+          "error.missingFields",
+          "Please fill destination and dates first."
+        )
+      );
       return;
     }
 
@@ -401,19 +418,35 @@ export default function TravelPage() {
         data = JSON.parse(text);
       } catch {
         console.error("Non-JSON travel response:", text);
-        setPlanError("Server returned an invalid response.");
+        setPlanError(
+          t(
+            "error.invalidResponse",
+            "Server returned an invalid response."
+          )
+        );
         return;
       }
 
       if (!res.ok || !data.plan) {
-        setPlanError(data.error || "Failed to generate travel plan.");
+        setPlanError(
+          data.error ||
+            t(
+              "error.generateFailed",
+              "Failed to generate travel plan."
+            )
+        );
         return;
       }
 
       setPlanText(data.plan);
     } catch (err) {
       console.error(err);
-      setPlanError("Network error while generating travel plan.");
+      setPlanError(
+        t(
+          "error.network",
+          "Network error while generating travel plan."
+        )
+      );
     } finally {
       setPlanning(false);
     }
@@ -422,7 +455,12 @@ export default function TravelPage() {
   async function saveTripPlan() {
     if (!user) return;
     if (!destination || !checkin || !checkout || !planText) {
-      setSaveMessage("Fill destination, dates and generate a plan first.");
+      setSaveMessage(
+        t(
+          "save.missingFields",
+          "Fill destination, dates and generate a plan first."
+        )
+      );
       return;
     }
 
@@ -445,14 +483,26 @@ export default function TravelPage() {
 
       if (error) {
         console.error("[travel] save trip error", error);
-        setSaveMessage("Could not save trip. Please try again.");
+        setSaveMessage(
+          t(
+            "save.error",
+            "Could not save trip. Please try again."
+          )
+        );
         return;
       }
 
-      setSaveMessage("Trip saved to your account ✅");
+      setSaveMessage(
+        t(
+          "save.success",
+          "Trip saved to your account ✅"
+        )
+      );
     } catch (err) {
       console.error(err);
-      setSaveMessage("Network error while saving trip.");
+      setSaveMessage(
+        t("save.networkError", "Network error while saving trip.")
+      );
     } finally {
       setSavingTrip(false);
     }
@@ -484,35 +534,45 @@ export default function TravelPage() {
           <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                Travel Planner (beta)
+                {t("title", "Travel Planner (beta)")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)] max-w-xl">
-                Let AI help you plan your trip – then book your stay via Booking.com.
-                Open to everyone, no login needed. Log in if you want to save your trip.
+                {t(
+                  "subtitle",
+                  "Let AI help you plan your trip – then book your stay via Booking.com. Open to everyone, no login needed. Log in if you want to save your trip."
+                )}
               </p>
             </div>
 
             {/* Auth hint */}
             <div className="text-[11px] text-[var(--text-muted)]">
               {checkingUser ? (
-                <span>Checking account…</span>
+                <span>
+                  {t("checkingAccount", "Checking account…")}
+                </span>
               ) : user ? (
                 <span>
-                  Logged in as{" "}
+                  {t("loggedInAs", "Logged in as")}{" "}
                   <span className="font-semibold text-[var(--text-main)]">
                     {user.email}
                   </span>
                 </span>
               ) : (
                 <span>
-                  You&apos;re browsing as guest.{" "}
+                  {t(
+                    "guestBrowsing",
+                    "You're browsing as guest."
+                  )}{" "}
                   <a
                     href="/auth"
                     className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
                   >
-                    Create a free account
+                    {t(
+                      "createAccountLink",
+                      "Create a free account"
+                    )}
                   </a>{" "}
-                  to save trips.
+                  {t("saveTripsHint", "to save trips.")}
                 </span>
               )}
             </div>
@@ -524,19 +584,22 @@ export default function TravelPage() {
               {/* Trip details */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                 <p className="text-xs font-semibold text-[var(--text-muted)] mb-3">
-                  Trip details
+                  {t("tripDetails.heading", "Trip details")}
                 </p>
 
                 <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                      Destination
+                      {t("tripDetails.destinationLabel", "Destination")}
                     </label>
                     <input
                       type="text"
                       value={destination}
                       onChange={(e) => setDestination(e.target.value)}
-                      placeholder="e.g. Athens, Barcelona, London"
+                      placeholder={t(
+                        "tripDetails.destinationPlaceholder",
+                        "e.g. Athens, Barcelona, London"
+                      )}
                       className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                     />
                   </div>
@@ -544,7 +607,10 @@ export default function TravelPage() {
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <CalendarInput
-                        label="Check-in"
+                        label={t(
+                          "tripDetails.checkinLabel",
+                          "Check-in"
+                        )}
                         value={checkin}
                         onChange={(val) => {
                           applyAutoCheckout(val);
@@ -554,7 +620,10 @@ export default function TravelPage() {
                     </div>
                     <div className="flex-1">
                       <CalendarInput
-                        label="Check-out"
+                        label={t(
+                          "tripDetails.checkoutLabel",
+                          "Check-out"
+                        )}
                         value={checkout}
                         onChange={setCheckout}
                         min={checkin || todayStr}
@@ -569,49 +638,59 @@ export default function TravelPage() {
                       onClick={() => applyPreset(2)}
                       className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] text-[11px] hover:bg-[var(--bg-elevated)]"
                     >
-                      Weekend trip (2 nights)
+                      {t(
+                        "presets.weekend",
+                        "Weekend trip (2 nights)"
+                      )}
                     </button>
                     <button
                       type="button"
                       onClick={() => applyPreset(6)}
                       className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] text-[11px] hover:bg-[var(--bg-elevated)]"
                     >
-                      1 week (6 nights)
+                      {t("presets.week", "1 week (6 nights)")}
                     </button>
                     <button
                       type="button"
                       onClick={() => applyPreset(3)}
                       className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] text-[11px] hover:bg-[var(--bg-elevated)]"
                     >
-                      3–4 day city break
+                      {t(
+                        "presets.cityBreak",
+                        "3–4 day city break"
+                      )}
                     </button>
                   </div>
 
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                        Adults
+                        {t("tripDetails.adultsLabel", "Adults")}
                       </label>
                       <input
                         type="number"
                         min={1}
                         value={adults}
                         onChange={(e) =>
-                          setAdults(Math.max(1, Number(e.target.value) || 1))
+                          setAdults(
+                            Math.max(1, Number(e.target.value) || 1)
+                          )
                         }
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
                     <div className="flex-1">
                       <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                        Children
+                        {t("tripDetails.childrenLabel", "Children")}
                       </label>
                       <input
                         type="number"
                         min={0}
                         value={children}
                         onChange={(e) =>
-                          setChildren(Math.max(0, Number(e.target.value) || 0))
+                          setChildren(
+                            Math.max(0, Number(e.target.value) || 0)
+                          )
                         }
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
@@ -621,32 +700,44 @@ export default function TravelPage() {
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                        Min budget (optional)
+                        {t(
+                          "tripDetails.minBudgetLabel",
+                          "Min budget (optional)"
+                        )}
                       </label>
                       <input
                         type="number"
                         min={0}
                         value={minBudget}
-                        onChange={(e) => setMinBudget(e.target.value)}
+                        onChange={(e) =>
+                          setMinBudget(e.target.value)
+                        }
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
                     <div className="flex-1">
                       <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                        Max budget (optional)
+                        {t(
+                          "tripDetails.maxBudgetLabel",
+                          "Max budget (optional)"
+                        )}
                       </label>
                       <input
                         type="number"
                         min={0}
                         value={maxBudget}
-                        onChange={(e) => setMaxBudget(e.target.value)}
+                        onChange={(e) =>
+                          setMaxBudget(e.target.value)
+                        }
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
                   </div>
 
                   {planError && (
-                    <p className="text-[11px] text-red-400">{planError}</p>
+                    <p className="text-[11px] text-red-400">
+                      {planError}
+                    </p>
                   )}
 
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -656,7 +747,12 @@ export default function TravelPage() {
                       disabled={planning}
                       className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs md:text-sm disabled:opacity-60"
                     >
-                      {planning ? "Generating..." : "Generate AI trip plan"}
+                      {planning
+                        ? t("buttons.generating", "Generating...")
+                        : t(
+                            "buttons.generateTripPlan",
+                            "Generate AI trip plan"
+                          )}
                     </button>
 
                     {bookingUrl && (
@@ -668,19 +764,28 @@ export default function TravelPage() {
                             provider: "booking",
                           });
                           if (typeof window !== "undefined") {
-                            window.open(bookingUrl, "_blank", "noreferrer");
+                            window.open(
+                              bookingUrl,
+                              "_blank",
+                              "noreferrer"
+                            );
                           }
                         }}
                         className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm"
                       >
-                        Search stays on Booking.com →
+                        {t(
+                          "buttons.searchStays",
+                          "Search stays on Booking.com →"
+                        )}
                       </button>
                     )}
                   </div>
 
                   <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                    Booking links may be affiliate links. They help support the app at
-                    no extra cost to you.
+                    {t(
+                      "affiliateNote",
+                      "Booking links may be affiliate links. They help support the app at no extra cost to you."
+                    )}
                   </p>
                 </div>
               </div>
@@ -690,23 +795,34 @@ export default function TravelPage() {
                 {/* Flights */}
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-3">
-                    Flights
+                    {t("flights.heading", "Flights")}
                   </p>
 
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                        Departure city
+                        {t(
+                          "flights.departureLabel",
+                          "Departure city"
+                        )}
                       </label>
                       <input
                         type="text"
                         value={departureCity}
-                        onChange={(e) => setDepartureCity(e.target.value)}
-                        placeholder="e.g. Athens, London"
+                        onChange={(e) =>
+                          setDepartureCity(e.target.value)
+                        }
+                        placeholder={t(
+                          "flights.departurePlaceholder",
+                          "e.g. Athens, London"
+                        )}
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                       <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                        If empty, we’ll use your destination as a fallback.
+                        {t(
+                          "flights.departureHint",
+                          "If empty, we’ll use your destination as a fallback."
+                        )}
                       </p>
                     </div>
 
@@ -714,13 +830,15 @@ export default function TravelPage() {
                       type="button"
                       disabled={!destination || !checkin}
                       onClick={() => {
-                        const from = departureCity || destination;
+                        const from =
+                          departureCity || destination;
                         const to = destination;
                         const url = buildFlightsUrl({
                           from,
                           to,
                           depart: checkin,
-                          returnDate: checkout || undefined,
+                          returnDate:
+                            checkout || undefined,
                           adults,
                           children,
                         });
@@ -731,17 +849,23 @@ export default function TravelPage() {
                         });
 
                         if (typeof window !== "undefined") {
-                          window.open(url, "_blank", "noreferrer");
+                          window.open(
+                            url,
+                            "_blank",
+                            "noreferrer"
+                          );
                         }
                       }}
                       className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm disabled:opacity-60"
                     >
-                      Search flights →
+                      {t("flights.searchButton", "Search flights →")}
                     </button>
 
                     <p className="text-[10px] text-[var(--text-muted)]">
-                      We send you to a flights search page (for now Google Flights). You
-                      can hook in a proper affiliate link later.
+                      {t(
+                        "flights.note",
+                        "We send you to a flights search page (for now Google Flights). You can hook in a proper affiliate link later."
+                      )}
                     </p>
                   </div>
                 </div>
@@ -749,31 +873,45 @@ export default function TravelPage() {
                 {/* Car rental */}
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-3">
-                    Car rental
+                    {t("cars.heading", "Car rental")}
                   </p>
 
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                        Pickup location
+                        {t(
+                          "cars.pickupLabel",
+                          "Pickup location"
+                        )}
                       </label>
                       <input
                         type="text"
                         value={pickupLocation}
-                        onChange={(e) => setPickupLocation(e.target.value)}
-                        placeholder="e.g. Airport, city name"
+                        onChange={(e) =>
+                          setPickupLocation(e.target.value)
+                        }
+                        placeholder={t(
+                          "cars.pickupPlaceholder",
+                          "e.g. Airport, city name"
+                        )}
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                       <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                        If empty, we’ll use your destination as pickup location.
+                        {t(
+                          "cars.pickupHint",
+                          "If empty, we’ll use your destination as pickup location."
+                        )}
                       </p>
                     </div>
 
                     <button
                       type="button"
-                      disabled={!destination || !checkin || !checkout}
+                      disabled={
+                        !destination || !checkin || !checkout
+                      }
                       onClick={() => {
-                        const pickup = pickupLocation || destination;
+                        const pickup =
+                          pickupLocation || destination;
                         const url = buildCarRentalUrl({
                           pickup,
                           pickupDate: checkin,
@@ -786,17 +924,26 @@ export default function TravelPage() {
                         });
 
                         if (typeof window !== "undefined") {
-                          window.open(url, "_blank", "noreferrer");
+                          window.open(
+                            url,
+                            "_blank",
+                            "noreferrer"
+                          );
                         }
                       }}
                       className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm disabled:opacity-60"
                     >
-                      Search rental cars →
+                      {t(
+                        "cars.searchButton",
+                        "Search rental cars →"
+                      )}
                     </button>
 
                     <p className="text-[10px] text-[var(--text-muted)]">
-                      Car rental search opens on Booking.com. If your affiliate ID is
-                      set, it will be tracked via your <code>aid</code>.
+                      {t(
+                        "cars.note",
+                        "Car rental search opens on Booking.com. If your affiliate ID is set, it will be tracked via your aid."
+                      )}
                     </p>
                   </div>
                 </div>
@@ -809,7 +956,10 @@ export default function TravelPage() {
               {encodedDest && (
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-                    Destination preview
+                    {t(
+                      "images.heading",
+                      "Destination preview"
+                    )}
                   </p>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="col-span-3">
@@ -844,7 +994,10 @@ export default function TravelPage() {
                     </div>
                   </div>
                   <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-                    Photos are illustrative and may not match your exact stay or view.
+                    {t(
+                      "images.note",
+                      "Photos are illustrative and may not match your exact stay or view."
+                    )}
                   </p>
                 </div>
               )}
@@ -852,7 +1005,7 @@ export default function TravelPage() {
               {/* AI itinerary */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                 <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
-                  AI itinerary
+                  {t("itinerary.heading", "AI itinerary")}
                 </p>
                 {planText ? (
                   <>
@@ -868,8 +1021,14 @@ export default function TravelPage() {
                           className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs md:text-sm text-white disabled:opacity-60"
                         >
                           {savingTrip
-                            ? "Saving trip..."
-                            : "Save this trip to my account"}
+                            ? t(
+                                "save.buttonSaving",
+                                "Saving trip..."
+                              )
+                            : t(
+                                "save.button",
+                                "Save this trip to my account"
+                              )}
                         </button>
                         {saveMessage && (
                           <p className="mt-2 text-[11px] text-[var(--text-muted)]">
@@ -880,22 +1039,29 @@ export default function TravelPage() {
                     ) : (
                       <div className="mt-2 text-[11px] text-[var(--text-muted)]">
                         <p className="mb-1">
-                          Want to save this trip and access it later?
+                          {t(
+                            "itinerary.guestSavePrompt",
+                            "Want to save this trip and access it later?"
+                          )}
                         </p>
                         <a
                           href="/auth"
                           className="inline-block mt-1 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                         >
-                          Create a free account / Log in
+                          {t(
+                            "itinerary.guestSaveButton",
+                            "Create a free account / Log in"
+                          )}
                         </a>
                       </div>
                     )}
                   </>
                 ) : (
                   <p className="text-[12px] text-[var(--text-muted)]">
-                    Fill in your trip details and click{" "}
-                    <span className="font-semibold">Generate AI trip plan</span> to get
-                    a structured itinerary and suggestions.
+                    {t(
+                      "itinerary.empty",
+                      "Fill in your trip details and click Generate AI trip plan to get a structured itinerary and suggestions."
+                    )}
                   </p>
                 )}
               </div>
@@ -903,38 +1069,57 @@ export default function TravelPage() {
               {/* Planning Assistant */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                 <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-                  Planning assistant
+                  {t(
+                    "assistant.heading",
+                    "Planning assistant"
+                  )}
                 </p>
                 {assistantStep === 1 && (
                   <div className="space-y-2">
                     <p className="text-[12px] text-[var(--text-main)]">
-                      1/3 – Where do you want to go?
+                      {t(
+                        "assistant.step1Title",
+                        "1/3 – Where do you want to go?"
+                      )}
                     </p>
                     <input
                       type="text"
                       value={assistantDestination}
-                      onChange={(e) => setAssistantDestination(e.target.value)}
-                      placeholder="e.g. Rome, Paris, Prague"
+                      onChange={(e) =>
+                        setAssistantDestination(
+                          e.target.value
+                        )
+                      }
+                      placeholder={t(
+                        "assistant.destinationPlaceholder",
+                        "e.g. Rome, Paris, Prague"
+                      )}
                       className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                     />
                     <div className="flex flex-wrap gap-2 text-[11px]">
                       <button
                         type="button"
-                        onClick={() => setAssistantDestination("Barcelona")}
+                        onClick={() =>
+                          setAssistantDestination("Barcelona")
+                        }
                         className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         Barcelona
                       </button>
                       <button
                         type="button"
-                        onClick={() => setAssistantDestination("London")}
+                        onClick={() =>
+                          setAssistantDestination("London")
+                        }
                         className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         London
                       </button>
                       <button
                         type="button"
-                        onClick={() => setAssistantDestination("Athens")}
+                        onClick={() =>
+                          setAssistantDestination("Athens")
+                        }
                         className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
                         Athens
@@ -944,12 +1129,17 @@ export default function TravelPage() {
                       type="button"
                       disabled={!assistantDestination.trim()}
                       onClick={() => {
-                        setDestination(assistantDestination.trim());
+                        setDestination(
+                          assistantDestination.trim()
+                        );
                         setAssistantStep(2);
                       }}
                       className="mt-1 px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
                     >
-                      Next: How many days?
+                      {t(
+                        "assistant.step1Next",
+                        "Next: How many days?"
+                      )}
                     </button>
                   </div>
                 )}
@@ -957,14 +1147,22 @@ export default function TravelPage() {
                 {assistantStep === 2 && (
                   <div className="space-y-2">
                     <p className="text-[12px] text-[var(--text-main)]">
-                      2/3 – How many days do you want to stay?
+                      {t(
+                        "assistant.step2Title",
+                        "2/3 – How many days do you want to stay?"
+                      )}
                     </p>
                     <input
                       type="number"
                       min={2}
                       value={assistantDays}
                       onChange={(e) =>
-                        setAssistantDays(Math.max(2, Number(e.target.value) || 2))
+                        setAssistantDays(
+                          Math.max(
+                            2,
+                            Number(e.target.value) || 2
+                          )
+                        )
                       }
                       className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                     />
@@ -974,21 +1172,30 @@ export default function TravelPage() {
                         onClick={() => setAssistantDays(3)}
                         className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
-                        3 days
+                        {t(
+                          "assistant.preset3days",
+                          "3 days"
+                        )}
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantDays(5)}
                         className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
-                        5 days
+                        {t(
+                          "assistant.preset5days",
+                          "5 days"
+                        )}
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantDays(7)}
                         className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                       >
-                        7 days
+                        {t(
+                          "assistant.preset7days",
+                          "7 days"
+                        )}
                       </button>
                     </div>
                     <div className="flex items-center gap-2 mt-1">
@@ -996,11 +1203,21 @@ export default function TravelPage() {
                         type="button"
                         onClick={() => {
                           const start = new Date();
-                          start.setDate(start.getDate() + 14);
-                          const startStr = start.toISOString().split("T")[0];
+                          start.setDate(
+                            start.getDate() + 14
+                          );
+                          const startStr =
+                            start
+                              .toISOString()
+                              .split("T")[0];
                           const out = new Date(start);
-                          out.setDate(out.getDate() + assistantDays);
-                          const outStr = out.toISOString().split("T")[0];
+                          out.setDate(
+                            out.getDate() + assistantDays
+                          );
+                          const outStr =
+                            out
+                              .toISOString()
+                              .split("T")[0];
 
                           setCheckin(startStr);
                           setCheckout(outStr);
@@ -1008,14 +1225,17 @@ export default function TravelPage() {
                         }}
                         className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs"
                       >
-                        Next: Who’s going?
+                        {t(
+                          "assistant.step2Next",
+                          "Next: Who’s going?"
+                        )}
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantStep(1)}
                         className="text-[11px] text-[var(--text-muted)]"
                       >
-                        ← Back
+                        {t("assistant.back", "← Back")}
                       </button>
                     </div>
                   </div>
@@ -1024,12 +1244,18 @@ export default function TravelPage() {
                 {assistantStep === 3 && (
                   <div className="space-y-2">
                     <p className="text-[12px] text-[var(--text-main)]">
-                      3/3 – Who&apos;s going?
+                      {t(
+                        "assistant.step3Title",
+                        "3/3 – Who's going?"
+                      )}
                     </p>
                     <div className="flex gap-3">
                       <div className="flex-1">
                         <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                          Adults
+                          {t(
+                            "assistant.adultsLabel",
+                            "Adults"
+                          )}
                         </label>
                         <input
                           type="number"
@@ -1037,7 +1263,11 @@ export default function TravelPage() {
                           value={assistantAdults}
                           onChange={(e) =>
                             setAssistantAdults(
-                              Math.max(1, Number(e.target.value) || 1)
+                              Math.max(
+                                1,
+                                Number(e.target.value) ||
+                                  1
+                              )
                             )
                           }
                           className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
@@ -1045,7 +1275,10 @@ export default function TravelPage() {
                       </div>
                       <div className="flex-1">
                         <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                          Children
+                          {t(
+                            "assistant.childrenLabel",
+                            "Children"
+                          )}
                         </label>
                         <input
                           type="number"
@@ -1053,7 +1286,11 @@ export default function TravelPage() {
                           value={assistantChildren}
                           onChange={(e) =>
                             setAssistantChildren(
-                              Math.max(0, Number(e.target.value) || 0)
+                              Math.max(
+                                0,
+                                Number(e.target.value) ||
+                                  0
+                              )
                             )
                           }
                           className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
@@ -1071,20 +1308,24 @@ export default function TravelPage() {
                         }}
                         className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs"
                       >
-                        Apply to form & use AI
+                        {t(
+                          "assistant.apply",
+                          "Apply to form & use AI"
+                        )}
                       </button>
                       <button
                         type="button"
                         onClick={() => setAssistantStep(2)}
                         className="text-[11px] text-[var(--text-muted)]"
                       >
-                        ← Back
+                        {t("assistant.back", "← Back")}
                       </button>
                     </div>
                     <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                      Once applied, just hit{" "}
-                      <span className="font-semibold">Generate AI trip plan</span> to get
-                      your itinerary.
+                      {t(
+                        "assistant.finalHint",
+                        "Once applied, just hit Generate AI trip plan to get your itinerary."
+                      )}
                     </p>
                   </div>
                 )}
@@ -1096,17 +1337,25 @@ export default function TravelPage() {
           {!user && !checkingUser && (
             <div className="rounded-2xl border border-[var(--accent)]/60 bg-[var(--accent-soft)]/60 p-4 text-xs max-w-xl">
               <p className="text-[var(--accent-strong,white)] font-semibold mb-1">
-                Want to save your trips and access them later?
+                {t(
+                  "guestCta.title",
+                  "Want to save your trips and access them later?"
+                )}
               </p>
               <p className="text-[var(--accent-strong,white)] mb-3">
-                Create a free account to save your AI-generated itineraries, sync them
-                with your productivity dashboard, and get weekly summaries.
+                {t(
+                  "guestCta.body",
+                  "Create a free account to save your AI-generated itineraries, sync them with your productivity dashboard, and get weekly summaries."
+                )}
               </p>
               <a
                 href="/auth"
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--bg-body)] font-medium inline-block"
               >
-                Create free account / Log in
+                {t(
+                  "guestCta.button",
+                  "Create free account / Log in"
+                )}
               </a>
             </div>
           )}

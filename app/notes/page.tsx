@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
 import { useAnalytics } from "@/lib/analytics";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
+import { useT } from "@/lib/useT";
 
 const FREE_DAILY_LIMIT = 20;
 const PRO_DAILY_LIMIT = 2000;
@@ -145,6 +146,19 @@ const NOTE_CATEGORIES = [
   "Other",
 ] as const;
 
+// For translating category labels
+const CATEGORY_KEY_MAP: Record<(typeof NOTE_CATEGORIES)[number], string> = {
+  Work: "work",
+  Personal: "personal",
+  Ideas: "ideas",
+  "Meeting Notes": "meeting",
+  Study: "study",
+  Journal: "journal",
+  Planning: "planning",
+  Research: "research",
+  Other: "other",
+};
+
 // Theme-aware category badges
 const noteCategoryStyles: Record<string, string> = {
   Work: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
@@ -174,6 +188,7 @@ type NoteAIGeneratedTask = {
 };
 
 export default function NotesPage() {
+  const { t } = useT("notes");
   const { track } = useAnalytics();
   const [user, setUser] = useState<SupabaseUser>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -234,6 +249,14 @@ export default function NotesPage() {
     setOpenNoteIds((prev) =>
       prev.includes(id) ? prev.filter((nid) => nid !== id) : [...prev, id]
     );
+  }
+
+  function getCategoryLabel(value: string | null): string {
+    if (!value) return "";
+    const key = CATEGORY_KEY_MAP[value as (typeof NOTE_CATEGORIES)[number]];
+    return key
+      ? t(`category.${key}`, value)
+      : value;
   }
 
   function handleShareNote(note: Note) {
@@ -317,7 +340,7 @@ export default function NotesPage() {
         const rawTitle =
           typeof t.title === "string" && t.title.trim()
             ? t.title.trim()
-            : "(Untitled task)";
+            : t("tasks.untitled", "(Untitled task)");
 
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
@@ -382,7 +405,12 @@ export default function NotesPage() {
   // 🆕 Generate tasks from a note using backend AI endpoint
   async function handleGenerateTasksFromNote(note: Note) {
     if (!user) {
-      setError("You need to be logged in to create tasks from notes.");
+      setError(
+        t(
+          "errors.notLoggedInTasksFromNotes",
+          "You need to be logged in to create tasks from notes."
+        )
+      );
       return;
     }
     if (!note.content?.trim()) return;
@@ -406,7 +434,11 @@ export default function NotesPage() {
       if (!res.ok || !data?.ok) {
         console.error("[note-to-tasks] error:", data);
         setError(
-          data?.error || "Failed to generate tasks from this note. Try again."
+          data?.error ||
+            t(
+              "errors.generateTasksFromNoteFailed",
+              "Failed to generate tasks from this note. Try again."
+            )
         );
         setNoteTasksLoadingId(null);
         return;
@@ -418,7 +450,7 @@ export default function NotesPage() {
         const rawTitle =
           typeof t.title === "string" && t.title.trim()
             ? t.title.trim()
-            : "(Untitled task)";
+            : t("tasks.untitled", "(Untitled task)");
 
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
@@ -472,16 +504,27 @@ export default function NotesPage() {
 
       if (nonEmpty.length > 0) {
         setVoiceTasksMessage(
-          `Generated ${nonEmpty.length} task suggestion${
-            nonEmpty.length > 1 ? "s" : ""
-          } from the note.`
+          t(
+            "tasks.suggested.fromNote",
+            "Generated task suggestions from the note."
+          )
         );
       } else {
-        setVoiceTasksMessage("No clear tasks were found in this note.");
+        setVoiceTasksMessage(
+          t(
+            "tasks.suggested.noneFound",
+            "No clear tasks were found in this note."
+          )
+        );
       }
     } catch (err) {
       console.error("[note-to-tasks] unexpected error:", err);
-      setError("Unexpected error while generating tasks from this note.");
+      setError(
+        t(
+          "errors.generateTasksFromNoteUnexpected",
+          "Unexpected error while generating tasks from this note."
+        )
+      );
     } finally {
       setNoteTasksLoadingId(null);
     }
@@ -571,7 +614,12 @@ export default function NotesPage() {
     if (!user) return;
 
     if (!title.trim() && !content.trim()) {
-      setError("Please enter a title or content.");
+      setError(
+        t(
+          "errors.saveNoteMissing",
+          "Please enter a title or content."
+        )
+      );
       return;
     }
 
@@ -654,12 +702,19 @@ export default function NotesPage() {
     if (!noteContent?.trim()) return;
 
     if (!user) {
-      setError("You need to be logged in to use AI on notes.");
+      setError(
+        t(
+          "errors.notLoggedInForAI",
+          "You need to be logged in to use AI on notes."
+        )
+      );
       return;
     }
 
     if (remaining <= 0) {
-      setError("Daily AI limit reached.");
+      setError(
+        t("errors.dailyLimitReached", "Daily AI limit reached.")
+      );
       return;
     }
 
@@ -673,7 +728,9 @@ export default function NotesPage() {
 
     const data = await res.json();
     if (!data.result) {
-      setError("AI failed.");
+      setError(
+        t("errors.aiFailed", "AI failed.")
+      );
       setAiLoading(null);
       return;
     }
@@ -686,7 +743,12 @@ export default function NotesPage() {
 
     if (updateError) {
       console.error("[notes] AI result update error", updateError);
-      setError("Failed to save AI result to this note.");
+      setError(
+        t(
+          "errors.aiSaveFailed",
+          "Failed to save AI result to this note."
+        )
+      );
       setAiLoading(null);
       return;
     }
@@ -735,7 +797,12 @@ export default function NotesPage() {
 
   async function handleDelete(id: string) {
     if (!user) return;
-    if (!confirm("Delete this note?")) return;
+    if (
+      !confirm(
+        t("confirm.deleteNote", "Delete this note?")
+      )
+    )
+      return;
 
     setDeletingId(id);
 
@@ -856,18 +923,30 @@ export default function NotesPage() {
 
         console.error("[voice-tasks] insert error full:", error);
         setError(
-          "Failed to create tasks from your note/voice: " +
+          t(
+            "errors.createTasksFromVoiceFailed",
+            "Failed to create tasks from your note/voice:"
+          ) +
+            " " +
             (error.message || error.details || extra || "Unknown error")
         );
       } else {
         setVoiceTasksMessage(
-          `Created ${rows.length} tasks from your note/voice.`
+          t(
+            "tasks.voice.created",
+            "Created tasks from your note/voice."
+          )
         );
         setVoiceSuggestedTasks([]);
       }
     } catch (err) {
       console.error("[voice-tasks] unexpected error", err);
-      setError("Unexpected error while creating tasks (check console).");
+      setError(
+        t(
+          "errors.createTasksUnexpected",
+          "Unexpected error while creating tasks (check console)."
+        )
+      );
     } finally {
       setCreatingTasks(false);
     }
@@ -877,7 +956,12 @@ export default function NotesPage() {
   async function handleCreateTasksFromNote(note: Note) {
     if (!user) return;
     if (!note.content || !note.content.trim()) {
-      setError("This note is empty, nothing to turn into tasks.");
+      setError(
+        t(
+          "errors.noteEmptyForTasks",
+          "This note is empty, nothing to turn into tasks."
+        )
+      );
       return;
     }
 
@@ -900,7 +984,13 @@ export default function NotesPage() {
 
       if (!res.ok || !json?.ok) {
         console.error("[notes] note→tasks API error:", json);
-        setError(json?.error || "Failed to generate tasks from this note.");
+        setError(
+          json?.error ||
+            t(
+              "errors.generateTasksFromNoteFailed",
+              "Failed to generate tasks from this note."
+            )
+        );
         return;
       }
 
@@ -909,7 +999,12 @@ export default function NotesPage() {
         : [];
 
       if (tasksFromAI.length === 0) {
-        setError("AI did not find any clear tasks in this note.");
+        setError(
+          t(
+            "errors.noTasksFoundInNote",
+            "AI did not find any clear tasks in this note."
+          )
+        );
         return;
       }
 
@@ -954,7 +1049,7 @@ export default function NotesPage() {
 
         return {
           user_id: user.id,
-          title: t.title || "(Untitled task)",
+          title: t.title || t("tasks.untitled", "(Untitled task)"),
           description: null,
           completed: false,
           created_at: now.toISOString(),
@@ -981,7 +1076,11 @@ export default function NotesPage() {
       if (error) {
         console.error("[notes] insert tasks from note error:", error);
         setError(
-          "Failed to save tasks created from this note: " +
+          t(
+            "errors.saveTasksFromNoteFailed",
+            "Failed to save tasks created from this note:"
+          ) +
+            " " +
             (error.message || error.details || "")
         );
         return;
@@ -990,13 +1089,22 @@ export default function NotesPage() {
       console.log("[notes] tasks created from note:", data);
 
       setVoiceTasksMessage(
-        `Created ${rows.length} task${
-          rows.length > 1 ? "s" : ""
-        } from this note.`
+        t(
+          "tasks.note.created",
+          "Created tasks from this note."
+        )
       );
     } catch (err) {
-      console.error("[notes] unexpected error in handleCreateTasksFromNote:", err);
-      setError("Unexpected error while creating tasks from this note.");
+      console.error(
+        "[notes] unexpected error in handleCreateTasksFromNote:",
+        err
+      );
+      setError(
+        t(
+          "errors.createTasksFromNoteUnexpected",
+          "Unexpected error while creating tasks from this note."
+        )
+      );
     } finally {
       setCreatingTasks(false);
     }
@@ -1005,7 +1113,9 @@ export default function NotesPage() {
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
-        <p className="text-[var(--text-muted)]">Checking session…</p>
+        <p className="text-[var(--text-muted)]">
+          {t("checkingSession", "Checking session…")}
+        </p>
       </main>
     );
   }
@@ -1013,15 +1123,22 @@ export default function NotesPage() {
   if (!user) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col items-center justify-center p-4">
-        <h1 className="text-2xl font-bold mb-3">Notes</h1>
+        <h1 className="text-2xl font-bold mb-3">
+          {t("title", "Notes")}
+        </h1>
+
         <p className="text-[var(--text-muted)] mb-4 text-center max-w-md">
-          You must log in to view your notes.
+          {t(
+            "loginRequired",
+            "You must log in to view your notes."
+          )}
         </p>
+
         <a
           href="/auth"
           className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
         >
-          Log in / Sign up
+          {t("loginButton", "Log in / Sign up")}
         </a>
       </main>
     );
@@ -1044,17 +1161,21 @@ export default function NotesPage() {
         <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="text-lg font-semibold">Create a new note</h2>
+              <h2 className="text-lg font-semibold">
+                {t("create.heading", "Create a new note")}
+              </h2>
               <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                Use AI to summarize, bullet, or rewrite your notes. Capture
-                ideas with your voice, too.
+                {t(
+                  "create.subheading",
+                  "Use AI to summarize, bullet, or rewrite your notes. Capture ideas with your voice, too."
+                )}
               </p>
             </div>
             <button
               onClick={() => supabase.auth.signOut()}
               className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
             >
-              Log out
+              {t("create.logout", "Log out")}
             </button>
           </div>
 
@@ -1065,7 +1186,7 @@ export default function NotesPage() {
           <form onSubmit={handleSaveNote} className="flex flex-col gap-3">
             <input
               type="text"
-              placeholder="Note title"
+              placeholder={t("form.titlePlaceholder", "Note title")}
               className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm focus:outline-none"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -1073,7 +1194,9 @@ export default function NotesPage() {
 
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
               <div className="flex items-center gap-2">
-                <span>Note date:</span>
+                <span>
+                  {t("form.dateLabel", "Note date:")}
+                </span>
                 <input
                   type="date"
                   value={noteDate}
@@ -1083,15 +1206,24 @@ export default function NotesPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <span>Category:</span>
+                <span>
+                  {t("form.categoryLabel", "Category:")}
+                </span>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
                   className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
                 >
-                  <option value="">None</option>
+                  <option value="">
+                    {t("form.category.none", "None")}
+                  </option>
                   {NOTE_CATEGORIES.map((c) => (
-                    <option key={c}>{c}</option>
+                    <option key={c} value={c}>
+                      {t(
+                        `category.${CATEGORY_KEY_MAP[c]}`,
+                        c
+                      )}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1109,13 +1241,19 @@ export default function NotesPage() {
                   htmlFor="auto-title"
                   className="cursor-pointer text-[11px]"
                 >
-                  Smart title from content
+                  {t(
+                    "form.smartTitleLabel",
+                    "Smart title from content"
+                  )}
                 </label>
               </div>
             </div>
 
             <textarea
-              placeholder="Write your note here..."
+              placeholder={t(
+                "form.contentPlaceholder",
+                "Write your note here..."
+              )}
               className="w-full min-h-[120px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -1123,7 +1261,9 @@ export default function NotesPage() {
 
             <div className="flex flex-col gap-2 text-[11px] text-[var(--text-muted)]">
               <span>
-                Plan: <span className="font-semibold">{plan}</span> • AI today:{" "}
+                {t("plan.label", "Plan")}:{" "}
+                <span className="font-semibold">{plan}</span> •{" "}
+                {t("plan.aiTodayLabel", "AI today")}:{" "}
                 <span className="font-semibold">
                   {aiCountToday}/{dailyLimit}
                 </span>
@@ -1131,7 +1271,9 @@ export default function NotesPage() {
 
               {/* Voice capture mode toggle */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px]">Voice capture mode:</span>
+                <span className="text-[10px]">
+                  {t("voice.modeLabel", "Voice capture mode:")}
+                </span>
                 <button
                   type="button"
                   onClick={() => setVoiceMode("review")}
@@ -1141,7 +1283,7 @@ export default function NotesPage() {
                       : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
                   }`}
                 >
-                  Review first
+                  {t("voice.mode.review", "Review first")}
                 </button>
                 <button
                   type="button"
@@ -1152,7 +1294,7 @@ export default function NotesPage() {
                       : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
                   }`}
                 >
-                  Auto-save note
+                  {t("voice.mode.autosave", "Auto-save note")}
                 </button>
               </div>
             </div>
@@ -1171,7 +1313,7 @@ export default function NotesPage() {
                   onClick={handleResetVoice}
                   className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px] hover:bg-[var(--bg-card)]"
                 >
-                  Reset voice note
+                  {t("voice.resetButton", "Reset voice note")}
                 </button>
               )}
             </div>
@@ -1180,7 +1322,12 @@ export default function NotesPage() {
             {voiceSuggestedTasks.length > 0 && (
               <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px]">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold">Suggested tasks</p>
+                  <p className="font-semibold">
+                    {t(
+                      "tasks.suggested.title",
+                      "Suggested tasks"
+                    )}
+                  </p>
                   {voiceTasksMessage && (
                     <span className="text-[10px] text-emerald-400">
                       {voiceTasksMessage}
@@ -1188,18 +1335,18 @@ export default function NotesPage() {
                   )}
                 </div>
                 <ul className="list-disc pl-4 space-y-1 mb-2">
-                  {voiceSuggestedTasks.map((t, idx) => (
+                  {voiceSuggestedTasks.map((tItem, idx) => (
                     <li key={idx}>
-                      <span className="font-medium">{t.title}</span>
-                      {t.dueLabel && (
+                      <span className="font-medium">{tItem.title}</span>
+                      {tItem.dueLabel && (
                         <span className="text-[var(--text-muted)]">
                           {" "}
-                          — {t.dueLabel}
+                          — {tItem.dueLabel}
                         </span>
                       )}
-                      {t.priority && (
+                      {tItem.priority && (
                         <span className="ml-1 uppercase text-[9px] text-[var(--text-muted)]">
-                          [{t.priority}]
+                          [{tItem.priority}]
                         </span>
                       )}
                     </li>
@@ -1212,10 +1359,14 @@ export default function NotesPage() {
                   className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-[11px] disabled:opacity-60"
                 >
                   {creatingTasks
-                    ? "Creating tasks…"
-                    : `Create ${voiceSuggestedTasks.length} task${
-                        voiceSuggestedTasks.length > 1 ? "s" : ""
-                      }`}
+                    ? t(
+                        "tasks.suggested.creating",
+                        "Creating tasks…"
+                      )
+                    : t(
+                        "tasks.suggested.createButton",
+                        "Create tasks"
+                      )}
                 </button>
               </div>
             )}
@@ -1225,19 +1376,24 @@ export default function NotesPage() {
               disabled={loading}
               className="mt-3 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-50"
             >
-              {loading ? "Saving..." : "Save note"}
+              {loading
+                ? t("buttons.saveNoteLoading", "Saving...")
+                : t("buttons.saveNote", "Save note")}
             </button>
           </form>
 
           {plan === "free" && (
             <div className="mt-3 text-[11px] text-[var(--text-muted)]">
-              AI limit reached often?{" "}
+              {t(
+                "buttons.upgradeHint",
+                "AI limit reached often?"
+              )}{" "}
               <button
                 disabled={billingLoading}
                 onClick={() => {}}
                 className="underline text-[var(--accent)]"
               >
-                Upgrade to Pro
+                {t("buttons.upgradeToPro", "Upgrade to Pro")}
               </button>
             </div>
           )}
@@ -1246,7 +1402,9 @@ export default function NotesPage() {
         {/* NOTES LIST */}
         <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">Your notes</h2>
+            <h2 className="text-lg font-semibold">
+              {t("list.title", "Your notes")}
+            </h2>
 
             <div className="flex items-center gap-2 text-[11px]">
               <select
@@ -1254,27 +1412,40 @@ export default function NotesPage() {
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
               >
-                <option value="all">All categories</option>
+                <option value="all">
+                  {t(
+                    "list.filter.allCategories",
+                    "All categories"
+                  )}
+                </option>
                 {NOTE_CATEGORIES.map((c) => (
                   <option key={c} value={c}>
-                    {c}
+                    {t(
+                      `category.${CATEGORY_KEY_MAP[c]}`,
+                      c
+                    )}
                   </option>
                 ))}
-                <option value="">No category</option>
+                <option value="">
+                  {t(
+                    "list.filter.noCategory",
+                    "No category"
+                  )}
+                </option>
               </select>
 
               <button
                 onClick={fetchNotes}
                 className="text-sm px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
               >
-                Refresh
+                {t("list.refresh", "Refresh")}
               </button>
             </div>
           </div>
 
           {filteredNotes.length === 0 && !loadingList && (
             <p className="text-[var(--text-muted)] text-sm">
-              No notes found.
+              {t("list.empty", "No notes found.")}
             </p>
           )}
 
@@ -1296,7 +1467,17 @@ export default function NotesPage() {
                         type="button"
                         onClick={() => toggleNoteOpen(note.id)}
                         className="h-5 w-5 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[10px] hover:bg-[var(--bg-elevated)]"
-                        aria-label={isOpen ? "Collapse note" : "Expand note"}
+                        aria-label={
+                          isOpen
+                            ? t(
+                                "list.aria.collapse",
+                                "Collapse note"
+                              )
+                            : t(
+                                "list.aria.expand",
+                                "Expand note"
+                              )
+                        }
                       >
                         {isOpen ? "▲" : "▼"}
                       </button>
@@ -1304,11 +1485,14 @@ export default function NotesPage() {
                       <div className="flex-1 flex items-center justify-between gap-2">
                         <div className="flex flex-col">
                           <h3 className="font-semibold text-sm line-clamp-1">
-                            {note.title || "Untitled"}
+                            {note.title ||
+                              t("list.untitled", "Untitled")}
                           </h3>
                           <span className="text-[10px] text-[var(--text-muted)]">
                             {note.created_at
-                              ? new Date(note.created_at).toLocaleString()
+                              ? new Date(
+                                  note.created_at
+                                ).toLocaleString()
                               : ""}
                           </span>
                         </div>
@@ -1317,7 +1501,7 @@ export default function NotesPage() {
                           <span
                             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${badge}`}
                           >
-                            {note.category}
+                            {getCategoryLabel(note.category)}
                           </span>
                         )}
                       </div>
@@ -1333,6 +1517,8 @@ export default function NotesPage() {
                         </p>
                       )}
 
+// The rest of the note’s expanded view …
+
                       <div className="mt-3 flex flex-wrap gap-2">
                         {/* 🆕 Tasks from note (suggestions in panel) */}
                         <button
@@ -1341,8 +1527,14 @@ export default function NotesPage() {
                           className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
                         >
                           {noteTasksLoadingId === note.id
-                            ? "Finding tasks..."
-                            : "⚡ Tasks from note"}
+                            ? t(
+                                "buttons.tasksFromNoteLoading",
+                                "Finding tasks..."
+                              )
+                            : t(
+                                "buttons.tasksFromNote",
+                                "⚡ Tasks from note"
+                              )}
                         </button>
 
                         {/* AI Buttons */}
@@ -1354,8 +1546,14 @@ export default function NotesPage() {
                           className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
                         >
                           {aiLoading === note.id
-                            ? "Summarizing..."
-                            : "✨ Summarize"}
+                            ? t(
+                                "buttons.summarizeLoading",
+                                "Summarizing..."
+                              )
+                            : t(
+                                "buttons.summarize",
+                                "✨ Summarize"
+                              )}
                         </button>
 
                         <button
@@ -1365,7 +1563,7 @@ export default function NotesPage() {
                           disabled={aiLoading === note.id}
                           className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
                         >
-                          📋 Bullets
+                          {t("buttons.bullets", "📋 Bullets")}
                         </button>
 
                         <button
@@ -1375,7 +1573,7 @@ export default function NotesPage() {
                           disabled={aiLoading === note.id}
                           className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
                         >
-                          ✍️ Rewrite
+                          {t("buttons.rewrite", "✍️ Rewrite")}
                         </button>
 
                         {/* Share */}
@@ -1383,14 +1581,19 @@ export default function NotesPage() {
                           onClick={() => handleShareNote(note)}
                           className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
-                          {copiedNoteId === note.id ? "✅ Copied" : "Share"}
+                          {copiedNoteId === note.id
+                            ? t(
+                                "buttons.shareCopied",
+                                "✅ Copied"
+                              )
+                            : t("buttons.share", "Share")}
                         </button>
 
                         <button
                           onClick={() => handleAskAssistantAboutNote(note)}
                           className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
-                          🤖 Ask AI
+                          {t("buttons.askAI", "🤖 Ask AI")}
                         </button>
 
                         {/* 🧩 NEW: Directly create tasks from this note */}
@@ -1399,7 +1602,15 @@ export default function NotesPage() {
                           disabled={creatingTasks}
                           className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
-                          {creatingTasks ? "Creating tasks…" : "🧩 Tasks"}
+                          {creatingTasks
+                            ? t(
+                                "buttons.tasksCreateFromNoteLoading",
+                                "Creating tasks…"
+                              )
+                            : t(
+                                "buttons.tasksCreateFromNote",
+                                "🧩 Tasks"
+                              )}
                         </button>
 
                         {/* Edit */}
@@ -1407,7 +1618,7 @@ export default function NotesPage() {
                           onClick={() => startEdit(note)}
                           className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
                         >
-                          ✏️ Edit
+                          {t("buttons.edit", "✏️ Edit")}
                         </button>
 
                         {/* Delete */}
@@ -1416,13 +1627,26 @@ export default function NotesPage() {
                           disabled={deletingId === note.id}
                           className="px-2 py-1 rounded-lg border border-red-500 text-red-400 hover:bg-red-900/30 text-[11px]"
                         >
-                          {deletingId === note.id ? "Deleting..." : "🗑 Delete"}
+                          {deletingId === note.id
+                            ? t(
+                                "buttons.deleteLoading",
+                                "Deleting..."
+                              )
+                            : t(
+                                "buttons.delete",
+                                "🗑 Delete"
+                              )}
                         </button>
                       </div>
 
                       {note.ai_result && (
                         <div className="mt-3 text-xs text-[var(--text-main)] border-t border-[var(--border-subtle)] pt-2 whitespace-pre-wrap">
-                          <strong>AI Result:</strong>
+                          <strong>
+                            {t(
+                              "list.aiResultTitle",
+                              "AI Result:"
+                            )}
+                          </strong>
                           <br />
                           {note.ai_result}
                         </div>
@@ -1445,9 +1669,19 @@ export default function NotesPage() {
                         onChange={(e) => setEditCategory(e.target.value)}
                         className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
                       >
-                        <option value="">No category</option>
+                        <option value="">
+                          {t(
+                            "list.filter.noCategory",
+                            "No category"
+                          )}
+                        </option>
                         {NOTE_CATEGORIES.map((c) => (
-                          <option key={c}>{c}</option>
+                          <option key={c} value={c}>
+                            {t(
+                              `category.${CATEGORY_KEY_MAP[c]}`,
+                              c
+                            )}
+                          </option>
                         ))}
                       </select>
 
@@ -1463,13 +1697,18 @@ export default function NotesPage() {
                           disabled={savingEditId === note.id}
                           className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
                         >
-                          {savingEditId === note.id ? "Saving..." : "Save"}
+                          {savingEditId === note.id
+                            ? t(
+                                "buttons.editSaveLoading",
+                                "Saving..."
+                              )
+                            : t("buttons.editSave", "Save")}
                         </button>
                         <button
                           onClick={cancelEdit}
                           className="px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
                         >
-                          Cancel
+                          {t("buttons.editCancel", "Cancel")}
                         </button>
                       </div>
                     </div>
@@ -1481,10 +1720,10 @@ export default function NotesPage() {
 
           <div className="mt-4 text-[11px] flex gap-3 text-[var(--text-muted)]">
             <Link href="/tasks" className="hover:text-[var(--accent)]">
-              → Go to Tasks
+              {t("list.goToTasks", "→ Go to Tasks")}
             </Link>
             <Link href="/dashboard" className="hover:text-[var(--accent)]">
-              Open Dashboard
+              {t("list.openDashboard", "Open Dashboard")}
             </Link>
           </div>
 

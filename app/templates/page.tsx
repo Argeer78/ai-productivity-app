@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
+import { useT } from "@/lib/useT";
 
 type Template = {
   id: string;
@@ -22,6 +23,8 @@ type Template = {
 type PlanType = "free" | "pro" | "founder";
 
 export default function TemplatesPage() {
+  const { t } = useT("templates");
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
@@ -33,6 +36,30 @@ export default function TemplatesPage() {
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // --- Helpers: i18n title / description with fallback to DB fields ---
+
+  function getTemplateTitle(tpl: Template): string {
+    const fallback = tpl.title || t("card.untitled", "Untitled template");
+    const key = `presets.${tpl.id}.title`;
+    const translated = t(key, fallback);
+    // safety: if your i18n returns the key itself when missing
+    if (!translated || translated === key) return fallback;
+    return translated;
+  }
+
+  function getTemplateDescription(tpl: Template): string {
+    const fallback =
+      tpl.description ||
+      t(
+        "card.noDescription",
+        "No description yet. Edit this template to add more context."
+      );
+    const key = `presets.${tpl.id}.description`;
+    const translated = t(key, fallback);
+    if (!translated || translated === key) return fallback;
+    return translated;
+  }
 
   // Load user
   useEffect(() => {
@@ -118,7 +145,7 @@ export default function TemplatesPage() {
         }
       } catch (err: any) {
         console.error(err);
-        setError("Failed to load templates.");
+        setError(t("error.loadFailed", "Failed to load templates."));
         setTemplates([]);
       } finally {
         setLoading(false);
@@ -128,41 +155,50 @@ export default function TemplatesPage() {
     if (!checkingUser) {
       loadData();
     }
-  }, [user, checkingUser]);
+  }, [user]);
 
-  // Use with Assistant (now increments usage_count)
-  async function handleUseWithAssistant(t: Template) {
+  // Use with Assistant (increments usage_count)
+  async function handleUseWithAssistant(tpl: Template) {
     if (typeof window === "undefined") return;
 
-    const safeTitle = t.title || (t as any).name || "this template";
-    const safePrompt = t.ai_prompt || (t as any).prompt || "";
+    // ✅ use translated title as the "nice" name
+    const safeTitle = getTemplateTitle(tpl);
+    const safePrompt = tpl.ai_prompt || (tpl as any).prompt || "";
 
     // Send to global assistant
     window.dispatchEvent(
       new CustomEvent("ai-assistant-context", {
         detail: {
-          content: safePrompt || `Use this template: "${safeTitle}".`,
-          hint: `Use this template: "${safeTitle}". I may add extra details before sending.`,
+          content:
+            safePrompt ||
+            `${t("assistant.hintPrefix", "Use this template")}: "${safeTitle}".`,
+          hint: `${t(
+            "assistant.hintPrefix",
+            "Use this template"
+          )}: "${safeTitle}". ${t(
+            "assistant.hintSuffix",
+            "I may add extra details before sending."
+          )}`,
         },
       })
     );
 
     // Increment usage_count in Supabase (best-effort, don't block UX)
-    const newCount = (t.usage_count ?? 0) + 1;
+    const newCount = (tpl.usage_count ?? 0) + 1;
 
     try {
       const { error } = await supabase
         .from("templates")
         .update({ usage_count: newCount })
-        .eq("id", t.id);
+        .eq("id", tpl.id);
 
       if (error) {
         console.error("Templates: failed to increment usage_count", error);
       } else {
         // Update local state so UI reflects new count
         setTemplates((prev) =>
-          prev.map((tpl) =>
-            tpl.id === t.id ? { ...tpl, usage_count: newCount } : tpl
+          prev.map((tItem) =>
+            tItem.id === tpl.id ? { ...tItem, usage_count: newCount } : tItem
           )
         );
       }
@@ -172,15 +208,15 @@ export default function TemplatesPage() {
   }
 
   // Local filtering
-  const filteredTemplates = templates.filter((t) => {
-    // search filter
+  const filteredTemplates = templates.filter((tpl) => {
+    // search filter (currently searches DB content only)
     if (search.trim()) {
       const q = search.toLowerCase();
       const combined = [
-        t.title || "",
-        t.description || "",
-        t.category || "",
-        t.ai_prompt || "",
+        tpl.title || "",
+        tpl.description || "",
+        tpl.category || "",
+        tpl.ai_prompt || "",
       ]
         .join(" ")
         .toLowerCase();
@@ -190,7 +226,9 @@ export default function TemplatesPage() {
 
     // category filter
     if (categoryFilter !== "all") {
-      if ((t.category || "").toLowerCase() !== categoryFilter.toLowerCase()) {
+      if (
+        (tpl.category || "").toLowerCase() !== categoryFilter.toLowerCase()
+      ) {
         return false;
       }
     }
@@ -200,7 +238,7 @@ export default function TemplatesPage() {
 
   // Trending public templates (top by usage_count)
   const trendingTemplates = [...templates]
-    .filter((t) => t.is_public && (t.usage_count ?? 0) > 0)
+    .filter((tpl) => tpl.is_public && (tpl.usage_count ?? 0) > 0)
     .sort((a, b) => (b.usage_count ?? 0) - (a.usage_count ?? 0))
     .slice(0, 5);
 
@@ -208,7 +246,7 @@ export default function TemplatesPage() {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">
-          Checking your session...
+          {t("checkingSession", "Checking your session...")}
         </p>
       </main>
     );
@@ -222,53 +260,34 @@ export default function TemplatesPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                AI Templates
+                {t("title", "AI Templates")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                Reusable prompts for planning, focus, study, and writing. Use
-                them with the assistant in one click.
+                {t(
+                  "subtitle",
+                  "Reusable prompts for planning, focus, study, and writing. Use them with the assistant in one click."
+                )}
               </p>
             </div>
             <Link
               href="/dashboard"
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
-              ← Back to Dashboard
+              {t("backToDashboard", "← Back to Dashboard")}
             </Link>
           </div>
 
           {/* How to use templates */}
           <div className="mb-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-[11px] md:text-xs text-[var(--text-main)]">
             <h2 className="font-semibold text-xs md:text-sm mb-1.5">
-              How to use these templates
+              {t("howToUse.title", "How to use these templates")}
             </h2>
             <ul className="list-disc pl-4 space-y-1 text-[var(--text-muted)]">
-              <li>
-                <span className="font-semibold">Browse or search</span> for a
-                template by category (Planning, Study, Writing, Work, Personal).
-              </li>
-              <li>
-                Click{" "}
-                <span className="font-semibold">“🤖 Use with Assistant”</span> to
-                send the template into the AI Hub Chat. You can tweak the text
-                or add extra details before you hit send.
-              </li>
-              <li>
-                Click <span className="font-semibold">“View / edit”</span> to
-                open the full template, see the exact prompt, and customize it
-                for your own workflow.
-              </li>
-              <li>
-                Templates marked{" "}
-                <span className="font-semibold text-[var(--accent)]">Pro</span> are
-                available for Pro / Founder users (or if it&apos;s a template
-                you created yourself).
-              </li>
-              <li>
-                The more you use a template, the higher it moves in{" "}
-                <span className="font-semibold">“Trending public templates”</span>{" "}
-                on the right side.
-              </li>
+              <li>{t("howToUse.item1")}</li>
+              <li>{t("howToUse.item2")}</li>
+              <li>{t("howToUse.item3")}</li>
+              <li>{t("howToUse.item4")}</li>
+              <li>{t("howToUse.item5")}</li>
             </ul>
           </div>
 
@@ -278,7 +297,10 @@ export default function TemplatesPage() {
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search templates..."
+                placeholder={t(
+                  "filters.searchPlaceholder",
+                  "Search templates..."
+                )}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] focus:outline-none text-sm"
@@ -292,12 +314,24 @@ export default function TemplatesPage() {
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="flex-1 md:flex-none px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
               >
-                <option value="all">All categories</option>
-                <option value="Planning">Planning</option>
-                <option value="Study">Study</option>
-                <option value="Writing">Writing</option>
-                <option value="Work">Work</option>
-                <option value="Personal">Personal</option>
+                <option value="all">
+                  {t("filters.category.all", "All categories")}
+                </option>
+                <option value="Planning">
+                  {t("filters.category.planning", "Planning")}
+                </option>
+                <option value="Study">
+                  {t("filters.category.study", "Study")}
+                </option>
+                <option value="Writing">
+                  {t("filters.category.writing", "Writing")}
+                </option>
+                <option value="Work">
+                  {t("filters.category.work", "Work")}
+                </option>
+                <option value="Personal">
+                  {t("filters.category.personal", "Personal")}
+                </option>
               </select>
             </div>
           </div>
@@ -306,7 +340,7 @@ export default function TemplatesPage() {
 
           {loading ? (
             <p className="text-[var(--text-muted)] text-sm">
-              Loading templates…
+              {t("loading", "Loading templates…")}
             </p>
           ) : (
             <div className="grid md:grid-cols-[2fr,1fr] gap-6">
@@ -314,54 +348,59 @@ export default function TemplatesPage() {
               <div>
                 {filteredTemplates.length === 0 ? (
                   <p className="text-[var(--text-muted)] text-sm">
-                    No templates match this filter yet.
+                    {t("emptyFiltered", "No templates match this filter yet.")}
                   </p>
                 ) : (
                   <div className="grid md:grid-cols-2 gap-4">
-                    {filteredTemplates.map((t) => {
-                      const isMine = user && t.user_id === user.id;
-                      const isProTemplate = !!t.is_pro_only;
+                    {filteredTemplates.map((tpl) => {
+                      const isMine = user && tpl.user_id === user.id;
+                      const isProTemplate = !!tpl.is_pro_only;
                       const locked = isProTemplate && !isProUser && !isMine;
 
                       return (
                         <article
-                          key={t.id}
+                          key={tpl.id}
                           className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-4 flex flex-col justify-between"
                         >
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-1">
                               <h2 className="text-sm font-semibold">
-                                {t.title || "Untitled template"}
+                                {getTemplateTitle(tpl)}
                               </h2>
                               <span className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--border-subtle)] text-[var(--text-muted)]">
-                                {t.category || "Uncategorized"}
+                                {tpl.category ||
+                                  t("card.uncategorized", "Uncategorized")}
                               </span>
                             </div>
                             <p className="text-[12px] text-[var(--text-main)] line-clamp-3 mb-2">
-                              {t.description ||
-                                "No description yet. Edit this template to add more context."}
+                              {getTemplateDescription(tpl)}
                             </p>
                             <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                              {t.is_public ? "Public" : "Private"}
-                              {isMine ? " • Yours" : ""}
+                              {tpl.is_public
+                                ? t("card.public", "Public")
+                                : t("card.private", "Private")}
+                              {isMine ? ` • ${t("card.yours", "Yours")}` : ""}
                               {isProTemplate && (
                                 <span className="ml-1 text-[var(--accent)]">
-                                  • Pro template
+                                  • {t("card.proTemplate", "Pro template")}
                                 </span>
                               )}
-                              {typeof t.usage_count === "number" &&
-                                t.usage_count > 0 && (
+                              {typeof tpl.usage_count === "number" &&
+                                tpl.usage_count > 0 && (
                                   <>
                                     {" "}
-                                    • Used {t.usage_count} time
-                                    {t.usage_count === 1 ? "" : "s"}
+                                    • {t("card.usedPrefix", "Used")}{" "}
+                                    {tpl.usage_count}{" "}
+                                    {t("card.usedSuffix", "times")}
                                   </>
                                 )}
                             </p>
                             {locked && (
                               <p className="text-[11px] text-[var(--accent)]">
-                                This is a Pro template. Upgrade to use it with
-                                the AI assistant and unlock full access.
+                                {t(
+                                  "card.lockedMessage",
+                                  "This is a Pro template. Upgrade to use it with the AI assistant and unlock full access."
+                                )}
                               </p>
                             )}
                           </div>
@@ -370,7 +409,7 @@ export default function TemplatesPage() {
                             <button
                               onClick={() => {
                                 if (locked) return;
-                                handleUseWithAssistant(t);
+                                handleUseWithAssistant(tpl);
                               }}
                               disabled={locked}
                               className={`text-xs px-3 py-1 rounded-lg border border-[var(--border-subtle)] ${
@@ -379,28 +418,32 @@ export default function TemplatesPage() {
                                   : "hover:bg-[var(--bg-elevated)]"
                               }`}
                             >
-                              🤖 Use with Assistant
+                              🤖{" "}
+                              {t(
+                                "buttons.useWithAssistant",
+                                "Use with Assistant"
+                              )}
                             </button>
 
                             {locked ? (
                               <span className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-60 cursor-not-allowed">
-                                View / edit
+                                {t("buttons.viewEdit", "View / edit")}
                               </span>
                             ) : (
                               <Link
-                                href={`/templates/${t.id}`}
+                                href={`/templates/${tpl.id}`}
                                 className="text-[11px] text-[var(--accent)] hover:opacity-80"
                               >
-                                View / edit
+                                {t("buttons.viewEdit", "View / edit")}
                               </Link>
                             )}
 
-                            {t.is_public && (
+                            {tpl.is_public && (
                               <button
                                 type="button"
                                 onClick={() => {
                                   if (typeof window === "undefined") return;
-                                  const url = `${window.location.origin}/templates/${t.id}`;
+                                  const url = `${window.location.origin}/templates/${tpl.id}`;
                                   navigator.clipboard
                                     .writeText(url)
                                     .catch((err) =>
@@ -412,7 +455,7 @@ export default function TemplatesPage() {
                                 }}
                                 className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-main)]"
                               >
-                                🔗 Copy link
+                                🔗 {t("buttons.copyLink", "Copy link")}
                               </button>
                             )}
                           </div>
@@ -427,39 +470,43 @@ export default function TemplatesPage() {
               <aside className="space-y-3">
                 <div className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
                   <h3 className="text-sm font-semibold mb-2">
-                    🔥 Trending public templates
+                    {t("trending.title", "🔥 Trending public templates")}
                   </h3>
                   {trendingTemplates.length === 0 ? (
                     <p className="text-[11px] text-[var(--text-muted)]">
-                      When templates are used with the assistant, they&apos;ll
-                      show up here.
+                      {t(
+                        "trending.empty",
+                        "When templates are used with the assistant, they’ll show up here."
+                      )}
                     </p>
                   ) : (
                     <ul className="space-y-2 text-[12px]">
-                      {trendingTemplates.map((t) => {
-                        const isProTemplate = !!t.is_pro_only;
-                        const isMine = user && t.user_id === user.id;
+                      {trendingTemplates.map((tpl) => {
+                        const isProTemplate = !!tpl.is_pro_only;
+                        const isMine = user && tpl.user_id === user.id;
                         const locked = isProTemplate && !isProUser && !isMine;
 
                         return (
                           <li
-                            key={t.id}
+                            key={tpl.id}
                             className="flex flex-col border border-[var(--border-subtle)] rounded-xl bg-[var(--bg-elevated)] p-2"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div>
                                 <p className="font-semibold text-[12px]">
-                                  {t.title || "Untitled template"}
+                                  {getTemplateTitle(tpl)}
                                 </p>
                                 <p className="text-[10px] text-[var(--text-muted)]">
-                                  {t.category || "Uncategorized"} • Used{" "}
-                                  {t.usage_count ?? 0} time
-                                  {t.usage_count === 1 ? "" : "s"}
+                                  {tpl.category ||
+                                    t("card.uncategorized", "Uncategorized")}{" "}
+                                  • {t("card.usedPrefix", "Used")}{" "}
+                                  {tpl.usage_count ?? 0}{" "}
+                                  {t("card.usedSuffix", "times")}
                                 </p>
                               </div>
                               {isProTemplate && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--accent)] text-[var(--accent)]">
-                                  Pro
+                                  {t("trending.proBadge", "Pro")}
                                 </span>
                               )}
                             </div>
@@ -468,7 +515,7 @@ export default function TemplatesPage() {
                                 type="button"
                                 onClick={() => {
                                   if (locked) return;
-                                  handleUseWithAssistant(t);
+                                  handleUseWithAssistant(tpl);
                                 }}
                                 disabled={locked}
                                 className={`px-2 py-1 rounded-lg border border-[var(--border-subtle)] ${
@@ -477,14 +524,14 @@ export default function TemplatesPage() {
                                     : "hover:bg-[var(--bg-card)]"
                                 }`}
                               >
-                                🤖 Use
+                                🤖 {t("trending.useButton", "Use")}
                               </button>
                               {!locked && (
                                 <Link
-                                  href={`/templates/${t.id}`}
+                                  href={`/templates/${tpl.id}`}
                                   className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)]"
                                 >
-                                  View
+                                  {t("trending.viewButton", "View")}
                                 </Link>
                               )}
                             </div>
@@ -495,8 +542,10 @@ export default function TemplatesPage() {
                   )}
                 </div>
                 <p className="text-[11px] text-[var(--text-muted)]">
-                  Make one of your templates public and use it often to push it
-                  into the trending list.
+                  {t(
+                    "trending.footerHint",
+                    "Make one of your templates public and use it often to push it into the trending list."
+                  )}
                 </p>
               </aside>
             </div>

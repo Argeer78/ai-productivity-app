@@ -15,11 +15,19 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Small helper to normalize locale like "el-GR" -> "el"
+function normalizeLocale(locale?: string | null): "en" | "el" {
+  if (!locale) return "en";
+  const lower = locale.toLowerCase();
+  if (lower.startsWith("el")) return "el";
+  return "en";
+}
+
 // 🔹 Shared helper – used by cron AND manual triggers
 export async function runDailyDigest() {
   const { data: profiles, error } = await supabaseAdmin
     .from("profiles")
-    .select("id, email, ai_tone, focus_area, daily_digest_enabled")
+    .select("id, email, ai_tone, focus_area, daily_digest_enabled, language")
     .eq("daily_digest_enabled", true)
     .not("email", "is", null);
 
@@ -30,7 +38,11 @@ export async function runDailyDigest() {
 
   if (!profiles || profiles.length === 0) {
     console.log("[daily-digest] No subscribers found");
-    return { ok: true, message: "No subscribers for daily digest.", processed: 0 };
+    return {
+      ok: true,
+      message: "No subscribers for daily digest.",
+      processed: 0,
+    };
   }
 
   let attempted = 0;
@@ -54,17 +66,28 @@ export async function runDailyDigest() {
     attempted++;
 
     const userId = profile.id as string;
+    const locale = (profile as any).language || "en";
+    const lang = normalizeLocale(locale);
+    const tone = profile.ai_tone || "friendly";
+    const focus = profile.focus_area || (lang === "el"
+      ? "τα πιο σημαντικά πράγματα σου"
+      : "your most important work");
 
-    const { data: tasksDueToday, error: tasksTodayError } = await supabaseAdmin
-      .from("tasks")
-      .select("id, title, description, due_date, completed")
-      .eq("user_id", userId)
-      .eq("completed", false)
-      .gte("due_date", startOfTodayIso)
-      .lt("due_date", startOfTomorrowIso);
+    const { data: tasksDueToday, error: tasksTodayError } =
+      await supabaseAdmin
+        .from("tasks")
+        .select("id, title, description, due_date, completed")
+        .eq("user_id", userId)
+        .eq("completed", false)
+        .gte("due_date", startOfTodayIso)
+        .lt("due_date", startOfTomorrowIso);
 
     if (tasksTodayError) {
-      console.error("[daily-digest] tasksDueToday error for", email, tasksTodayError);
+      console.error(
+        "[daily-digest] tasksDueToday error for",
+        email,
+        tasksTodayError
+      );
     }
 
     const { data: overdueTasks, error: overdueError } = await supabaseAdmin
@@ -75,7 +98,11 @@ export async function runDailyDigest() {
       .lt("due_date", startOfTodayIso);
 
     if (overdueError) {
-      console.error("[daily-digest] overdueTasks error for", email, overdueError);
+      console.error(
+        "[daily-digest] overdueTasks error for",
+        email,
+        overdueError
+      );
     }
 
     const safeTasksDueToday = tasksDueToday || [];
@@ -85,61 +112,127 @@ export async function runDailyDigest() {
     const tasksDueTodayShort = safeTasksDueToday.slice(0, maxPerSection);
     const overdueTasksShort = safeOverdueTasks.slice(0, maxPerSection);
 
-    const focus = profile.focus_area || "your most important work";
-    const tone = profile.ai_tone || "friendly";
-
     const lines: string[] = [];
 
-    lines.push("Hi there 👋", "");
-    lines.push(`Here’s your daily AI Productivity Hub digest for ${todayDate}:`, "");
-    lines.push(`• Tone: ${tone}`);
-    lines.push(`• Focus area: ${focus}`);
-    lines.push("");
-
-    if (tasksDueTodayShort.length > 0) {
-      lines.push("Today's tasks (not completed):");
-      for (const t of tasksDueTodayShort) {
-        const title = (t.title as string | null) || "(untitled task)";
-        const dueDateStr =
-          (t.due_date as string | null)?.slice(0, 10) || todayDate;
-        lines.push(`• ${title} (due ${dueDateStr})`);
-      }
-      lines.push("");
-    }
-
-    if (overdueTasksShort.length > 0) {
-      lines.push("Overdue tasks (still open):");
-      for (const t of overdueTasksShort) {
-        const title = (t.title as string | null) || "(untitled task)";
-        const dueDateStr =
-          (t.due_date as string | null)?.slice(0, 10) || "unknown date";
-        lines.push(`• ${title} (was due ${dueDateStr})`);
-      }
-      lines.push("");
-    }
-
-    if (tasksDueTodayShort.length === 0 && overdueTasksShort.length === 0) {
+    if (lang === "el") {
+      // 🇬🇷 Greek version
+      lines.push("Γεια σου 👋", "");
       lines.push(
-        "No tasks due today or overdue. Great moment to plan your next priorities in the Tasks page. ✅",
+        `Να η καθημερινή σου αναφορά από το AI Productivity Hub για ${todayDate}:`,
         ""
+      );
+      lines.push(`• Ύφος: ${tone}`);
+      lines.push(`• Περιοχή εστίασης: ${focus}`);
+      lines.push("");
+
+      if (tasksDueTodayShort.length > 0) {
+        lines.push("Σημερινές εκκρεμείς εργασίες (μη ολοκληρωμένες):");
+        for (const t of tasksDueTodayShort) {
+          const title = (t.title as string | null) || "(χωρίς τίτλο)";
+          const dueDateStr =
+            (t.due_date as string | null)?.slice(0, 10) || todayDate;
+          lines.push(`• ${title} (λήξη ${dueDateStr})`);
+        }
+        lines.push("");
+      }
+
+      if (overdueTasksShort.length > 0) {
+        lines.push("Καθυστερημένες εργασίες (ακόμα ανοικτές):");
+        for (const t of overdueTasksShort) {
+          const title = (t.title as string | null) || "(χωρίς τίτλο)";
+          const dueDateStr =
+            (t.due_date as string | null)?.slice(0, 10) || "άγνωστη ημερομηνία";
+          lines.push(`• ${title} (ήταν για ${dueDateStr})`);
+        }
+        lines.push("");
+      }
+
+      if (
+        tasksDueTodayShort.length === 0 &&
+        overdueTasksShort.length === 0
+      ) {
+        lines.push(
+          "Δεν υπάρχουν εργασίες με προθεσμία σήμερα ή καθυστερημένες. Ωραία στιγμή για να σχεδιάσεις τις επόμενες προτεραιότητές σου στη σελίδα Εργασίες. ✅",
+          ""
+        );
+      }
+
+      lines.push("Αύριο μπορείς να δοκιμάσεις:");
+      lines.push("• Να ορίσεις τις 3 σημαντικότερες προτεραιότητές σου πριν ξεκινήσεις.");
+      lines.push("• Ένα μπλοκ βαθιάς συγκέντρωσης (60–90 λεπτά) χωρίς ειδοποιήσεις.");
+      lines.push("• Να γράψεις μια σύντομη σημείωση για το τι ολοκλήρωσες.");
+      lines.push("");
+      lines.push(
+        "Μπορείς να αλλάξεις τις ρυθμίσεις της καθημερινής αναφοράς οποιαδήποτε στιγμή μέσα στην εφαρμογή."
+      );
+    } else {
+      // 🇬🇧/🇺🇸 English version
+      lines.push("Hi there 👋", "");
+      lines.push(
+        `Here’s your daily AI Productivity Hub digest for ${todayDate}:`,
+        ""
+      );
+      lines.push(`• Tone: ${tone}`);
+      lines.push(`• Focus area: ${focus}`);
+      lines.push("");
+
+      if (tasksDueTodayShort.length > 0) {
+        lines.push("Today's tasks (not completed):");
+        for (const t of tasksDueTodayShort) {
+          const title = (t.title as string | null) || "(untitled task)";
+          const dueDateStr =
+            (t.due_date as string | null)?.slice(0, 10) || todayDate;
+          lines.push(`• ${title} (due ${dueDateStr})`);
+        }
+        lines.push("");
+      }
+
+      if (overdueTasksShort.length > 0) {
+        lines.push("Overdue tasks (still open):");
+        for (const t of overdueTasksShort) {
+          const title = (t.title as string | null) || "(untitled task)";
+          const dueDateStr =
+            (t.due_date as string | null)?.slice(0, 10) || "unknown date";
+          lines.push(`• ${title} (was due ${dueDateStr})`);
+        }
+        lines.push("");
+      }
+
+      if (
+        tasksDueTodayShort.length === 0 &&
+        overdueTasksShort.length === 0
+      ) {
+        lines.push(
+          "No tasks due today or overdue. Great moment to plan your next priorities in the Tasks page. ✅",
+          ""
+        );
+      }
+
+      lines.push("Tomorrow, you might try:");
+      lines.push("• Planning your top 3 priorities before you start.");
+      lines.push("• One deep-work block (60–90 minutes) with no notifications.");
+      lines.push("• Writing one quick note about what you finished.");
+      lines.push("");
+      lines.push(
+        "You can change your daily digest settings anytime in the app."
       );
     }
 
-    lines.push("Tomorrow, you might try:");
-    lines.push("• Planning your top 3 priorities before you start.");
-    lines.push("• One deep-work block (60–90 minutes) with no notifications.");
-    lines.push("• Writing one quick note about what you finished.");
-    lines.push("");
-    lines.push("You can change your daily digest settings anytime in the app.");
-
     const fullBody = lines.join("\n");
-    const { text, html } = renderDailyDigestEmail(fullBody);
+
+    // 👇 Pass locale to email template so title/preview/footer localize too
+    const { text, html } = renderDailyDigestEmail(fullBody, locale);
+
+    const subject =
+      lang === "el"
+        ? "Η καθημερινή σου αναφορά AI παραγωγικότητας"
+        : "Your Daily AI Productivity Digest";
 
     try {
       await resend.emails.send({
         from: FROM_EMAIL,
         to: email,
-        subject: "Your Daily AI Productivity Digest",
+        subject,
         text,
         html,
         headers: {
@@ -157,7 +250,7 @@ export async function runDailyDigest() {
       );
     }
 
-    // Optional throttle
+    // Optional throttle if you want:
     // await delay(300);
   }
 

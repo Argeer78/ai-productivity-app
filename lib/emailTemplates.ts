@@ -12,6 +12,14 @@ function escapeHtml(str: string) {
     .replace(/>/g, "&gt;");
 }
 
+// Very small helper to normalize locale codes like "el-GR" -> "el"
+function normalizeLocale(locale?: string | null): "en" | "el" {
+  if (!locale) return "en";
+  const lower = locale.toLowerCase();
+  if (lower.startsWith("el")) return "el";
+  return "en";
+}
+
 /**
  * Base branded layout used by all emails.
  */
@@ -124,14 +132,30 @@ function baseTemplate(opts: {
 /**
  * Daily digest (used by cron + admin tester)
  */
-export function renderDailyDigestEmail(body: string) {
+export function renderDailyDigestEmail(body: string, locale?: string) {
+  const lang = normalizeLocale(locale);
   const safe = escapeHtml(body);
-
   const text = body;
 
+  const title =
+    lang === "el"
+      ? "Η καθημερινή σου αναφορά AI παραγωγικότητας"
+      : "Your Daily AI Productivity Digest";
+
+  const previewText =
+    lang === "el"
+      ? "Η σημερινή εστίαση, μικρές νίκες και επόμενα βήματα."
+      : "Today’s focus, small wins and next best actions.";
+
+  const footerText =
+    lang === "el"
+      ? "Λαμβάνεις αυτό το email επειδή έχεις ενεργοποιήσει αυτή την ειδοποίηση στις ρυθμίσεις του AI Productivity Hub."
+      : undefined; // falls back to English default
+
   const html = baseTemplate({
-    title: "Your Daily AI Productivity Digest",
-    previewText: "Today’s focus, small wins and next best actions.",
+    title,
+    previewText,
+    footerText,
     bodyHtml: `
       <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#e5e7eb;line-height:1.6;white-space:pre-wrap;">
 ${safe}
@@ -145,14 +169,30 @@ ${safe}
 /**
  * Weekly report (used by cron + admin tester)
  */
-export function renderWeeklyReportEmail(body: string) {
+export function renderWeeklyReportEmail(body: string, locale?: string) {
+  const lang = normalizeLocale(locale);
   const safe = escapeHtml(body);
-
   const text = body;
 
+  const title =
+    lang === "el"
+      ? "Η εβδομαδιαία αναφορά παραγωγικότητάς σου"
+      : "Your Weekly AI Productivity Report";
+
+  const previewText =
+    lang === "el"
+      ? "Σύνοψη της εβδομάδας σου και προτάσεις εστίασης για την επόμενη."
+      : "Reflection on your week, plus focus suggestions for next week.";
+
+  const footerText =
+    lang === "el"
+      ? "Λαμβάνεις αυτό το email επειδή έχεις ενεργοποιήσει αυτή την ειδοποίηση στις ρυθμίσεις του AI Productivity Hub."
+      : undefined;
+
   const html = baseTemplate({
-    title: "Your Weekly AI Productivity Report",
-    previewText: "Reflection on your week, plus focus suggestions for next week.",
+    title,
+    previewText,
+    footerText,
     bodyHtml: `
       <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#e5e7eb;line-height:1.6;white-space:pre-wrap;">
 ${safe}
@@ -166,13 +206,30 @@ ${safe}
 /**
  * Simple generic template (for admin “simple test”).
  */
-export function renderSimpleTestEmail(message: string) {
+export function renderSimpleTestEmail(message: string, locale?: string) {
+  const lang = normalizeLocale(locale);
   const safe = escapeHtml(message);
   const text = message;
 
+  const title =
+    lang === "el"
+      ? "Δοκιμαστικό email από το AI Productivity Hub"
+      : "Test email from AI Productivity Hub";
+
+  const previewText =
+    lang === "el"
+      ? "Έλεγχος παράδοσης και εμφάνισης."
+      : "Deliverability & branding test.";
+
+  const footerText =
+    lang === "el"
+      ? "Λαμβάνεις αυτό το email επειδή έχεις ενεργοποιήσει αυτή την ειδοποίηση στις ρυθμίσεις του AI Productivity Hub."
+      : undefined;
+
   const html = baseTemplate({
-    title: "Test email from AI Productivity Hub",
-    previewText: "Deliverability & branding test.",
+    title,
+    previewText,
+    footerText,
     bodyHtml: `
       <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#e5e7eb;line-height:1.6;">
 ${safe}

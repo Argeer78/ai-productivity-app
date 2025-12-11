@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
+import { useT } from "@/lib/useT";
 
 type PlanType = "free" | "pro" | "founder";
 
@@ -20,6 +21,7 @@ function getTodayStr() {
 
 export default function DailySuccessPage() {
   const router = useRouter();
+  const { t } = useT("dailySuccess");
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -109,7 +111,10 @@ export default function DailySuccessPage() {
     );
 
     setStatusMessage(
-      "Sent to the AI assistant. Open the assistant panel to see your result."
+      t(
+        "status.sentToAssistant",
+        "Sent to the AI assistant. Open the assistant panel to see your result."
+      )
     );
   }
 
@@ -123,7 +128,12 @@ export default function DailySuccessPage() {
     const priorities = topPriorities.map((p) => p.trim()).filter(Boolean);
 
     if (!trimmed && priorities.length === 0) {
-      setError("Add at least one detail about your day or a priority.");
+      setError(
+        t(
+          "morning.errorEmpty",
+          "Add at least one detail about your day or a priority."
+        )
+      );
       return;
     }
 
@@ -169,7 +179,12 @@ Please:
 
     const trimmed = eveningInput.trim();
     if (!trimmed) {
-      setError("Write a short reflection about how your day went.");
+      setError(
+        t(
+          "evening.errorEmpty",
+          "Write a short reflection about how your day went."
+        )
+      );
       return;
     }
 
@@ -280,7 +295,12 @@ ${trimmed}
   // 6) Save today's score
   async function handleSaveScore() {
     if (!user) {
-      setScoreMessage("Log in to save your daily score.");
+      setScoreMessage(
+        t(
+          "score.loginToSave",
+          "Log in to save your daily score."
+        )
+      );
       return;
     }
 
@@ -305,14 +325,29 @@ ${trimmed}
 
       if (error) {
         console.error("Daily Success: save score error", error);
-        setError("Failed to save your daily score.");
+        setError(
+          t(
+            "score.saveError",
+            "Failed to save your daily score."
+          )
+        );
         return;
       }
 
-      setScoreMessage("Saved! Your streak and averages are updated.");
+      setScoreMessage(
+        t(
+          "score.savedMessage",
+          "Saved! Your streak and averages are updated."
+        )
+      );
     } catch (err) {
       console.error(err);
-      setError("Failed to save your daily score.");
+      setError(
+        t(
+          "score.saveError",
+          "Failed to save your daily score."
+        )
+      );
     } finally {
       setSavingScore(false);
     }
@@ -321,7 +356,12 @@ ${trimmed}
   // 7) Ask AI to suggest today's score
   async function handleSuggestScore() {
     if (!user) {
-      setSuggestError("Log in to let AI suggest a score.");
+      setSuggestError(
+        t(
+          "suggest.loginRequired",
+          "Log in to let AI suggest a score."
+        )
+      );
       return;
     }
 
@@ -339,7 +379,13 @@ ${trimmed}
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.ok) {
-        setSuggestError(data?.error || "Could not get an AI suggestion.");
+        setSuggestError(
+          data?.error ||
+            t(
+              "suggest.errorGeneric",
+              "Could not get an AI suggestion."
+            )
+        );
         return;
       }
 
@@ -352,7 +398,10 @@ ${trimmed}
     } catch (err) {
       console.error("[daily-success] suggest error", err);
       setSuggestError(
-        "Network error while asking AI to suggest your score."
+        t(
+          "suggest.networkError",
+          "Network error while asking AI to suggest your score."
+        )
       );
     } finally {
       setSuggestLoading(false);
@@ -363,7 +412,10 @@ ${trimmed}
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">
-          Loading your daily system…
+          {t(
+            "loadingSystem",
+            "Loading your daily system…"
+          )}
         </p>
       </main>
     );
@@ -378,41 +430,54 @@ ${trimmed}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                AI Daily Success System
+                {t(
+                  "header.title",
+                  "AI Daily Success System"
+                )}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                Start your day with a focused plan, end it with a clear
-                reflection, and track your progress with a simple score.
+                {t(
+                  "header.subtitle",
+                  "Start your day with a focused plan, end it with a clear reflection, and track your progress with a simple score."
+                )}
               </p>
             </div>
             <Link
               href="/dashboard"
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
             >
-              ← Back to dashboard
+              {t(
+                "header.backToDashboard",
+                "← Back to dashboard"
+              )}
             </Link>
           </div>
 
           {!isProUser && (
             <div className="mb-5 rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-3 text-[11px] text-[var(--text-main)]">
-    <p className="font-semibold mb-1">
-      You're on the Free plan.
-    </p>
-    <p className="mb-2 text-[var(--text-muted)]">
-      The Daily Success System works great on Free, but{" "}
-      <span className="font-semibold text-[var(--text-main)]">
-        Pro will unlock higher AI usage and future automation
-      </span>{" "}
-      (auto-generated plans, weekly reports, and more).
-    </p>
-    <button
-      type="button"
-      onClick={() => router.push("/dashboard#pricing")}
-      className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
-    >
-      View Pro options
-    </button>
-  </div>
+              <p className="font-semibold mb-1">
+                {t(
+                  "freeBanner.title",
+                  "You're on the Free plan."
+                )}
+              </p>
+              <p className="mb-2 text-[var(--text-muted)]">
+                {t(
+                  "freeBanner.body",
+                  "The Daily Success System works great on Free, but Pro will unlock higher AI usage and future automation (auto-generated plans, weekly reports, and more)."
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard#pricing")}
+                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
+              >
+                {t(
+                  "freeBanner.button",
+                  "View Pro options"
+                )}
+              </button>
+            </div>
           )}
 
           {error && (
@@ -428,7 +493,10 @@ ${trimmed}
           <div className="mb-5 grid md:grid-cols-3 gap-3 text-[11px]">
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
               <p className="text-[var(--text-muted)] mb-1">
-                Today's score
+                {t(
+                  "score.todayLabel",
+                  "Today's score"
+                )}
               </p>
               <p className="text-xl font-semibold">
                 {score}
@@ -437,36 +505,60 @@ ${trimmed}
                 </span>
               </p>
               <p className="text-[var(--text-muted)] mt-1">
-                0 = terrible day, 100 = perfect day. Be honest, not harsh.
+                {t(
+                  "score.todayHelp",
+                  "0 = terrible day, 100 = perfect day. Be honest, not harsh."
+                )}
               </p>
             </div>
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
               <p className="text-[var(--text-muted)] mb-1">
-                Avg last 7 days
+                {t(
+                  "score.avg7Label",
+                  "Avg last 7 days"
+                )}
               </p>
               <p className="text-xl font-semibold">
                 {avgLast7 !== null ? `${avgLast7}/100` : "—"}
               </p>
               <p className="text-[var(--text-muted)] mt-1">
-                Aim for consistency, not perfection.
+                {t(
+                  "score.avg7Help",
+                  "Aim for consistency, not perfection."
+                )}
               </p>
             </div>
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
               <p className="text-[var(--text-muted)] mb-1">
-                Success streak (score ≥ 60)
+                {t(
+                  "score.streakLabel",
+                  "Success streak (score ≥ 60)"
+                )}
               </p>
               <p className="text-xl font-semibold">
-                {scoreStreak} day{scoreStreak === 1 ? "" : "s"}
+                {scoreStreak}{" "}
+                {t(
+                  scoreStreak === 1
+                    ? "score.streakDay"
+                    : "score.streakDays",
+                  scoreStreak === 1 ? "day" : "days"
+                )}
               </p>
               <p className="text-[var(--text-muted)] mt-1">
-                Days in a row you rated your day 60+.
+                {t(
+                  "score.streakHelp",
+                  "Days in a row you rated your day 60+."
+                )}
               </p>
             </div>
           </div>
 
           {scoreLoading && (
             <p className="text-[11px] text-[var(--text-muted)] mb-2">
-              Loading your recent scores…
+              {t(
+                "score.loadingRecent",
+                "Loading your recent scores…"
+              )}
             </p>
           )}
           {scoreMessage && (
@@ -480,29 +572,43 @@ ${trimmed}
             {/* Morning planning */}
             <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
               <h2 className="text-sm font-semibold mb-2">
-                🌅 Morning: Design your day
+                {t(
+                  "morning.title",
+                  "🌅 Morning: Design your day"
+                )}
               </h2>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
-                Tell the AI what's on your plate, and it will build a
-                realistic schedule with priorities.
+                {t(
+                  "morning.subtitle",
+                  "Tell the AI what's on your plate, and it will build a realistic schedule with priorities."
+                )}
               </p>
 
               <form onSubmit={handleMorningPlan} className="space-y-3">
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    What's happening today?
+                    {t(
+                      "morning.labelWhatsHappening",
+                      "What's happening today?"
+                    )}
                   </label>
                   <textarea
                     value={morningInput}
                     onChange={(e) => setMorningInput(e.target.value)}
-                    placeholder="Meetings, deadlines, personal tasks, energy level, etc."
+                    placeholder={t(
+                      "morning.placeholderWhatsHappening",
+                      "Meetings, deadlines, personal tasks, energy level, etc."
+                    )}
                     className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[80px]"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    Top 3 priorities
+                    {t(
+                      "morning.labelTopPriorities",
+                      "Top 3 priorities"
+                    )}
                   </label>
                   <div className="space-y-1.5">
                     {topPriorities.map((val, idx) => (
@@ -515,14 +621,19 @@ ${trimmed}
                           next[idx] = e.target.value;
                           setTopPriorities(next);
                         }}
-                        placeholder={`Priority #${idx + 1}`}
+                        placeholder={t(
+                          "morning.priorityPlaceholder",
+                          "Priority"
+                        ) + ` #${idx + 1}`}
                         className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     ))}
                   </div>
                   <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                    You don't have to fill all three, but at least one
-                    priority helps a lot.
+                    {t(
+                      "morning.prioritiesHint",
+                      "You don't have to fill all three, but at least one priority helps a lot."
+                    )}
                   </p>
                 </div>
 
@@ -530,7 +641,10 @@ ${trimmed}
                   type="submit"
                   className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
                 >
-                  ✨ Generate today's AI plan
+                  {t(
+                    "morning.buttonGeneratePlan",
+                    "✨ Generate today's AI plan"
+                  )}
                 </button>
               </form>
             </section>
@@ -538,22 +652,33 @@ ${trimmed}
             {/* Evening reflection + score */}
             <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
               <h2 className="text-sm font-semibold mb-2">
-                🌙 Evening: Reflect & score your day
+                {t(
+                  "evening.title",
+                  "🌙 Evening: Reflect & score your day"
+                )}
               </h2>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
-                Capture how your day went. The AI will turn it into wins,
-                lessons, and improvements for tomorrow.
+                {t(
+                  "evening.subtitle",
+                  "Capture how your day went. The AI will turn it into wins, lessons, and improvements for tomorrow."
+                )}
               </p>
 
               <form onSubmit={handleEveningReflection} className="space-y-3">
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    How did today actually go?
+                    {t(
+                      "evening.labelReflection",
+                      "How did today actually go?"
+                    )}
                   </label>
                   <textarea
                     value={eveningInput}
                     onChange={(e) => setEveningInput(e.target.value)}
-                    placeholder="What you got done, what derailed you, your energy, distractions, etc."
+                    placeholder={t(
+                      "evening.placeholderReflection",
+                      "What you got done, what derailed you, your energy, distractions, etc."
+                    )}
                     className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[100px]"
                   />
                 </div>
@@ -562,14 +687,20 @@ ${trimmed}
                   type="submit"
                   className="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs"
                 >
-                  💭 Reflect with AI
+                  {t(
+                    "evening.buttonReflect",
+                    "💭 Reflect with AI"
+                  )}
                 </button>
               </form>
 
               {/* Score slider + AI suggest */}
               <div className="mt-5 border-t border-[var(--border-subtle)] pt-3">
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  How would you rate today overall?
+                  {t(
+                    "score.sliderLabel",
+                    "How would you rate today overall?"
+                  )}
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -585,8 +716,10 @@ ${trimmed}
                   </span>
                 </div>
                 <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                  Think about effort + focus, not just outcomes. A 60–80 day
-                  is often a win.
+                  {t(
+                    "score.sliderHelp",
+                    "Think about effort + focus, not just outcomes. A 60–80 day is often a win."
+                  )}
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -597,18 +730,27 @@ ${trimmed}
                     className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[11px]"
                   >
                     {suggestLoading
-                      ? "Asking AI…"
-                      : "Let AI suggest today's score"}
+                      ? t("suggest.asking", "Asking AI…")
+                      : t(
+                          "suggest.button",
+                          "Let AI suggest today's score"
+                        )}
                   </button>
                   <p className="text-[10px] text-[var(--text-muted)]">
-                    AI looks at your tasks & notes to guess a realistic score.
-                    You can still adjust it.
+                    {t(
+                      "suggest.helperText",
+                      "AI looks at your tasks & notes to guess a realistic score. You can still adjust it."
+                    )}
                   </p>
                 </div>
 
                 {suggestReason && (
                   <p className="mt-2 text-[11px] text-[var(--text-main)]">
-                    Suggested because: {suggestReason}
+                    {t(
+                      "suggest.reasonPrefix",
+                      "Suggested because:"
+                    )}{" "}
+                    {suggestReason}
                   </p>
                 )}
 
@@ -624,18 +766,41 @@ ${trimmed}
                   disabled={savingScore}
                   className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-xs"
                 >
-                  {savingScore ? "Saving..." : "Save today's score"}
+                  {savingScore
+                    ? t("score.savingButton", "Saving...")
+                    : t(
+                        "score.saveButton",
+                        "Save today's score"
+                      )}
                 </button>
               </div>
 
               <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
                 <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                  Hint for best results:
+                  {t(
+                    "helper.hintTitle",
+                    "Hint for best results:"
+                  )}
                 </p>
                 <ul className="text-[11px] text-[var(--text-muted)] list-disc list-inside space-y-1">
-                  <li>Mention 2–3 things you're proud of.</li>
-                  <li>Be honest about distractions and procrastination.</li>
-                  <li>Add how you'd like tomorrow to feel.</li>
+                  <li>
+                    {t(
+                      "helper.item1",
+                      "Mention 2–3 things you're proud of."
+                    )}
+                  </li>
+                  <li>
+                    {t(
+                      "helper.item2",
+                      "Be honest about distractions and procrastination."
+                    )}
+                  </li>
+                  <li>
+                    {t(
+                      "helper.item3",
+                      "Add how you'd like tomorrow to feel."
+                    )}
+                  </li>
                 </ul>
               </div>
             </section>
@@ -643,8 +808,10 @@ ${trimmed}
 
           {/* Small footer hint */}
           <p className="mt-6 text-[11px] text-[var(--text-muted)]">
-            Your answers and scores are processed by the AI assistant. You
-            can always fine-tune the output directly in the assistant panel.
+            {t(
+              "footer.note",
+              "Your answers and scores are processed by the AI assistant. You can always fine-tune the output directly in the assistant panel."
+            )}
           </p>
         </div>
       </div>

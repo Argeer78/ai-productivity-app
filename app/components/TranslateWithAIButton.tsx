@@ -16,6 +16,7 @@ import {
   type Language,
 } from "@/lib/translateLanguages";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import { useT } from "@/lib/useT";
 
 type TranslationResponse = {
   translation?: string | string[];
@@ -71,8 +72,7 @@ function getTranslatableTextNodes(): Text[] {
 
         if (!norm) return NodeFilter.FILTER_REJECT;
 
-        // Only accept nodes that contain *some* letters or digits,
-        // in Latin or Greek (you can extend this as needed)
+        // Only accept nodes that contain *some* letters or digits
         if (!/[0-9A-Za-zΑ-Ωα-ωΆ-Ώά-ώ]/u.test(norm)) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -94,9 +94,12 @@ function getTranslatableTextNodes(): Text[] {
 export default function TranslateWithAIButton() {
   const pathname = usePathname();
 
+  // i18n
+  const { t, tCommon } = useT("translate");
+
   // App UI language, used only as a *hint* for default target language
   const languageCtx = useLanguage();
-  const uiLangCode = languageCtx?.lang || "en";
+  const uiLangCode = (languageCtx as any)?.lang || "en";
 
   const [open, setOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState<Language | null>(
@@ -191,7 +194,12 @@ export default function TranslateWithAIButton() {
   async function handleTranslateText() {
     if (!selectedLang) return;
     if (!sourceText.trim()) {
-      setErrorMsg("Please type or paste some text to translate.");
+      setErrorMsg(
+        t(
+          "noTextToTranslate",
+          "Please type or paste some text to translate."
+        )
+      );
       return;
     }
 
@@ -218,21 +226,31 @@ export default function TranslateWithAIButton() {
       if (!res.ok || !data) {
         if (res.status === 413) {
           setErrorMsg(
-            "This text is too long for a single translation. Please split it into smaller chunks and try again."
+            t(
+              "tooLong",
+              "This text is too long for a single translation. Please split it into smaller chunks and try again."
+            )
           );
           return;
         }
         if (res.status === 429) {
           setErrorMsg(
             (data as any)?.error ||
-              "AI translation is temporarily rate-limited. Please try again in a few seconds."
+              t(
+                "rateLimited",
+                "AI translation is temporarily rate-limited. Please try again in a few seconds."
+              )
           );
           return;
         }
 
         console.error("[translate-text] server error", res.status, data);
         setErrorMsg(
-          (data as any)?.error || `Failed to translate (status ${res.status}).`
+          (data as any)?.error ||
+            t(
+              "failedGeneric",
+              `Failed to translate (status ${res.status}).`
+            )
         );
         return;
       }
@@ -246,7 +264,9 @@ export default function TranslateWithAIButton() {
       }
     } catch (err) {
       console.error("[translate-text] fetch error", err);
-      setErrorMsg("Network error while calling translation API.");
+      setErrorMsg(
+        t("networkError", "Network error while calling translation API.")
+      );
     } finally {
       setLoading(false);
     }
@@ -258,14 +278,21 @@ export default function TranslateWithAIButton() {
     opts?: { auto?: boolean }
   ) {
     setErrorMsg("");
-    setTranslatedText("Preparing page for translation…");
+    setTranslatedText(
+      t(
+        "preparingPage",
+        "Preparing page for translation…"
+      )
+    );
     setLoading(true);
 
     try {
       const allNodes = getTranslatableTextNodes();
 
       if (!allNodes.length) {
-        setErrorMsg("No text found on this page to translate.");
+        setErrorMsg(
+          t("noTextFound", "No text found on this page to translate.")
+        );
         setLoading(false);
         return;
       }
@@ -292,7 +319,12 @@ export default function TranslateWithAIButton() {
       }
 
       if (!selectedNodes.length) {
-        setErrorMsg("There was nothing suitable to translate on this page.");
+        setErrorMsg(
+          t(
+            "nothingToTranslate",
+            "There was nothing suitable to translate on this page."
+          )
+        );
         setLoading(false);
         return;
       }
@@ -339,7 +371,12 @@ export default function TranslateWithAIButton() {
       }
 
       if (!batches.length) {
-        setErrorMsg("There was nothing suitable to translate on this page.");
+        setErrorMsg(
+          t(
+            "nothingToTranslate",
+            "There was nothing suitable to translate on this page."
+          )
+        );
         setLoading(false);
         return;
       }
@@ -364,11 +401,11 @@ export default function TranslateWithAIButton() {
         const filteredTexts: string[] = [];
 
         for (let i = 0; i < texts.length; i++) {
-          const t = texts[i];
-          if (!t || t.trim().length === 0) continue; // skip only empty
+          const tt = texts[i];
+          if (!tt || tt.trim().length === 0) continue; // skip only empty
 
           filteredNodes.push(batch.nodes[i]);
-          filteredTexts.push(t);
+          filteredTexts.push(tt);
         }
 
         if (filteredTexts.length === 0) {
@@ -426,7 +463,10 @@ export default function TranslateWithAIButton() {
           } else {
             console.error("[translate-page] batch failed", r.reason);
             setErrorMsg(
-              "Some parts of the page could not be translated. Please try again or reload."
+              t(
+                "partialFailure",
+                "Some parts of the page could not be translated. Please try again or reload."
+              )
             );
           }
         }
@@ -452,7 +492,12 @@ export default function TranslateWithAIButton() {
     } catch (err) {
       console.error("[translate-page] error", err);
       if (!errorMsg) {
-        setErrorMsg("Network error while translating the page.");
+        setErrorMsg(
+          t(
+            "pageNetworkError",
+            "Network error while translating the page."
+          )
+        );
       }
     } finally {
       setLoading(false);
@@ -569,7 +614,7 @@ export default function TranslateWithAIButton() {
         onClick={handleOpen}
         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-card) 60%,transparent)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
       >
-        🌎 Translate with AI
+        <span>🌎 {tCommon("translateWithAI", "Translate with AI")}</span>
       </button>
 
       {open && (
@@ -593,10 +638,13 @@ export default function TranslateWithAIButton() {
                 <span className="text-lg">🌎</span>
                 <div>
                   <p className="text-xs font-semibold text-[var(--text-main)]">
-                    Translate with AI
+                    {t("title", "Translate with AI")}
                   </p>
                   <p className="text-[10px] text-[var(--text-muted)]">
-                    Select your language and translate text or the page.
+                    {t(
+                      "subtitle",
+                      "Select your language and translate text or the page."
+                    )}
                   </p>
                 </div>
               </div>
@@ -605,7 +653,7 @@ export default function TranslateWithAIButton() {
                 onClick={() => setOpen(false)}
                 className="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xs px-2 py-1 rounded-lg hover:bg-[var(--bg-elevated)]"
               >
-                ✕
+                {tCommon("close", "Close")}
               </button>
             </div>
 
@@ -614,7 +662,7 @@ export default function TranslateWithAIButton() {
               {/* Language picker */}
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  Target language
+                  {t("targetLanguage", "Target language")}
                 </label>
                 <input
                   type="text"
@@ -765,7 +813,7 @@ export default function TranslateWithAIButton() {
               {/* Text to translate */}
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  Text to translate
+                  {t("textToTranslate", "Text to translate")}
                 </label>
                 <textarea
                   value={sourceText}
@@ -790,8 +838,8 @@ export default function TranslateWithAIButton() {
                     className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
                   >
                     {loading
-                      ? "Translating…"
-                      : `Translate text to ${selectedLang?.label ?? "…"}`}
+                      ? t("translating", "Translating…")
+                      : t("translateText", "Translate text")}
                   </button>
 
                   <button
@@ -800,7 +848,9 @@ export default function TranslateWithAIButton() {
                     disabled={loading || !selectedLang}
                     className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] font-medium text-[var(--text-main)] disabled:opacity-60"
                   >
-                    {loading ? "Working on page…" : "Translate this page"}
+                    {loading
+                      ? t("workingOnPage", "Working on page…")
+                      : t("translatePage", "Translate this page")}
                   </button>
 
                   <button
@@ -810,8 +860,14 @@ export default function TranslateWithAIButton() {
                     className="px-4 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-medium text-white disabled:opacity-60"
                   >
                     {loading
-                      ? "Applying auto-translation…"
-                      : "Auto-translate app"}
+                      ? t(
+                          "workingOnPage",
+                          "Working on page…"
+                        )
+                      : t(
+                          "autoTranslateSite",
+                          "Auto-translate app"
+                        )}
                   </button>
                 </div>
 
@@ -820,7 +876,7 @@ export default function TranslateWithAIButton() {
                   onClick={() => setOpen(false)}
                   className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
                 >
-                  Close
+                  {tCommon("close", "Close")}
                 </button>
               </div>
 
@@ -828,7 +884,10 @@ export default function TranslateWithAIButton() {
               {translatedText && (
                 <div className="mt-2">
                   <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    Translation status
+                    {t(
+                      "translationStatus",
+                      "Translation status"
+                    )}
                   </p>
                   <div className="rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 90%,transparent)] p-2 max-h-52 overflow-y-auto text-[11px] text-[var(--text-main)] whitespace-pre-wrap">
                     {translatedText}

@@ -38,6 +38,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
   // Try to infer the language code from your LanguageProvider
   const uiLangCode: string =
+    languageCtx?.lang ||
     languageCtx?.code ||
     languageCtx?.languageCode ||
     languageCtx?.language ||
@@ -49,7 +50,7 @@ export default function AppHeader({ active }: HeaderProps) {
   // Load UI translations for the current language
   const { t } = useUiI18n(uiLangCode);
 
-  // --- small helpers so "nav." keys never leak into the UI ---
+  // --- small helpers so "nav." / "auth." keys never leak into the UI ---
 
   function navLabel(key: string, fallback: string) {
     const fullKey = `nav.${key}`;
@@ -175,8 +176,16 @@ export default function AppHeader({ active }: HeaderProps) {
       label: navLabel("weeklyReports", "Weekly Reports"),
       href: "/weekly-reports",
     },
-    { key: "travel", label: navLabel("travel", "Travel Planner"), href: "/travel" },
-    { key: "my-trips", label: navLabel("myTrips", "My Trips"), href: "/my-trips" },
+    {
+      key: "travel",
+      label: navLabel("travel", "Travel Planner"),
+      href: "/travel",
+    },
+    {
+      key: "my-trips",
+      label: navLabel("myTrips", "My Trips"),
+      href: "/my-trips",
+    },
     {
       key: "feedback",
       label: navLabel("feedback", "Feedback"),
@@ -216,6 +225,7 @@ export default function AppHeader({ active }: HeaderProps) {
             priority
           />
           <span className="text-sm font-semibold tracking-tight text-[var(--text-main)]">
+            {/* App title stays English */}
             AI Productivity Hub
           </span>
         </Link>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import FeedbackForm from "@/app/components/FeedbackForm";
+import { useT } from "@/lib/useT";
 
 type TaskRow = {
   id: string;
@@ -331,6 +332,8 @@ function getTasksShareText(tasks: TaskRow[], header: string): string {
 }
 
 export default function TasksPage() {
+  const { t } = useT("tasks");
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
@@ -411,7 +414,7 @@ export default function TasksPage() {
 
         if (error) {
           console.error("[tasks] loadTasks error", error);
-          setError("Failed to load tasks.");
+          setError(t("loadError", "Failed to load tasks."));
           setTasks([]);
           return;
         }
@@ -419,14 +422,14 @@ export default function TasksPage() {
         setTasks((data || []) as TaskRow[]);
       } catch (err) {
         console.error("[tasks] loadTasks exception", err);
-        setError("Failed to load tasks.");
+        setError(t("loadError", "Failed to load tasks."));
       } finally {
         setLoading(false);
       }
     }
 
     loadTasks();
-  }, [user]);
+  }, [tasks]);
 
   async function handleAddTask(e: FormEvent) {
     e.preventDefault();
@@ -475,7 +478,7 @@ export default function TasksPage() {
 
       if (error) {
         console.error("[tasks] insert error", error);
-        setError("Failed to add task.");
+        setError(t("addError", "Failed to add task."));
         return;
       }
 
@@ -493,7 +496,7 @@ export default function TasksPage() {
       setNewReminderAtLocal("");
     } catch (err) {
       console.error("[tasks] insert exception", err);
-      setError("Failed to add task.");
+      setError(t("addError", "Failed to add task."));
     } finally {
       setSavingNew(false);
     }
@@ -524,7 +527,7 @@ export default function TasksPage() {
 
       if (error) {
         console.error("[tasks] toggleDone error", error);
-        setError("Could not update task.");
+        setError(t("updateError", "Could not update task."));
         return;
       }
 
@@ -533,7 +536,7 @@ export default function TasksPage() {
       );
     } catch (err) {
       console.error("[tasks] toggleDone exception", err);
-      setError("Could not update task.");
+      setError(t("updateError", "Could not update task."));
     } finally {
       setSavingTaskId(null);
     }
@@ -580,7 +583,7 @@ export default function TasksPage() {
 
       if (error) {
         console.error("[tasks] update error", error);
-        setError("Could not save task.");
+        setError(t("saveError", "Could not save task."));
         return;
       }
 
@@ -589,7 +592,7 @@ export default function TasksPage() {
       );
     } catch (err) {
       console.error("[tasks] update exception", err);
-      setError("Could not save task.");
+      setError(t("saveError", "Could not save task."));
     } finally {
       setSavingTaskId(null);
     }
@@ -597,7 +600,7 @@ export default function TasksPage() {
 
   async function handleDeleteTask(task: TaskRow) {
     if (!user) return;
-    if (!window.confirm("Delete this task?")) return;
+    if (!window.confirm(t("confirmDelete", "Delete this task?"))) return;
 
     setDeletingTaskId(task.id);
     setError("");
@@ -611,7 +614,7 @@ export default function TasksPage() {
 
       if (error) {
         console.error("[tasks] delete error", error);
-        setError("Could not delete task.");
+        setError(t("deleteError", "Could not delete task."));
         return;
       }
 
@@ -620,7 +623,7 @@ export default function TasksPage() {
       setOpenTaskIds((prev) => prev.filter((id) => id !== task.id));
     } catch (err) {
       console.error("[tasks] delete exception", err);
-      setError("Could not delete task.");
+      setError(t("deleteError", "Could not delete task."));
     } finally {
       setDeletingTaskId(null);
     }
@@ -695,17 +698,17 @@ export default function TasksPage() {
 
     if (list.length === 0) {
       if (mode === "today") {
-        alert("No tasks for today to share.");
+        alert(t("noTasksTodayToShare", "No tasks for today to share."));
       } else {
-        alert("No tasks selected to share.");
+        alert(t("noSelectedTasksToShare", "No tasks selected to share."));
       }
       return;
     }
 
     const header =
       mode === "today"
-        ? `Today's tasks (${todayYmd})`
-        : `Selected tasks (${list.length})`;
+        ? `${t("shareHeaderToday", "Today's tasks")} (${todayYmd})`
+        : `${t("shareHeaderSelected", "Selected tasks")} (${list.length})`;
 
     const text = getTasksShareText(list, header);
 
@@ -715,16 +718,27 @@ export default function TasksPage() {
         .then(() => {
           alert(
             mode === "today"
-              ? "Today's tasks copied to clipboard."
-              : "Selected tasks copied to clipboard."
+              ? t(
+                  "copiedTodayTasks",
+                  "Today's tasks copied to clipboard."
+                )
+              : t(
+                  "copiedSelectedTasks",
+                  "Selected tasks copied to clipboard."
+                )
           );
         })
         .catch((err) => {
           console.error("Bulk copy failed", err);
-          alert("Failed to copy tasks to clipboard.");
+          alert(t("copyFailed", "Failed to copy tasks to clipboard."));
         });
     } else {
-      alert("Clipboard not available. Please copy manually.");
+      alert(
+        t(
+          "clipboardUnavailable",
+          "Clipboard not available. Please copy manually."
+        )
+      );
     }
   }
 
@@ -732,7 +746,7 @@ export default function TasksPage() {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-sm text-[var(--text-muted)]">
-          Checking your session…
+          {t("checkingSession", "Checking your session…")}
         </p>
       </main>
     );
@@ -743,15 +757,20 @@ export default function TasksPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="tasks" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">Tasks</h1>
+          <h1 className="text-2xl font-bold mb-3">
+            {t("title", "Tasks")}
+          </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            Log in or create a free account to track your tasks.
+            {t(
+              "loginPrompt",
+              "Log in or create a free account to track your tasks."
+            )}
           </p>
           <Link
             href="/auth"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
           >
-            Go to login / signup
+            {t("goToAuth", "Go to login / signup")}
           </Link>
         </div>
       </main>
@@ -778,9 +797,14 @@ export default function TasksPage() {
       <AppHeader active="tasks" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
-          <h1 className="text-2xl md:text-3xl font-bold mb-3">Tasks</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-3">
+            {t("title", "Tasks")}
+          </h1>
           <p className="text-xs md:text-sm text-[var(--text-muted)] mb-4">
-            Capture tasks, check them off, and keep track of your progress.
+            {t(
+              "subtitle",
+              "Capture tasks, check them off, and keep track of your progress."
+            )}
           </p>
 
           {error && (
@@ -794,14 +818,14 @@ export default function TasksPage() {
           >
             <div className="mb-2 flex items-center justify-between">
               <p className="text-[11px] font-semibold text-[var(--text-main)]">
-                Add a new task
+                {t("addNewTask", "Add a new task")}
               </p>
 
               <Link
                 href="/ai-task-creator"
                 className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px]"
               >
-                🤖 AI Task Creator
+                {t("aiTaskCreator", "🤖 AI Task Creator")}
               </Link>
             </div>
 
@@ -809,21 +833,24 @@ export default function TasksPage() {
               type="text"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Task title…"
+              placeholder={t("newTaskTitlePlaceholder", "Task title…")}
               className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2"
             />
 
             <textarea
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
-              placeholder="Optional description or notes…"
+              placeholder={t(
+                "newTaskDescriptionPlaceholder",
+                "Optional description or notes…"
+              )}
               className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2 min-h-[60px]"
             />
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
                 <span className="text-[11px] text-[var(--text-muted)]">
-                  Due date
+                  {t("dueDateLabel", "Due date")}
                 </span>
                 <MiniDatePicker
                   value={newDueDate}
@@ -833,14 +860,16 @@ export default function TasksPage() {
 
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
                 <span className="text-[11px] text-[var(--text-muted)]">
-                  Category
+                  {t("categoryLabel", "Category")}
                 </span>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
-                  <option value="">None</option>
+                  <option value="">
+                    {t("category.none", "None")}
+                  </option>
                   {TASK_CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
@@ -851,17 +880,19 @@ export default function TasksPage() {
 
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)] flex-wrap">
                 <span className="text-[11px] text-[var(--text-muted)]">
-                  Time (optional)
+                  {t("timeOptional", "Time (optional)")}
                 </span>
                 <select
                   value={newTimeFrom}
                   onChange={(e) => setNewTimeFrom(e.target.value)}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
-                  <option value="">From</option>
-                  {TIME_OPTIONS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  <option value="">
+                    {t("timeFromPlaceholder", "From")}
+                  </option>
+                  {TIME_OPTIONS.map((tOpt) => (
+                    <option key={tOpt} value={tOpt}>
+                      {tOpt}
                     </option>
                   ))}
                 </select>
@@ -871,10 +902,12 @@ export default function TasksPage() {
                   onChange={(e) => setNewTimeTo(e.target.value)}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
-                  <option value="">To</option>
-                  {TIME_OPTIONS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  <option value="">
+                    {t("timeToPlaceholder", "To")}
+                  </option>
+                  {TIME_OPTIONS.map((tOpt) => (
+                    <option key={tOpt} value={tOpt}>
+                      {tOpt}
                     </option>
                   ))}
                 </select>
@@ -891,7 +924,12 @@ export default function TasksPage() {
                     }
                     className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                   />
-                  <span>Set reminder for this task</span>
+                  <span>
+                    {t(
+                      "newReminderLabel",
+                      "Set reminder for this task"
+                    )}
+                  </span>
                 </label>
                 {newReminderEnabled && (
                   <div className="flex items-center gap-2 flex-wrap">
@@ -904,8 +942,10 @@ export default function TasksPage() {
                       className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                     />
                     <span className="text-[10px] text-[var(--text-muted)]">
-                      Uses your device timezone. You’ll get an email + push
-                      (if enabled) when it’s due.
+                      {t(
+                        "newReminderHint",
+                        "Uses your device timezone. You’ll get an email + push (if enabled) when it’s due."
+                      )}
                     </span>
                   </div>
                 )}
@@ -916,7 +956,9 @@ export default function TasksPage() {
                 disabled={savingNew}
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs text-[var(--bg-body)]"
               >
-                {savingNew ? "Adding…" : "Add task"}
+                {savingNew
+                  ? t("addingTask", "Adding…")
+                  : t("addTaskButton", "Add task")}
               </button>
             </div>
           </form>
@@ -925,7 +967,9 @@ export default function TasksPage() {
           {tasks.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-3 items-center text-[11px]">
               <div className="flex items-center gap-2">
-                <span className="text-[var(--text-muted)] mr-1">View:</span>
+                <span className="text-[var(--text-muted)] mr-1">
+                  {t("viewLabel", "View:")}
+                </span>
                 <button
                   type="button"
                   onClick={() => setViewMode("active")}
@@ -935,7 +979,7 @@ export default function TasksPage() {
                       : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
                   }`}
                 >
-                  Active
+                  {t("viewActive", "Active")}
                 </button>
                 <button
                   type="button"
@@ -946,7 +990,7 @@ export default function TasksPage() {
                       : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
                   }`}
                 >
-                  History
+                  {t("viewHistory", "History")}
                 </button>
                 <button
                   type="button"
@@ -957,24 +1001,30 @@ export default function TasksPage() {
                       : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
                   }`}
                 >
-                  All
+                  {t("viewAll", "All")}
                 </button>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[var(--text-muted)]">Category:</span>
+                <span className="text-[var(--text-muted)]">
+                  {t("filterCategoryLabel", "Category:")}
+                </span>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
                   className="rounded-full px-3 py-1 bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-main)]"
                 >
-                  <option value="all">All</option>
+                  <option value="all">
+                    {t("filterCategoryAll", "All")}
+                  </option>
                   {TASK_CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
                     </option>
                   ))}
-                  <option value="">No category</option>
+                  <option value="">
+                    {t("filterCategoryNone", "No category")}
+                  </option>
                 </select>
               </div>
             </div>
@@ -984,32 +1034,41 @@ export default function TasksPage() {
           {tasks.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px]">
               <div className="flex items-center gap-2 text-[var(--text-muted)]">
-                <span>Selected: {selectedTaskIds.length}</span>
+                <span>
+                  {t("selectedCountPrefix", "Selected:")}{" "}
+                  {selectedTaskIds.length}
+                </span>
                 {selectedTaskIds.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setSelectedTaskIds([])}
                     className="px-2 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                   >
-                    Clear selection
+                    {t("clearSelection", "Clear selection")}
                   </button>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-[var(--text-muted)]">
-                <span>Share:</span>
+                <span>{t("shareLabel", "Share:")}</span>
                 <button
                   type="button"
                   onClick={() => handleBulkCopy("today")}
                   className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                 >
-                  Copy today&apos;s tasks
+                  {t(
+                    "copyTodayTasks",
+                    "Copy today\u2019s tasks"
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleBulkCopy("selected")}
                   className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                 >
-                  Copy selected tasks
+                  {t(
+                    "copySelectedTasks",
+                    "Copy selected tasks"
+                  )}
                 </button>
               </div>
             </div>
@@ -1018,15 +1077,18 @@ export default function TasksPage() {
           {/* Task list */}
           {loading ? (
             <p className="text-sm text-[var(--text-muted)]">
-              Loading tasks…
+              {t("loadingTasks", "Loading tasks…")}
             </p>
           ) : tasks.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">
-              No tasks yet. Add your first one above.
+              {t("noTasksYet", "No tasks yet. Add your first one above.")}
             </p>
           ) : filteredTasks.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">
-              No tasks in this view. Try switching filters above.
+              {t(
+                "noTasksInView",
+                "No tasks in this view. Try switching filters above."
+              )}
             </p>
           ) : (
             <div className="space-y-3">
@@ -1092,7 +1154,12 @@ export default function TasksPage() {
                         "[tasks] reminder update error",
                         error
                       );
-                      setError("Could not update reminder.");
+                      setError(
+                        t(
+                          "reminderUpdateError",
+                          "Could not update reminder."
+                        )
+                      );
                       return;
                     }
 
@@ -1106,7 +1173,12 @@ export default function TasksPage() {
                       "[tasks] reminder update exception]",
                       err
                     );
-                    setError("Could not update reminder.");
+                    setError(
+                      t(
+                        "reminderUpdateError",
+                        "Could not update reminder."
+                      )
+                    );
                   } finally {
                     setSavingTaskId(null);
                   }
@@ -1125,7 +1197,15 @@ export default function TasksPage() {
                         onClick={toggleOpen}
                         className="w-6 h-6 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px]"
                         aria-label={
-                          isOpen ? "Collapse task details" : "Expand task details"
+                          isOpen
+                            ? t(
+                                "collapseTaskDetails",
+                                "Collapse task details"
+                              )
+                            : t(
+                                "expandTaskDetails",
+                                "Expand task details"
+                              )
                         }
                       >
                         <span
@@ -1148,7 +1228,9 @@ export default function TasksPage() {
                             : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                         }`}
                       >
-                        {task.completed ? "✅ Done" : "✔ Mark as done"}
+                        {task.completed
+                          ? t("taskDone", "✅ Done")
+                          : t("markAsDone", "✔ Mark as done")}
                       </button>
 
                       {/* Select */}
@@ -1159,7 +1241,7 @@ export default function TasksPage() {
                           onChange={() => toggleSelected(task.id)}
                           className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                         />
-                        <span>Select</span>
+                        <span>{t("selectLabel", "Select")}</span>
                       </label>
 
                       {/* Title + category badge */}
@@ -1171,7 +1253,8 @@ export default function TasksPage() {
                               : "text-[var(--text-main)]"
                           }`}
                         >
-                          {task.title || "(untitled task)"}
+                          {task.title ||
+                            t("untitledTaskPlaceholder", "(untitled task)")}
                         </p>
 
                         {task.category && (
@@ -1198,7 +1281,10 @@ export default function TasksPage() {
                               })
                             }
                             className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-sm text-[var(--text-main)] placeholder:text-[var(--text-muted)]"
-                            placeholder="(untitled task)"
+                            placeholder={t(
+                              "untitledTaskPlaceholder",
+                              "(untitled task)"
+                            )}
                           />
 
                           <div className="flex items-center gap-2">
@@ -1211,7 +1297,9 @@ export default function TasksPage() {
                               }
                               className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                             >
-                              <option value="">No category</option>
+                              <option value="">
+                                {t("category.noCategory", "No category")}
+                              </option>
                               {TASK_CATEGORIES.map((c) => (
                                 <option key={c} value={c}>
                                   {c}
@@ -1224,7 +1312,7 @@ export default function TasksPage() {
                         {/* Description */}
                         <div>
                           <label className="block mb-1 text-[10px] text-[var(--text-muted)]">
-                            Details
+                            {t("detailsLabel", "Details")}
                           </label>
                           <textarea
                             defaultValue={task.description || ""}
@@ -1234,7 +1322,10 @@ export default function TasksPage() {
                               })
                             }
                             className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-main)] min-h-[48px]"
-                            placeholder="Details or notes…"
+                            placeholder={t(
+                              "detailsPlaceholder",
+                              "Details or notes…"
+                            )}
                           />
                         </div>
 
@@ -1242,7 +1333,7 @@ export default function TasksPage() {
                         <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                             <div className="flex items-center gap-2">
-                              <span>Due:</span>
+                              <span>{t("dueLabel", "Due:")}</span>
                               <MiniDatePicker
                                 value={dueDateValue}
                                 onChange={(ymd) => {
@@ -1257,7 +1348,7 @@ export default function TasksPage() {
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span>Time:</span>
+                              <span>{t("timeLabel", "Time:")}</span>
                               <select
                                 defaultValue={task.time_from || ""}
                                 onChange={(e) =>
@@ -1267,10 +1358,12 @@ export default function TasksPage() {
                                 }
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               >
-                                <option value="">From</option>
-                                {TIME_OPTIONS.map((t) => (
-                                  <option key={t} value={t}>
-                                    {t}
+                                <option value="">
+                                  {t("timeFromPlaceholder", "From")}
+                                </option>
+                                {TIME_OPTIONS.map((tOpt) => (
+                                  <option key={tOpt} value={tOpt}>
+                                    {tOpt}
                                   </option>
                                 ))}
                               </select>
@@ -1284,10 +1377,12 @@ export default function TasksPage() {
                                 }
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               >
-                                <option value="">To</option>
-                                {TIME_OPTIONS.map((t) => (
-                                  <option key={t} value={t}>
-                                    {t}
+                                <option value="">
+                                  {t("timeToPlaceholder", "To")}
+                                </option>
+                                {TIME_OPTIONS.map((tOpt) => (
+                                  <option key={tOpt} value={tOpt}>
+                                    {tOpt}
                                   </option>
                                 ))}
                               </select>
@@ -1295,7 +1390,7 @@ export default function TasksPage() {
 
                             {/* 🔔 Reminder controls per task */}
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span>Reminder:</span>
+                              <span>{t("reminderLabel", "Reminder:")}</span>
                               <label className="flex items-center gap-1">
                                 <input
                                   type="checkbox"
@@ -1309,7 +1404,7 @@ export default function TasksPage() {
                                   className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                                 />
                                 <span className="text-[10px]">
-                                  Enable
+                                  {t("reminderEnableShort", "Enable")}
                                 </span>
                               </label>
                               <input
@@ -1328,7 +1423,7 @@ export default function TasksPage() {
 
                           <div className="flex flex-col items-end gap-1 text-[10px]">
                             <span>
-                              Created:{" "}
+                              {t("createdLabel", "Created:")}{" "}
                               {new Date(
                                 task.created_at
                               ).toLocaleString()}
@@ -1336,7 +1431,8 @@ export default function TasksPage() {
 
                             {completedAt && (
                               <span className="text-[var(--accent)]">
-                                Completed: {completedAt.toLocaleString()}
+                                {t("completedLabel", "Completed:")}{" "}
+                                {completedAt.toLocaleString()}
                               </span>
                             )}
                           </div>
@@ -1355,8 +1451,8 @@ export default function TasksPage() {
                               className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                             >
                               {copiedTaskId === task.id
-                                ? "✅ Copied"
-                                : "Share"}
+                                ? t("copiedButton", "✅ Copied")
+                                : t("shareButton", "Share")}
                             </button>
 
                             {sharingTaskId === task.id && (
@@ -1366,7 +1462,7 @@ export default function TasksPage() {
                                   onClick={() => handleShareCopy(task)}
                                   className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                 >
-                                  📋 Copy text
+                                  {t("shareCopy", "📋 Copy text")}
                                 </button>
                                 <button
                                   type="button"
@@ -1375,7 +1471,7 @@ export default function TasksPage() {
                                   }
                                   className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                 >
-                                  💬 WhatsApp
+                                  {t("shareWhatsApp", "💬 WhatsApp")}
                                 </button>
                                 <button
                                   type="button"
@@ -1384,7 +1480,7 @@ export default function TasksPage() {
                                   }
                                   className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                 >
-                                  📲 Viber
+                                  {t("shareViber", "📲 Viber")}
                                 </button>
                                 <button
                                   type="button"
@@ -1393,7 +1489,7 @@ export default function TasksPage() {
                                   }
                                   className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                 >
-                                  ✉️ Email
+                                  {t("shareEmail", "✉️ Email")}
                                 </button>
                               </div>
                             )}
@@ -1405,7 +1501,9 @@ export default function TasksPage() {
                             disabled={isDeleting}
                             className="text-[11px] text-red-400 hover:text-red-300"
                           >
-                            {isDeleting ? "Deleting…" : "Delete"}
+                            {isDeleting
+                              ? t("deletingLabel", "Deleting…")
+                              : t("deleteLabel", "Delete")}
                           </button>
                         </div>
                       </div>
@@ -1421,11 +1519,16 @@ export default function TasksPage() {
             <section className="mt-10 mb-8">
               <div className="max-w-md mx-auto">
                 <h2 className="text-sm font-semibold text-[var(--text-main)] mb-1 text-center">
-                  Send feedback about Tasks
+                  {t(
+                    "feedbackTitle",
+                    "Send feedback about Tasks"
+                  )}
                 </h2>
                 <p className="text-[11px] text-[var(--text-muted)] mb-3 text-center">
-                  Spot a bug, missing feature, or something confusing? Let me
-                  know.
+                  {t(
+                    "feedbackSubtitle",
+                    "Spot a bug, missing feature, or something confusing? Let me know."
+                  )}
                 </p>
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <FeedbackForm user={user} />

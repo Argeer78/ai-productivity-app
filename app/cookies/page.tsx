@@ -2,79 +2,127 @@
 "use client";
 
 import AppHeader from "@/app/components/AppHeader";
+import { useT } from "@/lib/useT";
 
 export default function CookiesPolicyPage() {
+  const { t } = useT("cookies");
+  const year = new Date().getFullYear();
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <AppHeader />
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+      <AppHeader active="settings" />
 
       <div className="flex-1">
-        <div className="max-w-3xl mx-auto px-4 py-10 text-sm leading-relaxed text-slate-200">
-          <h1 className="text-2xl md:text-3xl font-bold mb-6">
-            Cookies & Tracking
-          </h1>
+        <div className="max-w-3xl mx-auto px-4 py-8 md:py-12 text-sm leading-relaxed">
+          <header className="mb-6">
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">
+              {t("cookies.title", "Cookies & Tracking")}
+            </h1>
+            <p className="text-xs md:text-sm text-[var(--text-muted)]">
+              {t("cookies.lastUpdatedLabel", "Last updated")}: {year}
+            </p>
+          </header>
 
-          <p className="text-xs md:text-sm text-slate-400 mb-6">
-            Last updated: {new Date().getFullYear()}
-          </p>
+          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-4 sm:px-5 py-5 text-[13px] leading-relaxed text-[var(--text-main)] space-y-4">
+            <p>
+              <strong>
+                {t(
+                  "cookies.appName",
+                  "AI Productivity Hub (owned by Anargyros Sgouros)"
+                )}
+              </strong>{" "}
+              {t(
+                "cookies.intro",
+                "uses a minimal amount of cookies and local storage to make the app work correctly and to understand how it is used."
+              )}
+            </p>
 
-          <p className="mb-4">
-            <strong>AI Productivity Hub (owned by Anargyros Sgouros)</strong>{" "}
-            uses a minimal amount of cookies and local storage to make the app
-            work correctly and to understand how it is used.
-          </p>
+            <div>
+              <h2 className="text-sm font-semibold mt-4 mb-2">
+                {t("cookies.section1.title", "1. What We Use")}
+              </h2>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>
+                  <strong>
+                    {t(
+                      "cookies.section1.item1.label",
+                      "Authentication cookies / tokens"
+                    )}
+                  </strong>{" "}
+                  –{" "}
+                  {t(
+                    "cookies.section1.item1.body",
+                    "to keep you logged in securely."
+                  )}
+                </li>
+                <li>
+                  <strong>
+                    {t(
+                      "cookies.section1.item2.label",
+                      "Preferences / local storage"
+                    )}
+                  </strong>{" "}
+                  –{" "}
+                  {t(
+                    "cookies.section1.item2.body",
+                    "to remember language, UI settings, and PWA installation state."
+                  )}
+                </li>
+                <li>
+                  <strong>
+                    {t(
+                      "cookies.section1.item3.label",
+                      "Plausible Analytics"
+                    )}
+                  </strong>{" "}
+                  –{" "}
+                  {t(
+                    "cookies.section1.item3.body",
+                    "privacy-friendly, cookieless analytics that collect only aggregated usage data (no individual tracking)."
+                  )}
+                </li>
+              </ul>
+            </div>
 
-          <h2 className="text-lg md:text-xl font-semibold mt-8 mb-2">
-            1. What We Use
-          </h2>
+            <div>
+              <h2 className="text-sm font-semibold mt-4 mb-2">
+                {t("cookies.section2.title", "2. No Advertising Cookies")}
+              </h2>
+              <p>
+                {t(
+                  "cookies.section2.body",
+                  "We do not use third-party advertising cookies or trackers for targeted ads. Analytics are used only to improve the app experience."
+                )}
+              </p>
+            </div>
 
-          <ul className="list-disc pl-6 mb-4">
-            <li>
-              <strong>Authentication cookies / tokens</strong> – to keep you
-              logged in securely.
-            </li>
-            <li>
-              <strong>Preferences / local storage</strong> – to remember
-              language, UI settings, and PWA installation state.
-            </li>
-            <li>
-              <strong>Plausible Analytics</strong> – privacy-friendly,
-              cookieless analytics that collect only aggregated usage data (no
-              individual tracking).
-            </li>
-          </ul>
+            <div>
+              <h2 className="text-sm font-semibold mt-4 mb-2">
+                {t("cookies.section3.title", "3. Managing Cookies")}
+              </h2>
+              <p>
+                {t(
+                  "cookies.section3.body",
+                  "You can clear cookies and local storage from your browser or device settings at any time. If you block all cookies, some features—such as login persistence—may not work correctly."
+                )}
+              </p>
+            </div>
 
-          <h2 className="text-lg md:text-xl font-semibold mt-8 mb-2">
-            2. No Advertising Cookies
-          </h2>
-
-          <p className="mb-4">
-            We do not use third-party advertising cookies or trackers for
-            targeted ads. Analytics are used only to improve the app experience.
-          </p>
-
-          <h2 className="text-lg md:text-xl font-semibold mt-8 mb-2">
-            3. Managing Cookies
-          </h2>
-
-          <p className="mb-4">
-            You can clear cookies and local storage from your browser or device
-            settings at any time. If you block all cookies, some features—such
-            as login persistence—may not work correctly.
-          </p>
-
-          <h2 className="text-lg md:text-xl font-semibold mt-8 mb-2">
-            4. Contact
-          </h2>
-
-          <p className="mb-4">
-            If you have questions about how we use cookies or tracking, contact
-            us at:
-          </p>
-
-          <p className="text-indigo-400 text-lg font-mono">
-            hi@aiprod.app
-          </p>
+            <div>
+              <h2 className="text-sm font-semibold mt-4 mb-2">
+                {t("cookies.section4.title", "4. Contact")}
+              </h2>
+              <p className="mb-2">
+                {t(
+                  "cookies.section4.body",
+                  "If you have questions about how we use cookies or tracking, contact us at:"
+                )}
+              </p>
+              <p className="text-indigo-400 text-sm font-mono">
+                hi@aiprod.app
+              </p>
+            </div>
+          </section>
         </div>
       </div>
     </main>

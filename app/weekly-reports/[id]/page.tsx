@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
+import AppHeader from "@/app/components/AppHeader";
+import { useT } from "@/lib/useT";
 
 type WeeklyReport = {
   id: string;
@@ -28,7 +28,7 @@ type PageProps = {
 };
 
 export default function WeeklyReportDetailPage({ params }: PageProps) {
-  const router = useRouter();
+  const { t } = useT("weeklyReports");
   const { id } = params;
 
   const [user, setUser] = useState<any | null>(null);
@@ -44,7 +44,9 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
 
   const [report, setReport] = useState<WeeklyReport | null>(null);
 
-  const [actionPlan, setActionPlan] = useState<WeeklyActionPlan | null>(null);
+  const [actionPlan, setActionPlan] = useState<WeeklyActionPlan | null>(
+    null
+  );
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState("");
   const [planSuccess, setPlanSuccess] = useState("");
@@ -108,14 +110,18 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
             "[weekly-report-detail] weekly_reports error",
             reportError
           );
-          setError("Failed to load weekly report.");
+          setError(
+            t("loadError", "Failed to load weekly report.")
+          );
           setReport(null);
           setLoading(false);
           return;
         }
 
         if (!reportRow) {
-          setError("Weekly report not found.");
+          setError(
+            t("notFoundError", "Weekly report not found.")
+          );
           setReport(null);
           setLoading(false);
           return;
@@ -146,7 +152,9 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
         }
       } catch (err) {
         console.error(err);
-        setError("Failed to load weekly report.");
+        setError(
+          t("loadError", "Failed to load weekly report.")
+        );
         setReport(null);
       } finally {
         setLoading(false);
@@ -154,6 +162,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
     }
 
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, id]);
 
   async function handleGenerateActionPlan() {
@@ -170,7 +179,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          weekStart: report.report_date, // use this report's week as week_start
+          weekStart: report.report_date,
         }),
       });
 
@@ -183,7 +192,10 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
         );
         setPlanError(
           data?.error ||
-            "Could not generate weekly action plan. Please try again."
+            t(
+              "planGenerateError",
+              "Could not generate weekly action plan. Please try again."
+            )
         );
         return;
       }
@@ -197,10 +209,17 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
         });
       }
 
-      setPlanSuccess("Weekly action plan generated.");
+      setPlanSuccess(
+        t("planGenerateSuccess", "Weekly action plan generated.")
+      );
     } catch (err) {
       console.error(err);
-      setPlanError("Network error while generating weekly action plan.");
+      setPlanError(
+        t(
+          "planNetworkError",
+          "Network error while generating weekly action plan."
+        )
+      );
     } finally {
       setPlanLoading(false);
     }
@@ -210,7 +229,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">
-          Checking your session...
+          {t("checkingSession", "Checking your session...")}
         </p>
       </main>
     );
@@ -221,15 +240,20 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="weekly-reports" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">Weekly Reports</h1>
+          <h1 className="text-2xl font-bold mb-3">
+            {t("title", "Weekly Reports")}
+          </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            Log in or create a free account to view your weekly AI reports.
+            {t(
+              "loginPrompt",
+              "Log in or create a free account to view your weekly AI reports."
+            )}
           </p>
           <Link
             href="/auth"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
-            Go to login / signup
+            {t("goToAuth", "Go to login / signup")}
           </Link>
         </div>
       </main>
@@ -242,7 +266,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
         <AppHeader active="weekly-reports" />
         <div className="flex-1 flex items-center justify-center px-4">
           <p className="text-[var(--text-muted)] text-sm">
-            Loading weekly report...
+            {t("loadingReport", "Loading weekly report...")}
           </p>
         </div>
       </main>
@@ -255,13 +279,13 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
         <AppHeader active="weekly-reports" />
         <div className="flex-1 flex flex-col items-center justify-center px-4">
           <p className="text-[var(--text-muted)] text-sm mb-3">
-            {error || "Weekly report not found."}
+            {error || t("notFoundError", "Weekly report not found.")}
           </p>
           <Link
             href="/weekly-reports"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
-            ← Back to weekly reports
+            {t("backToList", "← Back to weekly reports")}
           </Link>
         </div>
       </main>
@@ -286,17 +310,17 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                Weekly Report
+                {t("detailTitle", "Weekly Report")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                Week of {dateLabel}
+                {t("weekOfLabel", "Week of")} {dateLabel}
               </p>
             </div>
             <Link
               href="/weekly-reports"
               className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
-              ← Back to weekly reports
+              {t("backToList", "← Back to weekly reports")}
             </Link>
           </div>
 
@@ -308,7 +332,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
                   isPro ? "bg-emerald-400" : "bg-amber-400"
                 }`}
               />
-              Plan:{" "}
+              {t("planLabel", "Plan:")}{" "}
               <span className="font-semibold uppercase text-[var(--text-main)]">
                 {planLabelUpper}
               </span>
@@ -322,35 +346,47 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
           {/* Report summary */}
           <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-6">
             <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-              WEEKLY SUMMARY
+              {t("summaryLabel", "WEEKLY SUMMARY")}
             </p>
             <div className="text-[12px] text-[var(--text-main)] whitespace-pre-wrap">
-              {report.summary || "This weekly report has no summary text."}
+              {report.summary ||
+                t(
+                  "noSummary",
+                  "This weekly report has no summary text."
+                )}
             </div>
           </section>
 
           {/* Weekly email note – only for non-Pro/non-Founder */}
           {!isPro && (
             <div className="mb-4 rounded-xl border border-[var(--accent)]/40 bg-[var(--accent-soft)]/70 p-3 text-[11px] text-[var(--text-main)]">
-              Weekly AI email reports are a Pro feature.
+              {t(
+                "emailNote",
+                "Weekly AI email reports are a Pro feature."
+              )}
               <Link
                 href="/dashboard#pricing"
                 className="underline underline-offset-2 text-[var(--accent)] hover:opacity-90 ml-1"
               >
-                Upgrade to Pro
+                {t("upgradeToPro", "Upgrade to Pro")}
               </Link>{" "}
-              to receive a summary in your inbox every week.
+              {t(
+                "emailNoteTail",
+                "to receive a summary in your inbox every week."
+              )}
             </div>
           )}
 
           {/* Weekly Action Plan */}
           <section className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent-soft)]/70 p-4 mb-6">
             <p className="text-xs font-semibold text-[var(--accent-strong,_var(--accent))] mb-2">
-              WEEKLY ACTION PLAN (AI)
+              {t("actionPlanTitle", "WEEKLY ACTION PLAN (AI)")}
             </p>
 
             {planError && (
-              <p className="text-[11px] text-red-400 mb-2">{planError}</p>
+              <p className="text-[11px] text-red-400 mb-2">
+                {planError}
+              </p>
             )}
             {planSuccess && (
               <p className="text-[11px] text-emerald-400 mb-2">
@@ -361,17 +397,22 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
             {!isPro ? (
               <>
                 <p className="text-[12px] text-[var(--text-main)] mb-2">
-                  AI-powered weekly action plans are a Pro feature.
+                  {t(
+                    "actionPlanProOnly",
+                    "AI-powered weekly action plans are a Pro feature."
+                  )}
                 </p>
                 <p className="text-[11px] text-[var(--text-muted)] mb-3">
-                  Upgrade to Pro to get a focused action plan for each
-                  week, based on your reports, tasks, and notes.
+                  {t(
+                    "actionPlanProDesc",
+                    "Upgrade to Pro to get a focused action plan for each week, based on your reports, tasks, and notes."
+                  )}
                 </p>
                 <Link
                   href="/dashboard#pricing"
                   className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
                 >
-                  🔒 Unlock with Pro
+                  {t("unlockWithPro", "🔒 Unlock with Pro")}
                 </Link>
               </>
             ) : (
@@ -379,7 +420,10 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
                 {actionPlan ? (
                   <div className="mb-3">
                     <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                      Your saved action plan for this week:
+                      {t(
+                        "savedPlanLabel",
+                        "Your saved action plan for this week:"
+                      )}
                     </p>
                     <div className="text-[12px] text-[var(--text-main)] whitespace-pre-wrap">
                       {actionPlan.plan_text}
@@ -387,8 +431,10 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <p className="text-[12px] text-[var(--text-main)] mb-3">
-                    Generate a focused action plan for this week based on
-                    your report, tasks, notes, and productivity scores.
+                    {t(
+                      "generatePlanHint",
+                      "Generate a focused action plan for this week based on your report, tasks, notes, and productivity scores."
+                    )}
                   </p>
                 )}
 
@@ -399,14 +445,22 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
                   className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs font-medium disabled:opacity-60"
                 >
                   {planLoading
-                    ? "Generating action plan..."
+                    ? t("generatingPlan", "Generating action plan...")
                     : actionPlan
-                    ? "Regenerate action plan"
-                    : "Generate weekly action plan"}
+                    ? t(
+                        "regeneratePlan",
+                        "Regenerate action plan"
+                      )
+                    : t(
+                        "generatePlan",
+                        "Generate weekly action plan"
+                      )}
                 </button>
                 <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                  This uses 1 AI call and overwrites the previous plan for
-                  this week (if any).
+                  {t(
+                    "planNote",
+                    "This uses 1 AI call and overwrites the previous plan for this week (if any)."
+                  )}
                 </p>
               </>
             )}

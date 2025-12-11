@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const config: NextConfig = {
   reactStrictMode: true,
-
-  // You can add other config options here if needed
 
   async headers() {
     return [
@@ -29,7 +27,7 @@ const nextConfig: NextConfig = {
         ],
       },
 
-      // (Optional) You can loosen this later, but this keeps dynamic stuff fresh
+      // (Optional) No cache on dashboard for now
       {
         source: "/dashboard",
         headers: [
@@ -43,4 +41,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default config;

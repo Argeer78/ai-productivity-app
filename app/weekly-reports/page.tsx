@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
+import { useT } from "@/lib/useT";
 
 type WeeklyReport = {
   id: string;
@@ -15,6 +16,8 @@ type WeeklyReport = {
 type PlanType = "free" | "pro" | "founder";
 
 export default function WeeklyReportsPage() {
+  const { t } = useT("weeklyReports");
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
@@ -87,20 +90,23 @@ export default function WeeklyReportsPage() {
         }
       } catch (err: any) {
         console.error(err);
-        setError("Failed to load weekly reports.");
+        setError(
+          t("loadError", "Failed to load weekly reports.")
+        );
       } finally {
         setLoading(false);
       }
     }
 
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">
-          Checking your session...
+          {t("checkingSession", "Checking your session...")}
         </p>
       </main>
     );
@@ -111,15 +117,20 @@ export default function WeeklyReportsPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="weekly-reports" />
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-sm">
-          <h1 className="text-2xl font-bold mb-3">Weekly Reports</h1>
+          <h1 className="text-2xl font-bold mb-3">
+            {t("title", "Weekly Reports")}
+          </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm">
-            Log in or create a free account to see your weekly AI reports.
+            {t(
+              "loginPrompt",
+              "Log in or create a free account to see your weekly AI reports."
+            )}
           </p>
           <Link
             href="/auth"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
-            Go to login / signup
+            {t("goToAuth", "Go to login / signup")}
           </Link>
         </div>
       </main>
@@ -134,17 +145,20 @@ export default function WeeklyReportsPage() {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                Weekly AI Reports
+                {t("listTitle", "Weekly AI Reports")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                See how your AI usage, tasks, and notes add up week by week.
+                {t(
+                  "subtitle",
+                  "See how your AI usage, tasks, and notes add up week by week."
+                )}
               </p>
             </div>
             <Link
               href="/dashboard"
               className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
-              ← Back to Dashboard
+              {t("backToDashboard", "← Back to Dashboard")}
             </Link>
           </div>
 
@@ -156,7 +170,7 @@ export default function WeeklyReportsPage() {
                   isPro ? "bg-emerald-400" : "bg-amber-400"
                 }`}
               />
-              Plan:{" "}
+              {t("planLabel", "Plan:")}{" "}
               <span className="font-semibold uppercase text-[var(--text-main)]">
                 {planLabelUpper}
               </span>
@@ -171,18 +185,26 @@ export default function WeeklyReportsPage() {
           {!isPro && (
             <div className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent-soft)]/60 p-4 text-xs mb-6">
               <p className="text-[var(--accent-strong)] font-semibold mb-1">
-                Weekly AI reports are a Pro feature.
+                {t(
+                  "lockedTitle",
+                  "Weekly AI reports are a Pro feature."
+                )}
               </p>
               <p className="text-[11px] text-[var(--text-main)]/80 mb-3">
-                Upgrade to Pro to unlock weekly reports, higher AI limits, and
-                advanced goal tracking.
+                {t(
+                  "lockedDescription",
+                  "Upgrade to Pro to unlock weekly reports, higher AI limits, and advanced goal tracking."
+                )}
               </p>
 
               <Link
                 href="/dashboard#pricing"
                 className="inline-block px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 font-medium text-xs"
               >
-                🔒 Unlock Weekly Reports with Pro
+                {t(
+                  "lockedCta",
+                  "🔒 Unlock Weekly Reports with Pro"
+                )}
               </Link>
             </div>
           )}
@@ -192,12 +214,17 @@ export default function WeeklyReportsPage() {
             <>
               {loading ? (
                 <p className="text-[var(--text-muted)] text-sm">
-                  Loading your weekly reports...
+                  {t(
+                    "loadingReports",
+                    "Loading your weekly reports..."
+                  )}
                 </p>
               ) : reports.length === 0 ? (
                 <p className="text-[var(--text-muted)] text-sm">
-                  No weekly reports yet. You&apos;ll get your first report on
-                  Sunday after your first full tracked week.
+                  {t(
+                    "noReportsYet",
+                    "No weekly reports yet. You’ll get your first report on Sunday after your first full tracked week."
+                  )}
                 </p>
               ) : (
                 <div className="space-y-4">
@@ -209,7 +236,7 @@ export default function WeeklyReportsPage() {
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <p className="text-xs text-[var(--text-muted)]">
-                            Week of{" "}
+                            {t("weekOfLabel", "Week of")}{" "}
                             {new Date(
                               r.report_date
                             ).toLocaleDateString()}
@@ -219,12 +246,19 @@ export default function WeeklyReportsPage() {
                           href={`/weekly-reports/${r.id}`}
                           className="text-[11px] text-[var(--accent)] hover:opacity-90"
                         >
-                          View full report →
+                          {t(
+                            "viewFullReport",
+                            "View full report →"
+                          )}
                         </Link>
                       </div>
 
                       <div className="mt-2 text-[12px] text-[var(--text-main)] line-clamp-3 whitespace-pre-wrap">
-                        {r.summary || "(no summary available)"}
+                        {r.summary ||
+                          t(
+                            "noSummaryShort",
+                            "(no summary available)"
+                          )}
                       </div>
                     </article>
                   ))}

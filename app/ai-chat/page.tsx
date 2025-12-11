@@ -5,6 +5,7 @@ import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
+import { useT } from "@/lib/useT";
 
 type ThreadRow = {
   id: string;
@@ -40,6 +41,8 @@ function getTodayString() {
 }
 
 export default function AIChatPage() {
+  const { t } = useT("aiChat");
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
@@ -199,6 +202,7 @@ export default function AIChatPage() {
   // 3) Load threads
   useEffect(() => {
     if (!user) return;
+
     async function loadThreads() {
       setLoadingThreads(true);
       setError("");
@@ -213,7 +217,12 @@ export default function AIChatPage() {
 
         if (error) {
           console.error("[ai-chat] loadThreads error", error);
-          setError("Failed to load conversations.");
+          setError(
+            t(
+              "errors.loadThreads",
+              "Failed to load conversations."
+            )
+          );
           setThreads([]);
           return;
         }
@@ -224,11 +233,17 @@ export default function AIChatPage() {
         }
       } catch (err) {
         console.error("[ai-chat] loadThreads exception", err);
-        setError("Failed to load conversations.");
+        setError(
+          t(
+            "errors.loadThreads",
+            "Failed to load conversations."
+          )
+        );
       } finally {
         setLoadingThreads(false);
       }
     }
+
     loadThreads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -254,7 +269,9 @@ export default function AIChatPage() {
 
         if (error) {
           console.error("[ai-chat] loadMessages error", error);
-          setError("Failed to load messages.");
+          setError(
+            t("errors.loadMessages", "Failed to load messages.")
+          );
           setMessages([]);
           return;
         }
@@ -262,20 +279,27 @@ export default function AIChatPage() {
         setMessages((data || []) as ChatMessage[]);
       } catch (err) {
         console.error("[ai-chat] loadMessages exception", err);
-        setError("Failed to load messages.");
+        setError(
+          t("errors.loadMessages", "Failed to load messages.")
+        );
       } finally {
         setLoadingMessages(false);
       }
     }
 
     loadMessages();
-  }, [user, activeThreadId]);
+  }, [user]);
 
   // 5) Send message
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     if (!user) {
-      setError("You must be logged in to chat with AI.");
+      setError(
+        t(
+          "errors.notLoggedIn",
+          "You must be logged in to chat with AI."
+        )
+      );
       return;
     }
 
@@ -284,7 +308,10 @@ export default function AIChatPage() {
 
     if (!isPro && remaining <= 0) {
       setError(
-        `You reached your daily AI limit for the free plan (${FREE_DAILY_LIMIT} replies).`
+        t(
+          "errors.freeLimitReached",
+          `You reached your daily AI limit for the free plan (${FREE_DAILY_LIMIT} replies).`
+        )
       );
       return;
     }
@@ -312,7 +339,10 @@ export default function AIChatPage() {
 
       if (!res.ok || !data?.ok) {
         console.error("[ai-chat] send error payload", data);
-        setError(data?.error || "Failed to send message.");
+        setError(
+          data?.error ||
+            t("errors.sendFailed", "Failed to send message.")
+        );
         setSending(false);
         return;
       }
@@ -342,7 +372,7 @@ export default function AIChatPage() {
         const fallbackTitle =
           titleFromServer ||
           text.split("\n")[0].slice(0, 80).trim() ||
-          "New conversation";
+          t("newConversationFallback", "New conversation");
 
         const { data: threadData, error: threadError } = await supabase
           .from("ai_chat_threads")
@@ -357,7 +387,10 @@ export default function AIChatPage() {
         if (threadError || !threadData) {
           console.error("[ai-chat] create thread error", threadError);
           setError(
-            "Failed to save conversation, but you can continue chatting."
+            t(
+              "errors.saveThread",
+              "Failed to save conversation, but you can continue chatting."
+            )
           );
           return;
         }
@@ -431,7 +464,12 @@ export default function AIChatPage() {
       await incrementAiUsage();
     } catch (err) {
       console.error("[ai-chat] send exception", err);
-      setError("Network error while sending message.");
+      setError(
+        t(
+          "errors.networkSend",
+          "Network error while sending message."
+        )
+      );
     } finally {
       setSending(false);
     }
@@ -440,7 +478,15 @@ export default function AIChatPage() {
   // 6) Delete thread
   async function handleDeleteThread(threadId: string) {
     if (!user || !threadId) return;
-    if (!window.confirm("Delete this chat? This cannot be undone.")) return;
+    if (
+      !window.confirm(
+        t(
+          "confirm.deleteThread",
+          "Delete this chat? This cannot be undone."
+        )
+      )
+    )
+      return;
 
     setThreadActionId(threadId);
     setError("");
@@ -464,7 +510,9 @@ export default function AIChatPage() {
 
       if (threadErr) {
         console.error("[ai-chat] delete thread error", threadErr);
-        alert("Failed to delete chat.");
+        alert(
+          t("errors.deleteFailed", "Failed to delete chat.")
+        );
         return;
       }
 
@@ -477,7 +525,12 @@ export default function AIChatPage() {
       );
     } catch (err) {
       console.error("[ai-chat] delete thread exception", err);
-      alert("Failed to delete chat due to a network error.");
+      alert(
+        t(
+          "errors.deleteNetwork",
+          "Failed to delete chat due to a network error."
+        )
+      );
     } finally {
       setThreadActionId(null);
     }
@@ -487,8 +540,12 @@ export default function AIChatPage() {
   async function handleRenameThread(thread: ThreadRow) {
     if (!user) return;
 
-    const currentTitle = thread.title || "Untitled chat";
-    const newTitle = window.prompt("New title for this chat:", currentTitle);
+    const currentTitle =
+      thread.title || t("untitledChat", "Untitled chat");
+    const newTitle = window.prompt(
+      t("prompt.renameTitle", "New title for this chat:"),
+      currentTitle
+    );
 
     if (!newTitle || newTitle.trim() === currentTitle.trim()) {
       return;
@@ -511,23 +568,35 @@ export default function AIChatPage() {
 
       if (error) {
         console.error("[ai-chat] rename thread error", error);
-        alert("Failed to rename chat.");
+        alert(
+          t("errors.renameFailed", "Failed to rename chat.")
+        );
         return;
       }
 
       if (!data) {
-        alert("Chat not found or not accessible.");
+        alert(
+          t(
+            "errors.renameNotFound",
+            "Chat not found or not accessible."
+          )
+        );
         return;
       }
 
       const updated = data as ThreadRow;
 
       setThreads((prev) =>
-        prev.map((t) => (t.id === thread.id ? updated : t))
+        prev.map((tRow) => (tRow.id === thread.id ? updated : tRow))
       );
     } catch (err) {
       console.error("[ai-chat] rename thread exception", err);
-      alert("Failed to rename chat due to a network error.");
+      alert(
+        t(
+          "errors.renameNetwork",
+          "Failed to rename chat due to a network error."
+        )
+      );
     } finally {
       setThreadActionId(null);
     }
@@ -544,7 +613,7 @@ export default function AIChatPage() {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-sm text-[var(--text-muted)]">
-          Checking your session…
+          {t("status.checkingSession", "Checking your session…")}
         </p>
       </main>
     );
@@ -555,16 +624,20 @@ export default function AIChatPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="ai-chat" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">AI Hub Chat</h1>
+          <h1 className="text-2xl font-bold mb-3">
+            {t("login.title", "AI Hub Chat")}
+          </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            Log in or create a free account to chat with your AI coach and keep
-            your conversations saved.
+            {t(
+              "login.body",
+              "Log in or create a free account to chat with your AI coach and keep your conversations saved."
+            )}
           </p>
           <Link
             href="/auth"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
-            Go to login / signup
+            {t("login.cta", "Go to login / signup")}
           </Link>
         </div>
       </main>
@@ -580,25 +653,31 @@ export default function AIChatPage() {
         <aside className="hidden md:flex flex-col w-64 border-r border-[var(--border-subtle)] bg-[var(--bg-elevated)]/70">
           <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
             <p className="text-xs font-semibold">
-              Conversations
+              {t("sidebar.conversationsLabel", "Conversations")}
             </p>
             <button
               type="button"
               onClick={startNewChat}
               className="text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
             >
-              + New chat
+              {t("sidebar.newChatButton", "+ New chat")}
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
             {loadingThreads ? (
               <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                Loading conversations…
+                {t(
+                  "sidebar.loading",
+                  "Loading conversations…"
+                )}
               </p>
             ) : threads.length === 0 ? (
               <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                No conversations yet. Start a new chat on the right.
+                {t(
+                  "sidebar.empty",
+                  "No conversations yet. Start a new chat on the right."
+                )}
               </p>
             ) : (
               threads.map((thread) => {
@@ -617,7 +696,11 @@ export default function AIChatPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="truncate font-medium">
-                        {thread.title || "New conversation"}
+                        {thread.title ||
+                          t(
+                            "newConversationFallback",
+                            "New conversation"
+                          )}
                       </p>
                       <p className="text-[10px] text-[var(--text-muted)] truncate">
                         {thread.category || "General"}
@@ -633,7 +716,10 @@ export default function AIChatPage() {
                         onClick={() => handleRenameThread(thread)}
                         disabled={isBusy}
                         className="p-1 rounded hover:bg-[var(--bg-card)] text-[11px]"
-                        title="Rename chat"
+                        title={t(
+                          "sidebar.renameTooltip",
+                          "Rename chat"
+                        )}
                       >
                         ✏️
                       </button>
@@ -642,7 +728,10 @@ export default function AIChatPage() {
                         onClick={() => handleDeleteThread(thread.id)}
                         disabled={isBusy}
                         className="p-1 rounded hover:bg-[var(--bg-card)] text-[11px] text-red-400"
-                        title="Delete chat"
+                        title={t(
+                          "sidebar.deleteTooltip",
+                          "Delete chat"
+                        )}
                       >
                         🗑
                       </button>
@@ -659,29 +748,33 @@ export default function AIChatPage() {
           <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-3">
             <div>
               <h1 className="text-base md:text-lg font-semibold">
-                AI Hub Chat
+                {t("header.title", "AI Hub Chat")}
               </h1>
               <p className="text-[11px] text-[var(--text-muted)]">
-                A general-purpose AI coach for planning, ideas and questions.
+                {t(
+                  "header.subtitle",
+                  "A general-purpose AI coach for planning, ideas and questions."
+                )}
               </p>
             </div>
 
             <div className="flex flex-col items-end gap-1">
               {isPro ? (
                 <span className="text-[10px] text-[var(--text-muted)]">
-                  AI replies today:{" "}
+                  {t("usage.label", "AI replies today:")}{" "}
                   <span className="font-semibold">
-                    {aiCountToday} (unlimited)
+                    {aiCountToday}{" "}
+                    {t("usage.unlimitedSuffix", "(unlimited)")}
                   </span>{" "}
                   ({plan})
                 </span>
               ) : (
                 <span className="text-[10px] text-[var(--text-muted)]">
-                  AI replies today:{" "}
+                  {t("usage.label", "AI replies today:")}{" "}
                   <span className="font-semibold">
                     {aiCountToday}/{FREE_DAILY_LIMIT}
                   </span>{" "}
-                  (free)
+                  {t("usage.freeSuffix", "(free)")}
                 </span>
               )}
 
@@ -692,7 +785,7 @@ export default function AIChatPage() {
                   onClick={() => setShowMobileThreads(true)}
                   className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                 >
-                  History
+                  {t("mobile.historyButton", "History")}
                 </button>
 
                 {/* Mobile: new chat */}
@@ -701,7 +794,7 @@ export default function AIChatPage() {
                   onClick={startNewChat}
                   className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                 >
-                  + New chat
+                  {t("mobile.newChatButton", "+ New chat")}
                 </button>
               </div>
             </div>
@@ -709,24 +802,47 @@ export default function AIChatPage() {
 
           {/* Error */}
           {error && (
-            <p className="px-4 pt-2 text-[11px] text-red-400">{error}</p>
+            <p className="px-4 pt-2 text-[11px] text-red-400">
+              {error}
+            </p>
           )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 text-sm">
             {loadingMessages && messages.length === 0 ? (
               <p className="text-[12px] text-[var(--text-muted)]">
-                Loading conversation…
+                {t(
+                  "messages.loading",
+                  "Loading conversation…"
+                )}
               </p>
             ) : messages.length === 0 ? (
               <div className="text-[12px] text-[var(--text-muted)] mt-4">
-                <p className="mb-1">Start by asking something like:</p>
+                <p className="mb-1">
+                  {t(
+                    "messages.emptyIntro",
+                    "Start by asking something like:"
+                  )}
+                </p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>
-                    “Help me plan my week around work and personal goals.”
+                    {t(
+                      "messages.example1",
+                      "Help me plan my week around work and personal goals."
+                    )}
                   </li>
-                  <li>“Turn my todo list into 3 clear priorities.”</li>
-                  <li>“I feel overwhelmed — where should I start today?”</li>
+                  <li>
+                    {t(
+                      "messages.example2",
+                      "Turn my todo list into 3 clear priorities."
+                    )}
+                  </li>
+                  <li>
+                    {t(
+                      "messages.example3",
+                      "I feel overwhelmed — where should I start today?"
+                    )}
+                  </li>
                 </ul>
               </div>
             ) : (
@@ -757,7 +873,9 @@ export default function AIChatPage() {
             className="border-t border-[var(--border-subtle)] px-3 py-2 flex flex-col gap-2"
           >
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
-              <span className="hidden md:inline">Category:</span>
+              <span className="hidden md:inline">
+                {t("input.categoryLabel", "Category:")}
+              </span>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -770,7 +888,10 @@ export default function AIChatPage() {
                 ))}
               </select>
               <span className="text-[10px] text-[var(--text-muted)]">
-                Helps the AI adapt tone & suggestions.
+                {t(
+                  "input.categoryHelper",
+                  "Helps the AI adapt tone & suggestions."
+                )}
               </span>
             </div>
 
@@ -778,7 +899,10 @@ export default function AIChatPage() {
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything — planning, focus, ideas, mindset…"
+                placeholder={t(
+                  "input.placeholder",
+                  "Ask anything — planning, focus, ideas, mindset…"
+                )}
                 className="flex-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[120px] resize-y"
               />
               <button
@@ -789,10 +913,10 @@ export default function AIChatPage() {
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
               >
                 {sending
-                  ? "Sending…"
+                  ? t("input.sending", "Sending…")
                   : !isPro && remaining <= 0
-                  ? "Daily limit reached"
-                  : "Send"}
+                  ? t("input.limitReached", "Daily limit reached")
+                  : t("input.send", "Send")}
               </button>
             </div>
           </form>
@@ -809,25 +933,34 @@ export default function AIChatPage() {
               <div className="absolute inset-y-0 left-0 w-[80%] max-w-xs bg-[var(--bg-body)] border-r border-[var(--border-subtle)] flex flex-col">
                 <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold">
-                    Conversation history
+                    {t(
+                      "mobile.historyTitle",
+                      "Conversation history"
+                    )}
                   </p>
                   <button
                     type="button"
                     onClick={() => setShowMobileThreads(false)}
                     className="text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                   >
-                    ✕ Close
+                    {t("mobile.closeButton", "✕ Close")}
                   </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
                   {loadingThreads ? (
                     <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                      Loading conversations…
+                      {t(
+                        "sidebar.loading",
+                        "Loading conversations…"
+                      )}
                     </p>
                   ) : threads.length === 0 ? (
                     <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                      No conversations yet. Start a new chat.
+                      {t(
+                        "mobile.empty",
+                        "No conversations yet. Start a new chat."
+                      )}
                     </p>
                   ) : (
                     threads.map((thread) => {
@@ -849,7 +982,11 @@ export default function AIChatPage() {
                         >
                           <div className="flex-1 min-w-0">
                             <p className="truncate font-medium">
-                              {thread.title || "New conversation"}
+                              {thread.title ||
+                                t(
+                                  "newConversationFallback",
+                                  "New conversation"
+                                )}
                             </p>
                             <p className="text-[10px] text-[var(--text-muted)] truncate">
                               {thread.category || "General"}
@@ -867,7 +1004,10 @@ export default function AIChatPage() {
                               onClick={() => handleRenameThread(thread)}
                               disabled={isBusy}
                               className="p-1 rounded hover:bg-[var(--bg-card)] text-[11px]"
-                              title="Rename chat"
+                              title={t(
+                                "sidebar.renameTooltip",
+                                "Rename chat"
+                              )}
                             >
                               ✏️
                             </button>
@@ -876,7 +1016,10 @@ export default function AIChatPage() {
                               onClick={() => handleDeleteThread(thread.id)}
                               disabled={isBusy}
                               className="p-1 rounded hover:bg-[var(--bg-card)] text-[11px] text-red-400"
-                              title="Delete chat"
+                              title={t(
+                                "sidebar.deleteTooltip",
+                                "Delete chat"
+                              )}
                             >
                               🗑
                             </button>

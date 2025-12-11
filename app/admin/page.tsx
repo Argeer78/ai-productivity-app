@@ -1,4 +1,3 @@
-// app/admin/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -156,6 +155,10 @@ export default function AdminHomePage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
 
+  // 🔹 NEW: UI translations sync state
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncLoadingLang, setSyncLoadingLang] = useState<string | null>(null);
+
   useEffect(() => {
     async function loadUser() {
       try {
@@ -204,6 +207,44 @@ export default function AdminHomePage() {
 
     loadStats();
   }, [authorized]);
+
+  // 🔹 NEW: helper to trigger /api/ui-translations/sync
+  async function handleSyncUiTranslations(languageCode: string) {
+    setSyncLoadingLang(languageCode);
+    setSyncStatus(null);
+
+    try {
+      const res = await fetch("/api/ui-translations/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // optional: pass admin key if your sync route checks it
+          ...(ADMIN_KEY ? { "X-Admin-Key": ADMIN_KEY } : {}),
+        },
+        body: JSON.stringify({ languageCode }),
+      });
+
+      const data = await res.json().catch(() => null as any);
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Failed to sync UI translations");
+      }
+
+      const inserted = data.inserted ?? 0;
+      const updated = data.updated ?? 0;
+
+      setSyncStatus(
+        `✅ Synced UI strings for "${languageCode}". Inserted: ${inserted}, updated: ${updated}.`
+      );
+    } catch (err: any) {
+      console.error("[admin] ui-translations sync error", err);
+      setSyncStatus(
+        `❌ ${err?.message || "Failed to sync UI translations"}`
+      );
+    } finally {
+      setSyncLoadingLang(null);
+    }
+  }
 
   // Auth guards
   if (checkingUser) {
@@ -413,6 +454,49 @@ export default function AdminHomePage() {
               </p>
             </Link>
           </div>
+
+          {/* 🔹 NEW: UI translations sync panel */}
+          <section className="mt-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+            <h2 className="text-sm font-semibold mb-1 text-[var(--text-main)]">
+              UI translations
+            </h2>
+            <p className="text-[11px] text-[var(--text-muted)] mb-3">
+              Sync <code>UI_STRINGS</code> to the <code>ui_translations</code>{" "}
+              table. Use this after adding new keys in{" "}
+              <code>lib/uiStrings.ts</code>.
+            </p>
+
+            <div className="flex flex-wrap gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => handleSyncUiTranslations("el")}
+                disabled={!!syncLoadingLang}
+                className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-[11px] disabled:opacity-60"
+              >
+                {syncLoadingLang === "el"
+                  ? "Syncing Greek (el)…"
+                  : "Sync Greek (el)"}
+              </button>
+
+              {/* Example extra button if you add more locales later */}
+              <button
+                type="button"
+                onClick={() => handleSyncUiTranslations("es")}
+                disabled={!!syncLoadingLang}
+                className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px] disabled:opacity-60"
+              >
+                {syncLoadingLang === "es"
+                  ? "Syncing Spanish (es)…"
+                  : "Sync Spanish (es)"}
+              </button>
+            </div>
+
+            {syncStatus && (
+              <p className="mt-1 text-[11px] text-[var(--text-main)] whitespace-pre-line">
+                {syncStatus}
+              </p>
+            )}
+          </section>
 
           <AdminEmailTestPanel currentUserEmail={user.email ?? null} />
 

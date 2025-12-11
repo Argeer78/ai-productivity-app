@@ -8,6 +8,7 @@ import FeedbackForm from "@/app/components/FeedbackForm";
 import { useAnalytics } from "@/lib/analytics";
 import AppHeader from "@/app/components/AppHeader";
 import SetupBanner from "@/app/components/SetupBanner";
+import { useT } from "@/lib/useT";
 
 const FREE_DAILY_LIMIT = 20;
 const PRO_DAILY_LIMIT = 2000;
@@ -86,6 +87,8 @@ const PRICE_LABELS = {
 };
 
 export default function DashboardPage() {
+  const { t } = useT("dashboard"); // namespace "dashboard"
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
@@ -311,7 +314,7 @@ export default function DashboardPage() {
         // 1) profiles: ensure profile exists & load plan
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("id, email, plan")
+          .select("id, email, plan, ui_language")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -584,7 +587,10 @@ export default function DashboardPage() {
     if (!user) return;
     if (!isPro && aiCountToday >= dailyLimit) {
       setSummaryError(
-        "You’ve reached today’s AI limit on your current plan. Try again tomorrow or upgrade to Pro."
+        t(
+          "summaryLimitReached",
+          "You’ve reached today’s AI limit on your current plan. Try again tomorrow or upgrade to Pro."
+        )
       );
       return;
     }
@@ -606,7 +612,9 @@ export default function DashboardPage() {
         data = JSON.parse(text);
       } catch (e) {
         console.error("Non-JSON response from /api/ai-summary:", text);
-        setSummaryError("Server returned an invalid response.");
+        setSummaryError(
+          t("summaryServerInvalid", "Server returned an invalid response.")
+        );
         setSummaryLoading(false);
         return;
       }
@@ -615,10 +623,16 @@ export default function DashboardPage() {
         console.error("AI summary error payload:", data);
         if (res.status === 429) {
           setSummaryError(
-            data.error || "You’ve reached today’s AI limit for your plan."
+            data.error ||
+              t(
+                "summaryPlanLimit",
+                "You’ve reached today’s AI limit for your plan."
+              )
           );
         } else {
-          setSummaryError(data.error || "Failed to generate summary.");
+          setSummaryError(
+            data.error || t("summaryFailed", "Failed to generate summary.")
+          );
         }
         setSummaryLoading(false);
         return;
@@ -646,17 +660,24 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error(err);
-      setSummaryError("Network error while generating summary.");
+      setSummaryError(
+        t(
+          "summaryNetworkError",
+          "Network error while generating summary."
+        )
+      );
     } finally {
       setSummaryLoading(false);
     }
   }
 
+  // ---------- RENDER STATES ----------
+
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-sm text-[var(--text-muted)]">
-          Checking your session...
+          {t("checkingSession", "Checking your session...")}
         </p>
       </main>
     );
@@ -665,16 +686,20 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col items-center justify-center p-4">
-        <h1 className="text-2xl font-bold mb-3">Dashboard</h1>
+        <h1 className="text-2xl font-bold mb-3">
+          {t("title", "Dashboard")}
+        </h1>
         <p className="mb-4 text-center max-w-sm text-sm text-[var(--text-muted)]">
-          You&apos;re not logged in. Log in or create a free account to see
-          your plan and AI usage.
+          {t(
+            "notLoggedIn",
+            "You’re not logged in. Log in or create a free account to see your plan and AI usage."
+          )}
         </p>
         <Link
           href="/auth"
           className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
         >
-          Go to login / signup
+          {t("goToAuth", "Go to login / signup")}
         </Link>
       </main>
     );
@@ -695,9 +720,16 @@ export default function DashboardPage() {
             >
               <div>
                 <p className="font-semibold text-sm md:text-base">
-                  {streakCfg.emoji} {streakCfg.title} You’re on a{" "}
-                  <span className="font-bold">{streak}-day</span> productivity
-                  streak.
+                  {streakCfg.emoji} {streakCfg.title}{" "}
+                  {t(
+                    "streakBannerMain",
+                    "You’re on a"
+                  )}{" "}
+                  <span className="font-bold">{streak}-day</span>{" "}
+                  {t(
+                    "streakBannerTail",
+                    "productivity streak."
+                  )}
                 </p>
                 <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
               </div>
@@ -707,10 +739,13 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                Dashboard
+                {t("title", "Dashboard")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                Quick overview of your plan, AI usage, and activity.
+                {t(
+                  "subtitle",
+                  "Quick overview of your plan, AI usage, and activity."
+                )}
               </p>
             </div>
 
@@ -718,40 +753,43 @@ export default function DashboardPage() {
             {plan === "free" && (
               <div className="mb-4 text-xs md:text-sm text-[var(--text-main)]">
                 <p>
-                  Plan:{" "}
-                  <span className="font-semibold">FREE</span> | AI today:{" "}
+                  {t("planLabel", "Plan")}:{" "}
+                  <span className="font-semibold">
+                    {t("free", "FREE")}
+                  </span>{" "}
+                  | {t("aiToday", "AI today")}:{" "}
                   <span className="font-semibold">
                     {aiCountToday}/{FREE_DAILY_LIMIT}
                   </span>
                 </p>
                 <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                  The free plan includes up to 20 AI calls per day shared
-                  across notes, the global assistant, summaries, and planner.
+                  {t(
+                    "freePlanBlurb",
+                    "The free plan includes up to 20 AI calls per day shared across notes, the global assistant, summaries, and planner."
+                  )}
                 </p>
               </div>
             )}
 
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-                Plan:{" "}
+                {t("planLabel", "Plan")}:{" "}
                 <span className="font-semibold">{planLabelUpper}</span>
               </span>
               <span className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-                {isPro ? (
-                  <>
-                    AI today:{" "}
-                    <span className="font-semibold">
-                      {aiCountToday} used (unlimited for normal use)
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    AI today:{" "}
-                    <span className="font-semibold">
+                {t("aiToday", "AI today")}:{" "}
+                <span className="font-semibold">
+                  {isPro ? (
+                    <>
+                      {aiCountToday}{" "}
+                      {t("aiUsedUnlimitedNote", "used (unlimited for normal use)")}
+                    </>
+                  ) : (
+                    <>
                       {aiCountToday}/{dailyLimit}
-                    </span>
-                  </>
-                )}
+                    </>
+                  )}
+                </span>
               </span>
             </div>
           </div>
@@ -762,7 +800,7 @@ export default function DashboardPage() {
 
           {loadingData ? (
             <p className="text-sm text-[var(--text-muted)]">
-              Loading your data...
+              {t("loadingData", "Loading your data...")}
             </p>
           ) : (
             <>
@@ -771,33 +809,45 @@ export default function DashboardPage() {
                 {/* Account card */}
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
-                    ACCOUNT
+                    {t("account", "ACCOUNT")}
                   </p>
                   <p className="mb-1 text-sm break-all">
                     {user.email}
                   </p>
                   <p className="text-[11px] text-[var(--text-muted)]">
-                    This is the account you use to log in.
+                    {t(
+                      "thisIsAccount",
+                      "This is the account you use to log in."
+                    )}
                   </p>
                 </div>
 
                 {/* Plan card */}
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
-                    PLAN
+                    {t("plan", "PLAN")}
                   </p>
                   <p className="mb-1 text-sm">{planLabelNice}</p>
                   <p className="text-[11px] text-[var(--text-muted)] mb-2">
                     {isPro
-                      ? "Unlimited daily AI usage for normal use, plus access to more powerful planning tools."
-                      : "Good for trying the app and using AI lightly each day."}
+                      ? t(
+                          "proPlanDescription",
+                          "Unlimited daily AI usage for normal use, plus access to more powerful planning tools."
+                        )
+                      : t(
+                          "freePlanDescription",
+                          "Good for trying the app and using AI lightly each day."
+                        )}
                   </p>
                   <p className="text-[11px] text-[var(--text-muted)]">
-                    Daily AI limit:{" "}
+                    {t("dailyLimit", "Daily AI limit")}:{" "}
                     <span className="font-semibold">
                       {isPro
-                        ? "Unlimited for normal use"
-                        : `${dailyLimit} calls/day`}
+                        ? t(
+                            "unlimitedDailyAI",
+                            "Unlimited for normal use"
+                          )
+                        : `${dailyLimit} ${t("callsPerDay", "calls/day")}`}
                     </span>
                   </p>
 
@@ -806,7 +856,7 @@ export default function DashboardPage() {
                       href="/weekly-reports"
                       className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90"
                     >
-                      📅 View Weekly Reports →
+                      {t("viewReports", "📅 View Weekly Reports →")}
                     </Link>
                   )}
 
@@ -815,7 +865,10 @@ export default function DashboardPage() {
                       href="/dashboard#pricing"
                       className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90"
                     >
-                      🔒 Unlock Weekly Reports with Pro →
+                      {t(
+                        "unlockReports",
+                        "🔒 Unlock Weekly Reports with Pro →"
+                      )}
                     </Link>
                   )}
                 </div>
@@ -823,19 +876,23 @@ export default function DashboardPage() {
                 {/* Usage + Productivity Score card */}
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
-                    TODAY&apos;S AI USAGE
+                    {t("todayAIUsage", "TODAY'S AI USAGE")}
                   </p>
                   <p className="mb-1 text-sm">
                     {isPro ? (
                       <>
-                        {aiCountToday} used{" "}
+                        {aiCountToday}{" "}
                         <span className="text-[11px] text-[var(--text-muted)]">
-                          (unlimited for normal use)
+                          {t(
+                            "aiUsedUnlimitedNote",
+                            "used (unlimited for normal use)"
+                          )}
                         </span>
                       </>
                     ) : (
                       <>
-                        {aiCountToday}/{dailyLimit} used
+                        {aiCountToday}/{dailyLimit}{" "}
+                        {t("used", "used")}
                       </>
                     )}
                   </p>
@@ -855,18 +912,18 @@ export default function DashboardPage() {
 
                   <div className="border border-[var(--border-subtle)] bg-[var(--bg-elevated)] rounded-2xl p-3 mt-3">
                     <h3 className="text-sm font-semibold mb-2">
-                      📈 Productivity Score
+                      📈 {t("productivityScore", "Productivity Score")}
                     </h3>
 
                     {scoreLoading ? (
                       <p className="text-[11px] text-[var(--text-muted)]">
-                        Loading...
+                        {t("loading", "Loading...")}
                       </p>
                     ) : (
                       <>
                         <p className="text-[13px] mb-1">
                           <span className="text-[var(--text-muted)]">
-                            Today:
+                            {t("scoreToday", "Today")}:
                           </span>{" "}
                           <span className="font-semibold">
                             {todayScore !== null
@@ -877,7 +934,7 @@ export default function DashboardPage() {
 
                         <p className="text-[13px] mb-1">
                           <span className="text-[var(--text-muted)]">
-                            7-day avg:
+                            {t("score7Avg", "7-day avg")}:
                           </span>{" "}
                           <span className="font-semibold">
                             {avg7 !== null ? `${avg7}` : "—"}
@@ -886,10 +943,15 @@ export default function DashboardPage() {
 
                         <p className="text-[13px] mb-3">
                           <span className="text-[var(--text-muted)]">
-                            Score streak (≥60):
+                            {t(
+                              "scoreStreak",
+                              "Score streak (≥60)"
+                            )}
+                            :
                           </span>{" "}
                           <span className="font-semibold">
-                            {scoreStreak} day
+                            {scoreStreak}{" "}
+                            {t("days", "day")}
                             {scoreStreak === 1 ? "" : "s"}
                           </span>
                         </p>
@@ -898,7 +960,10 @@ export default function DashboardPage() {
                           href="/daily-success"
                           className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
                         >
-                          Update today&apos;s score
+                          {t(
+                            "updateScore",
+                            "Update today's score"
+                          )}
                         </Link>
                       </>
                     )}
@@ -907,40 +972,61 @@ export default function DashboardPage() {
                   <p className="text-[11px] text-[var(--text-muted)] mt-2">
                     {remaining > 0 ? (
                       isPro ? (
-                        "Pro gives you effectively unlimited daily AI usage for normal workflows."
+                        t(
+                          "proUsageNote",
+                          "Pro gives you effectively unlimited daily AI usage for normal workflows."
+                        )
                       ) : (
-                        `${remaining} AI calls left today.`
+                        t(
+                          "remainingCalls",
+                          "{remaining} AI calls left today."
+                        ).replace("{remaining}", String(remaining))
                       )
                     ) : isPro ? (
-                      "You reached today’s Pro safety limit. Try again tomorrow."
+                      t(
+                        "proSafetyLimit",
+                        "You reached today’s Pro safety limit. Try again tomorrow."
+                      )
                     ) : (
                       <>
-                        You reached today’s limit on the free plan.{" "}
+                        {t(
+                          "freeLimitReached",
+                          "You reached today’s limit on the free plan."
+                        )}{" "}
                         <Link
                           href="/dashboard#pricing"
                           className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
                         >
-                          Upgrade to Pro
+                          {t("upgradeToPro", "Upgrade to Pro")}
                         </Link>{" "}
-                        for unlimited daily AI (for normal use).
+                        {t(
+                          "upgradeBenefitsShort",
+                          "for unlimited daily AI (for normal use)."
+                        )}
                       </>
                     )}
                   </p>
 
                   <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                    Usage streak:{" "}
+                    {t("usageStreak", "Usage streak")}:{" "}
                     <span className="font-semibold">
-                      {streak} day{streak === 1 ? "" : "s"}
+                      {streak}{" "}
+                      {t("days", "day")}
+                      {streak === 1 ? "" : "s"}
                     </span>{" "}
-                    in a row • Active days (last 30):{" "}
-                    <span className="font-semibold">{activeDays}</span>
+                    {t("inARow", "in a row")} •{" "}
+                    {t("activeDaysLast30", "Active days (last 30)")}
+                    :{" "}
+                    <span className="font-semibold">
+                      {activeDays}
+                    </span>
                   </p>
                 </div>
 
                 {/* AI SUMMARY card (full-width) */}
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 md:col-span-3">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
-                    AI SUMMARY (BETA)
+                    {t("aiSummaryHeading", "AI SUMMARY (BETA)")}
                   </p>
                   {summary ? (
                     <div className="text-[12px] whitespace-pre-wrap mb-2">
@@ -948,8 +1034,10 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <p className="text-[12px] text-[var(--text-muted)] mb-2">
-                      Let AI scan your recent notes and tasks and give you a
-                      short overview plus suggestions.
+                      {t(
+                        "aiSummaryInfo",
+                        "Let AI scan your recent notes and tasks and give you a short overview plus suggestions."
+                      )}
                     </p>
                   )}
 
@@ -968,14 +1056,22 @@ export default function DashboardPage() {
                     className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm text-[var(--accent-contrast)]"
                   >
                     {summaryLoading
-                      ? "Generating..."
+                      ? t("summaryGenerating", "Generating...")
                       : !isPro && aiCountToday >= dailyLimit
-                      ? "Daily AI limit reached"
-                      : "Generate summary"}
+                      ? t(
+                          "summaryLimitButton",
+                          "Daily AI limit reached"
+                        )
+                      : t(
+                          "summaryButton",
+                          "Generate summary"
+                        )}
                   </button>
                   <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                    Uses your daily AI limit (shared with notes, assistant,
-                    planner).
+                    {t(
+                      "summaryUsesLimit",
+                      "Uses your daily AI limit (shared with notes, assistant, planner)."
+                    )}
                   </p>
                 </div>
               </div>
@@ -983,55 +1079,67 @@ export default function DashboardPage() {
               {/* AI Wins This Week */}
               <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4 mb-8 text-sm">
                 <p className="text-xs font-semibold text-[var(--accent)] mb-1">
-                  AI WINS THIS WEEK
+                  {t("aiWinsHeading", "AI WINS THIS WEEK")}
                 </p>
                 <p className="text-[11px] text-[var(--text-muted)] mb-3">
-                  A quick snapshot of how AI helped you move things forward in
-                  the last 7 days.
+                  {t(
+                    "aiWinsSubheading",
+                    "A quick snapshot of how AI helped you move things forward in the last 7 days."
+                  )}
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[12px]">
                   <div>
                     <p className="text-xs text-[var(--text-muted)] mb-0.5">
-                      Avg productivity score
+                      {t(
+                        "avgProductivityScore",
+                        "Avg productivity score"
+                      )}
                     </p>
                     <p className="text-base font-semibold">
                       {avg7 !== null ? `${avg7}/100` : "—"}
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)]">
-                      Based on your daily scores
+                      {t(
+                        "basedOnScores",
+                        "Based on your daily scores"
+                      )}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-[var(--text-muted)] mb-0.5">
-                      Tasks completed
+                      {t("tasksCompleted", "Tasks completed")}
                     </p>
                     <p className="text-base font-semibold">
                       {weekTasksCompleted}
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)]">
-                      Last 7 days
+                      {t("last7Days", "Last 7 days")}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-[var(--text-muted)] mb-0.5">
-                      Notes created
+                      {t("notesCreated", "Notes created")}
                     </p>
                     <p className="text-base font-semibold">
                       {weekNotesCreated}
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)]">
-                      Captured ideas & thoughts
+                      {t(
+                        "capturedIdeas",
+                        "Captured ideas & thoughts"
+                      )}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-[var(--text-muted)] mb-0.5">
-                      AI calls used
+                      {t("aiCallsUsed", "AI calls used")}
                     </p>
                     <p className="text-base font-semibold">
                       {weekAiCalls}
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)]">
-                      ~{weekTimeSaved} min saved
+                      ~{weekTimeSaved}{" "}
+                      {t("minsSaved", "min saved")}
                     </p>
                   </div>
                 </div>
@@ -1040,38 +1148,46 @@ export default function DashboardPage() {
               {/* Goal of the Week */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-8 text-sm">
                 <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
-                  GOAL OF THE WEEK
+                  {t("goalOfWeekHeading", "GOAL OF THE WEEK")}
                 </p>
 
                 {!isPro ? (
                   <>
                     <p className="text-[13px] mb-1">
-                      Set a clear weekly focus goal and let AI help you stay
-                      on track.
+                      {t(
+                        "goalOfWeekPitch",
+                        "Set a clear weekly focus goal and let AI help you stay on track."
+                      )}
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)] mb-3">
-                      This is a Pro feature. Upgrade to unlock AI-powered
-                      weekly goals, progress tracking in your weekly report
-                      emails, and unlimited daily AI usage.
+                      {t(
+                        "goalOfWeekProOnly",
+                        "This is a Pro feature. Upgrade to unlock AI-powered weekly goals, progress tracking in your weekly report emails, and unlimited daily AI usage."
+                      )}
                     </p>
 
                     <Link
                       href="/dashboard#pricing"
                       className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
                     >
-                      🔒 Unlock with Pro
+                      {t("unlockWithPro", "🔒 Unlock with Pro")}
                     </Link>
                   </>
                 ) : (
                   <>
                     <p className="text-[12px] text-[var(--text-muted)] mb-2">
-                      Pick one meaningful outcome you want to achieve this
-                      week. Keep it small and realistic.
+                      {t(
+                        "goalInstructions",
+                        "Pick one meaningful outcome you want to achieve this week. Keep it small and realistic."
+                      )}
                     </p>
                     <textarea
                       value={weeklyGoalText}
                       onChange={(e) => setWeeklyGoalText(e.target.value)}
-                      placeholder="e.g. Finish and send the client proposal draft."
+                      placeholder={t(
+                        "goalPlaceholder",
+                        "e.g. Finish and send the client proposal draft."
+                      )}
                       className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm mb-2 min-h-[60px]"
                     />
                     <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -1083,7 +1199,9 @@ export default function DashboardPage() {
                         }
                         className="px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs text-[var(--accent-contrast)]"
                       >
-                        {weeklyGoalSaving ? "Saving..." : "Save goal"}
+                        {weeklyGoalSaving
+                          ? t("savingGoal", "Saving...")
+                          : t("saveGoal", "Save goal")}
                       </button>
                       <button
                         type="button"
@@ -1094,8 +1212,11 @@ export default function DashboardPage() {
                         className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs disabled:opacity-60"
                       >
                         {weeklyGoalSaving
-                          ? "Saving..."
-                          : "Save & let AI refine"}
+                          ? t("savingGoal", "Saving...")
+                          : t(
+                              "saveGoalAI",
+                              "Save & let AI refine"
+                            )}
                       </button>
                     </div>
 
@@ -1112,11 +1233,20 @@ export default function DashboardPage() {
                           }`}
                         >
                           {weeklyGoalCompleted
-                            ? "✅ Marked as done"
-                            : "Mark this goal as done"}
+                            ? t(
+                                "goalMarkedDone",
+                                "✅ Marked as done"
+                              )
+                            : t(
+                                "goalMarkAsDone",
+                                "Mark this goal as done"
+                              )}
                         </button>
                         <span className="text-[11px] text-[var(--text-muted)]">
-                          This is your single focus target for this week.
+                          {t(
+                            "goalSingleFocus",
+                            "This is your single focus target for this week."
+                          )}
                         </span>
                       </div>
                     )}
@@ -1128,12 +1258,14 @@ export default function DashboardPage() {
               <div className="grid md:grid-cols-2 gap-5 mb-8 text-sm">
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-                    RECENT NOTES
+                    {t("recentNotesHeading", "RECENT NOTES")}
                   </p>
                   {recentNotes.length === 0 ? (
                     <p className="text-[12px] text-[var(--text-muted)]">
-                      No notes yet. Create your first note from the Notes
-                      page.
+                      {t(
+                        "noNotes",
+                        "No notes yet. Create your first note from the Notes page."
+                      )}
                     </p>
                   ) : (
                     <ul className="space-y-2">
@@ -1142,7 +1274,8 @@ export default function DashboardPage() {
                           key={n.id}
                           className="text-[12px] line-clamp-2"
                         >
-                          {n.content?.slice(0, 160) || "(empty note)"}
+                          {n.content?.slice(0, 160) ||
+                            t("emptyNote", "(empty note)")}
                         </li>
                       ))}
                     </ul>
@@ -1151,34 +1284,42 @@ export default function DashboardPage() {
                     href="/notes"
                     className="mt-3 inline-block text-[11px] text-[var(--accent)] hover:opacity-90"
                   >
-                    Open Notes →
+                    {t("openNotesLink", "Open Notes →")}
                   </Link>
                 </div>
 
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                   <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-                    RECENT TASKS
+                    {t("recentTasksHeading", "RECENT TASKS")}
                   </p>
                   {recentTasks.length === 0 ? (
                     <p className="text-[12px] text-[var(--text-muted)]">
-                      No tasks yet. Start by adding a few tasks you want to
-                      track.
+                      {t(
+                        "noTasks",
+                        "No tasks yet. Start by adding a few tasks you want to track."
+                      )}
                     </p>
                   ) : (
                     <ul className="space-y-2">
-                      {recentTasks.map((t) => (
+                      {recentTasks.map((tTask) => (
                         <li
-                          key={t.id}
+                          key={tTask.id}
                           className="text-[12px] flex items-center gap-2 line-clamp-2"
                         >
                           <span
                             className={`h-2 w-2 rounded-full ${
-                              t.completed
+                              tTask.completed
                                 ? "bg-emerald-400"
                                 : "bg-slate-500"
                             }`}
                           />
-                          <span>{t.title || "(untitled task)"}</span>
+                          <span>
+                            {tTask.title ||
+                              t(
+                                "untitledTask",
+                                "(untitled task)"
+                              )}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -1188,13 +1329,16 @@ export default function DashboardPage() {
                       href="/tasks"
                       className="inline-block text-[11px] text-[var(--accent)] hover:opacity-90"
                     >
-                      Open Tasks →
+                      {t("openTasksLink", "Open Tasks →")}
                     </Link>
                     <Link
                       href="/settings"
                       className="inline-block text-[11px] text-[var(--accent)] hover:opacity-90"
                     >
-                      Settings / Export →
+                      {t(
+                        "settingsExportLink",
+                        "Settings / Export →"
+                      )}
                     </Link>
                   </div>
                 </div>
@@ -1208,31 +1352,31 @@ export default function DashboardPage() {
               href="/notes"
               className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
             >
-              Go to Notes
+              {t("goToNotesButton", "Go to Notes")}
             </Link>
             <Link
               href="/tasks"
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
             >
-              Go to Tasks
+              {t("goToTasksButton", "Go to Tasks")}
             </Link>
             <Link
               href="/templates"
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
             >
-              🧠 AI Templates
+              {t("aiTemplatesButton", "🧠 AI Templates")}
             </Link>
             <Link
               href="/planner"
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
             >
-              🗓 Daily Planner
+              {t("dailyPlannerButton", "🗓 Daily Planner")}
             </Link>
             <Link
               href="/weekly-reports"
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
             >
-              📅 Weekly Reports
+              {t("weeklyReportsButton", "📅 Weekly Reports")}
             </Link>
           </div>
 
@@ -1241,13 +1385,16 @@ export default function DashboardPage() {
             <>
               <div className="mb-4 rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-3 text-[11px] text-[var(--text-main)] flex flex-wrap gap-3 items-center">
                 <span className="font-semibold text-xs">
-                  What you unlock with Pro:
+                  {t(
+                    "proUnlockTitle",
+                    "What you unlock with Pro:"
+                  )}
                 </span>
-                <span>📈 Higher daily AI limit</span>
-                <span>📬 Weekly AI email report</span>
-                <span>🎯 Weekly goal with AI refinement</span>
-                <span>✈️ Save unlimited trips</span>
-                <span>🧠 Premium templates</span>
+                <span>📈 {t("proUnlockHigherLimit", "Higher daily AI limit")}</span>
+                <span>📬 {t("proUnlockWeeklyReport", "Weekly AI email report")}</span>
+                <span>🎯 {t("proUnlockWeeklyGoal", "Weekly goal with AI refinement")}</span>
+                <span>✈️ {t("proUnlockTrips", "Save unlimited trips")}</span>
+                <span>🧠 {t("proUnlockTemplates", "Premium templates")}</span>
               </div>
 
               {/* PRO PLAN */}
@@ -1256,11 +1403,16 @@ export default function DashboardPage() {
                 className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-5 text-xs md:text-sm max-w-xl mb-4"
               >
                 <p className="font-semibold mb-1 text-sm md:text-base">
-                  Upgrade to AI Productivity Hub PRO
+                  {t(
+                    "proPricingTitle",
+                    "Upgrade to AI Productivity Hub PRO"
+                  )}
                 </p>
                 <p className="mb-3 text-[var(--text-muted)]">
-                  For daily users who want higher limits and weekly
-                  insights.
+                  {t(
+                    "proPricingSubtitle",
+                    "For daily users who want higher limits and weekly insights."
+                  )}
                 </p>
 
                 <div className="flex items-center gap-4 mb-4">
@@ -1272,7 +1424,7 @@ export default function DashboardPage() {
                         : "border border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                     }`}
                   >
-                    Monthly
+                    {t("billingMonthly", "Monthly")}
                   </button>
 
                   <button
@@ -1283,7 +1435,7 @@ export default function DashboardPage() {
                         : "border border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                     }`}
                   >
-                    Yearly — save 25%
+                    {t("billingYearly", "Yearly — save 25%")}
                   </button>
                 </div>
 
@@ -1300,12 +1452,48 @@ export default function DashboardPage() {
                 </div>
 
                 <ul className="space-y-1.5 text-[11px] text-[var(--text-main)] mb-4">
-                  <li>• Unlimited AI (2000 calls/day)</li>
-                  <li>• Weekly AI email reports</li>
-                  <li>• AI-powered Weekly Goals</li>
-                  <li>• Save & revisit trip plans</li>
-                  <li>• All premium templates</li>
-                  <li>• Priority feature access</li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "proFeatureUnlimitedAI",
+                      "Unlimited AI (2000 calls/day)"
+                    )}
+                  </li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "proFeatureWeeklyReports",
+                      "Weekly AI email reports"
+                    )}
+                  </li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "proFeatureWeeklyGoals",
+                      "AI-powered Weekly Goals"
+                    )}
+                  </li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "proFeatureTrips",
+                      "Save & revisit trip plans"
+                    )}
+                  </li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "proFeatureTemplates",
+                      "All premium templates"
+                    )}
+                  </li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "proFeaturePriorityAccess",
+                      "Priority feature access"
+                    )}
+                  </li>
                 </ul>
 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
@@ -1335,75 +1523,131 @@ export default function DashboardPage() {
                     className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)] disabled:opacity-60"
                   >
                     {billingLoading
-                      ? "Opening Stripe…"
+                      ? t("openingStripe", "Opening Stripe…")
                       : billingPeriod === "yearly"
-                      ? `Go yearly (${currency.toUpperCase()})`
-                      : `Upgrade monthly (${currency.toUpperCase()})`}
+                      ? t(
+                          "goYearlyButton",
+                          `Go yearly (${currency.toUpperCase()})`
+                        )
+                      : t(
+                          "upgradeMonthlyButton",
+                          `Upgrade monthly (${currency.toUpperCase()})`
+                        )}
                   </button>
                 </div>
 
                 <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                  Cancel anytime via Stripe billing portal.
+                  {t(
+                    "cancelAnytime",
+                    "Cancel anytime via Stripe billing portal."
+                  )}
                 </p>
               </section>
 
               {/* Founder / early supporter */}
               <section className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-5 text-xs md:text-sm max-w-xl">
-  <p className="text-[var(--accent)] font-semibold mb-1 text-sm md:text-base">
-    🎉 Early Supporter Discount
-  </p>
-  <p className="text-[var(--text-main)] mb-3">
-    Because you're early — lock in a permanent discount, forever.
-  </p>
+                <p className="text-[var(--accent)] font-semibold mb-1 text-sm md:text-base">
+                  {t(
+                    "founderTitle",
+                    "🎉 Early Supporter Discount"
+                  )}
+                </p>
+                <p className="text-[var(--text-main)] mb-3">
+                  {t(
+                    "founderSubtitle",
+                    "Because you're early — lock in a permanent discount, forever."
+                  )}
+                </p>
 
-  <div className="flex items-baseline gap-2 mb-3">
-    <p className="text-2xl font-bold text-[var(--text-main)]">
-      {PRICE_LABELS.founder.monthly[currency]}
-      <span className="text-base font-normal text-[var(--text-muted)]"> / month</span>
-    </p>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <p className="text-2xl font-bold text-[var(--text-main)]">
+                    {PRICE_LABELS.founder.monthly[currency]}
+                    <span className="text-base font-normal text-[var(--text-muted)]">
+                      {" "}
+                      /{" "}
+                      {t(
+                        "founderPerMonth",
+                        "month"
+                      )}
+                    </span>
+                  </p>
 
-    <p className="text-[11px] text-[var(--text-muted)]">
-      Founder price — never increases
-    </p>
-  </div>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    {t(
+                      "founderPriceNote",
+                      "Founder price — never increases"
+                    )}
+                  </p>
+                </div>
 
-  <ul className="space-y-1.5 text-[11px] text-[var(--text-main)] mb-4">
-    <li>• Everything in Pro</li>
-    <li>• Locked-in lifetime price</li>
-    <li>• Unlimited AI (2000/day)</li>
-    <li>• Weekly reports & goals</li>
-    <li>• Premium templates</li>
-    <li>• Priority support</li>
-  </ul>
+                <ul className="space-y-1.5 text-[11px] text-[var(--text-main)] mb-4">
+                  <li>
+                    • {t("founderEverythingPro", "Everything in Pro")}
+                  </li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "founderLifetimePrice",
+                      "Locked-in lifetime price"
+                    )}
+                  </li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "founderUnlimitedAI",
+                      "Unlimited AI (2000/day)"
+                    )}
+                  </li>
+                  <li>
+                    •{" "}
+                    {t(
+                      "founderWeeklyReportsGoals",
+                      "Weekly reports & goals"
+                    )}
+                  </li>
+                  <li>
+                    • {t("founderPremiumTemplates", "Premium templates")}
+                  </li>
+                  <li>
+                    • {t("founderPrioritySupport", "Priority support")}
+                  </li>
+                </ul>
 
-  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-    <select
-      value={currency}
-      onChange={(e) => setCurrency(e.target.value as "eur" | "usd" | "gbp")}
-      className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs mb-2 sm:mb-0"
-    >
-      <option value="eur">EUR €</option>
-      <option value="usd">USD $</option>
-      <option value="gbp">GBP £</option>
-    </select>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                  <select
+                    value={currency}
+                    onChange={(e) =>
+                      setCurrency(e.target.value as "eur" | "usd" | "gbp")
+                    }
+                    className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs mb-2 sm:mb-0"
+                  >
+                    <option value="eur">EUR €</option>
+                    <option value="usd">USD $</option>
+                    <option value="gbp">GBP £</option>
+                  </select>
 
-    <button
-      type="button"
-      onClick={() => startCheckout(currency, "founder")}
-      disabled={billingLoading}
-      className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)] disabled:opacity-60"
-    >
-      {billingLoading
-        ? "Opening Stripe…"
-        : `Get Founder Price (${currency.toUpperCase()})`}
-    </button>
-  </div>
+                  <button
+                    type="button"
+                    onClick={() => startCheckout(currency, "founder")}
+                    disabled={billingLoading}
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)] disabled:opacity-60"
+                  >
+                    {billingLoading
+                      ? t("openingStripe", "Opening Stripe…")
+                      : t(
+                          "getFounderButton",
+                          `Get Founder Price (${currency.toUpperCase()})`
+                        )}
+                  </button>
+                </div>
 
-  <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-    Limited time. Price is yours forever once subscribed.
-  </p>
-</section>
-
+                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                  {t(
+                    "founderLimitedTime",
+                    "Limited time. Price is yours forever once subscribed."
+                  )}
+                </p>
+              </section>
             </>
           )}
 
@@ -1411,12 +1655,13 @@ export default function DashboardPage() {
           <section className="mt-10 mb-8">
             <div className="max-w-md mx-auto">
               <h2 className="text-sm font-semibold mb-1 text-center">
-                Send quick feedback
+                {t("feedbackHeading", "Send quick feedback")}
               </h2>
               <p className="text-[11px] text-[var(--text-main)]/70 mb-3 text-center">
-
-                Tell me what’s working, what’s confusing, or what you’d love
-                to see next.
+                {t(
+                  "feedbackSubheading",
+                  "Tell me what’s working, what’s confusing, or what you’d love to see next."
+                )}
               </p>
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                 <FeedbackForm user={user} />
