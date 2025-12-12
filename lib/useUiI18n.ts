@@ -16,6 +16,14 @@ export function useUiI18n(initialLanguage?: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ ADD THIS EFFECT (sync with LanguageProvider changes)
+  useEffect(() => {
+    if (initialLanguage && initialLanguage !== lang) {
+      setLang(initialLanguage);
+    }
+  }, [initialLanguage, lang]);
+
+  // Existing effect that fetches translations
   useEffect(() => {
     let cancelled = false;
 
@@ -31,7 +39,9 @@ export function useUiI18n(initialLanguage?: string) {
 
         if (!res.ok || !data?.ok) {
           if (!cancelled) {
-            setError(data?.error || `Failed to load translations (${res.status})`);
+            setError(
+              data?.error || `Failed to load translations (${res.status})`
+            );
           }
           return;
         }

@@ -8,7 +8,9 @@ import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import InstallAppButton from "@/app/components/InstallAppButton";
 import Image from "next/image";
+import { useT } from "@/lib/useT";
 import { useUiI18n } from "@/lib/useUiI18n";
+import { useUiStrings } from "@/app/components/UiStringsProvider";
 
 type HeaderProps = {
   active?:
@@ -48,30 +50,26 @@ export default function AppHeader({ active }: HeaderProps) {
     languageCtx?.label || languageCtx?.languageLabel || null;
 
   // Load UI translations for the current language
-  const { t } = useUiI18n(uiLangCode);
-
+  const { t: tNav } = useT("nav");
+  const { t: tAuth } = useT("auth");
+  const { dict } = useUiStrings();
+  const { t } = (k: string) => dict[k] ?? k;
   // --- small helpers so "nav." / "auth." keys never leak into the UI ---
 
   function navLabel(key: string, fallback: string) {
-    const fullKey = `nav.${key}`;
-    const val = t(fullKey);
-    // If the translation is missing or equal to the key itself, use fallback
-    if (!val || val === fullKey) return fallback;
-    return val;
-  }
+  return tNav(key, fallback); // useT("nav") automatically prefixes "nav."
+}
 
-  function authLabel(key: "login" | "logout", fallback: string) {
-    const fullKey = `auth.${key}`;
-    const val = t(fullKey);
-    if (!val || val === fullKey) return fallback;
-    return val;
-  }
+function authLabel(key: "login" | "logout", fallback: string) {
+  return tAuth(key, fallback); // prefixes "auth."
+}
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
+  
 
   useEffect(() => {
     let cancelled = false;

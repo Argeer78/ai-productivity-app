@@ -1,22 +1,42 @@
 // scripts/export-ui-translations.ts
-import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
+import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
-// You need these in your .env.local / env
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!; // service role or admin key
+// Load env files explicitly (scripts do NOT automatically load Next.js env)
+dotenv.config({ path: path.join(process.cwd(), ".env.local") });
+dotenv.config({ path: path.join(process.cwd(), ".env") });
+
+// Accept either naming style
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+
+const SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY ||
+  "";
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in env."
+    "Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in env."
+  );
+  console.error("cwd:", process.cwd());
+  console.error("has SUPABASE_URL:", !!process.env.SUPABASE_URL);
+  console.error(
+    "has NEXT_PUBLIC_SUPABASE_URL:",
+    !!process.env.NEXT_PUBLIC_SUPABASE_URL
+  );
+  console.error(
+    "has SUPABASE_SERVICE_ROLE_KEY:",
+    !!process.env.SUPABASE_SERVICE_ROLE_KEY
   );
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-// Add whatever languages you want to export
+// Languages to export
 const LANGS = [
   "en",
   "el",
@@ -52,14 +72,17 @@ async function exportLang(lang: string) {
     .order("key");
 
   if (error) {
-    console.error(`Failed to export ${lang}:`, error.message);
+    console.error(`❌ Failed to export ${lang}:`, error.message);
     return;
   }
 
   const map: Record<string, string> = {};
   for (const row of data || []) {
-    if (!row.key || typeof row.text !== "string") continue;
-    map[row.key] = row.text;
+    const k = (row as any).key;
+    const t = (row as any).text;
+    if (typeof k !== "string") continue;
+    if (typeof t !== "string") continue;
+    map[k] = t;
   }
 
   const outDir = path.join(process.cwd(), "languages");
@@ -68,7 +91,7 @@ async function exportLang(lang: string) {
   const outPath = path.join(outDir, `${lang}.json`);
   fs.writeFileSync(outPath, JSON.stringify(map, null, 2), "utf8");
 
-  console.log(`✅ Exported ${Object.keys(map).length} keys to ${outPath}`);
+  console.log(`✅ Exported ${Object.keys(map).length} keys -> ${outPath}`);
 }
 
 async function main() {

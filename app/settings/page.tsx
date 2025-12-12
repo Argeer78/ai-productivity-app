@@ -817,37 +817,37 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* 🌐 Single language dropdown (app language + translator default) */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
-                  {t("language.label", "Language")}
-                </label>
-                <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                  {t(
-                    "language.description",
-                    "This changes the app interface language and is used as the default target for the “Translate with AI” button."
-                  )}
-                </p>
-                <select
-                  value={appLang}
-                  onChange={(e) => {
-                    const newLang = e.target.value as Lang;
-                    setAppLang(newLang);
-                    if (typeof window !== "undefined") {
-                      // Also drive TranslateWithAIButton default
-                      window.localStorage.setItem(LS_PREF_LANG, newLang);
-                    }
-                  }}
-                  className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
-                >
-                  {SUPPORTED_LANGS.map((opt) => (
-                    <option key={opt.code} value={opt.code}>
-                      {opt.flag}{" "}
-                      {opt.label ?? opt.code.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
+             {/* 🌐 Single language dropdown (app language + translator default) */}
+<div>
+  <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
+    {t("language.label", "Language")}
+  </label>
+  <p className="text-[11px] text-[var(--text-muted)] mb-2">
+    {t(
+      "language.description",
+      "This changes the app interface language and is used as the default target for the “Translate with AI” button."
+    )}
+  </p>
+
+  <select
+    value={appLang}
+    onChange={(e) => {
+      const newLang = e.target.value as Lang;
+      setAppLang(newLang); // ✅ This updates context + localStorage + profile
+    }}
+    className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
+  >
+    {(SUPPORTED_LANGS as { code: Lang; label: string; flag?: string }[]).map(
+      (opt) => (
+        <option key={opt.code} value={opt.code}>
+          {opt.flag ? `${opt.flag} ` : ""}
+          {opt.label ?? opt.code.toUpperCase()}
+        </option>
+      )
+    )}
+  </select>
+</div>
+
 
               {/* Focus area */}
               <div>

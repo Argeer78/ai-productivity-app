@@ -1,31 +1,21 @@
-// app/components/UiStringsProvider.tsx
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/app/components/LanguageProvider";
-import type { Locale } from "@/lib/i18n";
 
-type UiStringsContextValue = {
-  lang: Locale;
-  translations: Record<string, string>;
+type Ctx = {
+  lang: string;
+  dict: Record<string, string>;
   loading: boolean;
   error: string | null;
 };
 
-const UiStringsContext = createContext<UiStringsContextValue | undefined>(
-  undefined
-);
+const UiStringsContext = createContext<Ctx | null>(null);
 
-export function UiStringsProvider({ children }: { children: ReactNode }) {
-  const { lang } = useLanguage();
-  const [translations, setTranslations] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
+export function UiStringsProvider({ children }: { children: React.ReactNode }) {
+  const { lang } = useLanguage(); // your app language (en/fr/it etc)
+  const [dict, setDict] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,27 +24,26 @@ export function UiStringsProvider({ children }: { children: ReactNode }) {
     async function load() {
       setLoading(true);
       setError(null);
+
       try {
-        const res = await fetch(`/api/ui-translations/${lang}`);
-        const json = await res.json().catch(() => null as any);
+        const res = await fetch(`/api/ui-translations/${lang}`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
 
         if (!res.ok || !json?.ok) {
-          throw new Error(json?.error || "Failed to load translations");
+          throw new Error(json?.error || `Failed to load UI translations (${res.status})`);
         }
 
         if (!cancelled) {
-          setTranslations(json.translations || {});
+          setDict(json.translations || {});
         }
-      } catch (err: any) {
-        console.error("[UiStringsProvider] load error", err);
+      } catch (e: any) {
+        console.error("[UiStringsProvider] load error:", e);
         if (!cancelled) {
-          setError(err?.message || "Failed to load translations");
-          setTranslations({});
+          setError(e?.message || "Failed to load UI translations");
+          setDict({}); // fallback to keys/fallbacks
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -64,19 +53,13 @@ export function UiStringsProvider({ children }: { children: ReactNode }) {
     };
   }, [lang]);
 
-  return (
-    <UiStringsContext.Provider
-      value={{ lang, translations, loading, error }}
-    >
-      {children}
-    </UiStringsContext.Provider>
-  );
+  const value = useMemo(() => ({ lang, dict, loading, error }), [lang, dict, loading, error]);
+
+  return <UiStringsContext.Provider value={value}>{children}</UiStringsContext.Provider>;
 }
 
-export function useUiStrings(): UiStringsContextValue {
+export function useUiStrings() {
   const ctx = useContext(UiStringsContext);
-  if (!ctx) {
-    throw new Error("useUiStrings must be used inside <UiStringsProvider>");
-  }
+  if (!ctx) throw new Error("useUiStrings must be used inside <UiStringsProvider>");
   return ctx;
 }

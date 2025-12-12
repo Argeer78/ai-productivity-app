@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
-
 type PlanType = "free" | "pro" | "founder";
 
 type DailyScoreRow = {

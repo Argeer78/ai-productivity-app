@@ -1,10 +1,9 @@
-// app/components/RtlDirectionManager.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Locale, SUPPORTED_LANGS, isRTL } from "@/lib/i18n";
 
-const LS_KEY = "aiprod_lang";
+const LS_KEY = "aiprod_lang"; // 🔥 same as LanguageProvider
 
 function detectInitialLocale(): Locale {
   if (typeof window === "undefined") return "en";
@@ -14,7 +13,6 @@ function detectInitialLocale(): Locale {
     return stored as Locale;
   }
 
-  // Fallback to English
   return "en";
 }
 
@@ -25,11 +23,10 @@ export function RtlDirectionManager({
 }) {
   const [locale, setLocale] = useState<Locale>(detectInitialLocale);
 
-  // Watch for language changes (localStorage + custom event)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const syncLocaleFromStorage = () => {
+    const checkLang = () => {
       const stored = window.localStorage.getItem(LS_KEY);
       if (
         stored &&
@@ -40,37 +37,26 @@ export function RtlDirectionManager({
       }
     };
 
-    // Initial sync in case LanguageProvider already set it
-    syncLocaleFromStorage();
+    // Initial check
+    checkLang();
 
-    // Fired when localStorage changes in *other* tabs
     const onStorage = (e: StorageEvent) => {
       if (e.key === LS_KEY) {
-        syncLocaleFromStorage();
+        checkLang();
       }
     };
 
-    // Fired in the *same* tab by LanguageProvider (we'll add that below)
-    const onCustom = () => {
-      syncLocaleFromStorage();
-    };
-
     window.addEventListener("storage", onStorage);
-    window.addEventListener("aiprod_lang_change", onCustom as EventListener);
-
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("aiprod_lang_change", onCustom as EventListener);
-    };
+    return () => window.removeEventListener("storage", onStorage);
   }, [locale]);
 
-  // Apply dir + lang to <html>
   useEffect(() => {
     if (typeof document === "undefined") return;
-
     const html = document.documentElement;
+    const rtl = isRTL(locale);
+
     html.lang = locale;
-    html.dir = isRTL(locale) ? "rtl" : "ltr";
+    html.dir = rtl ? "rtl" : "ltr";
   }, [locale]);
 
   return <>{children}</>;

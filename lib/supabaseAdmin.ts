@@ -1,25 +1,33 @@
-import { createClient } from "@supabase/supabase-js";
+// lib/supabaseAdmin.ts
+import "server-only";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-// Fetch the Supabase URL and service role key from environment variables
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let cached: SupabaseClient | null = null;
 
-// Guard against missing environment variables on the server
-if (!SUPABASE_URL) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL for supabaseAdmin. Please check your .env file.");
+export function getSupabaseAdmin(): SupabaseClient | null {
+  if (cached) return cached;
+
+  // Prefer server-only env vars (DO NOT use NEXT_PUBLIC here if you can avoid it)
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    "";
+
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+  // IMPORTANT: do not throw here — return null so API routes can fall back
+  if (!url || !serviceKey) {
+    console.warn(
+      "[getSupabaseAdmin] Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY. Returning null."
+    );
+    return null;
+  }
+
+  cached = createClient(url, serviceKey, {
+    auth: { persistSession: false },
+    global: { headers: { "X-Client-Info": "admin-metrics" } },
+  });
+
+  return cached;
 }
-if (!SERVICE_ROLE_KEY) {
-  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY for supabaseAdmin. Please check your .env file.");
-}
-
-// SERVER-ONLY client – this should NEVER be imported into client components!
-export const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: {
-    persistSession: false, // Do not persist session for server-side requests
-  },
-  global: {
-    headers: {
-      "X-Client-Info": "admin-metrics", // Custom client header for tracking/debugging
-    },
-  },
-});
