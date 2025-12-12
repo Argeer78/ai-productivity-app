@@ -1,9 +1,9 @@
 // lib/useT.ts
 "use client";
 
-import { useEffect, useState } from "react";
 import { useLanguage } from "@/app/components/LanguageProvider";
-import type { Locale } from "@/lib/i18n";
+import { useEffect, useState } from "react";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
 
 type Namespace =
   | "home"
@@ -17,90 +17,101 @@ type Namespace =
   | "settings"
   | "aiChat"
   | "translate"
+  | "tools"
   | string;
 
-/**
- * In-memory cache: lang -> { "notes.title": "…" }
- */
+// Simple client-side cache: lang -> translations map
 const uiCache: Record<string, Record<string, string>> = {};
 const uiCacheLoading: Record<string, boolean> = {};
 
-async function fetchUiTranslations(lang: string): Promise<Record<string, string>> {
-  // Already loaded
-  if (uiCache[lang]) return uiCache[lang];
-
-  // Avoid duplicate concurrent fetches
-  if (uiCacheLoading[lang]) {
-    await new Promise<void>((resolve) => {
-      const id = setInterval(() => {
-        if (uiCache[lang]) {
-          clearInterval(id);
-          resolve();
-        }
-      }, 50);
-    });
-    return uiCache[lang] || {};
-  }
-
-  uiCacheLoading[lang] = true;
-
-  try {
-    const res = await fetch(`/api/ui-translations/${lang}`);
-    if (!res.ok) throw new Error(`Failed to load UI translations for ${lang}`);
-
-    const json = await res.json();
-    const dict = (json?.translations || {}) as Record<string, string>;
-    uiCache[lang] = dict;
-    return dict;
-  } catch (err) {
-    console.error("[useT] fetchUiTranslations error", err);
-    uiCache[lang] = {};
-    return {};
-  } finally {
-    uiCacheLoading[lang] = false;
-  }
-}
-
+/**
+ * Hook to translate namespaced keys using data from:
+ *   GET /api/ui-translations/[lang]
+ *
+ * Keys in Supabase are flat, e.g.:
+ *   "notes.create.heading"
+ *   "tasks.list.title"
+ *
+ * Usage:
+ *   const { t } = useT("notes");
+ *   t("create.heading", "Create a new note");
+ */
 export function useT(namespace: Namespace) {
-  const { lang: ctxLang } = useLanguage();
-  const lang = (ctxLang || "en") as Locale;
+  const languageCtx = useLanguage() as any;
+
+  const ctxLang: string | undefined =
+    languageCtx?.lang ||
+    languageCtx?.code ||
+    languageCtx?.languageCode ||
+    languageCtx?.language;
+
+  const lang: Locale = (ctxLang || DEFAULT_LOCALE) as Locale;
 
   const [dict, setDict] = useState<Record<string, string>>(() => {
     return uiCache[lang] || {};
   });
 
-  // Load / refresh translations when language changes
+  // Load translations for the current language (if not cached yet)
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      const data = await fetchUiTranslations(lang);
-      if (!cancelled) {
-        setDict(data);
+    async function load() {
+      // Already cached → just use it
+      if (uiCache[lang]) {
+        if (!cancelled) setDict(uiCache[lang]);
+        return;
       }
-    })();
+
+      // Prevent concurrent fetches per lang
+      if (uiCacheLoading[lang]) return;
+      uiCacheLoading[lang] = true;
+
+      try {
+        const res = await fetch(`/api/ui-translations/${lang}`);
+        if (!res.ok) {
+          console.error(
+            "[useT] Failed to fetch ui-translations for",
+            lang,
+            res.status
+          );
+          uiCacheLoading[lang] = false;
+          return;
+        }
+
+        const json = await res.json();
+        const translations =
+          (json && json.translations) || ({} as Record<string, string>);
+
+        uiCache[lang] = translations;
+        uiCacheLoading[lang] = false;
+
+        if (!cancelled) {
+          setDict(translations);
+        }
+      } catch (err) {
+        console.error("[useT] Error fetching ui-translations:", err);
+        uiCacheLoading[lang] = false;
+      }
+    }
+
+    load();
 
     return () => {
       cancelled = true;
     };
   }, [lang]);
 
-  /**
-   * Normal translation. If `key` already looks like "namespace.key",
-   * we use it as-is. Otherwise we prefix with the provided namespace.
-   */
+  // namespaced translation: "namespace.key"
   function t(key: string, fallback?: string): string {
-    const fullKey = key.includes(".") ? key : `${namespace}.${key}`;
+    const fullKey = `${namespace}.${key}`;
     const value = dict[fullKey];
 
     if (typeof value === "string" && value.length > 0) return value;
     if (typeof fallback === "string") return fallback;
-    return fullKey; // debug fallback
+    return fullKey; // debug missing key
   }
 
-  /**
-   * "common" namespace helper, for shared keys like common.ok / common.cancel
-   */
+  // common translation: "common.key"
   function tCommon(key: string, fallback?: string): string {
     const fullKey = `common.${key}`;
     const value = dict[fullKey];

@@ -1,7 +1,7 @@
 // app/api/ui-translations/[lang]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { UI_STRINGS, type UiTranslationKey } from "@/lib/uiStrings";
+import { UI_STRINGS } from "@/lib/uiStrings";
 
 export async function GET(
   _req: NextRequest,
@@ -10,60 +10,62 @@ export async function GET(
   try {
     const { lang } = await context.params;
 
-    const raw = (lang || "en").trim();
-    if (!raw) {
+    const codeRaw = (lang || "en").trim();
+    if (!codeRaw) {
       return NextResponse.json(
         { ok: false, error: "Missing language code" },
         { status: 400 }
       );
     }
 
-    const code = raw.toLowerCase();
-    const targetLang = code.split("-")[0] || "en"; // e.g. fr-FR -> fr
+    const code = codeRaw.toLowerCase();
+    const baseLang = code.split("-")[0]; // e.g. "fr-FR" -> "fr"
+    const languageCode = baseLang || "en";
 
-    // 1) Load EN base from DB, fallback to UI_STRINGS
+    // 1) Load *English* master keys from ui_translations if present
+    const baseMap: Record<string, string> = {};
+
     const { data: enRows, error: enError } = await supabaseAdmin
       .from("ui_translations")
       .select("key, text")
       .eq("language_code", "en");
 
-    const enMap: Record<string, string> = {};
-
     if (!enError && enRows && enRows.length > 0) {
       for (const row of enRows) {
         if (!row.key || typeof row.text !== "string") continue;
-        enMap[row.key] = row.text;
+        baseMap[row.key] = row.text;
       }
     } else {
-      // fallback: nav + core keys from UI_STRINGS
-      (Object.keys(UI_STRINGS) as UiTranslationKey[]).forEach((key) => {
-        enMap[key] = UI_STRINGS[key];
-      });
+      // Fallback: use UI_STRINGS as minimal English base
+      for (const [key, text] of Object.entries(UI_STRINGS)) {
+        baseMap[key] = text as string;
+      }
     }
 
-    // 2) If we are asking for English, just return EN map
-    if (targetLang === "en") {
+    // Start with English as fallback
+    const translations: Record<string, string> = { ...baseMap };
+
+    // 2) If we’re requesting English, just return the master map
+    if (languageCode === "en") {
       return NextResponse.json(
         {
           ok: true,
           languageCode: "en",
-          translations: enMap,
+          translations,
         },
         { status: 200 }
       );
     }
 
-    // 3) Load target language rows
-    const { data: targetRows, error: targetError } = await supabaseAdmin
+    // 3) Load overrides for the requested language from ui_translations
+    const { data: langRows, error: langError } = await supabaseAdmin
       .from("ui_translations")
       .select("key, text")
-      .eq("language_code", targetLang);
+      .eq("language_code", languageCode);
 
-    const translations: Record<string, string> = { ...enMap }; // EN fallback
-
-    if (targetError) {
-      console.error("[ui-translations] target fetch error", targetError);
-      // fall back to EN only, but still return ok
+    if (langError) {
+      console.error("[ui-translations] lang fetch error", langError);
+      // Still return English fallback so UI works
       return NextResponse.json(
         {
           ok: true,
@@ -74,28 +76,17 @@ export async function GET(
       );
     }
 
-    if (targetRows && targetRows.length > 0) {
-      for (const row of targetRows) {
+    if (langRows && langRows.length > 0) {
+      for (const row of langRows) {
         if (!row.key || typeof row.text !== "string") continue;
-        // override EN fallback with target language
         translations[row.key] = row.text;
       }
-
-      return NextResponse.json(
-        {
-          ok: true,
-          languageCode: targetLang,
-          translations,
-        },
-        { status: 200 }
-      );
     }
 
-    // 4) No rows for that language -> EN fallback
     return NextResponse.json(
       {
         ok: true,
-        languageCode: "en",
+        languageCode,
         translations,
       },
       { status: 200 }
