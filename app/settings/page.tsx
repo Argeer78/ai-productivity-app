@@ -830,22 +830,24 @@ export default function SettingsPage() {
   </p>
 
   <select
-    value={appLang}
-    onChange={(e) => {
-      const newLang = e.target.value as Lang;
-      setAppLang(newLang); // ✅ This updates context + localStorage + profile
-    }}
-    className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
-  >
-    {(SUPPORTED_LANGS as { code: Lang; label: string; flag?: string }[]).map(
-      (opt) => (
-        <option key={opt.code} value={opt.code}>
-          {opt.flag ? `${opt.flag} ` : ""}
-          {opt.label ?? opt.code.toUpperCase()}
-        </option>
-      )
-    )}
-  </select>
+  value={appLang}
+  onChange={(e) => {
+    const newLang = e.target.value as Lang;
+    setAppLang(newLang);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LS_PREF_LANG, newLang);
+    }
+  }}
+  className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
+>
+  {SUPPORTED_LANGS.map((opt) => (
+    <option key={opt.code} value={opt.code}>
+      {"flag" in opt && opt.flag ? `${opt.flag} ` : ""}
+      {opt.label ?? opt.code.toUpperCase()}
+    </option>
+  ))}
+</select>
+
 </div>
 
 
