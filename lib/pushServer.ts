@@ -1,33 +1,84 @@
-// lib/supabaseAdmin.ts
-import "server-only";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+// lib/pushServer.ts
+import webpush from "web-push";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-let cached: SupabaseClient | null = null;
+const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const privateKey = process.env.VAPID_PRIVATE_KEY;
+const subject = process.env.VAPID_SUBJECT || "mailto:hello@aiprod.app";
 
-// Backwards-compatible named export (fixes all your Vercel errors)
-export const supabaseAdmin: SupabaseClient | null = (() => {
-  const url =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    "";
+if (!publicKey || !privateKey) {
+  throw new Error(
+    "[pushServer] Missing VAPID keys – push notifications will NOT work."
+  );
+} else {
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+}
 
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+export type SubscriptionRow = {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+};
 
-  if (!url || !serviceKey) {
-    console.warn(
-      "[supabaseAdmin] Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY."
-    );
-    return null;
+export type TaskPushPayload = {
+  taskId: string;
+  title: string;
+  note?: string | null;
+};
+
+export async function sendTaskReminderPush(
+  sub: SubscriptionRow,
+  payload: TaskPushPayload
+) {
+  if (!payload.taskId || !payload.title) {
+    console.error("[pushServer] Invalid payload: Missing taskId or title.");
+    return;
   }
 
-  return createClient(url, serviceKey, {
-    auth: { persistSession: false },
-    global: { headers: { "X-Client-Info": "admin-server" } },
+  const notificationPayload = JSON.stringify({
+    title: payload.title || "Task reminder",
+    body: payload.note || "You have something to review.",
+    data: {
+      url: "https://aiprod.app/tasks",
+      taskId: payload.taskId,
+    },
   });
-})();
 
-export function getSupabaseAdmin(): SupabaseClient | null {
-  if (cached) return cached;
-  cached = supabaseAdmin;
-  return cached;
+  try {
+    await webpush.sendNotification(
+      {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.p256dh,
+          auth: sub.auth,
+        },
+      },
+      notificationPayload
+    );
+    console.log("[pushServer] Push sent to", sub.endpoint);
+  } catch (err: any) {
+    console.error(
+      "[pushServer] Failed to send push notification:",
+      err?.statusCode,
+      err?.body || err
+    );
+
+    if (err?.statusCode === 410 || err?.statusCode === 404) {
+      console.log(
+        "[pushServer] Subscription expired, removing from DB:",
+        sub.endpoint
+      );
+      try {
+        await supabaseAdmin
+          .from("push_subscriptions")
+          .delete()
+          .eq("endpoint", sub.endpoint);
+      } catch (dbError) {
+        console.error(
+          "[pushServer] Failed to delete expired subscription:",
+          dbError
+        );
+      }
+    }
+  }
 }
