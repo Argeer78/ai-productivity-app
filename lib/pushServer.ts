@@ -1,6 +1,7 @@
 // lib/pushServer.ts
+import "server-only";
 import webpush from "web-push";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -63,20 +64,30 @@ export async function sendTaskReminderPush(
       err?.body || err
     );
 
+    // If subscription is gone, remove it from DB
     if (err?.statusCode === 410 || err?.statusCode === 404) {
       console.log(
         "[pushServer] Subscription expired, removing from DB:",
         sub.endpoint
       );
-      try {
-        await supabaseAdmin
-          .from("push_subscriptions")
-          .delete()
-          .eq("endpoint", sub.endpoint);
-      } catch (dbError) {
+
+      const supabaseAdmin = getSupabaseAdmin();
+      if (!supabaseAdmin) {
+        console.warn(
+          "[pushServer] supabaseAdmin not available (missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY). Can't delete expired subscription."
+        );
+        return;
+      }
+
+      const { error } = await supabaseAdmin
+        .from("push_subscriptions")
+        .delete()
+        .eq("endpoint", sub.endpoint);
+
+      if (error) {
         console.error(
           "[pushServer] Failed to delete expired subscription:",
-          dbError
+          error
         );
       }
     }
