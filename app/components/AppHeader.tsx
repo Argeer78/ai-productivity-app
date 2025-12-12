@@ -2,14 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
-import { useLanguage } from "@/app/components/LanguageProvider";
 import InstallAppButton from "@/app/components/InstallAppButton";
-import Image from "next/image";
-import { useT } from "@/lib/useT";
-import { useUiI18n } from "@/lib/useUiI18n";
+import { useLanguage } from "@/app/components/LanguageProvider";
 import { useUiStrings } from "@/app/components/UiStringsProvider";
 
 type HeaderProps = {
@@ -37,39 +35,30 @@ export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
 
   const languageCtx = useLanguage() as any;
-
-  // Try to infer the language code from your LanguageProvider
-  const uiLangCode: string =
-    languageCtx?.lang ||
-    languageCtx?.code ||
-    languageCtx?.languageCode ||
-    languageCtx?.language ||
-    "en";
-
   const currentLangLabel: string | null =
     languageCtx?.label || languageCtx?.languageLabel || null;
 
-  // Load UI translations for the current language
-  const { t: tNav } = useT("nav");
-  const { t: tAuth } = useT("auth");
-  const { dict } = useUiStrings();
-  const { t } = (k: string) => dict[k] ?? k;
-  // --- small helpers so "nav." / "auth." keys never leak into the UI ---
+  // ✅ Single source of truth: ui_translations (via provider)
+  const ui = useUiStrings() as any;
 
-  function navLabel(key: string, fallback: string) {
-  return tNav(key, fallback); // useT("nav") automatically prefixes "nav."
-}
+  // Support either provider shape:
+  // - { t } (preferred)
+  // - { dict }
+  const t = (key: string, fallback?: string) => {
+    if (typeof ui?.t === "function") return ui.t(key, fallback);
+    if (ui?.dict && typeof ui.dict[key] === "string") return ui.dict[key];
+    return fallback ?? key;
+  };
 
-function authLabel(key: "login" | "logout", fallback: string) {
-  return tAuth(key, fallback); // prefixes "auth."
-}
+  const navLabel = (key: string, fallback: string) => t(`nav.${key}`, fallback);
+  const authLabel = (key: "login" | "logout", fallback: string) =>
+    t(`auth.${key}`, fallback);
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
-  
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +67,6 @@ function authLabel(key: "login" | "logout", fallback: string) {
       try {
         const { data } = await supabase.auth.getUser();
         const user = data?.user ?? null;
-
         if (!cancelled) setUserEmail(user?.email ?? null);
       } catch (err) {
         console.error("[AppHeader] loadUser err", err);
@@ -95,7 +83,6 @@ function authLabel(key: "login" | "logout", fallback: string) {
 
   const isAdmin = userEmail === ADMIN_EMAIL;
 
-  // Theme-aware nav classes
   const navLinkBase =
     "px-2 py-1.5 rounded-lg whitespace-nowrap transition-colors text-xs sm:text-sm";
   const navLinkInactive =
@@ -135,84 +122,31 @@ function authLabel(key: "login" | "logout", fallback: string) {
     }
   }
 
-  // Mobile routes with translated labels + admin gating
   const mobileRoutes: {
     key: HeaderProps["active"];
     label: string;
     href: string;
     adminOnly?: boolean;
   }[] = [
-    {
-      key: "dashboard",
-      label: navLabel("dashboard", "Dashboard"),
-      href: "/dashboard",
-    },
+    { key: "dashboard", label: navLabel("dashboard", "Dashboard"), href: "/dashboard" },
     { key: "notes", label: navLabel("notes", "Notes"), href: "/notes" },
     { key: "tasks", label: navLabel("tasks", "Tasks"), href: "/tasks" },
-    {
-      key: "planner",
-      label: navLabel("planner", "Planner"),
-      href: "/planner",
-    },
-    {
-      key: "ai-chat",
-      label: navLabel("aiChat", "AI Hub Chat"),
-      href: "/ai-chat",
-    },
-    {
-      key: "templates",
-      label: navLabel("templates", "Templates"),
-      href: "/templates",
-    },
-    {
-      key: "daily-success",
-      label: navLabel("dailySuccess", "Daily Success"),
-      href: "/daily-success",
-    },
-    {
-      key: "weekly-reports",
-      label: navLabel("weeklyReports", "Weekly Reports"),
-      href: "/weekly-reports",
-    },
-    {
-      key: "travel",
-      label: navLabel("travel", "Travel Planner"),
-      href: "/travel",
-    },
-    {
-      key: "my-trips",
-      label: navLabel("myTrips", "My Trips"),
-      href: "/my-trips",
-    },
-    {
-      key: "feedback",
-      label: navLabel("feedback", "Feedback"),
-      href: "/feedback",
-      adminOnly: true,
-    },
-    {
-      key: "changelog",
-      label: navLabel("changelog", "What’s new"),
-      href: "/changelog",
-    },
-    {
-      key: "settings",
-      label: navLabel("settings", "Settings"),
-      href: "/settings",
-    },
-    {
-      key: "admin",
-      label: navLabel("admin", "Admin"),
-      href: "/admin",
-      adminOnly: true,
-    },
+    { key: "planner", label: navLabel("planner", "Planner"), href: "/planner" },
+    { key: "ai-chat", label: navLabel("aiChat", "AI Hub Chat"), href: "/ai-chat" },
+    { key: "templates", label: navLabel("templates", "Templates"), href: "/templates" },
+    { key: "daily-success", label: navLabel("dailySuccess", "Daily Success"), href: "/daily-success" },
+    { key: "weekly-reports", label: navLabel("weeklyReports", "Weekly Reports"), href: "/weekly-reports" },
+    { key: "travel", label: navLabel("travel", "Travel Planner"), href: "/travel" },
+    { key: "my-trips", label: navLabel("myTrips", "My Trips"), href: "/my-trips" },
+    { key: "feedback", label: navLabel("feedback", "Feedback"), href: "/feedback", adminOnly: true },
+    { key: "changelog", label: navLabel("changelog", "What’s new"), href: "/changelog" },
+    { key: "settings", label: navLabel("settings", "Settings"), href: "/settings" },
+    { key: "admin", label: navLabel("admin", "Admin"), href: "/admin", adminOnly: true },
   ];
 
   return (
     <header className="relative z-50 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/80 backdrop-blur">
-      {/* === TOP BAR === */}
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
-        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">
           <Image
             src="/icon-512.png"
@@ -223,12 +157,10 @@ function authLabel(key: "login" | "logout", fallback: string) {
             priority
           />
           <span className="text-sm font-semibold tracking-tight text-[var(--text-main)]">
-            {/* App title stays English */}
             AI Productivity Hub
           </span>
         </Link>
 
-        {/* Desktop navigation */}
         <nav className="hidden md:flex items-center gap-1 ml-4 flex-1">
           <Link
             href="/dashboard"
@@ -239,7 +171,6 @@ function authLabel(key: "login" | "logout", fallback: string) {
             {navLabel("dashboard", "Dashboard")}
           </Link>
 
-          {/* Apps dropdown */}
           <button
             type="button"
             onClick={() => setAppsOpen((v) => !v)}
@@ -247,14 +178,11 @@ function authLabel(key: "login" | "logout", fallback: string) {
               appsActive ? "text-[var(--accent)] bg-[var(--accent-soft)]" : ""
             }`}
           >
-            {navLabel("apps", "Apps")}{" "}
-            <span className="text-[11px] opacity-80">
-              {appsOpen ? "▲" : "▼"}
-            </span>
+            {navLabel("apps", "Apps")}
+            <span className="text-[11px] opacity-80">{appsOpen ? "▲" : "▼"}</span>
           </button>
         </nav>
 
-        {/* MOBILE MENU BUTTON */}
         <button
           type="button"
           onClick={() => {
@@ -266,12 +194,10 @@ function authLabel(key: "login" | "logout", fallback: string) {
           {mobileOpen ? "✕" : "☰"}
         </button>
 
-        {/* MOBILE EMAIL */}
         <div className="md:hidden text-[10px] text-[var(--text-muted)] truncate max-w-[90px]">
           {!loadingUser && userEmail}
         </div>
 
-        {/* Desktop user actions */}
         <div className="hidden md:flex items-center gap-2 text-[var(--text-main)]">
           <TranslateWithAIButton />
           <InstallAppButton />
@@ -307,7 +233,6 @@ function authLabel(key: "login" | "logout", fallback: string) {
           )}
         </div>
 
-        {/* Desktop Apps dropdown */}
         {appsOpen && (
           <div className="hidden md:block fixed left-1/2 -translate-x-1/2 top-14 mt-2 z-[80]">
             <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95 shadow-xl p-3 w-[380px]">
@@ -364,7 +289,6 @@ function authLabel(key: "login" | "logout", fallback: string) {
         )}
       </div>
 
-      {/* === MOBILE SECOND ROW === */}
       <div className="md:hidden border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2 overflow-x-auto">
           <TranslateWithAIButton />
@@ -396,7 +320,6 @@ function authLabel(key: "login" | "logout", fallback: string) {
         </div>
       </div>
 
-      {/* === MOBILE NAV === */}
       {mobileOpen && (
         <div className="md:hidden border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95">
           <div className="px-4 py-3 flex flex-col gap-2 text-sm text-[var(--text-main)]">
