@@ -104,6 +104,11 @@ export default function SettingsPage() {
 
   // 🧠 App UI language context (this controls all `t()` translations)
   const { lang: appLang, setLang: setAppLang } = useLanguage();
+  const languageOptions = Array.from(SUPPORTED_LANGS) as unknown as Array<{
+  code: Lang;
+  label?: string;
+  flag?: string;
+}>;
 
   // Check existing push subscription on this device
   useEffect(() => {
@@ -840,16 +845,16 @@ export default function SettingsPage() {
   }}
   className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
 >
-  {SUPPORTED_LANGS.map((opt) => (
+  {languageOptions.map((opt) => (
     <option key={opt.code} value={opt.code}>
-      {"flag" in opt && opt.flag ? `${opt.flag} ` : ""}
+      {opt.flag ? `${opt.flag} ` : ""}
       {opt.label ?? opt.code.toUpperCase()}
     </option>
   ))}
 </select>
 
-</div>
 
+</div>
 
               {/* Focus area */}
               <div>
