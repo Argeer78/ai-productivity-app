@@ -290,48 +290,52 @@ export default function AdminHomePage() {
   }
 
   // ✅ NEW: Sync missing keys only (EN → all languages, skip existing completely)
-  async function handleSyncMissingKeysToAll() {
-    setKeysSyncStatus(null);
+async function handleSyncMissingKeysToAll() {
+  setKeysSyncStatus(null);
 
-    if (!user?.email) {
-      setKeysSyncStatus("❌ Missing current user email.");
-      return;
-    }
-
-    setKeysSyncLoading(true);
-    setKeysSyncStatus("Starting missing-keys sync…");
-
-    try {
-      const res = await fetch("/api/admin/sync-ui-keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email, // route checks ADMIN_EMAILS server-side
-          sourceLang: "en",
-          // optional: targetLangs: SUPPORTED_LANGS.map(l => l.code).filter(c => c !== "en"),
-        }),
-      });
-
-      const json = await res.json().catch(() => ({} as any));
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || "Failed to sync missing keys.");
-      }
-
-      const perLang = json?.perLang || {};
-      const summary = Object.entries(perLang)
-        .map(([k, v]) => `${k}:${v}`)
-        .join(" ");
-
-      setKeysSyncStatus(
-        `✅ Inserted ${json.insertedTotal ?? 0} missing rows. ${summary ? `Per language: ${summary}` : ""}`
-      );
-    } catch (err: any) {
-      console.error("[admin] sync missing keys error", err);
-      setKeysSyncStatus(`❌ ${err?.message || "Failed to sync missing keys."}`);
-    } finally {
-      setKeysSyncLoading(false);
-    }
+  if (!ADMIN_KEY) {
+    setKeysSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
+    return;
   }
+
+  setKeysSyncLoading(true);
+  setKeysSyncStatus("Starting missing-keys sync…");
+
+  try {
+    const res = await fetch("/api/admin/sync-ui-keys", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Key": ADMIN_KEY,
+      },
+      body: JSON.stringify({
+        sourceLang: "en",
+        // optional: targetLangs: SUPPORTED_LANGS.map(l => l.code).filter(c => c !== "en"),
+      }),
+    });
+
+    const json = await res.json().catch(() => ({} as any));
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.error || "Failed to sync missing keys.");
+    }
+
+    const perLang = json?.perLang || {};
+    const summary = Object.entries(perLang)
+      .map(([k, v]) => `${k}:${v}`)
+      .join(" ");
+
+    setKeysSyncStatus(
+      `✅ Inserted ${json.insertedTotal ?? 0} missing rows. ${
+        summary ? `Per language: ${summary}` : ""
+      }`
+    );
+  } catch (err: any) {
+    console.error("[admin] sync missing keys error", err);
+    setKeysSyncStatus(`❌ ${err?.message || "Failed to sync missing keys."}`);
+  } finally {
+    setKeysSyncLoading(false);
+  }
+}
 
   // Auth guards
   if (checkingUser) {

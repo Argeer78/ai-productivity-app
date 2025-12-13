@@ -5,6 +5,7 @@ import type React from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import { useT } from "@/lib/useT";
 
 type Msg = {
   role: "user" | "assistant";
@@ -14,12 +15,14 @@ type Msg = {
 export default function AIAssistant() {
   const pathname = usePathname();
 
-  // 🔹 Hide assistant completely on the AI Chat page
+  // Hide assistant completely on the AI Chat page
   if (pathname.startsWith("/ai-chat")) {
     return null;
   }
 
-  // ✅ UI language (e.g. "en", "el", "es")
+  const { t, tCommon } = useT("assistant");
+
+  // UI language (e.g. "en", "el", "es")
   const languageCtx = useLanguage();
   const uiLangCode = ((languageCtx as any)?.lang || "en") as string;
   const uiLangBase = uiLangCode.split("-")[0] || "en";
@@ -52,27 +55,29 @@ export default function AIAssistant() {
       }>;
 
       const detail = custom.detail || {};
+
       const hint =
         detail.hint ||
-        "I loaded a template for you. Add any extra details and hit Send.";
+        t(
+          "template.hintFallback",
+          "I loaded a template for you. Add any extra details and hit Send."
+        );
+
       const content =
-        detail.content || "Use this template: (no content provided).";
+        detail.content ||
+        t(
+          "template.contentFallback",
+          "Use this template: (no content provided)."
+        );
 
       setOpen(true);
-      setMessages([
-        {
-          role: "assistant",
-          content: hint,
-        },
-      ]);
+      setMessages([{ role: "assistant", content: hint }]);
       setInput(content);
     }
 
     window.addEventListener("ai-assistant-context", handler);
-    return () => {
-      window.removeEventListener("ai-assistant-context", handler);
-    };
-  }, []);
+    return () => window.removeEventListener("ai-assistant-context", handler);
+  }, [t]);
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || loading) return;
@@ -94,24 +99,33 @@ export default function AIAssistant() {
         body: JSON.stringify({
           messages: newMessages,
           userId,
-          uiLang: uiLangBase, // ✅ tell server what language to respond in
+          uiLang: uiLangBase, // tell server what language to respond in
         }),
       });
 
       const text = await res.text();
       let data: any = null;
+
       try {
         data = JSON.parse(text);
-      } catch (e) {
+      } catch {
         console.error("Assistant: non-JSON response", text);
-        setError("Server returned an invalid response.");
+        setError(
+          t(
+            "error.invalidResponse",
+            "Server returned an invalid response."
+          )
+        );
         setLoading(false);
         return;
       }
 
       if (!res.ok || !data.answer) {
         console.error("Assistant: error payload", data);
-        setError(data.error || "AI error. Please try again.");
+        setError(
+          data.error ||
+            t("error.generic", "AI error. Please try again.")
+        );
         setLoading(false);
         return;
       }
@@ -122,11 +136,11 @@ export default function AIAssistant() {
       ]);
     } catch (err) {
       console.error("Assistant: network error", err);
-      setError("Network error. Please try again.");
+      setError(t("error.network", "Network error. Please try again."));
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages, userId, uiLangBase]);
+  }, [input, loading, messages, userId, uiLangBase, t]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -137,24 +151,29 @@ export default function AIAssistant() {
 
   return (
     <>
-      {/* Toggle button – moved to bottom-left */}
+      {/* Toggle button – bottom-left */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="fixed bottom-4 left-4 z-40 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs shadow-lg"
       >
-        {open ? "Close AI" : "Open AI"}
+        {open
+          ? t("toggle.close", "Close AI")
+          : t("toggle.open", "Open AI")}
       </button>
 
-      {/* Panel – also bottom-left so it's aligned above the button */}
+      {/* Panel */}
       {open && (
         <div className="fixed bottom-16 left-4 z-40 w-full max-w-md border border-[var(--border-subtle)] rounded-2xl bg-[color-mix(in srgb,var(--bg-body) 95%,transparent)] backdrop-blur p-3 text-xs text-[var(--text-main)] shadow-xl">
           <div className="flex items-center justify-between mb-2">
-            <p className="font-semibold text-[13px]">AI Assistant</p>
+            <p className="font-semibold text-[13px]">
+              {t("title", "AI Assistant")}
+            </p>
             <button
               type="button"
               onClick={() => setOpen(false)}
               className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-main)]"
+              aria-label={tCommon("close", "Close")}
             >
               ✕
             </button>
@@ -163,8 +182,10 @@ export default function AIAssistant() {
           <div className="h-44 overflow-y-auto border border-[var(--border-subtle)] rounded-xl p-2 mb-2 bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] space-y-2">
             {messages.length === 0 ? (
               <p className="text-[11px] text-[var(--text-muted)]">
-                Ask anything about your notes, tasks, or use a template via “Use
-                with Assistant”.
+                {t(
+                  "empty",
+                  'Ask anything about your notes, tasks, or use a template via “Use with Assistant”.'
+                )}
               </p>
             ) : (
               messages.map((m, i) => (
@@ -177,7 +198,10 @@ export default function AIAssistant() {
                   }`}
                 >
                   <span className="font-semibold mr-1">
-                    {m.role === "user" ? "You" : "AI"}:
+                    {m.role === "user"
+                      ? t("role.you", "You")
+                      : t("role.ai", "AI")}
+                    :
                   </span>
                   {m.content}
                 </div>
@@ -191,7 +215,10 @@ export default function AIAssistant() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a question... (Enter = send, Shift+Enter = newline)"
+            placeholder={t(
+              "placeholder",
+              "Type a question... (Enter = send, Shift+Enter = newline)"
+            )}
             className="w-full text-[11px] rounded-xl bg-[var(--bg-body)] border border-[var(--border-subtle)] px-2 py-1.5 mb-2 resize-none h-16 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[var(--text-main)]"
           />
 
@@ -201,7 +228,9 @@ export default function AIAssistant() {
             disabled={loading || !input.trim()}
             className="w-full py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-[11px]"
           >
-            {loading ? "Thinking..." : "Send"}
+            {loading
+              ? t("button.thinking", "Thinking...")
+              : t("button.send", "Send")}
           </button>
         </div>
       )}
