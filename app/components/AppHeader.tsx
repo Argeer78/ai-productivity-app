@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import InstallAppButton from "@/app/components/InstallAppButton";
@@ -33,22 +33,26 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
 
-  const languageCtx = useLanguage() as any;
-  const currentLangLabel: string | null =
-    languageCtx?.label || languageCtx?.languageLabel || null;
+  const { lang, label: currentLangLabel } = useLanguage();
 
-  // ✅ Single source of truth: ui_translations (via provider)
-  const ui = useUiStrings() as any;
+  // ✅ Single source of truth: UiStringsProvider
+  const ui = useUiStrings();
 
-  // Support either provider shape:
-  // - { t } (preferred)
-  // - { dict }
-  const t = (key: string, fallback?: string) => {
-    if (typeof ui?.t === "function") return ui.t(key, fallback);
-    if (ui?.dict && typeof ui.dict[key] === "string") return ui.dict[key];
-    return fallback ?? key;
-  };
+  const t = useMemo(() => {
+    // Support either provider API:
+    // - { t(key, fallback?) }
+    // - { dict }
+    if (typeof (ui as any)?.t === "function") {
+      return (key: string, fallback?: string) =>
+        (ui as any).t(key, fallback);
+    }
+
+    const dict = (ui as any)?.dict as Record<string, string> | undefined;
+    return (key: string, fallback?: string) =>
+      (dict && typeof dict[key] === "string" ? dict[key] : fallback ?? key);
+  }, [ui, lang]); // 🔥 rebind on lang change so Header always updates
 
   const navLabel = (key: string, fallback: string) => t(`nav.${key}`, fallback);
   const authLabel = (key: "login" | "logout", fallback: string) =>
@@ -59,6 +63,12 @@ export default function AppHeader({ active }: HeaderProps) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
+
+  // Close menus on route change (prevents “double/shadow” feel)
+  useEffect(() => {
+    setMobileOpen(false);
+    setAppsOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;

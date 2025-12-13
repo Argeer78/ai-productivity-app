@@ -46,39 +46,34 @@ export type TranslationKey = string;
 // ---- Default locale ----
 export const DEFAULT_LOCALE: Locale = "en";
 
+export function isRTL(code: string): boolean {
+  const base = (code || "en").toLowerCase().split("-")[0];
+  return base === "ar" || base === "he";
+}
 // ---- Legacy static messages (now just a tiny fallback) ----
 // We keep this so imports like `MESSAGES` continue to work,
-// but the *real* strings come from Supabase via /api/ui-translations + useT.
-export const MESSAGES: Record<Locale, Record<string, string>> = {
+// but the *real* strings come from Supabase via /api/ui-translations.
+export const MESSAGES: Partial<Record<Locale, Record<string, string>>> = {
   en: {
-    // You can optionally put a few emergency fallbacks here, e.g.:
-    // "nav.dashboard": "Dashboard",
-    // "nav.notes": "Notes",
+    // optional emergency fallbacks
   },
-  // Other languages will be provided dynamically; no need to fill them here.
 } as const;
 
-// ---- Utility: check if language is RTL ----
-export function isRTL(code: Locale): boolean {
-  return code === "ar" || code === "he";
-}
-
 // ---- Legacy translate() helper used by LanguageProvider.t ----
-// This is now a *simple* lookup into MESSAGES with fallback.
 export function translate(
   lang: Lang,
   key: TranslationKey,
   fallback?: string
 ): string {
   const dict =
-    (MESSAGES[lang] as Record<string, string> | undefined) ||
-    (MESSAGES[DEFAULT_LOCALE] as Record<string, string> | undefined) ||
+    MESSAGES[lang] ??
+    MESSAGES[DEFAULT_LOCALE] ??
     {};
 
   if (Object.prototype.hasOwnProperty.call(dict, key)) {
-    return dict[key];
+    return dict[key]!;
   }
 
   if (typeof fallback === "string") return fallback;
-  return key; // good for debugging missing keys
+  return key;
 }

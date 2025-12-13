@@ -104,11 +104,9 @@ export default function SettingsPage() {
 
   // 🧠 App UI language context (this controls all `t()` translations)
   const { lang: appLang, setLang: setAppLang } = useLanguage();
-  const languageOptions = Array.from(SUPPORTED_LANGS) as unknown as Array<{
-  code: Lang;
-  label?: string;
-  flag?: string;
-}>;
+
+// keep readonly type (best). If you ever need to mutate/sort, use [...SUPPORTED_LANGS]
+const languageOptions = SUPPORTED_LANGS;
 
   // Check existing push subscription on this device
   useEffect(() => {
@@ -839,6 +837,7 @@ export default function SettingsPage() {
   onChange={(e) => {
     const newLang = e.target.value as Lang;
     setAppLang(newLang);
+
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LS_PREF_LANG, newLang);
     }
@@ -852,7 +851,6 @@ export default function SettingsPage() {
     </option>
   ))}
 </select>
-
 
 </div>
 
