@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import type React from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { useLanguage } from "@/app/components/LanguageProvider";
 
 type Msg = {
   role: "user" | "assistant";
@@ -17,6 +18,11 @@ export default function AIAssistant() {
   if (pathname.startsWith("/ai-chat")) {
     return null;
   }
+
+  // ✅ UI language (e.g. "en", "el", "es")
+  const languageCtx = useLanguage();
+  const uiLangCode = ((languageCtx as any)?.lang || "en") as string;
+  const uiLangBase = uiLangCode.split("-")[0] || "en";
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -88,6 +94,7 @@ export default function AIAssistant() {
         body: JSON.stringify({
           messages: newMessages,
           userId,
+          uiLang: uiLangBase, // ✅ tell server what language to respond in
         }),
       });
 
@@ -119,7 +126,7 @@ export default function AIAssistant() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages, userId]);
+  }, [input, loading, messages, userId, uiLangBase]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -156,8 +163,8 @@ export default function AIAssistant() {
           <div className="h-44 overflow-y-auto border border-[var(--border-subtle)] rounded-xl p-2 mb-2 bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] space-y-2">
             {messages.length === 0 ? (
               <p className="text-[11px] text-[var(--text-muted)]">
-                Ask anything about your notes, tasks, or use a template via
-                “Use with Assistant”.
+                Ask anything about your notes, tasks, or use a template via “Use
+                with Assistant”.
               </p>
             ) : (
               messages.map((m, i) => (
@@ -178,9 +185,7 @@ export default function AIAssistant() {
             )}
           </div>
 
-          {error && (
-            <p className="text-[11px] text-red-400 mb-1">{error}</p>
-          )}
+          {error && <p className="text-[11px] text-red-400 mb-1">{error}</p>}
 
           <textarea
             value={input}

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
+import { useT } from "@/lib/useT";
 
 type ChangelogEntry = {
   id: string;
@@ -22,6 +23,11 @@ const SECTION_ICON: Record<string, string> = {
 };
 
 export default function ChangelogPage() {
+  // ✅ Notes-style: always build full keys changelogPage.*
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) =>
+    rawT(`changelogPage.${key}`, fallback);
+
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -102,23 +108,24 @@ export default function ChangelogPage() {
           <div className="flex items-center justify-between gap-3 mb-6">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                What&apos;s new
+                {t("title", "What's new")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                Recent updates, fixes, and experiments in AI Productivity Hub.
+                {t(
+                  "subtitle",
+                  "Recent updates, fixes, and experiments in AI Productivity Hub."
+                )}
               </p>
             </div>
             <Link
               href="/dashboard"
               className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
-              ← Back to dashboard
+              {t("back", "← Back to dashboard")}
             </Link>
           </div>
 
-          {error && (
-            <p className="mb-3 text-xs text-red-400">{error}</p>
-          )}
+          {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
 
           {loading ? (
             <p className="text-xs text-[var(--text-muted)]">
@@ -157,9 +164,7 @@ export default function ChangelogPage() {
                     <p className="text-[11px] text-[var(--text-muted)] mb-1">
                       {icon} {dateLabel} • {section}
                     </p>
-                    <h2 className="text-sm font-semibold mb-2">
-                      {entry.title}
-                    </h2>
+                    <h2 className="text-sm font-semibold mb-2">{entry.title}</h2>
                     {bullets.length > 0 ? (
                       <ul className="list-disc list-inside text-[12px] text-[var(--text-main)] space-y-1">
                         {bullets.map((line, idx) => (
@@ -176,16 +181,17 @@ export default function ChangelogPage() {
               })}
 
               <p className="text-[11px] text-[var(--text-muted)] mt-4">
-                More improvements are in progress around focus, routines,
-                and better AI guidance. If you have a feature request, you
-                can always send it from the{" "}
+                {t(
+                  "moreImprovements",
+                  "More improvements are in progress around focus, routines, and better AI guidance. If you have a feature request, you can always send it from the Feedback page."
+                )}{" "}
                 <Link
                   href="/feedback"
                   className="text-[var(--accent)] hover:underline underline-offset-2"
                 >
                   Feedback
-                </Link>{" "}
-                page.
+                </Link>
+                .
               </p>
             </div>
           )}

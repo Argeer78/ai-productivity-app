@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
@@ -21,7 +21,6 @@ type TaskRow = {
   time_from: string | null;
   time_to: string | null;
 
-  // 🔔 New reminder fields
   reminder_enabled: boolean | null;
   reminder_at: string | null; // ISO
 };
@@ -29,10 +28,10 @@ type TaskRow = {
 type MiniDatePickerProps = {
   value: string; // "yyyy-mm-dd" or ""
   onChange: (val: string) => void;
+  t: (key: string, fallback?: string) => string;
 };
 
 function getDaysInMonth(year: number, month: number) {
-  // month is 0-based
   return new Date(year, month + 1, 0).getDate();
 }
 
@@ -54,12 +53,9 @@ function toLocalDateTimeInput(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
 
-  // new Date(iso) is the correct moment in time; to get the *local* wall time
-  // string we do the classic offset trick:
-  const tzOffsetMinutes = d.getTimezoneOffset(); // e.g. -120 for Athens
+  const tzOffsetMinutes = d.getTimezoneOffset();
   const local = new Date(d.getTime() - tzOffsetMinutes * 60_000);
 
-  // datetime-local expects no timezone info, just "YYYY-MM-DDTHH:MM"
   return local.toISOString().slice(0, 16);
 }
 
@@ -68,24 +64,22 @@ function toLocalDateTimeInput(iso: string | null): string {
  */
 function fromLocalInputToIso(local: string): string | null {
   if (!local) return null;
-  const d = new Date(local); // treated as local time
+  const d = new Date(local);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString(); // store as UTC ISO
+  return d.toISOString();
 }
 
 /**
- * A tiny inline calendar for picking dates.
- * Uses local month navigation and returns a "yyyy-mm-dd" string.
+ * Tiny inline calendar for picking dates.
+ * Month/day names come from the user's locale (so it auto-becomes French),
+ * but "Pick date" label comes from your DB: tasks.form.pickDate
  */
-function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
+function MiniDatePicker({ value, onChange, t }: MiniDatePickerProps) {
   const [open, setOpen] = useState(false);
 
-  const baseDate = value
-    ? new Date(value + "T00:00:00")
-    : new Date(); // today
-
+  const baseDate = value ? new Date(value + "T00:00:00") : new Date();
   const [year, setYear] = useState(baseDate.getFullYear());
-  const [month, setMonth] = useState(baseDate.getMonth()); // 0-11
+  const [month, setMonth] = useState(baseDate.getMonth());
 
   function goPrevMonth() {
     setMonth((prev) => {
@@ -107,22 +101,35 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
     });
   }
 
-  const monthNames = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
+  // Locale-aware month label (auto French if locale is fr)
+  const monthLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(undefined, { month: "short" }).format(
+        new Date(year, month, 1)
+      );
+    } catch {
+      return new Date(year, month, 1).toLocaleString(undefined, {
+        month: "short",
+      });
+    }
+  }, [year, month]);
 
-  const firstDay = new Date(year, month, 1).getDay(); // 0 = Sun
+  // Locale-aware weekday headers
+  const weekdayLabels = useMemo(() => {
+    try {
+      const fmt = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+      const start = new Date(2023, 0, 1); // Sunday
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        return fmt.format(d);
+      });
+    } catch {
+      return ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+    }
+  }, []);
+
+  const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = getDaysInMonth(year, month);
 
   const weeks: (number | null)[][] = [];
@@ -131,11 +138,8 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
   for (let w = 0; w < 6; w++) {
     const week: (number | null)[] = [];
     for (let d = 0; d < 7; d++) {
-      if (currentDay < 1 || currentDay > daysInMonth) {
-        week.push(null);
-      } else {
-        week.push(currentDay);
-      }
+      if (currentDay < 1 || currentDay > daysInMonth) week.push(null);
+      else week.push(currentDay);
       currentDay++;
     }
     weeks.push(week);
@@ -146,8 +150,7 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
   function handleSelectDay(day: number | null) {
     if (!day) return;
     const date = new Date(year, month, day);
-    const ymd = toYmd(date);
-    onChange(ymd);
+    onChange(toYmd(date));
     setOpen(false);
   }
 
@@ -158,8 +161,10 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-main)] hover:bg-[var(--bg-card)]"
       >
-        <span>{selectedYmd || "Pick date"}</span>
-        <span className="text-[10px] opacity-70">📅</span>
+        <span>{selectedYmd || t("form.pickDate", "Pick date")}</span>
+        <span className="text-[10px] opacity-70">
+          {t("form.calendarIconLabel", "📅")}
+        </span>
       </button>
 
       {open && (
@@ -169,29 +174,27 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
               type="button"
               onClick={goPrevMonth}
               className="px-1 hover:text-[var(--accent)]"
+              aria-label={t("date.prevMonth", "Previous month")}
             >
               ‹
             </button>
             <span className="font-semibold">
-              {monthNames[month]} {year}
+              {monthLabel} {year}
             </span>
             <button
               type="button"
               onClick={goNextMonth}
               className="px-1 hover:text-[var(--accent)]"
+              aria-label={t("date.nextMonth", "Next month")}
             >
               ›
             </button>
           </div>
 
           <div className="grid grid-cols-7 gap-0.5 text-[10px] text-[var(--text-muted)] mb-1">
-            <span>Su</span>
-            <span>Mo</span>
-            <span>Tu</span>
-            <span>We</span>
-            <span>Th</span>
-            <span>Fr</span>
-            <span>Sa</span>
+            {weekdayLabels.map((w) => (
+              <span key={w}>{w}</span>
+            ))}
           </div>
 
           <div className="grid grid-cols-7 gap-0.5 text-[11px]">
@@ -235,7 +238,7 @@ function MiniDatePicker({ value, onChange }: MiniDatePickerProps) {
 // 24h time dropdown options (00:00 - 23:00)
 const TIME_OPTIONS = Array.from({ length: 24 }, (_, h) => `${pad(h)}:00`);
 
-// Category list
+// Category list (values stay stable for DB)
 const TASK_CATEGORIES = [
   "Work",
   "Personal",
@@ -247,7 +250,6 @@ const TASK_CATEGORIES = [
   "Other",
 ] as const;
 
-// Theme-aware category badges (unified style like Notes)
 const taskCategoryStyles: Record<string, string> = {
   Work: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40",
   Personal:
@@ -265,72 +267,6 @@ const taskCategoryStyles: Record<string, string> = {
     "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-subtle)]",
 };
 
-// Single-task share text
-function getTaskShareText(task: TaskRow): string {
-  const lines: string[] = [];
-
-  lines.push(`Task: ${task.title || "(untitled task)"}`);
-
-  if (task.category) {
-    lines.push(`Category: ${task.category}`);
-  }
-
-  if (task.due_date) {
-    const date = new Date(task.due_date);
-    const dateStr = date.toLocaleDateString();
-    lines.push(`When: ${dateStr}`);
-  }
-
-  if (task.time_from || task.time_to) {
-    const from = task.time_from || "--:--";
-    const to = task.time_to || "--:--";
-    lines.push(`Time: ${from}–${to}`);
-  }
-
-  if (task.description) {
-    lines.push("");
-    lines.push("Notes:");
-    lines.push(task.description);
-  }
-
-  lines.push("");
-  lines.push("— Shared from AI Productivity Hub");
-
-  return lines.join("\n");
-}
-
-// Multi-task share text (for today / selected)
-function getTasksShareText(tasks: TaskRow[], header: string): string {
-  const lines: string[] = [];
-
-  lines.push(header);
-  lines.push("");
-
-  tasks.forEach((task, idx) => {
-    lines.push(`${idx + 1}. ${task.title || "(untitled task)"}`);
-    if (task.category) {
-      lines.push(`   Category: ${task.category}`);
-    }
-    if (task.due_date) {
-      const date = new Date(task.due_date);
-      lines.push(`   When: ${date.toLocaleDateString()}`);
-    }
-    if (task.time_from || task.time_to) {
-      const from = task.time_from || "--:--";
-      const to = task.time_to || "--:--";
-      lines.push(`   Time: ${from}–${to}`);
-    }
-    if (task.description) {
-      lines.push(`   Notes: ${task.description}`);
-    }
-    lines.push("");
-  });
-
-  lines.push("— Shared from AI Productivity Hub");
-
-  return lines.join("\n");
-}
-
 export default function TasksPage() {
   const { t } = useT("tasks");
 
@@ -344,20 +280,20 @@ export default function TasksPage() {
   // new task form
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newDueDate, setNewDueDate] = useState<string>(""); // yyyy-mm-dd
-  const [newCategory, setNewCategory] = useState<string>(""); // category name
+  const [newDueDate, setNewDueDate] = useState<string>("");
+  const [newCategory, setNewCategory] = useState<string>("");
   const [newTimeFrom, setNewTimeFrom] = useState<string>("");
   const [newTimeTo, setNewTimeTo] = useState<string>("");
 
-  // 🔔 new reminder fields for new task
+  // reminder fields for new task
   const [newReminderEnabled, setNewReminderEnabled] = useState(false);
-  const [newReminderAtLocal, setNewReminderAtLocal] = useState<string>(""); // datetime-local
+  const [newReminderAtLocal, setNewReminderAtLocal] = useState<string>("");
 
   const [savingNew, setSavingNew] = useState(false);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
-  // view mode: active / completed / all
+  // view mode
   const [viewMode, setViewMode] = useState<"active" | "completed" | "all">(
     "active"
   );
@@ -372,19 +308,18 @@ export default function TasksPage() {
   // bulk selection
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
-  // 🔽 which tasks are open (show details form)
+  // which tasks are open (show details form)
   const [openTaskIds, setOpenTaskIds] = useState<string[]>([]);
 
   const todayYmd = new Date().toISOString().slice(0, 10);
+
+  const categoryLabel = (cat: string) => t(`category.${cat}`, cat);
 
   // Load user
   useEffect(() => {
     async function loadUser() {
       try {
-        const { data, error } = await supabase.auth.getUser();
-        if (error) {
-          console.error("[tasks] getUser error", error);
-        }
+        const { data } = await supabase.auth.getUser();
         setUser(data?.user ?? null);
       } catch (err) {
         console.error("[tasks] getUser exception", err);
@@ -395,7 +330,7 @@ export default function TasksPage() {
     loadUser();
   }, []);
 
-  // Load tasks for logged-in user
+  // Load tasks
   useEffect(() => {
     if (!user) return;
 
@@ -429,7 +364,7 @@ export default function TasksPage() {
     }
 
     loadTasks();
-  }, [tasks]);
+  }, [user]);
 
   async function handleAddTask(e: FormEvent) {
     e.preventDefault();
@@ -466,7 +401,6 @@ export default function TasksPage() {
             category: newCategory || null,
             time_from: newTimeFrom || null,
             time_to: newTimeTo || null,
-
             reminder_enabled: !!reminderAtIso,
             reminder_at: reminderAtIso,
           },
@@ -482,9 +416,7 @@ export default function TasksPage() {
         return;
       }
 
-      if (data) {
-        setTasks((prev) => [data as TaskRow, ...prev]);
-      }
+      if (data) setTasks((prev) => [data as TaskRow, ...prev]);
 
       setNewTitle("");
       setNewDescription("");
@@ -510,14 +442,12 @@ export default function TasksPage() {
     setError("");
 
     try {
-      const updates: Partial<TaskRow> = {
-        completed: newDone,
-        completed_at: newDone ? new Date().toISOString() : null,
-      };
-
       const { data, error } = await supabase
         .from("tasks")
-        .update(updates)
+        .update({
+          completed: newDone,
+          completed_at: newDone ? new Date().toISOString() : null,
+        })
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
@@ -532,7 +462,9 @@ export default function TasksPage() {
       }
 
       setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? ((data as TaskRow) || t) : t))
+        prev.map((tRow) =>
+          tRow.id === task.id ? ((data as TaskRow) || tRow) : tRow
+        )
       );
     } catch (err) {
       console.error("[tasks] toggleDone exception", err);
@@ -563,8 +495,6 @@ export default function TasksPage() {
               : task.time_from,
           time_to:
             updates.time_to !== undefined ? updates.time_to : task.time_to,
-
-          // keep existing reminder fields unless explicitly changed
           reminder_enabled:
             updates.reminder_enabled !== undefined
               ? updates.reminder_enabled
@@ -588,7 +518,9 @@ export default function TasksPage() {
       }
 
       setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? ((data as TaskRow) || t) : t))
+        prev.map((tRow) =>
+          tRow.id === task.id ? ((data as TaskRow) || tRow) : tRow
+        )
       );
     } catch (err) {
       console.error("[tasks] update exception", err);
@@ -618,7 +550,7 @@ export default function TasksPage() {
         return;
       }
 
-      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      setTasks((prev) => prev.filter((tRow) => tRow.id !== task.id));
       setSelectedTaskIds((prev) => prev.filter((id) => id !== task.id));
       setOpenTaskIds((prev) => prev.filter((id) => id !== task.id));
     } catch (err) {
@@ -629,7 +561,6 @@ export default function TasksPage() {
     }
   }
 
-  // selection toggle
   function toggleSelected(taskId: string) {
     setSelectedTaskIds((prev) =>
       prev.includes(taskId)
@@ -638,108 +569,96 @@ export default function TasksPage() {
     );
   }
 
-  // share handlers for single task
+  // Share text is left as English (you can add keys later if you want)
+  function getTaskShareText(task: TaskRow) {
+    const lines: string[] = [];
+
+    lines.push(`Task: ${task.title || "(untitled task)"}`);
+    if (task.category) lines.push(`Category: ${task.category}`);
+
+    if (task.due_date) {
+      const date = new Date(task.due_date);
+      lines.push(`When: ${date.toLocaleDateString()}`);
+    }
+
+    if (task.time_from || task.time_to) {
+      lines.push(
+        `Time: ${task.time_from || "--:--"}–${task.time_to || "--:--"}`
+      );
+    }
+
+    if (task.description) {
+      lines.push("");
+      lines.push("Notes:");
+      lines.push(task.description);
+    }
+
+    lines.push("");
+    lines.push("— Shared from AI Productivity Hub");
+
+    return lines.join("\n");
+  }
+
   function handleShareCopy(task: TaskRow) {
     const text = getTaskShareText(task);
-
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          setCopiedTaskId(task.id);
-          setTimeout(() => setCopiedTaskId(null), 2000);
-        })
-        .catch((err) => {
-          console.error("Failed to copy:", err);
-        });
-    }
+    navigator.clipboard?.writeText?.(text).then(() => {
+      setCopiedTaskId(task.id);
+      setTimeout(() => setCopiedTaskId(null), 2000);
+    });
   }
 
   function handleShareWhatsApp(task: TaskRow) {
     const text = encodeURIComponent(getTaskShareText(task));
-    const url = `https://wa.me/?text=${text}`;
-    if (typeof window !== "undefined") {
-      window.open(url, "_blank");
-    }
+    window.open(`https://wa.me/?text=${text}`, "_blank");
   }
 
   function handleShareViber(task: TaskRow) {
     const text = encodeURIComponent(getTaskShareText(task));
-    const url = `viber://forward?text=${text}`;
-    if (typeof window !== "undefined") {
-      window.open(url, "_blank");
-    }
+    window.open(`viber://forward?text=${text}`, "_blank");
   }
 
   function handleShareEmail(task: TaskRow) {
-    const subject = encodeURIComponent(
-      `Task: ${task.title || "Shared task from AI Productivity Hub"}`
-    );
+    const subject = encodeURIComponent(`Task: ${task.title || "Shared task"}`);
     const body = encodeURIComponent(getTaskShareText(task));
-    const url = `mailto:?subject=${subject}&body=${body}`;
-    if (typeof window !== "undefined") {
-      window.location.href = url;
-    }
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
 
-  // bulk: today's tasks vs selected tasks (copy-only)
   function handleBulkCopy(mode: "today" | "selected") {
     let list: TaskRow[];
 
     if (mode === "today") {
-      list = tasks.filter((t) => {
-        const created = t.created_at?.slice(0, 10) === todayYmd;
-        const due = t.due_date && t.due_date.slice(0, 10) === todayYmd;
+      list = tasks.filter((tRow) => {
+        const created = tRow.created_at?.slice(0, 10) === todayYmd;
+        const due = tRow.due_date && tRow.due_date.slice(0, 10) === todayYmd;
         return created || due;
       });
     } else {
-      list = tasks.filter((t) => selectedTaskIds.includes(t.id));
+      list = tasks.filter((tRow) => selectedTaskIds.includes(tRow.id));
     }
 
     if (list.length === 0) {
-      if (mode === "today") {
-        alert(t("noTasksTodayToShare", "No tasks for today to share."));
-      } else {
-        alert(t("noSelectedTasksToShare", "No tasks selected to share."));
-      }
+      alert(
+        mode === "today"
+          ? t("share.noToday", "No tasks for today to share.")
+          : t("share.noSelected", "No tasks selected to share.")
+      );
       return;
     }
 
     const header =
       mode === "today"
-        ? `${t("shareHeaderToday", "Today's tasks")} (${todayYmd})`
-        : `${t("shareHeaderSelected", "Selected tasks")} (${list.length})`;
+        ? `${t("share.todayHeader", "Today's tasks")} (${todayYmd})`
+        : `${t("share.selectedHeader", "Selected tasks")} (${list.length})`;
 
-    const text = getTasksShareText(list, header);
+    const text = [
+      header,
+      "",
+      ...list.map((x, i) => `${i + 1}. ${x.title || "(untitled task)"}`),
+    ].join("\n");
 
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          alert(
-            mode === "today"
-              ? t(
-                  "copiedTodayTasks",
-                  "Today's tasks copied to clipboard."
-                )
-              : t(
-                  "copiedSelectedTasks",
-                  "Selected tasks copied to clipboard."
-                )
-          );
-        })
-        .catch((err) => {
-          console.error("Bulk copy failed", err);
-          alert(t("copyFailed", "Failed to copy tasks to clipboard."));
-        });
-    } else {
-      alert(
-        t(
-          "clipboardUnavailable",
-          "Clipboard not available. Please copy manually."
-        )
-      );
-    }
+    navigator.clipboard?.writeText?.(text).then(() =>
+      alert(t("share.copied", "Copied to clipboard."))
+    );
   }
 
   if (checkingUser) {
@@ -757,9 +676,7 @@ export default function TasksPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="tasks" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">
-            {t("title", "Tasks")}
-          </h1>
+          <h1 className="text-2xl font-bold mb-3">{t("title", "Tasks")}</h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             {t(
               "loginPrompt",
@@ -777,10 +694,8 @@ export default function TasksPage() {
     );
   }
 
-  // filter tasks based on view mode + category
   const filteredTasks = tasks.filter((task) => {
     const done = !!task.completed;
-
     const passesView =
       viewMode === "active" ? !done : viewMode === "completed" ? done : true;
 
@@ -807,9 +722,7 @@ export default function TasksPage() {
             )}
           </p>
 
-          {error && (
-            <p className="mb-3 text-xs text-red-400">{error}</p>
-          )}
+          {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
 
           {/* New task form */}
           <form
@@ -818,7 +731,7 @@ export default function TasksPage() {
           >
             <div className="mb-2 flex items-center justify-between">
               <p className="text-[11px] font-semibold text-[var(--text-main)]">
-                {t("addNewTask", "Add a new task")}
+                {t("addNew", "Add a new task")}
               </p>
 
               <Link
@@ -833,7 +746,7 @@ export default function TasksPage() {
               type="text"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder={t("newTaskTitlePlaceholder", "Task title…")}
+              placeholder={t("form.titlePlaceholder", "Task title…")}
               className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2"
             />
 
@@ -841,7 +754,7 @@ export default function TasksPage() {
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
               placeholder={t(
-                "newTaskDescriptionPlaceholder",
+                "form.descriptionPlaceholder",
                 "Optional description or notes…"
               )}
               className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2 min-h-[60px]"
@@ -850,29 +763,28 @@ export default function TasksPage() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
                 <span className="text-[11px] text-[var(--text-muted)]">
-                  {t("dueDateLabel", "Due date")}
+                  {t("form.dueDateLabel", "Due date")}
                 </span>
                 <MiniDatePicker
                   value={newDueDate}
-                  onChange={(val) => setNewDueDate(val)}
+                  onChange={setNewDueDate}
+                  t={t}
                 />
               </div>
 
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
                 <span className="text-[11px] text-[var(--text-muted)]">
-                  {t("categoryLabel", "Category")}
+                  {t("form.categoryLabel", "Category")}
                 </span>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
-                  <option value="">
-                    {t("category.none", "None")}
-                  </option>
+                  <option value="">{t("form.category.none", "None")}</option>
                   {TASK_CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
-                      {cat}
+                      {categoryLabel(cat)}
                     </option>
                   ))}
                 </select>
@@ -880,16 +792,14 @@ export default function TasksPage() {
 
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)] flex-wrap">
                 <span className="text-[11px] text-[var(--text-muted)]">
-                  {t("timeOptional", "Time (optional)")}
+                  {t("form.timeLabel", "Time (optional)")}
                 </span>
                 <select
                   value={newTimeFrom}
                   onChange={(e) => setNewTimeFrom(e.target.value)}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
-                  <option value="">
-                    {t("timeFromPlaceholder", "From")}
-                  </option>
+                  <option value="">{t("form.time.from", "From")}</option>
                   {TIME_OPTIONS.map((tOpt) => (
                     <option key={tOpt} value={tOpt}>
                       {tOpt}
@@ -902,9 +812,7 @@ export default function TasksPage() {
                   onChange={(e) => setNewTimeTo(e.target.value)}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
-                  <option value="">
-                    {t("timeToPlaceholder", "To")}
-                  </option>
+                  <option value="">{t("form.time.to", "To")}</option>
                   {TIME_OPTIONS.map((tOpt) => (
                     <option key={tOpt} value={tOpt}>
                       {tOpt}
@@ -913,40 +821,24 @@ export default function TasksPage() {
                 </select>
               </div>
 
-              {/* 🔔 New task reminder controls */}
               <div className="flex flex-col gap-1 text-xs text-[var(--text-main)]">
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={newReminderEnabled}
-                    onChange={(e) =>
-                      setNewReminderEnabled(e.target.checked)
-                    }
+                    onChange={(e) => setNewReminderEnabled(e.target.checked)}
                     className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                   />
-                  <span>
-                    {t(
-                      "newReminderLabel",
-                      "Set reminder for this task"
-                    )}
-                  </span>
+                  <span>{t("form.reminderLabel", "Set reminder for this task")}</span>
                 </label>
                 {newReminderEnabled && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <input
                       type="datetime-local"
                       value={newReminderAtLocal}
-                      onChange={(e) =>
-                        setNewReminderAtLocal(e.target.value)
-                      }
+                      onChange={(e) => setNewReminderAtLocal(e.target.value)}
                       className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                     />
-                    <span className="text-[10px] text-[var(--text-muted)]">
-                      {t(
-                        "newReminderHint",
-                        "Uses your device timezone. You’ll get an email + push (if enabled) when it’s due."
-                      )}
-                    </span>
                   </div>
                 )}
               </div>
@@ -956,151 +848,31 @@ export default function TasksPage() {
                 disabled={savingNew}
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs text-[var(--bg-body)]"
               >
-                {savingNew
-                  ? t("addingTask", "Adding…")
-                  : t("addTaskButton", "Add task")}
+                {savingNew ? t("form.adding", "Adding…") : t("form.addButton", "Add task")}
               </button>
             </div>
           </form>
 
-          {/* View mode + Category filter */}
-          {tasks.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-3 items-center text-[11px]">
-              <div className="flex items-center gap-2">
-                <span className="text-[var(--text-muted)] mr-1">
-                  {t("viewLabel", "View:")}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("active")}
-                  className={`rounded-full px-3 py-1 border text-xs ${
-                    viewMode === "active"
-                      ? "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-main)]"
-                      : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
-                  }`}
-                >
-                  {t("viewActive", "Active")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("completed")}
-                  className={`rounded-full px-3 py-1 border text-xs ${
-                    viewMode === "completed"
-                      ? "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-main)]"
-                      : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
-                  }`}
-                >
-                  {t("viewHistory", "History")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("all")}
-                  className={`rounded-full px-3 py-1 border text-xs ${
-                    viewMode === "all"
-                      ? "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-main)]"
-                      : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)]"
-                  }`}
-                >
-                  {t("viewAll", "All")}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[var(--text-muted)]">
-                  {t("filterCategoryLabel", "Category:")}
-                </span>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="rounded-full px-3 py-1 bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-main)]"
-                >
-                  <option value="all">
-                    {t("filterCategoryAll", "All")}
-                  </option>
-                  {TASK_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                  <option value="">
-                    {t("filterCategoryNone", "No category")}
-                  </option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Bulk selection + share */}
-          {tasks.length > 0 && (
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <div className="flex items-center gap-2 text-[var(--text-muted)]">
-                <span>
-                  {t("selectedCountPrefix", "Selected:")}{" "}
-                  {selectedTaskIds.length}
-                </span>
-                {selectedTaskIds.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTaskIds([])}
-                    className="px-2 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
-                  >
-                    {t("clearSelection", "Clear selection")}
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-[var(--text-muted)]">
-                <span>{t("shareLabel", "Share:")}</span>
-                <button
-                  type="button"
-                  onClick={() => handleBulkCopy("today")}
-                  className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
-                >
-                  {t(
-                    "copyTodayTasks",
-                    "Copy today\u2019s tasks"
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleBulkCopy("selected")}
-                  className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
-                >
-                  {t(
-                    "copySelectedTasks",
-                    "Copy selected tasks"
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Task list */}
+          {/* Tasks list */}
           {loading ? (
             <p className="text-sm text-[var(--text-muted)]">
               {t("loadingTasks", "Loading tasks…")}
             </p>
           ) : tasks.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">
-              {t("noTasksYet", "No tasks yet. Add your first one above.")}
+              {t("empty", "No tasks yet. Add your first one above.")}
             </p>
           ) : filteredTasks.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">
-              {t(
-                "noTasksInView",
-                "No tasks in this view. Try switching filters above."
-              )}
+              {t("noTasksInView", "No tasks in this view. Try switching filters above.")}
             </p>
           ) : (
             <div className="space-y-3">
               {filteredTasks.map((task) => {
                 const isSaving = savingTaskId === task.id;
                 const isDeleting = deletingTaskId === task.id;
-                const dueDateValue = task.due_date
-                  ? task.due_date.slice(0, 10)
-                  : "";
-                const completedAt = task.completed_at
-                  ? new Date(task.completed_at)
-                  : null;
+                const dueDateValue = task.due_date ? task.due_date.slice(0, 10) : "";
+                const completedAt = task.completed_at ? new Date(task.completed_at) : null;
 
                 const cat = task.category || "Other";
                 const catClass =
@@ -1108,7 +880,6 @@ export default function TasksPage() {
 
                 const isSelected = selectedTaskIds.includes(task.id);
 
-                // 🔽 open / closed
                 const isOpen = openTaskIds.includes(task.id);
                 const toggleOpen = () => {
                   setOpenTaskIds((prev) =>
@@ -1118,19 +889,13 @@ export default function TasksPage() {
                   );
                 };
 
-                // 🔔 convert reminder_at ISO → datetime-local string (local wall time)
                 const reminderLocal = toLocalDateTimeInput(task.reminder_at);
 
-                async function handleReminderChange(
-                  enabled: boolean,
-                  localVal: string
-                ) {
+                async function handleReminderChange(enabled: boolean, localVal: string) {
                   if (!user) return;
 
                   let reminderAt: string | null = null;
-                  if (enabled && localVal) {
-                    reminderAt = fromLocalInputToIso(localVal);
-                  }
+                  if (enabled && localVal) reminderAt = fromLocalInputToIso(localVal);
 
                   setSavingTaskId(task.id);
                   setError("");
@@ -1150,35 +915,19 @@ export default function TasksPage() {
                       .single();
 
                     if (error) {
-                      console.error(
-                        "[tasks] reminder update error",
-                        error
-                      );
-                      setError(
-                        t(
-                          "reminderUpdateError",
-                          "Could not update reminder."
-                        )
-                      );
+                      console.error("[tasks] reminder update error", error);
+                      setError(t("reminderUpdateError", "Could not update reminder."));
                       return;
                     }
 
                     setTasks((prev) =>
-                      prev.map((t) =>
-                        t.id === task.id ? ((data as TaskRow) || t) : t
+                      prev.map((tRow) =>
+                        tRow.id === task.id ? ((data as TaskRow) || tRow) : tRow
                       )
                     );
                   } catch (err) {
-                    console.error(
-                      "[tasks] reminder update exception]",
-                      err
-                    );
-                    setError(
-                      t(
-                        "reminderUpdateError",
-                        "Could not update reminder."
-                      )
-                    );
+                    console.error("[tasks] reminder update exception]", err);
+                    setError(t("reminderUpdateError", "Could not update reminder."));
                   } finally {
                     setSavingTaskId(null);
                   }
@@ -1191,21 +940,14 @@ export default function TasksPage() {
                   >
                     {/* Collapsed header row */}
                     <div className="flex items-center gap-3">
-                      {/* Arrow toggle */}
                       <button
                         type="button"
                         onClick={toggleOpen}
                         className="w-6 h-6 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px]"
                         aria-label={
                           isOpen
-                            ? t(
-                                "collapseTaskDetails",
-                                "Collapse task details"
-                              )
-                            : t(
-                                "expandTaskDetails",
-                                "Expand task details"
-                              )
+                            ? t("item.collapse", "Collapse task details")
+                            : t("item.expand", "Expand task details")
                         }
                       >
                         <span
@@ -1217,7 +959,6 @@ export default function TasksPage() {
                         </span>
                       </button>
 
-                      {/* Mark as done */}
                       <button
                         type="button"
                         onClick={() => toggleDone(task)}
@@ -1229,11 +970,10 @@ export default function TasksPage() {
                         }`}
                       >
                         {task.completed
-                          ? t("taskDone", "✅ Done")
-                          : t("markAsDone", "✔ Mark as done")}
+                          ? t("item.done", "✅ Done")
+                          : t("item.markDone", "✔ Mark as done")}
                       </button>
 
-                      {/* Select */}
                       <label className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
                         <input
                           type="checkbox"
@@ -1241,10 +981,9 @@ export default function TasksPage() {
                           onChange={() => toggleSelected(task.id)}
                           className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                         />
-                        <span>{t("selectLabel", "Select")}</span>
+                        <span>{t("item.select", "Select")}</span>
                       </label>
 
-                      {/* Title + category badge */}
                       <div className="flex-1 min-w-0 flex items-center gap-2">
                         <p
                           className={`truncate text-sm ${
@@ -1253,15 +992,14 @@ export default function TasksPage() {
                               : "text-[var(--text-main)]"
                           }`}
                         >
-                          {task.title ||
-                            t("untitledTaskPlaceholder", "(untitled task)")}
+                          {task.title || t("item.untitled", "(untitled task)")}
                         </p>
 
                         {task.category && (
                           <span
                             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${catClass}`}
                           >
-                            {task.category}
+                            {categoryLabel(task.category)}
                           </span>
                         )}
                       </div>
@@ -1270,21 +1008,15 @@ export default function TasksPage() {
                     {/* Expanded details form */}
                     {isOpen && (
                       <div className="mt-3 border-t border-[var(--border-subtle)] pt-3 space-y-2 text-[11px]">
-                        {/* Title + category editing */}
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <input
                             type="text"
                             defaultValue={task.title || ""}
                             onBlur={(e) =>
-                              handleUpdateTask(task, {
-                                title: e.target.value,
-                              })
+                              handleUpdateTask(task, { title: e.target.value })
                             }
                             className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-sm text-[var(--text-main)] placeholder:text-[var(--text-muted)]"
-                            placeholder={t(
-                              "untitledTaskPlaceholder",
-                              "(untitled task)"
-                            )}
+                            placeholder={t("form.titlePlaceholder", "Task title…")}
                           />
 
                           <div className="flex items-center gap-2">
@@ -1298,21 +1030,20 @@ export default function TasksPage() {
                               className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                             >
                               <option value="">
-                                {t("category.noCategory", "No category")}
+                                {t("form.category.none", "None")}
                               </option>
                               {TASK_CATEGORIES.map((c) => (
                                 <option key={c} value={c}>
-                                  {c}
+                                  {categoryLabel(c)}
                                 </option>
                               ))}
                             </select>
                           </div>
                         </div>
 
-                        {/* Description */}
                         <div>
                           <label className="block mb-1 text-[10px] text-[var(--text-muted)]">
-                            {t("detailsLabel", "Details")}
+                            {t("item.detailsLabel", "Details")}
                           </label>
                           <textarea
                             defaultValue={task.description || ""}
@@ -1323,32 +1054,30 @@ export default function TasksPage() {
                             }
                             className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-main)] min-h-[48px]"
                             placeholder={t(
-                              "detailsPlaceholder",
+                              "item.detailsPlaceholder",
                               "Details or notes…"
                             )}
                           />
                         </div>
 
-                        {/* Dates / time / reminder / meta */}
                         <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                             <div className="flex items-center gap-2">
-                              <span>{t("dueLabel", "Due:")}</span>
+                              <span>{t("item.dueLabel", "Due:")}</span>
                               <MiniDatePicker
                                 value={dueDateValue}
                                 onChange={(ymd) => {
                                   const iso = new Date(
                                     ymd + "T00:00:00"
                                   ).toISOString();
-                                  handleUpdateTask(task, {
-                                    due_date: iso,
-                                  });
+                                  handleUpdateTask(task, { due_date: iso });
                                 }}
+                                t={t}
                               />
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span>{t("timeLabel", "Time:")}</span>
+                              <span>{t("form.timeLabel", "Time (optional)")}</span>
                               <select
                                 defaultValue={task.time_from || ""}
                                 onChange={(e) =>
@@ -1359,7 +1088,7 @@ export default function TasksPage() {
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               >
                                 <option value="">
-                                  {t("timeFromPlaceholder", "From")}
+                                  {t("form.time.from", "From")}
                                 </option>
                                 {TIME_OPTIONS.map((tOpt) => (
                                   <option key={tOpt} value={tOpt}>
@@ -1377,9 +1106,7 @@ export default function TasksPage() {
                                 }
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               >
-                                <option value="">
-                                  {t("timeToPlaceholder", "To")}
-                                </option>
+                                <option value="">{t("form.time.to", "To")}</option>
                                 {TIME_OPTIONS.map((tOpt) => (
                                   <option key={tOpt} value={tOpt}>
                                     {tOpt}
@@ -1388,9 +1115,8 @@ export default function TasksPage() {
                               </select>
                             </div>
 
-                            {/* 🔔 Reminder controls per task */}
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span>{t("reminderLabel", "Reminder:")}</span>
+                              <span>{t("item.reminderLabel", "Reminder:")}</span>
                               <label className="flex items-center gap-1">
                                 <input
                                   type="checkbox"
@@ -1404,17 +1130,14 @@ export default function TasksPage() {
                                   className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                                 />
                                 <span className="text-[10px]">
-                                  {t("reminderEnableShort", "Enable")}
+                                  {t("item.reminderEnable", "Enable")}
                                 </span>
                               </label>
                               <input
                                 type="datetime-local"
                                 defaultValue={reminderLocal}
                                 onBlur={(e) =>
-                                  handleReminderChange(
-                                    true,
-                                    e.target.value
-                                  )
+                                  handleReminderChange(true, e.target.value)
                                 }
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               />
@@ -1423,22 +1146,19 @@ export default function TasksPage() {
 
                           <div className="flex flex-col items-end gap-1 text-[10px]">
                             <span>
-                              {t("createdLabel", "Created:")}{" "}
-                              {new Date(
-                                task.created_at
-                              ).toLocaleString()}
+                              {t("item.createdLabel", "Created:")}{" "}
+                              {new Date(task.created_at).toLocaleString()}
                             </span>
 
                             {completedAt && (
                               <span className="text-[var(--accent)]">
-                                {t("completedLabel", "Completed:")}{" "}
+                                {t("item.completedLabel", "Completed:")}{" "}
                                 {completedAt.toLocaleString()}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Share + Delete */}
                         <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border-subtle)]">
                           <div className="relative">
                             <button
@@ -1451,8 +1171,8 @@ export default function TasksPage() {
                               className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                             >
                               {copiedTaskId === task.id
-                                ? t("copiedButton", "✅ Copied")
-                                : t("shareButton", "Share")}
+                                ? t("item.copied", "✅ Copied")
+                                : t("item.share", "Share")}
                             </button>
 
                             {sharingTaskId === task.id && (
@@ -1462,34 +1182,28 @@ export default function TasksPage() {
                                   onClick={() => handleShareCopy(task)}
                                   className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                 >
-                                  {t("shareCopy", "📋 Copy text")}
+                                  {t("item.shareCopy", "📋 Copy text")}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    handleShareWhatsApp(task)
-                                  }
+                                  onClick={() => handleShareWhatsApp(task)}
                                   className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                 >
-                                  {t("shareWhatsApp", "💬 WhatsApp")}
+                                  {t("item.shareWhatsApp", "💬 WhatsApp")}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    handleShareViber(task)
-                                  }
+                                  onClick={() => handleShareViber(task)}
                                   className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                 >
-                                  {t("shareViber", "📲 Viber")}
+                                  {t("item.shareViber", "📲 Viber")}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    handleShareEmail(task)
-                                  }
+                                  onClick={() => handleShareEmail(task)}
                                   className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
                                 >
-                                  {t("shareEmail", "✉️ Email")}
+                                  {t("item.shareEmail", "✉️ Email")}
                                 </button>
                               </div>
                             )}
@@ -1502,8 +1216,8 @@ export default function TasksPage() {
                             className="text-[11px] text-red-400 hover:text-red-300"
                           >
                             {isDeleting
-                              ? t("deletingLabel", "Deleting…")
-                              : t("deleteLabel", "Delete")}
+                              ? t("item.deleting", "Deleting…")
+                              : t("item.delete", "Delete")}
                           </button>
                         </div>
                       </div>
@@ -1519,10 +1233,7 @@ export default function TasksPage() {
             <section className="mt-10 mb-8">
               <div className="max-w-md mx-auto">
                 <h2 className="text-sm font-semibold text-[var(--text-main)] mb-1 text-center">
-                  {t(
-                    "feedbackTitle",
-                    "Send feedback about Tasks"
-                  )}
+                  {t("feedbackTitle", "Send feedback about Tasks")}
                 </h2>
                 <p className="text-[11px] text-[var(--text-muted)] mb-3 text-center">
                   {t(

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
+
 type PlanType = "free" | "pro" | "founder";
 
 type DailyScoreRow = {
@@ -20,7 +21,9 @@ function getTodayStr() {
 
 export default function DailySuccessPage() {
   const router = useRouter();
-  const { t } = useT("dailySuccess");
+
+  // ✅ IMPORTANT: use full keys like "dailySuccessSystem.title"
+  const { t } = useT();
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -39,7 +42,7 @@ export default function DailySuccessPage() {
   const [scoreMessage, setScoreMessage] = useState("");
   const [scoreLoading, setScoreLoading] = useState(false);
   const [avgLast7, setAvgLast7] = useState<number | null>(null);
-  const [scoreStreak, setScoreStreak] = useState<number>(0); // consecutive "good" days (score >= 60)
+  const [scoreStreak, setScoreStreak] = useState<number>(0);
 
   // AI-suggested score state
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -102,16 +105,13 @@ export default function DailySuccessPage() {
 
     window.dispatchEvent(
       new CustomEvent("ai-assistant-context", {
-        detail: {
-          content,
-          hint,
-        },
+        detail: { content, hint },
       })
     );
 
     setStatusMessage(
       t(
-        "status.sentToAssistant",
+        "dailySuccessSystem.status.sentToAssistant",
         "Sent to the AI assistant. Open the assistant panel to see your result."
       )
     );
@@ -129,7 +129,7 @@ export default function DailySuccessPage() {
     if (!trimmed && priorities.length === 0) {
       setError(
         t(
-          "morning.errorEmpty",
+          "dailySuccessSystem.morning.errorEmpty",
           "Add at least one detail about your day or a priority."
         )
       );
@@ -180,7 +180,7 @@ Please:
     if (!trimmed) {
       setError(
         t(
-          "evening.errorEmpty",
+          "dailySuccessSystem.evening.errorEmpty",
           "Write a short reflection about how your day went."
         )
       );
@@ -217,7 +217,6 @@ ${trimmed}
       try {
         const todayStr = getTodayStr();
 
-        // Pull last 30 days of scores to compute averages & streaks
         const past = new Date();
         past.setDate(past.getDate() - 30);
         const pastStr = past.toISOString().split("T")[0];
@@ -241,32 +240,24 @@ ${trimmed}
           return;
         }
 
-        // Today's score (if exists)
         const todayRow = list.find((r) => r.score_date === todayStr);
-        if (todayRow) {
-          setScore(todayRow.score);
-        }
+        if (todayRow) setScore(todayRow.score);
 
-        // Average last 7 days
         const seven = new Date();
-        seven.setDate(seven.getDate() - 6); // last 7 calendar days
+        seven.setDate(seven.getDate() - 6);
         const sevenStr = seven.toISOString().split("T")[0];
 
         const last7 = list.filter((r) => r.score_date >= sevenStr);
         if (last7.length) {
           const avg =
-            last7.reduce((sum, r) => sum + (r.score || 0), 0) /
-            last7.length;
+            last7.reduce((sum, r) => sum + (r.score || 0), 0) / last7.length;
           setAvgLast7(Math.round(avg));
         } else {
           setAvgLast7(null);
         }
 
-        // Score-based streak: days in a row with score >= 60
         const goodDateSet = new Set(
-          list
-            .filter((r) => r.score >= 60)
-            .map((r) => r.score_date)
+          list.filter((r) => r.score >= 60).map((r) => r.score_date)
         );
 
         let streakCount = 0;
@@ -276,9 +267,7 @@ ${trimmed}
           if (goodDateSet.has(dStr)) {
             streakCount += 1;
             current.setDate(current.getDate() - 1);
-          } else {
-            break;
-          }
+          } else break;
         }
         setScoreStreak(streakCount);
       } catch (err) {
@@ -295,10 +284,7 @@ ${trimmed}
   async function handleSaveScore() {
     if (!user) {
       setScoreMessage(
-        t(
-          "score.loginToSave",
-          "Log in to save your daily score."
-        )
+        t("dailySuccessSystem.score.loginToSave", "Log in to save your daily score.")
       );
       return;
     }
@@ -324,29 +310,16 @@ ${trimmed}
 
       if (error) {
         console.error("Daily Success: save score error", error);
-        setError(
-          t(
-            "score.saveError",
-            "Failed to save your daily score."
-          )
-        );
+        setError(t("dailySuccessSystem.score.saveError", "Failed to save your daily score."));
         return;
       }
 
       setScoreMessage(
-        t(
-          "score.savedMessage",
-          "Saved! Your streak and averages are updated."
-        )
+        t("dailySuccessSystem.score.savedMessage", "Saved! Your streak and averages are updated.")
       );
     } catch (err) {
       console.error(err);
-      setError(
-        t(
-          "score.saveError",
-          "Failed to save your daily score."
-        )
-      );
+      setError(t("dailySuccessSystem.score.saveError", "Failed to save your daily score."));
     } finally {
       setSavingScore(false);
     }
@@ -356,10 +329,7 @@ ${trimmed}
   async function handleSuggestScore() {
     if (!user) {
       setSuggestError(
-        t(
-          "suggest.loginRequired",
-          "Log in to let AI suggest a score."
-        )
+        t("dailySuccessSystem.suggest.loginRequired", "Log in to let AI suggest a score.")
       );
       return;
     }
@@ -379,26 +349,18 @@ ${trimmed}
 
       if (!res.ok || !data?.ok) {
         setSuggestError(
-          data?.error ||
-            t(
-              "suggest.errorGeneric",
-              "Could not get an AI suggestion."
-            )
+          data?.error || t("dailySuccessSystem.suggest.errorGeneric", "Could not get an AI suggestion.")
         );
         return;
       }
 
-      if (typeof data.score === "number") {
-        setScore(data.score);
-      }
-      if (typeof data.reason === "string") {
-        setSuggestReason(data.reason);
-      }
+      if (typeof data.score === "number") setScore(data.score);
+      if (typeof data.reason === "string") setSuggestReason(data.reason);
     } catch (err) {
       console.error("[daily-success] suggest error", err);
       setSuggestError(
         t(
-          "suggest.networkError",
+          "dailySuccessSystem.suggest.networkError",
           "Network error while asking AI to suggest your score."
         )
       );
@@ -411,14 +373,17 @@ ${trimmed}
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">
-          {t(
-            "loadingSystem",
-            "Loading your daily system…"
-          )}
+          {t("dailySuccessSystem.loadingSystem", "Loading your daily system…")}
         </p>
       </main>
     );
   }
+
+  const priorityLabelByIdx = (idx: number) => {
+    if (idx === 0) return t("dailySuccessSystem.morning.priority1", "Priority #1");
+    if (idx === 1) return t("dailySuccessSystem.morning.priority2", "Priority #2");
+    return t("dailySuccessSystem.morning.priority3", "Priority #3");
+  };
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
@@ -429,14 +394,11 @@ ${trimmed}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                {t(
-                  "header.title",
-                  "AI Daily Success System"
-                )}
+                {t("dailySuccessSystem.title", "AI Daily Success System")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 {t(
-                  "header.subtitle",
+                  "dailySuccessSystem.subtitle",
                   "Start your day with a focused plan, end it with a clear reflection, and track your progress with a simple score."
                 )}
               </p>
@@ -445,24 +407,18 @@ ${trimmed}
               href="/dashboard"
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
             >
-              {t(
-                "header.backToDashboard",
-                "← Back to dashboard"
-              )}
+              {t("dailySuccessSystem.backToDashboard", "← Back to dashboard")}
             </Link>
           </div>
 
           {!isProUser && (
             <div className="mb-5 rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-3 text-[11px] text-[var(--text-main)]">
               <p className="font-semibold mb-1">
-                {t(
-                  "freeBanner.title",
-                  "You're on the Free plan."
-                )}
+                {t("dailySuccessSystem.freePlan.label", "You're on the Free plan.")}
               </p>
               <p className="mb-2 text-[var(--text-muted)]">
                 {t(
-                  "freeBanner.body",
+                  "dailySuccessSystem.freePlan.body",
                   "The Daily Success System works great on Free, but Pro will unlock higher AI usage and future automation (auto-generated plans, weekly reports, and more)."
                 )}
               </p>
@@ -471,114 +427,78 @@ ${trimmed}
                 onClick={() => router.push("/dashboard#pricing")}
                 className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
               >
-                {t(
-                  "freeBanner.button",
-                  "View Pro options"
-                )}
+                {t("dailySuccessSystem.freePlan.viewPro", "View Pro options")}
               </button>
             </div>
           )}
 
-          {error && (
-            <p className="text-xs text-red-400 mb-2">{error}</p>
-          )}
-          {statusMessage && (
-            <p className="text-xs text-emerald-400 mb-3">
-              {statusMessage}
-            </p>
-          )}
+          {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
+          {statusMessage && <p className="text-xs text-emerald-400 mb-3">{statusMessage}</p>}
 
           {/* Score stats card */}
           <div className="mb-5 grid md:grid-cols-3 gap-3 text-[11px]">
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
               <p className="text-[var(--text-muted)] mb-1">
-                {t(
-                  "score.todayLabel",
-                  "Today's score"
-                )}
+                {t("dailySuccessSystem.todaysScore.heading", "Today's score")}
               </p>
               <p className="text-xl font-semibold">
                 {score}
-                <span className="text-[11px] text-[var(--text-muted)] ml-1">
-                  /100
-                </span>
+                <span className="text-[11px] text-[var(--text-muted)] ml-1">/100</span>
               </p>
               <p className="text-[var(--text-muted)] mt-1">
                 {t(
-                  "score.todayHelp",
+                  "dailySuccessSystem.todaysScore.help",
                   "0 = terrible day, 100 = perfect day. Be honest, not harsh."
                 )}
               </p>
             </div>
+
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
               <p className="text-[var(--text-muted)] mb-1">
-                {t(
-                  "score.avg7Label",
-                  "Avg last 7 days"
-                )}
+                {t("dailySuccessSystem.avg7d.label", "Avg last 7 days")}
               </p>
-              <p className="text-xl font-semibold">
-                {avgLast7 !== null ? `${avgLast7}/100` : "—"}
-              </p>
+              <p className="text-xl font-semibold">{avgLast7 !== null ? `${avgLast7}/100` : "—"}</p>
               <p className="text-[var(--text-muted)] mt-1">
-                {t(
-                  "score.avg7Help",
-                  "Aim for consistency, not perfection."
-                )}
+                {t("dailySuccessSystem.avg7d.help", "Aim for consistency, not perfection.")}
               </p>
             </div>
+
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
               <p className="text-[var(--text-muted)] mb-1">
-                {t(
-                  "score.streakLabel",
-                  "Success streak (score ≥ 60)"
-                )}
+                {t("dailySuccessSystem.streak.label", "Success streak (score ≥ 60)")}
               </p>
               <p className="text-xl font-semibold">
                 {scoreStreak}{" "}
                 {t(
                   scoreStreak === 1
-                    ? "score.streakDay"
-                    : "score.streakDays",
+                    ? "dailySuccessSystem.streak.day"
+                    : "dailySuccessSystem.streak.days",
                   scoreStreak === 1 ? "day" : "days"
                 )}
               </p>
               <p className="text-[var(--text-muted)] mt-1">
-                {t(
-                  "score.streakHelp",
-                  "Days in a row you rated your day 60+."
-                )}
+                {t("dailySuccessSystem.streak.help", "Days in a row you rated your day 60+.")}
               </p>
             </div>
           </div>
 
           {scoreLoading && (
             <p className="text-[11px] text-[var(--text-muted)] mb-2">
-              {t(
-                "score.loadingRecent",
-                "Loading your recent scores…"
-              )}
+              {t("dailySuccessSystem.score.loadingRecent", "Loading your recent scores…")}
             </p>
           )}
-          {scoreMessage && (
-            <p className="text-[11px] text-emerald-400 mb-3">
-              {scoreMessage}
-            </p>
-          )}
+          {scoreMessage && <p className="text-[11px] text-emerald-400 mb-3">{scoreMessage}</p>}
 
-          {/* Main grid: Morning / Evening + Score */}
+          {/* Main grid */}
           <div className="grid md:grid-cols-2 gap-5">
-            {/* Morning planning */}
+            {/* Morning */}
             <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
               <h2 className="text-sm font-semibold mb-2">
-                {t(
-                  "morning.title",
-                  "🌅 Morning: Design your day"
-                )}
+                {t("dailySuccessSystem.morning.title", "🌅 Morning: Design your day")}
               </h2>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 {t(
-                  "morning.subtitle",
+                  "dailySuccessSystem.morning.description",
                   "Tell the AI what's on your plate, and it will build a realistic schedule with priorities."
                 )}
               </p>
@@ -586,16 +506,13 @@ ${trimmed}
               <form onSubmit={handleMorningPlan} className="space-y-3">
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {t(
-                      "morning.labelWhatsHappening",
-                      "What's happening today?"
-                    )}
+                    {t("dailySuccessSystem.morning.questionToday", "What's happening today?")}
                   </label>
                   <textarea
                     value={morningInput}
                     onChange={(e) => setMorningInput(e.target.value)}
                     placeholder={t(
-                      "morning.placeholderWhatsHappening",
+                      "dailySuccessSystem.morning.questionToday.placeholder",
                       "Meetings, deadlines, personal tasks, energy level, etc."
                     )}
                     className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[80px]"
@@ -604,11 +521,9 @@ ${trimmed}
 
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {t(
-                      "morning.labelTopPriorities",
-                      "Top 3 priorities"
-                    )}
+                    {t("dailySuccessSystem.morning.top3.label", "Top 3 priorities")}
                   </label>
+
                   <div className="space-y-1.5">
                     {topPriorities.map((val, idx) => (
                       <input
@@ -620,17 +535,15 @@ ${trimmed}
                           next[idx] = e.target.value;
                           setTopPriorities(next);
                         }}
-                        placeholder={t(
-                          "morning.priorityPlaceholder",
-                          "Priority"
-                        ) + ` #${idx + 1}`}
+                        placeholder={priorityLabelByIdx(idx)}
                         className="w-full px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     ))}
                   </div>
+
                   <p className="text-[10px] text-[var(--text-muted)] mt-1">
                     {t(
-                      "morning.prioritiesHint",
+                      "dailySuccessSystem.morning.prioritiesHelp",
                       "You don't have to fill all three, but at least one priority helps a lot."
                     )}
                   </p>
@@ -640,25 +553,19 @@ ${trimmed}
                   type="submit"
                   className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
                 >
-                  {t(
-                    "morning.buttonGeneratePlan",
-                    "✨ Generate today's AI plan"
-                  )}
+                  {t("dailySuccessSystem.morning.generateButton", "✨ Generate today's AI plan")}
                 </button>
               </form>
             </section>
 
-            {/* Evening reflection + score */}
+            {/* Evening */}
             <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
               <h2 className="text-sm font-semibold mb-2">
-                {t(
-                  "evening.title",
-                  "🌙 Evening: Reflect & score your day"
-                )}
+                {t("dailySuccessSystem.evening.title", "🌙 Evening: Reflect & score your day")}
               </h2>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 {t(
-                  "evening.subtitle",
+                  "dailySuccessSystem.evening.description",
                   "Capture how your day went. The AI will turn it into wins, lessons, and improvements for tomorrow."
                 )}
               </p>
@@ -666,16 +573,13 @@ ${trimmed}
               <form onSubmit={handleEveningReflection} className="space-y-3">
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {t(
-                      "evening.labelReflection",
-                      "How did today actually go?"
-                    )}
+                    {t("dailySuccessSystem.evening.questionDay", "How did today actually go?")}
                   </label>
                   <textarea
                     value={eveningInput}
                     onChange={(e) => setEveningInput(e.target.value)}
                     placeholder={t(
-                      "evening.placeholderReflection",
+                      "dailySuccessSystem.evening.questionDay.placeholder",
                       "What you got done, what derailed you, your energy, distractions, etc."
                     )}
                     className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[100px]"
@@ -686,10 +590,7 @@ ${trimmed}
                   type="submit"
                   className="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs"
                 >
-                  {t(
-                    "evening.buttonReflect",
-                    "💭 Reflect with AI"
-                  )}
+                  {t("dailySuccessSystem.evening.reflectButton", "💭 Reflect with AI")}
                 </button>
               </form>
 
@@ -697,10 +598,11 @@ ${trimmed}
               <div className="mt-5 border-t border-[var(--border-subtle)] pt-3">
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   {t(
-                    "score.sliderLabel",
+                    "dailySuccessSystem.evening.scoreQuestion",
                     "How would you rate today overall?"
                   )}
                 </label>
+
                 <div className="flex items-center gap-3">
                   <input
                     type="range"
@@ -710,13 +612,12 @@ ${trimmed}
                     onChange={(e) => setScore(Number(e.target.value))}
                     className="flex-1"
                   />
-                  <span className="text-sm font-semibold w-10 text-right">
-                    {score}
-                  </span>
+                  <span className="text-sm font-semibold w-10 text-right">{score}</span>
                 </div>
+
                 <p className="text-[10px] text-[var(--text-muted)] mt-1">
                   {t(
-                    "score.sliderHelp",
+                    "dailySuccessSystem.evening.scoreHelp",
                     "Think about effort + focus, not just outcomes. A 60–80 day is often a win."
                   )}
                 </p>
@@ -729,15 +630,16 @@ ${trimmed}
                     className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[11px]"
                   >
                     {suggestLoading
-                      ? t("suggest.asking", "Asking AI…")
+                      ? t("dailySuccessSystem.evening.aiSuggestLoading", "Asking AI…")
                       : t(
-                          "suggest.button",
+                          "dailySuccessSystem.evening.aiSuggestLabel",
                           "Let AI suggest today's score"
                         )}
                   </button>
+
                   <p className="text-[10px] text-[var(--text-muted)]">
                     {t(
-                      "suggest.helperText",
+                      "dailySuccessSystem.evening.aiSuggestHelp",
                       "AI looks at your tasks & notes to guess a realistic score. You can still adjust it."
                     )}
                   </p>
@@ -745,19 +647,12 @@ ${trimmed}
 
                 {suggestReason && (
                   <p className="mt-2 text-[11px] text-[var(--text-main)]">
-                    {t(
-                      "suggest.reasonPrefix",
-                      "Suggested because:"
-                    )}{" "}
+                    {t("dailySuccessSystem.evening.aiSuggestReasonPrefix", "Suggested because:")}{" "}
                     {suggestReason}
                   </p>
                 )}
 
-                {suggestError && (
-                  <p className="mt-2 text-[11px] text-red-400">
-                    {suggestError}
-                  </p>
-                )}
+                {suggestError && <p className="mt-2 text-[11px] text-red-400">{suggestError}</p>}
 
                 <button
                   type="button"
@@ -766,49 +661,32 @@ ${trimmed}
                   className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-xs"
                 >
                   {savingScore
-                    ? t("score.savingButton", "Saving...")
-                    : t(
-                        "score.saveButton",
-                        "Save today's score"
-                      )}
+                    ? t("dailySuccessSystem.evening.saveScoreSaving", "Saving...")
+                    : t("dailySuccessSystem.evening.saveScoreButton", "Save today's score")}
                 </button>
               </div>
 
               <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
                 <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                  {t(
-                    "helper.hintTitle",
-                    "Hint for best results:"
-                  )}
+                  {t("dailySuccessSystem.hint.title", "Hint for best results:")}
                 </p>
                 <ul className="text-[11px] text-[var(--text-muted)] list-disc list-inside space-y-1">
+                  <li>{t("dailySuccessSystem.hint.tip1", "Mention 2–3 things you're proud of.")}</li>
                   <li>
                     {t(
-                      "helper.item1",
-                      "Mention 2–3 things you're proud of."
-                    )}
-                  </li>
-                  <li>
-                    {t(
-                      "helper.item2",
+                      "dailySuccessSystem.hint.tip2",
                       "Be honest about distractions and procrastination."
                     )}
                   </li>
-                  <li>
-                    {t(
-                      "helper.item3",
-                      "Add how you'd like tomorrow to feel."
-                    )}
-                  </li>
+                  <li>{t("dailySuccessSystem.hint.tip3", "Add how you'd like tomorrow to feel.")}</li>
                 </ul>
               </div>
             </section>
           </div>
 
-          {/* Small footer hint */}
           <p className="mt-6 text-[11px] text-[var(--text-muted)]">
             {t(
-              "footer.note",
+              "dailySuccessSystem.hint.privacy",
               "Your answers and scores are processed by the AI assistant. You can always fine-tune the output directly in the assistant panel."
             )}
           </p>

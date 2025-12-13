@@ -27,7 +27,11 @@ export default function TemplateDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params?.id;
-  const { t } = useT("templates");
+
+  // ✅ Notes-style: build full keys
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) => rawT(`templates.${key}`, fallback);
+  const cardT = (key: string, fallback: string) => rawT(`templateCard.${key}`, fallback);
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -52,9 +56,9 @@ export default function TemplateDetailPage() {
   // --- Helpers: i18n title/description with per-template keys ---
 
   function getTemplateTitle(tpl: Template): string {
-    const fallback = tpl.title || t("card.untitled", "Untitled template");
-    const key = `presets.${tpl.id}.title`;
-    const translated = t(key, fallback);
+    const fallback = tpl.title || rawT("templates.card.untitled", "Untitled template");
+    const key = `templates.presets.${tpl.id}.title`;
+    const translated = rawT(key, fallback);
     if (!translated || translated === key) return fallback;
     return translated;
   }
@@ -62,12 +66,12 @@ export default function TemplateDetailPage() {
   function getTemplateDescription(tpl: Template): string {
     const fallback =
       tpl.description ||
-      t(
-        "card.noDescription",
+      rawT(
+        "templates.card.noDescription",
         "No description yet. Edit this template to add more context."
       );
-    const key = `presets.${tpl.id}.description`;
-    const translated = t(key, fallback);
+    const key = `templates.presets.${tpl.id}.description`;
+    const translated = rawT(key, fallback);
     if (!translated || translated === key) return fallback;
     return translated;
   }
@@ -97,11 +101,7 @@ export default function TemplateDetailPage() {
 
     async function loadPlan() {
       try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", user.id)
-          .maybeSingle();
+        const { data, error } = await supabase.from("profiles").select("plan").eq("id", user.id).maybeSingle();
 
         if (error && (error as any).code !== "PGRST116") {
           console.error("Template detail: plan load error", error);
@@ -172,12 +172,10 @@ export default function TemplateDetailPage() {
       }
     }
 
-    if (!checkingUser) {
-      loadTemplate();
-    }
+    if (!checkingUser) loadTemplate();
   }, [id, checkingUser]);
 
-  const isMine = user && tmpl && tmpl.user_id === user.id;
+  const isMine = !!(user && tmpl && tmpl.user_id === user.id);
   const isProTemplate = !!tmpl?.is_pro_only || isProOnly;
   const locked = !!tmpl && isProTemplate && !isProUser && !isMine;
 
@@ -191,23 +189,14 @@ export default function TemplateDetailPage() {
       return;
     }
 
-    // ✅ use translated title here
     const safeTitle = getTemplateTitle(tmpl);
     const safePrompt = tmpl.ai_prompt || "";
 
     window.dispatchEvent(
       new CustomEvent("ai-assistant-context", {
         detail: {
-          content:
-            safePrompt ||
-            `${t("assistant.hintPrefix", "Use this template")}: "${safeTitle}".`,
-          hint: `${t(
-            "assistant.hintPrefix",
-            "Use this template"
-          )}: "${safeTitle}". ${t(
-            "assistant.hintSuffix",
-            "I may add extra details before sending."
-          )}`,
+          content: safePrompt || `Use this template: "${safeTitle}".`,
+          hint: `Use this template: "${safeTitle}".`,
         },
       })
     );
@@ -255,29 +244,18 @@ export default function TemplateDetailPage() {
   async function handleDelete() {
     if (!tmpl || !user || !isMine) return;
 
-    if (
-      !confirm(
-        t("detail.delete.confirm", "Delete this template permanently?")
-      )
-    )
-      return;
+    if (!confirm(t("detail.delete.confirm", "Delete this template permanently?"))) return;
 
     setDeleting(true);
     setError("");
     setSuccess("");
 
     try {
-      const { error } = await supabase
-        .from("templates")
-        .delete()
-        .eq("id", tmpl.id)
-        .eq("user_id", user.id);
+      const { error } = await supabase.from("templates").delete().eq("id", tmpl.id).eq("user_id", user.id);
 
       if (error) {
         console.error(error);
-        setError(
-          t("detail.error.deleteFailed", "Failed to delete template.")
-        );
+        setError(t("detail.error.deleteFailed", "Failed to delete template."));
         setDeleting(false);
         return;
       }
@@ -293,9 +271,7 @@ export default function TemplateDetailPage() {
   if (checkingUser || loading) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
-        <p className="text-[var(--text-muted)] text-sm">
-          {t("detail.loadingTemplate", "Loading template…")}
-        </p>
+        <p className="text-[var(--text-muted)] text-sm">{t("detail.loadingTemplate", "Loading template…")}</p>
       </main>
     );
   }
@@ -305,9 +281,7 @@ export default function TemplateDetailPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="templates" />
         <div className="flex-1 flex flex-col items-center justify-center px-4 text-sm">
-          <p className="text-[var(--text-muted)] mb-3">
-            {error || t("detail.error.notFound", "Template not found.")}
-          </p>
+          <p className="text-[var(--text-muted)] mb-3">{error || t("detail.error.notFound", "Template not found.")}</p>
           <Link
             href="/templates"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
@@ -319,9 +293,19 @@ export default function TemplateDetailPage() {
     );
   }
 
-  const createdAtLabel = tmpl.created_at
-    ? new Date(tmpl.created_at).toLocaleString()
-    : null;
+  const createdAtLabel = tmpl.created_at ? new Date(tmpl.created_at).toLocaleString() : null;
+
+  // ✅ use templateCard keys for status line
+  const statusLabel = tmpl.is_public
+    ? isProTemplate
+      ? cardT("publicPro", "Public • Pro template")
+      : cardT("public", "Public")
+    : rawT("templates.card.private", "Private");
+
+  const usedTimesLabel =
+    typeof tmpl.usage_count === "number"
+      ? cardT("usedTimes", `Used ${tmpl.usage_count} times`).replace("{{count}}", String(tmpl.usage_count))
+      : "";
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
@@ -331,32 +315,17 @@ export default function TemplateDetailPage() {
           {/* Header */}
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">
-                {getTemplateTitle(tmpl)}
-              </h1>
+              <h1 className="text-xl md:text-2xl font-bold">{getTemplateTitle(tmpl)}</h1>
               <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                {tmpl.is_public
-                  ? t("card.public", "Public")
-                  : t("card.private", "Private")}
-                {isProTemplate && ` • ${t("card.proTemplate", "Pro template")}`}
-                {isMine && ` • ${t("card.yours", "Yours")}`}
-                {typeof tmpl.usage_count === "number" &&
-                  tmpl.usage_count > 0 && (
-                    <>
-                      {" "}
-                      • {t("card.usedPrefix", "Used")} {tmpl.usage_count}{" "}
-                      {t("card.usedSuffix", "times")}
-                    </>
-                  )}
-                {createdAtLabel && (
-                  <>
-                    {" "}
-                    • {t("detail.createdPrefix", "Created")}{" "}
-                    {createdAtLabel}
-                  </>
-                )}
+                {statusLabel}
+                {usedTimesLabel ? ` • ${usedTimesLabel}` : ""}
+                {createdAtLabel ? ` • ${t("detail.createdPrefix", "Created")} ${createdAtLabel}` : ""}
               </p>
+              {getTemplateDescription(tmpl) ? (
+                <p className="text-[12px] text-[var(--text-main)] mt-2">{getTemplateDescription(tmpl)}</p>
+              ) : null}
             </div>
+
             <Link
               href="/templates"
               className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
@@ -374,14 +343,8 @@ export default function TemplateDetailPage() {
             </div>
           )}
 
-          {error && (
-            <p className="text-xs text-red-400 mb-2">{error}</p>
-          )}
-          {success && (
-            <p className="text-xs text-emerald-400 mb-2">
-              {success}
-            </p>
-          )}
+          {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
+          {success && <p className="text-xs text-emerald-400 mb-2">{success}</p>}
 
           {/* Use with Assistant */}
           <div className="mb-4 flex flex-wrap gap-2 items-center">
@@ -390,13 +353,25 @@ export default function TemplateDetailPage() {
               onClick={handleUseWithAssistant}
               disabled={locked}
               className={`px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-xs ${
-                locked
-                  ? "opacity-60 cursor-not-allowed"
-                  : "hover:bg-[var(--bg-elevated)]"
+                locked ? "opacity-60 cursor-not-allowed" : "hover:bg-[var(--bg-elevated)]"
               }`}
             >
-              🤖 {t("buttons.useWithAssistant", "Use with Assistant")}
+              {cardT("use", "🤖 Use with Assistant")}
             </button>
+
+            {tmpl.is_public && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window === "undefined") return;
+                  const url = `${window.location.origin}/templates/${tmpl.id}`;
+                  navigator.clipboard.writeText(url).catch((err) => console.error("Copy link failed", err));
+                }}
+                className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-xs hover:bg-[var(--bg-elevated)]"
+              >
+                {cardT("copyLink", "🔗 Copy link")}
+              </button>
+            )}
 
             {locked && (
               <button
@@ -413,9 +388,7 @@ export default function TemplateDetailPage() {
           <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
             <form onSubmit={handleSave} className="space-y-4 max-w-2xl">
               <div>
-                <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  {t("detail.form.titleLabel", "Title")}
-                </label>
+                <label className="block text-[11px] text-[var(--text-muted)] mb-1">{t("detail.form.titleLabel", "Title")}</label>
                 <input
                   type="text"
                   value={title}
@@ -427,10 +400,7 @@ export default function TemplateDetailPage() {
 
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  {t(
-                    "detail.form.descriptionLabel",
-                    "Short description"
-                  )}
+                  {t("detail.form.descriptionLabel", "Short description")}
                 </label>
                 <textarea
                   value={description}
@@ -442,10 +412,7 @@ export default function TemplateDetailPage() {
 
               <div>
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  {t(
-                    "detail.form.promptLabel",
-                    "Underlying AI prompt"
-                  )}
+                  {t("detail.form.promptLabel", "Underlying AI prompt")}
                 </label>
                 <textarea
                   value={aiPrompt}
@@ -454,10 +421,7 @@ export default function TemplateDetailPage() {
                   className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[140px] disabled:opacity-60"
                 />
                 <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                  {t(
-                    "detail.form.promptHint",
-                    "This is what gets sent to the AI when you use this template."
-                  )}
+                  {t("detail.form.promptHint", "This is what gets sent to the AI when you use this template.")}
                 </p>
               </div>
 
@@ -483,12 +447,7 @@ export default function TemplateDetailPage() {
                     onChange={(e) => setIsPublic(e.target.checked)}
                     className="h-4 w-4 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                   />
-                  <span>
-                    {t(
-                      "detail.form.publicLabel",
-                      "Public template"
-                    )}
-                  </span>
+                  <span>{t("detail.form.publicLabel", "Public template")}</span>
                 </label>
 
                 <label className="flex items-center gap-2 text-[11px] text-[var(--text-main)]">
@@ -499,9 +458,7 @@ export default function TemplateDetailPage() {
                     onChange={(e) => setIsProOnly(e.target.checked)}
                     className="h-4 w-4 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                   />
-                  <span>
-                    {t("detail.form.proOnlyLabel", "Pro only")}
-                  </span>
+                  <span>{t("detail.form.proOnlyLabel", "Pro only")}</span>
                 </label>
               </div>
 
@@ -512,35 +469,23 @@ export default function TemplateDetailPage() {
                     disabled={saving}
                     className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-sm"
                   >
-                    {saving
-                      ? t("detail.buttons.saving", "Saving...")
-                      : t(
-                          "detail.buttons.saveChanges",
-                          "Save changes"
-                        )}
+                    {saving ? t("detail.buttons.saving", "Saving...") : t("detail.buttons.saveChanges", "Save changes")}
                   </button>
+
                   <button
                     type="button"
                     onClick={handleDelete}
                     disabled={deleting}
                     className="px-4 py-2 rounded-xl border border-red-500 text-red-400 hover:bg-red-900/20 text-sm disabled:opacity-60"
                   >
-                    {deleting
-                      ? t("detail.buttons.deleting", "Deleting...")
-                      : t(
-                          "detail.buttons.delete",
-                          "Delete template"
-                        )}
+                    {deleting ? t("detail.buttons.deleting", "Deleting...") : t("detail.buttons.delete", "Delete template")}
                   </button>
                 </div>
               )}
 
               {!isMine && (
                 <p className="text-[11px] text-[var(--text-muted)] mt-2">
-                  {t(
-                    "detail.viewOnlyHint",
-                    "You can view this template, but only the owner can edit or delete it."
-                  )}
+                  {t("detail.viewOnlyHint", "You can view this template, but only the owner can edit or delete it.")}
                 </p>
               )}
             </form>

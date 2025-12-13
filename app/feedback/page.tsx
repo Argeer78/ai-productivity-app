@@ -18,7 +18,11 @@ type FeedbackRow = {
 };
 
 export default function FeedbackPage() {
-  const { t } = useT("feedback");
+  // ✅ build full keys (feedbackPage.*)
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) =>
+    rawT(`feedbackPage.${key}`, fallback);
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
@@ -61,7 +65,8 @@ export default function FeedbackPage() {
         setFeedback((data || []) as FeedbackRow[]);
       } catch (err) {
         console.error(err);
-        setError(t("errors.loadFeedback", "Failed to load feedback."));
+        // you don't have feedbackPage.loadError key, so keep fallback
+        setError(t("loadError", "Failed to load feedback."));
       } finally {
         setLoading(false);
       }
@@ -74,7 +79,7 @@ export default function FeedbackPage() {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[13px] text-[var(--text-muted)]">
-          {t("status.checkingSession", "Checking your session...")}
+          {t("checkingSession", "Checking your session...")}
         </p>
       </main>
     );
@@ -86,11 +91,11 @@ export default function FeedbackPage() {
         <AppHeader />
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-sm">
           <h1 className="text-2xl font-bold mb-3">
-            {t("header.title", "Feedback")}
+            {t("title", "Feedback")}
           </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             {t(
-              "unauth.message",
+              "notLoggedIn",
               "You're not logged in. Log in to see feedback messages."
             )}
           </p>
@@ -98,7 +103,7 @@ export default function FeedbackPage() {
             href="/auth"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-soft)] text-sm text-slate-950 font-medium"
           >
-            {t("unauth.cta", "Go to login / signup")}
+            {t("goToAuth", "Go to login / signup")}
           </Link>
         </div>
       </main>
@@ -112,19 +117,16 @@ export default function FeedbackPage() {
         <AppHeader />
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-sm">
           <h1 className="text-2xl font-bold mb-3">
-            {t("header.title", "Feedback")}
+            {t("title", "Feedback")}
           </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            {t(
-              "notAdmin.message",
-              "This page is only available to the admin."
-            )}
+            {t("notAdmin", "This page is only available to the admin.")}
           </p>
           <Link
             href="/"
             className="px-4 py-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-strong)] hover:bg-[var(--bg-card-soft)] text-sm"
           >
-            {t("notAdmin.cta", "Go back to home")}
+            {t("goHome", "Go back to home")}
           </Link>
         </div>
       </main>
@@ -140,11 +142,11 @@ export default function FeedbackPage() {
           <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                {t("header.title", "Feedback")}
+                {t("title", "Feedback")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 {t(
-                  "header.subtitle",
+                  "subtitle",
                   "Internal page showing all feedback messages stored in Supabase."
                 )}
               </p>
@@ -157,12 +159,12 @@ export default function FeedbackPage() {
 
           {loading ? (
             <p className="text-[13px] text-[var(--text-muted)]">
-              {t("status.loading", "Loading feedback...")}
+              {t("loading", "Loading feedback...")}
             </p>
           ) : feedback.length === 0 ? (
             <p className="text-[13px] text-[var(--text-muted)]">
               {t(
-                "empty.message",
+                "noFeedback",
                 "No feedback yet. Once users send messages from the app, they'll appear here."
               )}
             </p>
@@ -177,17 +179,14 @@ export default function FeedbackPage() {
                     <p className="text-[11px] text-[var(--text-muted)]">
                       {fb.email ? (
                         <>
-                          {t("row.fromPrefix", "From")}{" "}
+                          {t("rowFrom", "From")}{" "}
                           <span className="font-semibold text-[var(--text-main)]">
                             {fb.email}
                           </span>
                         </>
                       ) : (
                         <span className="italic">
-                          {t(
-                            "row.anonymous",
-                            "Anonymous / not logged in"
-                          )}
+                          {t("rowAnonymous", "Anonymous / not logged in")}
                         </span>
                       )}
                     </p>

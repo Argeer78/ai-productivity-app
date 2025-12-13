@@ -16,15 +16,17 @@ type WeeklyReport = {
 type PlanType = "free" | "pro" | "founder";
 
 export default function WeeklyReportsPage() {
-  const { t } = useT("weeklyReports");
+  // ✅ Notes-style: always build full keys weeklyReports.*
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) =>
+    rawT(`weeklyReports.${key}`, fallback);
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
   const [plan, setPlan] = useState<PlanType>("free");
   const isPro = plan === "pro" || plan === "founder";
-  const planLabelUpper =
-    plan === "founder" ? "FOUNDER" : plan.toUpperCase();
+  const planLabelUpper = plan === "founder" ? "FOUNDER" : plan.toUpperCase();
 
   const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,9 +92,7 @@ export default function WeeklyReportsPage() {
         }
       } catch (err: any) {
         console.error(err);
-        setError(
-          t("loadError", "Failed to load weekly reports.")
-        );
+        setError(t("loadError", "Failed to load weekly reports."));
       } finally {
         setLoading(false);
       }
@@ -177,18 +177,13 @@ export default function WeeklyReportsPage() {
             </span>
           </div>
 
-          {error && (
-            <p className="text-xs text-red-400 mb-3">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
 
           {/* Locked state for Free plan */}
           {!isPro && (
             <div className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent-soft)]/60 p-4 text-xs mb-6">
               <p className="text-[var(--accent-strong)] font-semibold mb-1">
-                {t(
-                  "lockedTitle",
-                  "Weekly AI reports are a Pro feature."
-                )}
+                {t("lockedTitle", "Weekly AI reports are a Pro feature.")}
               </p>
               <p className="text-[11px] text-[var(--text-main)]/80 mb-3">
                 {t(
@@ -201,10 +196,7 @@ export default function WeeklyReportsPage() {
                 href="/dashboard#pricing"
                 className="inline-block px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 font-medium text-xs"
               >
-                {t(
-                  "lockedCta",
-                  "🔒 Unlock Weekly Reports with Pro"
-                )}
+                {t("lockedCta", "🔒 Unlock Weekly Reports with Pro")}
               </Link>
             </div>
           )}
@@ -214,10 +206,7 @@ export default function WeeklyReportsPage() {
             <>
               {loading ? (
                 <p className="text-[var(--text-muted)] text-sm">
-                  {t(
-                    "loadingReports",
-                    "Loading your weekly reports..."
-                  )}
+                  {t("loadingReports", "Loading your weekly reports...")}
                 </p>
               ) : reports.length === 0 ? (
                 <p className="text-[var(--text-muted)] text-sm">
@@ -237,28 +226,19 @@ export default function WeeklyReportsPage() {
                         <div>
                           <p className="text-xs text-[var(--text-muted)]">
                             {t("weekOfLabel", "Week of")}{" "}
-                            {new Date(
-                              r.report_date
-                            ).toLocaleDateString()}
+                            {new Date(r.report_date).toLocaleDateString()}
                           </p>
                         </div>
                         <Link
                           href={`/weekly-reports/${r.id}`}
                           className="text-[11px] text-[var(--accent)] hover:opacity-90"
                         >
-                          {t(
-                            "viewFullReport",
-                            "View full report →"
-                          )}
+                          {t("viewFullReport", "View full report →")}
                         </Link>
                       </div>
 
                       <div className="mt-2 text-[12px] text-[var(--text-main)] line-clamp-3 whitespace-pre-wrap">
-                        {r.summary ||
-                          t(
-                            "noSummaryShort",
-                            "(no summary available)"
-                          )}
+                        {r.summary || t("noSummaryShort", "(no summary available)")}
                       </div>
                     </article>
                   ))}

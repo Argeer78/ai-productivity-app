@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
+import { useT } from "@/lib/useT";
 
 type Plan = "free" | "pro" | "founder";
 
@@ -16,13 +17,22 @@ type WeeklyReport = {
 };
 
 export default function WeeklyHistoryPage() {
+  // ✅ Notes-style, uses weeklyHistory.* keys
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) =>
+    rawT(`weeklyHistory.${key}`, fallback);
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
   const [plan, setPlan] = useState<Plan>("free");
   const isPro = plan === "pro" || plan === "founder";
-  const planLabelUpper =
-    plan === "founder" ? "FOUNDER" : plan.toUpperCase();
+
+  // ✅ Use your keys weeklyHistory.plan.free/pro/founder
+  const planLabelUpper = t(
+    `plan.${plan}`,
+    plan === "founder" ? "FOUNDER" : plan.toUpperCase()
+  );
 
   const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,18 +86,18 @@ export default function WeeklyHistoryPage() {
           .select("id, report_date, summary, created_at")
           .eq("user_id", user.id)
           .order("report_date", { ascending: false })
-          .limit(52); // up to ~1 year
+          .limit(52);
 
         if (reportsError && reportsError.code !== "PGRST116") {
           console.error("Weekly history: reports error", reportsError);
           setReports([]);
-          setError("Failed to load weekly reports.");
+          setError(t("loadError", "Failed to load weekly reports."));
         } else {
           setReports((reportsData || []) as WeeklyReport[]);
         }
       } catch (err) {
         console.error(err);
-        setError("Failed to load weekly reports.");
+        setError(t("loadError", "Failed to load weekly reports."));
       } finally {
         setLoading(false);
       }
@@ -100,7 +110,7 @@ export default function WeeklyHistoryPage() {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">
-          Checking your session...
+          {t("checkingSession", "Checking your session...")}
         </p>
       </main>
     );
@@ -111,16 +121,20 @@ export default function WeeklyHistoryPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="settings" />
         <div className="flex-1 flex flex-col items-center justify-center px-4">
-          <h1 className="text-2xl font-bold mb-3">Weekly Reports</h1>
+          <h1 className="text-2xl font-bold mb-3">
+            {t("title", "Weekly AI Reports")}
+          </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            Log in or create a free account to see your AI-generated weekly
-            productivity reports.
+            {t(
+              "loginPrompt",
+              "Log in or create a free account to see your AI-generated weekly productivity reports."
+            )}
           </p>
           <Link
             href="/auth"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
-            Go to login / signup
+            {t("goToAuth", "Go to login / signup")}
           </Link>
         </div>
       </main>
@@ -137,34 +151,41 @@ export default function WeeklyHistoryPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                  Weekly Reports
+                  {t("title", "Weekly AI Reports")}
                 </h1>
                 <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                  AI-generated summaries of your week, available with Pro.
+                  {t(
+                    "subtitle",
+                    "See how your AI usage, tasks, and notes add up week by week."
+                  )}
                 </p>
               </div>
               <Link
-                href="/settings"
+                href="/dashboard"
                 className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
               >
-                ← Back to Settings
+                {t("backToDashboard", "← Back to Dashboard")}
               </Link>
             </div>
 
             <div className="rounded-2xl border border-[var(--accent)]/60 bg-[var(--accent-soft)]/60 p-4 text-sm max-w-xl">
               <p className="text-[var(--text-main)] font-semibold mb-1">
-                Weekly report history is a Pro feature
+                {t(
+                  "lockedTitle",
+                  "Weekly report history is a Pro feature"
+                )}
               </p>
               <p className="text-[var(--text-muted)] mb-3 text-[13px]">
-                Upgrade to Pro to unlock weekly AI email reports and see a
-                history of your progress, streaks, and focus suggestions over
-                time.
+                {t(
+                  "lockedBody",
+                  "Upgrade to Pro to unlock weekly AI email reports and see a history of your progress, streaks, and focus suggestions over time."
+                )}
               </p>
               <Link
                 href="/dashboard#pricing"
                 className="inline-block px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--bg-body)] font-medium text-xs"
               >
-                🔒 Upgrade to Pro
+                {t("lockedCta", "🔒 Upgrade to Pro")}
               </Link>
             </div>
           </div>
@@ -181,42 +202,46 @@ export default function WeeklyHistoryPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                Weekly Reports
+                {t("title", "Weekly AI Reports")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                Read your past AI-generated weekly productivity summaries.
+                {t(
+                  "subtitle",
+                  "See how your AI usage, tasks, and notes add up week by week."
+                )}
               </p>
+
               <div className="mt-2">
                 <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[11px] text-[var(--text-muted)]">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  Plan:{" "}
+                  {t("planLabel", "Plan:")}{" "}
                   <span className="font-semibold uppercase text-[var(--text-main)]">
                     {planLabelUpper}
                   </span>
                 </span>
               </div>
             </div>
+
             <Link
-              href="/settings"
+              href="/dashboard"
               className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
             >
-              ← Back to Settings
+              {t("backToDashboard", "← Back to Dashboard")}
             </Link>
           </div>
 
-          {error && (
-            <p className="text-xs text-red-400 mb-3">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
 
           {loading ? (
             <p className="text-[var(--text-muted)] text-sm">
-              Loading your weekly reports…
+              {t("loading", "Loading weekly reports…")}
             </p>
           ) : reports.length === 0 ? (
             <p className="text-[var(--text-muted)] text-sm">
-              No weekly reports found yet. Once you&apos;ve used the app for a
-              bit and keep weekly reports enabled, your AI summaries will appear
-              here.
+              {t(
+                "empty",
+                "No weekly reports yet. Once you start using AI, your weekly summaries will appear here."
+              )}
             </p>
           ) : (
             <div className="space-y-3">
@@ -227,7 +252,7 @@ export default function WeeklyHistoryPage() {
                       month: "short",
                       day: "numeric",
                     })
-                  : "Unknown date";
+                  : t("unknownDate", "Unknown date");
 
                 const createdLabel = r.created_at
                   ? new Date(r.created_at).toLocaleString(undefined, {
@@ -254,17 +279,19 @@ export default function WeeklyHistoryPage() {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <h2 className="text-sm font-semibold">
-                        Week of {dateLabel}
+                        {t("weekOf", "Week of")} {dateLabel}
                       </h2>
                       {createdLabel && (
                         <p className="text-[10px] text-[var(--text-muted)]">
-                          Generated: {createdLabel}
+                          {t("generatedLabel", "Generated:")} {createdLabel}
                         </p>
                       )}
                     </div>
+
                     <p className="text-[12px] text-[var(--text-main)] whitespace-pre-wrap mb-2">
-                      {preview || "(Empty summary)"}
+                      {preview || t("emptySummary", "(Empty summary)")}
                     </p>
+
                     <div className="flex items-center gap-3 text-[11px]">
                       {summaryText.length > 260 && (
                         <button
@@ -274,9 +301,12 @@ export default function WeeklyHistoryPage() {
                           }
                           className="text-[var(--accent)] hover:opacity-90"
                         >
-                          {isExpanded ? "Show less" : "Read full report"}
+                          {isExpanded
+                            ? t("showLess", "Show less")
+                            : t("readFullReport", "Read full report")}
                         </button>
                       )}
+
                       <button
                         type="button"
                         onClick={() => {
@@ -289,8 +319,16 @@ export default function WeeklyHistoryPage() {
                         }}
                         className="text-[var(--text-muted)] hover:text-[var(--text-main)]"
                       >
-                        Copy text
+                        {t("copyText", "Copy text")}
                       </button>
+
+                      {/* optional link to viewer route, if you use it */}
+                      <Link
+                        href={`/weekly-reports/${r.id}`}
+                        className="text-[var(--accent)] hover:opacity-90"
+                      >
+                        {t("viewFullReport", "View full report →")}
+                      </Link>
                     </div>
                   </article>
                 );

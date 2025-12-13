@@ -21,7 +21,9 @@ type Trip = {
 };
 
 export default function MyTripsPage() {
-  const { t: translate } = useT("myTrips");
+  // ✅ Notes-style: always build full keys myTrips.*
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) => rawT(`myTrips.${key}`, fallback);
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -65,18 +67,14 @@ export default function MyTripsPage() {
 
         if (error) {
           console.error("[my-trips] load trips error", error);
-          setError(
-            translate("errors.loadTrips", "Failed to load your trips.")
-          );
+          setError(t("errors.loadTrips", "Failed to load your trips."));
           return;
         }
 
         setTrips((data || []) as Trip[]);
       } catch (err) {
         console.error(err);
-        setError(
-          translate("errors.loadTrips", "Failed to load your trips.")
-        );
+        setError(t("errors.loadTrips", "Failed to load your trips."));
       } finally {
         setLoading(false);
       }
@@ -89,7 +87,7 @@ export default function MyTripsPage() {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">
-          {translate("status.checkingSession", "Checking your session...")}
+          {t("status.checkingSession", "Checking your session...")}
         </p>
       </main>
     );
@@ -101,10 +99,10 @@ export default function MyTripsPage() {
         <AppHeader active="my-trips" />
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-sm">
           <h1 className="text-2xl font-bold mb-3">
-            {translate("header.title", "My Trips")}
+            {t("title", "My Trips")}
           </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm">
-            {translate(
+            {t(
               "unauth.message",
               "Log in or create a free account to save and view your AI travel plans."
             )}
@@ -113,7 +111,7 @@ export default function MyTripsPage() {
             href="/auth"
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
           >
-            {translate("unauth.cta", "Go to login / signup")}
+            {t("unauth.cta", "Go to login / signup")}
           </Link>
         </div>
       </main>
@@ -128,11 +126,11 @@ export default function MyTripsPage() {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                {translate("header.title", "My Trips")}
+                {t("title", "My Trips")}
               </h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                {translate(
-                  "header.subtitle",
+                {t(
+                  "subtitle",
                   "All the trips you've planned with the Travel Planner."
                 )}
               </p>
@@ -141,29 +139,24 @@ export default function MyTripsPage() {
               href="/travel"
               className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
             >
-              {translate("header.backToPlanner", "← Back to Travel Planner")}
+              {t("backToTravel", "← Back to Travel Planner")}
             </Link>
           </div>
 
-          {error && (
-            <p className="text-xs text-red-400 mb-3">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
 
           {loading ? (
             <p className="text-[var(--text-muted)] text-sm">
-              {translate("status.loadingTrips", "Loading your trips...")}
+              {t("status.loadingTrips", "Loading your trips...")}
             </p>
           ) : trips.length === 0 ? (
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-4 text-sm">
               <p className="text-[var(--text-main)] mb-2">
-                {translate(
-                  "empty.title",
-                  "You don't have any saved trips yet."
-                )}
+                {t("empty.title", "You don't have any saved trips yet.")}
               </p>
               <p className="text-[var(--text-muted)] text-[13px] mb-3">
-                {translate(
-                  "empty.description",
+                {t(
+                  "empty.subtitle",
                   'Use the Travel Planner to generate an AI itinerary, then tap "Save this trip to my account".'
                 )}
               </p>
@@ -171,7 +164,7 @@ export default function MyTripsPage() {
                 href="/travel"
                 className="inline-block px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
               >
-                {translate("empty.cta", "Plan a trip →")}
+                {t("planATrip", "Plan a trip →")}
               </Link>
             </div>
           ) : (
@@ -206,13 +199,12 @@ export default function MyTripsPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold mb-1">
-                          {trip.destination ||
-                            translate("trip.unnamed", "Unnamed trip")}
+                          {trip.destination || t("trip.unnamed", "Unnamed trip")}
                         </p>
                         <p className="text-[12px] text-[var(--text-muted)]">
                           {checkin} → {checkout}
                           {nights
-                            ? ` · ${nights} ${translate(
+                            ? ` · ${nights} ${t(
                                 nights > 1
                                   ? "trip.nightsPlural"
                                   : "trip.nightsSingular",
@@ -222,37 +214,32 @@ export default function MyTripsPage() {
                         </p>
                         <p className="text-[12px] text-[var(--text-muted)] mt-1">
                           {trip.adults ?? 0}{" "}
-                          {translate(
+                          {t(
                             (trip.adults ?? 0) === 1
                               ? "trip.adultSingular"
                               : "trip.adultPlural",
                             (trip.adults ?? 0) === 1 ? "adult" : "adults"
                           )}
                           {typeof trip.children === "number" &&
-                            ` · ${trip.children} ${translate(
+                            ` · ${trip.children} ${t(
                               trip.children === 1
                                 ? "trip.childSingular"
                                 : "trip.childPlural",
                               trip.children === 1 ? "child" : "children"
                             )}`}
                         </p>
+
                         {(trip.min_budget || trip.max_budget) && (
                           <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                            {translate("trip.budgetLabel", "Budget")}{" "}
+                            {t("trip.budgetLabel", "Budget")}{" "}
                             {trip.min_budget
-                              ? translate(
-                                  "trip.budgetFrom",
-                                  "from"
-                                ) + ` €${trip.min_budget}`
+                              ? t("trip.budgetFrom", "from") + ` €${trip.min_budget}`
                               : ""}
                             {trip.min_budget &&
                               trip.max_budget &&
-                              ` ${translate("trip.budgetSeparator", "–")} `}
+                              ` ${t("trip.budgetSeparator", "–")} `}
                             {trip.max_budget
-                              ? translate(
-                                  "trip.budgetTo",
-                                  "up to"
-                                ) + ` €${trip.max_budget}`
+                              ? t("trip.budgetTo", "up to") + ` €${trip.max_budget}`
                               : ""}
                           </p>
                         )}
@@ -266,31 +253,18 @@ export default function MyTripsPage() {
                         className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px]"
                       >
                         {isExpanded
-                          ? translate(
-                              "trip.hideDetails",
-                              "Hide details"
-                            )
-                          : translate(
-                              "trip.viewDetails",
-                              "View details"
-                            )}
+                          ? t("trip.hideDetails", "Hide details")
+                          : t("trip.viewDetails", "View details")}
                       </button>
                     </div>
 
                     {isExpanded && (
                       <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
                         <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                          {translate(
-                            "trip.savedItineraryLabel",
-                            "Saved AI itinerary"
-                          )}
+                          {t("trip.savedItineraryLabel", "Saved AI itinerary")}
                         </p>
                         <div className="text-[12px] whitespace-pre-wrap">
-                          {trip.plan_text ||
-                            translate(
-                              "trip.noPlanText",
-                              "(no plan text saved)"
-                            )}
+                          {trip.plan_text || t("trip.noPlanText", "(no plan text saved)")}
                         </div>
                       </div>
                     )}

@@ -119,9 +119,7 @@ function AdminEmailTestPanel({
             <option value="daily">Daily digest style</option>
             <option value="weekly">Weekly report style</option>
             <option value="upgrade-pro">Stripe thank-you (Pro)</option>
-            <option value="upgrade-founder">
-              Stripe thank-you (Founder)
-            </option>
+            <option value="upgrade-founder">Stripe thank-you (Founder)</option>
           </select>
         </div>
 
@@ -159,11 +157,15 @@ export default function AdminHomePage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
 
-  // 🔹 UI translations sync state
+  // 🔹 UI translations sync state (existing AI translate + upsert)
   const [syncLang, setSyncLang] = useState<Locale>("el");
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncAllLoading, setSyncAllLoading] = useState(false);
+
+  // 🔹 NEW: Sync missing keys (EN → all languages, skip existing)
+  const [keysSyncLoading, setKeysSyncLoading] = useState(false);
+  const [keysSyncStatus, setKeysSyncStatus] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUser() {
@@ -214,7 +216,7 @@ export default function AdminHomePage() {
     loadStats();
   }, [authorized]);
 
-  // Helper to sync a single language
+  // Helper to sync a single language (AI translate + upsert)
   async function syncLanguage(lang: Locale): Promise<number> {
     const res = await fetch("/api/admin/ui-translation-sync", {
       method: "POST",
@@ -236,7 +238,7 @@ export default function AdminHomePage() {
     return data.insertedOrUpdated ?? data.inserted ?? 0;
   }
 
-  // 🔹 Single-language sync
+  // 🔹 Single-language sync (AI translate + upsert)
   async function handleSyncUiTranslations() {
     if (!ADMIN_KEY) {
       setSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
@@ -248,9 +250,7 @@ export default function AdminHomePage() {
 
     try {
       const count = await syncLanguage(syncLang);
-      setSyncStatus(
-        `✅ Synced ${count} UI strings for language '${syncLang}'.`
-      );
+      setSyncStatus(`✅ Synced ${count} UI strings for language '${syncLang}'.`);
     } catch (err: any) {
       console.error("[admin] sync UI translations error:", err);
       setSyncStatus(
@@ -261,7 +261,7 @@ export default function AdminHomePage() {
     }
   }
 
-  // 🔹 Sync ALL languages (except 'en') in sequence
+  // 🔹 Sync ALL languages (except 'en') in sequence (AI translate + upsert)
   async function handleSyncAllLanguages() {
     if (!ADMIN_KEY) {
       setSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
@@ -271,9 +271,7 @@ export default function AdminHomePage() {
     setSyncAllLoading(true);
     setSyncStatus("Starting sync for all languages…");
 
-    const langs = SUPPORTED_LANGS.map((l) => l.code).filter(
-      (code) => code !== "en"
-    );
+    const langs = SUPPORTED_LANGS.map((l) => l.code).filter((code) => code !== "en");
 
     const lines: string[] = [];
 
@@ -283,9 +281,7 @@ export default function AdminHomePage() {
         lines.push(`✅ ${lang}: ${count} strings synced.`);
       } catch (err: any) {
         console.error(`[admin] sync error for ${lang}`, err);
-        lines.push(
-          `❌ ${lang}: ${err?.message || "Failed to sync this language."}`
-        );
+        lines.push(`❌ ${lang}: ${err?.message || "Failed to sync this language."}`);
       }
     }
 
@@ -293,13 +289,55 @@ export default function AdminHomePage() {
     setSyncAllLoading(false);
   }
 
+  // ✅ NEW: Sync missing keys only (EN → all languages, skip existing completely)
+  async function handleSyncMissingKeysToAll() {
+    setKeysSyncStatus(null);
+
+    if (!user?.email) {
+      setKeysSyncStatus("❌ Missing current user email.");
+      return;
+    }
+
+    setKeysSyncLoading(true);
+    setKeysSyncStatus("Starting missing-keys sync…");
+
+    try {
+      const res = await fetch("/api/admin/sync-ui-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user.email, // route checks ADMIN_EMAILS server-side
+          sourceLang: "en",
+          // optional: targetLangs: SUPPORTED_LANGS.map(l => l.code).filter(c => c !== "en"),
+        }),
+      });
+
+      const json = await res.json().catch(() => ({} as any));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "Failed to sync missing keys.");
+      }
+
+      const perLang = json?.perLang || {};
+      const summary = Object.entries(perLang)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(" ");
+
+      setKeysSyncStatus(
+        `✅ Inserted ${json.insertedTotal ?? 0} missing rows. ${summary ? `Per language: ${summary}` : ""}`
+      );
+    } catch (err: any) {
+      console.error("[admin] sync missing keys error", err);
+      setKeysSyncStatus(`❌ ${err?.message || "Failed to sync missing keys."}`);
+    } finally {
+      setKeysSyncLoading(false);
+    }
+  }
+
   // Auth guards
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
-        <p className="text-[var(--text-muted)] text-sm">
-          Checking your session…
-        </p>
+        <p className="text-[var(--text-muted)] text-sm">Checking your session…</p>
       </main>
     );
   }
@@ -345,9 +383,7 @@ export default function AdminHomePage() {
   }
 
   // Group languages by region for the dropdown
-  const regions = Array.from(
-    new Set(SUPPORTED_LANGS.map((l) => l.region))
-  );
+  const regions = Array.from(new Set(SUPPORTED_LANGS.map((l) => l.region)));
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
@@ -356,17 +392,13 @@ export default function AdminHomePage() {
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
           <div className="flex items-center justify-between gap-3 mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                Admin dashboard
-              </h1>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1">Admin dashboard</h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                Internal tools for managing users, monitoring the app and
-                testing emails.
+                Internal tools for managing users, monitoring the app and testing emails.
               </p>
             </div>
             <span className="text-[11px] text-[var(--text-muted)]">
-              Logged in as{" "}
-              <span className="font-mono">{user.email}</span>
+              Logged in as <span className="font-mono">{user.email}</span>
             </span>
           </div>
 
@@ -374,147 +406,121 @@ export default function AdminHomePage() {
           <section className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-[11px] font-semibold text-[var(--text-muted)]">
-                  OVERVIEW
-                </p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  High-level metrics from Supabase.
-                </p>
+                <p className="text-[11px] font-semibold text-[var(--text-muted)]">OVERVIEW</p>
+                <p className="text-xs text-[var(--text-muted)]">High-level metrics from Supabase.</p>
               </div>
               {statsLoading && (
-                <span className="text-[11px] text-[var(--text-muted)]">
-                  Loading…
-                </span>
+                <span className="text-[11px] text-[var(--text-muted)]">Loading…</span>
               )}
             </div>
 
-            {statsError && (
-              <p className="text-[11px] text-red-400 mb-2">
-                {statsError}
-              </p>
-            )}
+            {statsError && <p className="text-[11px] text-red-400 mb-2">{statsError}</p>}
 
             {stats && (
               <div className="grid gap-3 md:grid-cols-3 text-sm">
                 <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    Total users
-                  </p>
-                  <p className="text-xl font-semibold">
-                    {stats.totalUsers}
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    Pro: {stats.proUsers}
-                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">Total users</p>
+                  <p className="text-xl font-semibold">{stats.totalUsers}</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">Pro: {stats.proUsers}</p>
                 </div>
                 <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    Active (last 7 days)
-                  </p>
-                  <p className="text-xl font-semibold">
-                    {stats.weeklyActiveUsers}
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    users with AI usage
-                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">Active (last 7 days)</p>
+                  <p className="text-xl font-semibold">{stats.weeklyActiveUsers}</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">users with AI usage</p>
                 </div>
                 <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    AI calls (last 7 days)
-                  </p>
-                  <p className="text-xl font-semibold">
-                    {stats.aiCalls7d}
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    across all users
-                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">AI calls (last 7 days)</p>
+                  <p className="text-xl font-semibold">{stats.aiCalls7d}</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">across all users</p>
                 </div>
                 <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    Notes
-                  </p>
-                  <p className="text-xl font-semibold">
-                    {stats.notesCount}
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    total notes in DB
-                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">Notes</p>
+                  <p className="text-xl font-semibold">{stats.notesCount}</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">total notes in DB</p>
                 </div>
                 <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    Tasks
-                  </p>
-                  <p className="text-xl font-semibold">
-                    {stats.tasksCount}
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    total tasks in DB
-                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] mb-1">Tasks</p>
+                  <p className="text-xl font-semibold">{stats.tasksCount}</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">total tasks in DB</p>
                 </div>
               </div>
             )}
 
             {!stats && !statsLoading && !statsError && (
-              <p className="text-[11px] text-[var(--text-muted)]">
-                No stats available yet.
-              </p>
+              <p className="text-[11px] text-[var(--text-muted)]">No stats available yet.</p>
             )}
           </section>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {/* Users management */}
             <Link
               href="/admin/users"
               className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 hover:bg-[var(--bg-elevated)] transition-colors flex flex-col justify-between"
             >
               <div>
-                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">
-                  USERS
-                </p>
-                <h2 className="text-base font-semibold mb-1">
-                  Users & plans
-                </h2>
+                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">USERS</p>
+                <h2 className="text-base font-semibold mb-1">Users & plans</h2>
                 <p className="text-[12px] text-[var(--text-muted)]">
-                  View profiles, plans, admin flag and send password reset
-                  emails.
+                  View profiles, plans, admin flag and send password reset emails.
                 </p>
               </div>
-              <p className="mt-3 text-[11px] text-[var(--accent)]">
-                Open users table →
-              </p>
+              <p className="mt-3 text-[11px] text-[var(--accent)]">Open users table →</p>
             </Link>
 
-            {/* Changelog admin card */}
             <Link
               href="/changelog/admin"
               className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 hover:bg-[var(--bg-elevated)] transition-colors flex flex-col justify-between"
             >
               <div>
-                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">
-                  CHANGELOG
-                </p>
-                <h2 className="text-base font-semibold mb-1">
-                  Manage “What&apos;s new”
-                </h2>
+                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">CHANGELOG</p>
+                <h2 className="text-base font-semibold mb-1">Manage “What&apos;s new”</h2>
                 <p className="text-[12px] text-[var(--text-muted)]">
-                  Publish new entries to the public changelog page without
-                  redeploying.
+                  Publish new entries to the public changelog page without redeploying.
                 </p>
               </div>
-              <p className="mt-3 text-[11px] text-[var(--accent)]">
-                Open changelog admin →
-              </p>
+              <p className="mt-3 text-[11px] text-[var(--accent)]">Open changelog admin →</p>
             </Link>
           </div>
 
-          {/* UI translations sync panel */}
+          {/* ✅ NEW panel: Missing key sync */}
+          <section className="mt-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+            <h2 className="text-sm font-semibold mb-1 text-[var(--text-main)]">
+              UI translation keys (EN → all languages)
+            </h2>
+            <p className="text-[11px] text-[var(--text-muted)] mb-3">
+              Inserts ONLY missing <code>(key, language_code)</code> rows for every language, using EN as the
+              source of truth. It will <strong>skip existing rows completely</strong> (no overwrites).
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSyncMissingKeysToAll}
+                disabled={keysSyncLoading || syncLoading || syncAllLoading}
+                className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium disabled:opacity-60"
+              >
+                {keysSyncLoading ? "Syncing missing keys…" : "Sync missing keys to ALL languages"}
+              </button>
+
+              <span className="text-[11px] text-[var(--text-muted)]">
+                Source: <span className="font-mono">en</span>
+              </span>
+            </div>
+
+            {keysSyncStatus && (
+              <p className="mt-2 text-[11px] text-[var(--text-main)] whitespace-pre-line">
+                {keysSyncStatus}
+              </p>
+            )}
+          </section>
+
+          {/* Existing: AI translations sync panel */}
           <section className="mt-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
             <h2 className="text-sm font-semibold mb-1 text-[var(--text-main)]">
               UI translations (AI sync)
             </h2>
             <p className="text-[11px] text-[var(--text-muted)] mb-3">
-              Use AI to translate all English UI strings into another language
-              and upsert them into the <code>ui_translations</code> table.
+              Use AI to translate all English UI strings into another language and upsert them into the{" "}
+              <code>ui_translations</code> table.
             </p>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -524,16 +530,12 @@ export default function AdminHomePage() {
                 </label>
                 <select
                   value={syncLang}
-                  onChange={(e) =>
-                    setSyncLang(e.target.value as Locale)
-                  }
+                  onChange={(e) => setSyncLang(e.target.value as Locale)}
                   className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs min-w-[220px]"
                 >
                   {regions.map((region) => (
                     <optgroup key={region} label={region}>
-                      {SUPPORTED_LANGS.filter(
-                        (l) => l.region === region
-                      ).map((lang) => (
+                      {SUPPORTED_LANGS.filter((l) => l.region === region).map((lang) => (
                         <option key={lang.code} value={lang.code}>
                           {lang.flag} {lang.label} ({lang.code})
                         </option>
@@ -547,23 +549,19 @@ export default function AdminHomePage() {
                 <button
                   type="button"
                   onClick={handleSyncUiTranslations}
-                  disabled={syncLoading || syncAllLoading}
+                  disabled={syncLoading || syncAllLoading || keysSyncLoading}
                   className="px-3 py-2 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium disabled:opacity-60"
                 >
-                  {syncLoading
-                    ? "Syncing…"
-                    : "Sync selected language"}
+                  {syncLoading ? "Syncing…" : "Sync selected language"}
                 </button>
 
                 <button
                   type="button"
                   onClick={handleSyncAllLanguages}
-                  disabled={syncAllLoading || syncLoading}
+                  disabled={syncAllLoading || syncLoading || keysSyncLoading}
                   className="px-3 py-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs font-medium disabled:opacity-60"
                 >
-                  {syncAllLoading
-                    ? "Syncing all languages…"
-                    : "Sync ALL languages (except en)"}
+                  {syncAllLoading ? "Syncing all languages…" : "Sync ALL languages (except en)"}
                 </button>
               </div>
             </div>
@@ -579,9 +577,8 @@ export default function AdminHomePage() {
 
           <div className="mt-8 text-[11px] text-[var(--text-muted)]">
             <p>
-              Tip: set <code>NEXT_PUBLIC_ADMIN_EMAIL</code>,{" "}
-              <code>NEXT_PUBLIC_ADMIN_KEY</code> and <code>ADMIN_KEY</code> in
-              your env to control who can access admin tools and protected APIs.
+              Tip: set <code>NEXT_PUBLIC_ADMIN_EMAIL</code>, <code>NEXT_PUBLIC_ADMIN_KEY</code> and{" "}
+              <code>ADMIN_KEY</code> in your env to control who can access admin tools and protected APIs.
             </p>
           </div>
         </div>

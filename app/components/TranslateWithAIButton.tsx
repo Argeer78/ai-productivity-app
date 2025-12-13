@@ -6,13 +6,9 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { usePathname } from "next/navigation";
 import {
   LANGUAGES,
-  REGION_ORDER,
   LS_PREF_LANG,
-  LS_LAST_PATH,
-  LS_AUTO_MODE,
   type Language,
 } from "@/lib/translateLanguages";
 import { useLanguage } from "@/app/components/LanguageProvider";
@@ -28,101 +24,70 @@ function normalizeForCache(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-// Hard limits for page translation to control cost & speed
-const MAX_NODES_PER_PAGE = 20000;
-const MAX_TOTAL_CHARS = 150000;
-
-// Per-request batch limits (for progressive translation)
-const MAX_BATCH_NODES = 100;
-const MAX_BATCH_CHARS = 10000;
-
-const CONCURRENCY = 2; // how many batches to process in parallel
-
-// Collect text nodes, skipping the translation modal itself
-function getTranslatableTextNodes(): Text[] {
-  if (typeof document === "undefined") return [];
-
-  const walker = document.createTreeWalker(
-    document.body,
-    NodeFilter.SHOW_TEXT,
-    {
-      acceptNode(node: Node): number {
-        const textNode = node as Text;
-        const parent = textNode.parentElement;
-        if (!parent) return NodeFilter.FILTER_REJECT;
-
-        // Skip our own modal
-        if (parent.closest("[data-translate-modal='1']")) {
-          return NodeFilter.FILTER_REJECT;
-        }
-
-        // Allow users to protect sections
-        if (parent.closest("[data-no-translate='1']")) {
-          return NodeFilter.FILTER_REJECT;
-        }
-
-        // Skip scripts/styles/etc
-        if (parent.closest("script, style, noscript, textarea")) {
-          return NodeFilter.FILTER_REJECT;
-        }
-
-        // Normalize the text and decide if it's meaningful
-        const raw = textNode.textContent || "";
-        const norm = normalizeForCache(raw);
-
-        if (!norm) return NodeFilter.FILTER_REJECT;
-
-        // Only accept nodes that contain *some* letters or digits
-        if (!/[0-9A-Za-zΑ-Ωα-ωΆ-Ώά-ώ]/u.test(norm)) {
-          return NodeFilter.FILTER_REJECT;
-        }
-
-        return NodeFilter.FILTER_ACCEPT;
-      },
-    } as any
-  );
-
-  const nodes: Text[] = [];
-  let current = walker.nextNode();
-  while (current) {
-    nodes.push(current as Text);
-    current = walker.nextNode();
-  }
-  return nodes;
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
 }
 
 export default function TranslateWithAIButton() {
-  const pathname = usePathname();
-
-  // i18n
   const { t, tCommon } = useT("translate");
 
-  // App UI language, used only as a *hint* for default target language
+  // App UI language, used only as a hint for default target language
   const languageCtx = useLanguage();
   const uiLangCode = (languageCtx as any)?.lang || "en";
 
   const [open, setOpen] = useState(false);
+
   const [selectedLang, setSelectedLang] = useState<Language | null>(
     LANGUAGES.find((l) => l.region === "Popular") || LANGUAGES[0]
   );
+
   const [search, setSearch] = useState("");
   const [sourceText, setSourceText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // drag state
-  const [position, setPosition] = useState<{ top: number; left: number }>({
-    top: 0,
-    left: 0,
-  });
+  // modal measuring + drag
+  const modalRef = useRef<HTMLDivElement | null>(null);
+
+  // IMPORTANT: left is "center x" because we use translateX(-50%)
+  const [position, setPosition] = useState<{ top: number; left: number }>(() => ({
+    top: 96,
+    left: typeof window !== "undefined" ? window.innerWidth / 2 : 0,
+  }));
+
   const [dragging, setDragging] = useState(false);
-  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragStartRef = useRef<{
+    x: number;
+    y: number;
+    top: number;
+    left: number;
+  } | null>(null);
 
-  // track where auto-translation was last applied
-  const [autoAppliedPath, setAutoAppliedPath] = useState<string | null>(null);
+  function clampToViewport(top: number, left: number) {
+    const margin = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
 
-  // ----- initial language: LS_PREF_LANG → UI language → browser language -----
+    const rect = modalRef.current?.getBoundingClientRect();
+    const w = rect?.width ?? 520;
+    const h = rect?.height ?? 520;
+
+    // keep some extra headroom so it doesn't tuck under browser chrome
+    const minTop = Math.max(margin, 16);
+    const maxTop = Math.max(minTop, vh - h - margin);
+
+    // left is the "center x" because we use translateX(-50%)
+    const minLeft = margin + w / 2;
+    const maxLeft = Math.max(minLeft, vw - margin - w / 2);
+
+    return {
+      top: clamp(top, minTop, maxTop),
+      left: clamp(left, minLeft, maxLeft),
+    };
+  }
+
+  // initial language: LS_PREF_LANG → UI language → browser language
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -130,7 +95,6 @@ export default function TranslateWithAIButton() {
       const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
       let lang: Language | null = null;
 
-      // 1) Prefer saved manual choice (from Settings or previous selection)
       if (savedLangCode) {
         lang =
           LANGUAGES.find(
@@ -138,41 +102,86 @@ export default function TranslateWithAIButton() {
           ) || null;
       }
 
-      // 2) If none, prefer app UI language
       if (!lang && uiLangCode) {
         const uiBase = uiLangCode.split("-")[0].toLowerCase();
-        lang =
-          LANGUAGES.find((l) => l.code.toLowerCase() === uiBase) || null;
+        lang = LANGUAGES.find((l) => l.code.toLowerCase() === uiBase) || null;
       }
 
-      // 3) Fallback to browser language
       if (!lang && typeof navigator !== "undefined" && navigator.language) {
         const browserBase = navigator.language.split("-")[0].toLowerCase();
         lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === browserBase
-          ) || null;
+          LANGUAGES.find((l) => l.code.toLowerCase() === browserBase) || null;
       }
 
-      if (lang) {
-        setSelectedLang(lang);
-      }
+      if (lang) setSelectedLang(lang);
     } catch (err) {
       console.error("[translate] load initial language error", err);
     }
   }, [uiLangCode]);
 
-  // center modal when opening
+  // center modal on open (clamped so it doesn't hide under browser UI)
   useEffect(() => {
-    if (open && typeof window !== "undefined") {
+    if (!open || typeof window === "undefined") return;
+
+    requestAnimationFrame(() => {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      setPosition({
-        top: vh * 0.15,
-        left: vw / 2,
-      });
-    }
+
+      const rect = modalRef.current?.getBoundingClientRect();
+      const h = rect?.height ?? 520;
+
+      // aim near center, but keep enough top padding for browser chrome
+      const desiredTop = Math.max(24, Math.min(140, (vh - h) / 2));
+      const desiredLeft = vw / 2;
+
+      setPosition(clampToViewport(desiredTop, desiredLeft));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setDragging(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      top: position.top,
+      left: position.left,
+    };
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    function handleMouseMove(e: MouseEvent) {
+      if (!dragging) return;
+      const start = dragStartRef.current;
+      if (!start) return;
+
+      const nextTop = start.top + (e.clientY - start.y);
+      const nextLeft = start.left + (e.clientX - start.x);
+
+      setPosition(clampToViewport(nextTop, nextLeft));
+    }
+
+    function handleMouseUp() {
+      setDragging(false);
+      dragStartRef.current = null;
+    }
+
+    if (dragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging]);
 
   function handleOpen() {
     try {
@@ -185,20 +194,19 @@ export default function TranslateWithAIButton() {
     } catch (err) {
       console.error("[translate] open modal error", err);
       setSourceText("");
-      setErrorMsg("Could not read the page content.");
+      setErrorMsg(t("networkError", "Could not read the page content."));
       setOpen(true);
     }
   }
 
-  // ----- basic text translation -----
+  // ✅ ONLY: basic text translation
   async function handleTranslateText() {
     if (!selectedLang) return;
-    if (!sourceText.trim()) {
+
+    const text = sourceText.trim();
+    if (!text) {
       setErrorMsg(
-        t(
-          "noTextToTranslate",
-          "Please type or paste some text to translate."
-        )
+        t("noTextToTranslate", "Please type or paste some text to translate.")
       );
       return;
     }
@@ -208,7 +216,7 @@ export default function TranslateWithAIButton() {
     setTranslatedText("");
 
     try {
-      const normalized = normalizeForCache(sourceText);
+      const normalized = normalizeForCache(text);
 
       const res = await fetch("/api/ai-translate", {
         method: "POST",
@@ -247,18 +255,13 @@ export default function TranslateWithAIButton() {
         console.error("[translate-text] server error", res.status, data);
         setErrorMsg(
           (data as any)?.error ||
-            t(
-              "failedGeneric",
-              `Failed to translate (status ${res.status}).`
-            )
+            t("failedGeneric", `Failed to translate (status ${res.status}).`)
         );
         return;
       }
 
       if (Array.isArray(data.translation)) {
-        setTranslatedText(
-          data.translation.join("\n\n----------------\n\n")
-        );
+        setTranslatedText(data.translation.join("\n\n----------------\n\n"));
       } else {
         setTranslatedText((data.translation as string) || "");
       }
@@ -272,318 +275,10 @@ export default function TranslateWithAIButton() {
     }
   }
 
-  // ----- page translation: Supabase caching + batching -----
-  async function translatePageWithLang(
-    lang: Language,
-    opts?: { auto?: boolean }
-  ) {
-    setErrorMsg("");
-    setTranslatedText(
-      t(
-        "preparingPage",
-        "Preparing page for translation…"
-      )
-    );
-    setLoading(true);
-
-    try {
-      const allNodes = getTranslatableTextNodes();
-
-      if (!allNodes.length) {
-        setErrorMsg(
-          t("noTextFound", "No text found on this page to translate.")
-        );
-        setLoading(false);
-        return;
-      }
-
-      console.log("[DEBUG] Total raw text nodes found:", allNodes.length);
-      allNodes.slice(0, 50).forEach((n, i) => {
-        console.log(`[NODE ${i}]`, JSON.stringify(n.textContent));
-      });
-
-      // 1) Apply global caps (nodes + characters)
-      const selectedNodes: Text[] = [];
-      let globalChars = 0;
-
-      for (const node of allNodes) {
-        if (selectedNodes.length >= MAX_NODES_PER_PAGE) break;
-
-        const text = node.textContent || "";
-        const len = text.length;
-
-        if (globalChars + len > MAX_TOTAL_CHARS) break;
-
-        selectedNodes.push(node);
-        globalChars += len;
-      }
-
-      if (!selectedNodes.length) {
-        setErrorMsg(
-          t(
-            "nothingToTranslate",
-            "There was nothing suitable to translate on this page."
-          )
-        );
-        setLoading(false);
-        return;
-      }
-
-      const totalSnippets = selectedNodes.length;
-      const totalChars = selectedNodes.reduce(
-        (sum, n) => sum + ((n.textContent || "").length || 0),
-        0
-      );
-      console.log(
-        "[DEBUG] Selected nodes for translation:",
-        totalSnippets,
-        "totalChars ~",
-        totalChars
-      );
-
-      // 2) Build batches
-      type Batch = { nodes: Text[]; charCount: number };
-      const batches: Batch[] = [];
-      let currentNodes: Text[] = [];
-      let currentChars = 0;
-
-      for (const node of selectedNodes) {
-        const text = node.textContent || "";
-        const len = text.length;
-
-        const wouldExceedNodes =
-          currentNodes.length >= MAX_BATCH_NODES && currentNodes.length > 0;
-        const wouldExceedChars =
-          currentChars + len > MAX_BATCH_CHARS && currentChars > 0;
-
-        if (wouldExceedNodes || wouldExceedChars) {
-          batches.push({ nodes: currentNodes, charCount: currentChars });
-          currentNodes = [];
-          currentChars = 0;
-        }
-
-        currentNodes.push(node);
-        currentChars += len;
-      }
-
-      if (currentNodes.length) {
-        batches.push({ nodes: currentNodes, charCount: currentChars });
-      }
-
-      if (!batches.length) {
-        setErrorMsg(
-          t(
-            "nothingToTranslate",
-            "There was nothing suitable to translate on this page."
-          )
-        );
-        setLoading(false);
-        return;
-      }
-
-      console.log(
-        "[DEBUG] Total batches:",
-        batches.length,
-        "CONCURRENCY:",
-        CONCURRENCY
-      );
-
-      let translatedSnippets = 0;
-      let translatedChars = 0;
-
-      async function processBatch(batch: Batch) {
-        // Normalize texts so DB keys match and we skip only truly empty strings
-        const texts = batch.nodes.map((n) =>
-          normalizeForCache(n.textContent || "")
-        );
-
-        const filteredNodes: Text[] = [];
-        const filteredTexts: string[] = [];
-
-        for (let i = 0; i < texts.length; i++) {
-          const tt = texts[i];
-          if (!tt || tt.trim().length === 0) continue; // skip only empty
-
-          filteredNodes.push(batch.nodes[i]);
-          filteredTexts.push(tt);
-        }
-
-        if (filteredTexts.length === 0) {
-          return { snippets: 0, chars: 0 };
-        }
-
-        const res = await fetch("/api/ai-translate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: filteredTexts,
-            targetLang: lang.code,
-          }),
-        });
-
-        const data = (await res.json().catch(() => null)) as
-          | { translation?: string[] | string; error?: string }
-          | null;
-
-        if (!res.ok || !data?.translation) {
-          console.error(
-            "[translate-page] batch error",
-            res.status,
-            data?.error
-          );
-          throw new Error(data?.error || "Batch translation failed");
-        }
-
-        const translatedArray = Array.isArray(data.translation)
-          ? (data.translation as string[])
-          : filteredTexts;
-
-        // Apply translated text to DOM
-        for (let j = 0; j < translatedArray.length; j++) {
-          const node = filteredNodes[j];
-          const newText = translatedArray[j] || node.textContent || "";
-          node.textContent = newText;
-        }
-
-        return { snippets: filteredTexts.length, chars: batch.charCount };
-      }
-
-      // 3) Process batches with small concurrency, applying each as we go
-      for (let i = 0; i < batches.length; i += CONCURRENCY) {
-        const slice = batches.slice(i, i + CONCURRENCY);
-
-        const results = await Promise.allSettled(
-          slice.map((batch) => processBatch(batch))
-        );
-
-        for (const r of results) {
-          if (r.status === "fulfilled") {
-            translatedSnippets += r.value.snippets;
-            translatedChars += r.value.chars;
-          } else {
-            console.error("[translate-page] batch failed", r.reason);
-            setErrorMsg(
-              t(
-                "partialFailure",
-                "Some parts of the page could not be translated. Please try again or reload."
-              )
-            );
-          }
-        }
-
-        setTranslatedText(
-          `Translated ${translatedSnippets}/${totalSnippets} snippets (~${translatedChars} characters) to ${lang.label}…`
-        );
-      }
-
-      // 4️⃣ Persist preference + auto-mode flag
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(LS_PREF_LANG, lang.code);
-        window.localStorage.setItem(LS_LAST_PATH, window.location.pathname);
-
-        if (opts?.auto) {
-          window.localStorage.setItem(LS_AUTO_MODE, "1");
-        }
-      }
-
-      if (pathname) {
-        setAutoAppliedPath(pathname);
-      }
-    } catch (err) {
-      console.error("[translate-page] error", err);
-      if (!errorMsg) {
-        setErrorMsg(
-          t(
-            "pageNetworkError",
-            "Network error while translating the page."
-          )
-        );
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleTranslatePage() {
-    if (!selectedLang) return;
-    translatePageWithLang(selectedLang, { auto: false });
-  }
-
-  function handleTranslateSite() {
-    if (!selectedLang) return;
-    translatePageWithLang(selectedLang, { auto: true });
-  }
-
-  // auto-apply translation when navigating (auto-mode)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!pathname) return;
-
-    try {
-      const autoMode = window.localStorage.getItem(LS_AUTO_MODE);
-      if (autoMode !== "1") return;
-
-      const savedLangCode = window.localStorage.getItem(LS_PREF_LANG);
-      if (!savedLangCode) return;
-
-      if (autoAppliedPath === pathname) return;
-
-      const lang =
-        LANGUAGES.find(
-          (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
-        ) || null;
-      if (!lang) return;
-
-      setSelectedLang(lang);
-      translatePageWithLang(lang, { auto: true });
-    } catch (err) {
-      console.error("[translate-auto] error", err);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
-
-  // drag logic
-  function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
-    e.preventDefault();
-    setDragging(true);
-    dragStartRef.current = { x: e.clientX, y: e.clientY };
-  }
-
-  useEffect(() => {
-    function handleMouseMove(e: MouseEvent) {
-      if (!dragging) return;
-
-      const start = dragStartRef.current;
-      if (!start) return;
-
-      setPosition((prev) => ({
-        top: prev.top + (e.clientY - start.y),
-        left: prev.left + (e.clientX - start.x),
-      }));
-
-      dragStartRef.current = { x: e.clientX, y: e.clientY };
-    }
-
-    function handleMouseUp() {
-      setDragging(false);
-      dragStartRef.current = null;
-    }
-
-    if (dragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [dragging]);
-
   // language helpers
-  const popularLanguages = LANGUAGES.filter(
-    (l) => l.region === "Popular"
-  ).sort((a, b) => a.label.localeCompare(b.label));
+  const popularLanguages = LANGUAGES.filter((l) => l.region === "Popular").sort(
+    (a, b) => a.label.localeCompare(b.label)
+  );
 
   const searchTerm = search.trim().toLowerCase();
 
@@ -595,17 +290,40 @@ export default function TranslateWithAIButton() {
       ).sort((a, b) => a.label.localeCompare(b.label))
     : null;
 
-  const groupedByRegion =
-    !filteredLanguages
-      ? (REGION_ORDER.map((region) => {
-          const items = LANGUAGES.filter(
-            (l) => l.region === region
-          ).sort((a, b) => a.label.localeCompare(b.label));
+  const allNonPopular = LANGUAGES.filter((l) => l.region !== "Popular").sort(
+    (a, b) => a.label.localeCompare(b.label)
+  );
 
-          if (!items.length) return null;
-          return { region, items };
-        }).filter(Boolean) as { region: string; items: Language[] }[])
-      : [];
+  const languagesToShow = filteredLanguages ?? allNonPopular;
+
+  function renderLangButton(lang: Language) {
+    const isSelected =
+      selectedLang?.code === lang.code && selectedLang?.label === lang.label;
+
+    return (
+      <button
+        key={`${lang.code}-${lang.label}`}
+        type="button"
+        onClick={() => {
+          setSelectedLang(lang);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(LS_PREF_LANG, lang.code);
+          }
+        }}
+        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
+          isSelected
+            ? "bg-indigo-600 text-white"
+            : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <span>{lang.flag}</span>
+          <span>{lang.label}</span>
+        </span>
+        <span className="text-[10px] text-[var(--text-muted)]">{lang.code}</span>
+      </button>
+    );
+  }
 
   return (
     <>
@@ -618,8 +336,9 @@ export default function TranslateWithAIButton() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-[9999] bg-black/50">
           <div
+            ref={modalRef}
             data-translate-modal="1"
             style={{
               position: "fixed",
@@ -631,8 +350,8 @@ export default function TranslateWithAIButton() {
           >
             {/* Header (draggable) */}
             <div
-              className="cursor-move flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] rounded-t-2xl"
               onMouseDown={startDrag}
+              className="cursor-move flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] rounded-t-2xl"
             >
               <div className="flex items-center gap-2">
                 <span className="text-lg">🌎</span>
@@ -641,10 +360,7 @@ export default function TranslateWithAIButton() {
                     {t("title", "Translate with AI")}
                   </p>
                   <p className="text-[10px] text-[var(--text-muted)]">
-                    {t(
-                      "subtitle",
-                      "Select your language and translate text or the page."
-                    )}
+                    {t("subtitle", "Select your language and translate text.")}
                   </p>
                 </div>
               </div>
@@ -664,148 +380,44 @@ export default function TranslateWithAIButton() {
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   {t("targetLanguage", "Target language")}
                 </label>
+
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search language (e.g. Spanish, 日本語, Português)…"
+                  placeholder={t(
+                    "searchLanguagePlaceholder",
+                    "Search language (e.g. Spanish, 日本語, Português)…"
+                  )}
                   className="w-full px-3 py-2 mb-2 rounded-xl bg-[var(--bg-body)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-main)]"
                 />
 
                 <div className="max-h-52 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] p-2 space-y-2">
-                  {filteredLanguages ? (
-                    filteredLanguages.length ? (
-                      filteredLanguages.map((lang) => {
-                        const isSelected =
-                          selectedLang?.code === lang.code &&
-                          selectedLang?.label === lang.label;
-                        return (
-                          <button
-                            key={`${lang.code}-${lang.label}`}
-                            type="button"
-                            onClick={() => {
-                              setSelectedLang(lang);
-                              if (typeof window !== "undefined") {
-                                window.localStorage.setItem(
-                                  LS_PREF_LANG,
-                                  lang.code
-                                );
-                              }
-                            }}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
-                              isSelected
-                                ? "bg-indigo-600 text-white"
-                                : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
-                            }`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span>{lang.flag}</span>
-                              <span>{lang.label}</span>
-                            </span>
-                            <span className="text-[10px] text-[var(--text-muted)]">
-                              {lang.code}
-                            </span>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <p className="text-[11px] text-[var(--text-muted)] px-1">
-                        No languages found for “{search}”.
-                      </p>
-                    )
-                  ) : (
-                    <>
-                      {popularLanguages.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-1 mb-1 px-1">
-                            <span className="text-[10px] text-amber-300">
-                              ⭐
-                            </span>
-                            <span className="text-[10px] font-semibold text-[var(--text-main)]">
-                              Most popular
-                            </span>
-                          </div>
-                          <div className="space-y-1 mb-2">
-                            {popularLanguages.map((lang) => {
-                              const isSelected =
-                                selectedLang?.code === lang.code &&
-                                selectedLang?.label === lang.label;
-                              return (
-                                <button
-                                  key={`${lang.code}-${lang.label}-popular`}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedLang(lang);
-                                    if (typeof window !== "undefined") {
-                                      window.localStorage.setItem(
-                                        LS_PREF_LANG,
-                                        lang.code
-                                      );
-                                    }
-                                  }}
-                                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
-                                    isSelected
-                                      ? "bg-indigo-600 text-white"
-                                      : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
-                                  }`}
-                                >
-                                  <span className="flex items-center gap-2">
-                                    <span>{lang.flag}</span>
-                                    <span>{lang.label}</span>
-                                  </span>
-                                  <span className="text-[10px] text-[var(--text-muted)]">
-                                    {lang.code}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                  {!filteredLanguages && popularLanguages.length > 0 && (
+                    <div className="mb-2">
+                      <div className="flex items-center gap-1 mb-1 px-1">
+                        <span className="text-[10px] text-amber-300">⭐</span>
+                        <span className="text-[10px] font-semibold text-[var(--text-main)]">
+                          {t("popularLabel", "Most popular")}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {popularLanguages.map((lang) => renderLangButton(lang))}
+                      </div>
+                    </div>
+                  )}
 
-                      {groupedByRegion.map((group) => (
-                        <div key={group.region}>
-                          <p className="text-[10px] font-semibold text-[var(--text-muted)] px-1 mb-1">
-                            {group.region}
-                          </p>
-                          <div className="space-y-1 mb-2">
-                            {group.items.map((lang) => {
-                              const isSelected =
-                                selectedLang?.code === lang.code &&
-                                selectedLang?.label === lang.label;
-                              return (
-                                <button
-                                  key={`${lang.code}-${lang.label}-${group.region}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedLang(lang);
-                                    if (typeof window !== "undefined") {
-                                      window.localStorage.setItem(
-                                        LS_PREF_LANG,
-                                        lang.code
-                                      );
-                                    }
-                                  }}
-                                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
-                                    isSelected
-                                      ? "bg-indigo-600 text-white"
-                                      : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
-                                  }`}
-                                >
-                                  <span className="flex items-center gap-2">
-                                    <span>{lang.flag}</span>
-                                    <span>{lang.label}</span>
-                                  </span>
-                                  <span className="text-[10px] text-[var(--text-muted)]">
-                                    {lang.code}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </>
+                  <div className="space-y-1">
+                    {languagesToShow.map((lang) => renderLangButton(lang))}
+                  </div>
+
+                  {filteredLanguages && filteredLanguages.length === 0 && (
+                    <p className="text-[11px] text-[var(--text-muted)] px-1">
+                      {t(
+                        "noLanguagesFound",
+                        `No languages found for “${search}”.`
+                      )}
+                    </p>
                   )}
                 </div>
               </div>
@@ -818,58 +430,30 @@ export default function TranslateWithAIButton() {
                 <textarea
                   value={sourceText}
                   onChange={(e) => setSourceText(e.target.value)}
-                  placeholder="Type or paste text, or select text on the page before opening."
+                  placeholder={t(
+                    "textPlaceholder",
+                    "Type or paste text, or select text on the page before opening."
+                  )}
                   className="w-full rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] p-2 max-h-32 min-h-[80px] text-[11px] text-[var(--text-main)] resize-vertical"
                 />
               </div>
 
-              {/* Error */}
               {errorMsg && (
                 <p className="text-[11px] text-red-400">{errorMsg}</p>
               )}
 
-              {/* Actions */}
-              <div className="flex flex-wrap items-center gap-2 justify-between">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleTranslateText}
-                    disabled={loading || !selectedLang}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
-                  >
-                    {loading
-                      ? t("translating", "Translating…")
-                      : t("translateText", "Translate text")}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleTranslatePage}
-                    disabled={loading || !selectedLang}
-                    className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] font-medium text-[var(--text-main)] disabled:opacity-60"
-                  >
-                    {loading
-                      ? t("workingOnPage", "Working on page…")
-                      : t("translatePage", "Translate this page")}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleTranslateSite}
-                    disabled={loading || !selectedLang}
-                    className="px-4 py-2 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-[11px] font-medium text-white disabled:opacity-60"
-                  >
-                    {loading
-                      ? t(
-                          "workingOnPage",
-                          "Working on page…"
-                        )
-                      : t(
-                          "autoTranslateSite",
-                          "Auto-translate app"
-                        )}
-                  </button>
-                </div>
+              {/* Actions (ONLY translate text) */}
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={handleTranslateText}
+                  disabled={loading || !selectedLang}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
+                >
+                  {loading
+                    ? t("translating", "Translating…")
+                    : t("translateText", "Translate text")}
+                </button>
 
                 <button
                   type="button"
@@ -880,14 +464,11 @@ export default function TranslateWithAIButton() {
                 </button>
               </div>
 
-              {/* Result / status */}
+              {/* Result */}
               {translatedText && (
                 <div className="mt-2">
                   <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    {t(
-                      "translationStatus",
-                      "Translation status"
-                    )}
+                    {t("translationResult", "Translation")}
                   </p>
                   <div className="rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 90%,transparent)] p-2 max-h-52 overflow-y-auto text-[11px] text-[var(--text-main)] whitespace-pre-wrap">
                     {translatedText}
@@ -896,6 +477,15 @@ export default function TranslateWithAIButton() {
               )}
             </div>
           </div>
+
+          {/* click outside to close */}
+          <button
+            type="button"
+            aria-label="Close translate modal"
+            onClick={() => setOpen(false)}
+            className="absolute inset-0 w-full h-full cursor-default"
+            style={{ background: "transparent" }}
+          />
         </div>
       )}
     </>

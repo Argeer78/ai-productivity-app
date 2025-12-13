@@ -14,7 +14,9 @@ type AiInfo = {
 };
 
 export default function PlannerPage() {
-  const { t } = useT("planner");
+  // ✅ Match Supabase keys exactly: planner.*
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) => rawT(`planner.${key}`, fallback);
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -28,9 +30,7 @@ export default function PlannerPage() {
     async function loadUser() {
       try {
         const { data, error } = await supabase.auth.getUser();
-        if (error) {
-          console.error("[planner] getUser error", error);
-        }
+        if (error) console.error("[planner] getUser error", error);
         setUser(data?.user ?? null);
       } catch (err) {
         console.error("[planner] getUser exception", err);
@@ -38,7 +38,6 @@ export default function PlannerPage() {
         setCheckingUser(false);
       }
     }
-
     loadUser();
   }, []);
 
@@ -60,14 +59,9 @@ export default function PlannerPage() {
 
       try {
         data = JSON.parse(text);
-      } catch (e) {
+      } catch {
         console.error("Non-JSON response from /api/daily-plan:", text);
-        setError(
-          t(
-            "error.invalidResponse",
-            "Server returned an invalid response."
-          )
-        );
+        setError(t("error.invalidResponse", "Server returned an invalid response."));
         setLoading(false);
         return;
       }
@@ -83,13 +77,7 @@ export default function PlannerPage() {
               )
           );
         } else {
-          setError(
-            data.error ||
-              t(
-                "error.generic",
-                "Failed to generate daily plan."
-              )
-          );
+          setError(data.error || t("error.generic", "Failed to generate daily plan."));
         }
         setLoading(false);
         return;
@@ -97,23 +85,12 @@ export default function PlannerPage() {
 
       setPlanText(data.plan);
 
-      if (
-        typeof data.usedToday === "number" &&
-        typeof data.dailyLimit === "number"
-      ) {
-        setAiInfo({
-          usedToday: data.usedToday,
-          dailyLimit: data.dailyLimit,
-        });
+      if (typeof data.usedToday === "number" && typeof data.dailyLimit === "number") {
+        setAiInfo({ usedToday: data.usedToday, dailyLimit: data.dailyLimit });
       }
     } catch (err) {
       console.error(err);
-      setError(
-        t(
-          "error.network",
-          "Network error while generating your plan."
-        )
-      );
+      setError(t("error.network", "Network error while generating your plan."));
     } finally {
       setLoading(false);
     }
@@ -134,9 +111,7 @@ export default function PlannerPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="planner" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">
-            {t("title", "Daily Planner")}
-          </h1>
+          <h1 className="text-2xl font-bold mb-3">{t("title", "Daily Planner")}</h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             {t(
               "loginPrompt",
@@ -166,17 +141,13 @@ export default function PlannerPage() {
               {t("title", "Daily Planner")}
             </h1>
             <p className="text-xs md:text-sm text-[var(--text-muted)]">
-              {t(
-                "subtitle",
-                "Let AI turn your tasks into a focused plan for today."
-              )}
+              {t("subtitle", "Let AI turn your tasks into a focused plan for today.")}
             </p>
           </div>
+
           <div className="text-[11px] text-[var(--text-muted)]">
             {t("loggedInAs", "Logged in as")}{" "}
-            <span className="font-semibold">
-              {user.email ?? t("youFallback", "you")}
-            </span>
+            <span className="font-semibold">{user.email ?? "you"}</span>
           </div>
         </div>
 
@@ -184,7 +155,7 @@ export default function PlannerPage() {
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-4 text-sm">
           <p className="text-[12px] text-[var(--text-main)] mb-2">
             {t(
-              "instructions",
+              "description",
               "This planner looks at your open tasks in the app and suggests what to focus on today. You can refresh it during the day if your priorities change."
             )}
           </p>
@@ -194,14 +165,12 @@ export default function PlannerPage() {
             disabled={loading}
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm"
           >
-            {loading
-              ? t("generatingButton", "Generating plan...")
-              : t("generateButton", "Generate today’s plan")}
+            {loading ? t("generatingButton", "Generating plan...") : t("generateButton", "Generate today’s plan")}
           </button>
 
           <p className="mt-1 text-[11px] text-[var(--text-muted)]">
             {t(
-              "aiLimitNote",
+              "generateNote",
               "Uses your daily AI limit (shared with notes, assistant, and dashboard summary)."
             )}
           </p>
@@ -215,27 +184,14 @@ export default function PlannerPage() {
             </p>
           )}
 
-          {error && (
-            <div className="mt-3 text-[11px] text-red-400">
-              {error}
-            </div>
-          )}
+          {error && <div className="mt-3 text-[11px] text-red-400">{error}</div>}
 
           <div className="mt-3 text-[11px] text-[var(--text-muted)] flex gap-3 flex-wrap">
-            <Link
-              href="/tasks"
-              className="hover:text-[var(--accent)]"
-            >
-              {t(
-                "link.viewTasks",
-                "→ View & edit your tasks"
-              )}
+            <Link href="/tasks" className="hover:text-[var(--accent)]">
+              {t("viewTasksLink", "→ View & edit your tasks")}
             </Link>
-            <Link
-              href="/dashboard"
-              className="hover:text-[var(--accent)]"
-            >
-              {t("link.openDashboard", "Open Dashboard")}
+            <Link href="/dashboard" className="hover:text-[var(--accent)]">
+              {t("openDashboard", "Open Dashboard")}
             </Link>
           </div>
         </div>
@@ -243,12 +199,11 @@ export default function PlannerPage() {
         {/* Plan output */}
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 text-sm min-h-[160px]">
           <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-            {t("todaysPlanHeading", "TODAY'S PLAN")}
+            {t("section.todayPlan", "TODAY'S PLAN")}
           </p>
+
           {planText ? (
-            <pre className="whitespace-pre-wrap text-[12px] text-[var(--text-main)]">
-              {planText}
-            </pre>
+            <pre className="whitespace-pre-wrap text-[12px] text-[var(--text-main)]">{planText}</pre>
           ) : (
             <p className="text-[12px] text-[var(--text-muted)]">
               {t(
@@ -262,14 +217,11 @@ export default function PlannerPage() {
         {/* Feedback */}
         <section className="mt-8 max-w-md">
           <h2 className="text-sm font-semibold mb-1">
-            {t(
-              "feedbackTitle",
-              "Send feedback about Daily Planner"
-            )}
+            {t("feedback.title", "Send feedback about Daily Planner")}
           </h2>
           <p className="text-[11px] text-[var(--text-muted)] mb-3">
             {t(
-              "feedbackSubtitle",
+              "feedback.subtitle",
               "Did the plan help? Missing something? Share your thoughts so I can improve it."
             )}
           </p>

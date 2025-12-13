@@ -8,6 +8,7 @@ import FeedbackForm from "@/app/components/FeedbackForm";
 import { useAnalytics } from "@/lib/analytics";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import { useT } from "@/lib/useT";
+import { useLanguage } from "@/app/components/LanguageProvider";
 
 const FREE_DAILY_LIMIT = 20;
 const PRO_DAILY_LIMIT = 2000;
@@ -188,7 +189,10 @@ type NoteAIGeneratedTask = {
 };
 
 export default function NotesPage() {
-  const { t } = useT("notes");
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) => rawT(`notes.${key}`, fallback);
+  const { lang: appLang } = useLanguage();
+  const intlLocale = appLang || "en";
   const { track } = useAnalytics();
   const [user, setUser] = useState<SupabaseUser>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -245,6 +249,19 @@ export default function NotesPage() {
     null
   );
 
+  function formatDateTime(input: string | number | Date) {
+  try {
+    const d = input instanceof Date ? input : new Date(input);
+    if (Number.isNaN(d.getTime())) return "";
+    return new Intl.DateTimeFormat(intlLocale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(d);
+  } catch {
+    return "";
+  }
+}
+
   function toggleNoteOpen(id: string) {
     setOpenNoteIds((prev) =>
       prev.includes(id) ? prev.filter((nid) => nid !== id) : [...prev, id]
@@ -262,7 +279,10 @@ export default function NotesPage() {
   function handleShareNote(note: Note) {
     if (!note?.content) return;
 
-    const textToCopy = `${note.content}\n\n— shared from AI Productivity Hub`;
+    const textToCopy = `${note.content}\n\n— ${t(
+  "share.signature",
+  "shared from AI Productivity Hub"
+)}`;
 
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopiedNoteId(note.id);
@@ -351,7 +371,7 @@ export default function NotesPage() {
         if (dueIso) {
           const parsed = Date.parse(dueIso);
           if (!Number.isNaN(parsed)) {
-            dueLabel = new Date(parsed).toLocaleString();
+            dueLabel = formatDateTime(parsed);
           }
         }
       }
@@ -370,7 +390,7 @@ export default function NotesPage() {
           dueIso = resolved;
           const parsed = Date.parse(resolved);
           if (!Number.isNaN(parsed)) {
-            dueLabel = new Date(parsed).toLocaleString();
+            dueLabel = formatDateTime(parsed);
           }
         }
 
@@ -1492,11 +1512,7 @@ export default function NotesPage() {
                               t("list.untitled", "Untitled")}
                           </h3>
                           <span className="text-[10px] text-[var(--text-muted)]">
-                            {note.created_at
-                              ? new Date(
-                                  note.created_at
-                                ).toLocaleString()
-                              : ""}
+                            {note.created_at ? formatDateTime(note.created_at) : ""}
                           </span>
                         </div>
 

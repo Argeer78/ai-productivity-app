@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAnalytics } from "@/lib/analytics";
+import { useT } from "@/lib/useT";
 
 type Status = "idle" | "sending" | "sent" | "error";
 
@@ -21,6 +22,9 @@ export default function FeedbackForm({
   user?: any;
   source?: FeedbackSource;
 }) {
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) => rawT(`feedback.${key}`, fallback);
+
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [showToast, setShowToast] = useState(false);
@@ -88,16 +92,20 @@ export default function FeedbackForm({
       >
         <h3 className="text-sm font-semibold mb-2 text-[var(--text-main)] flex items-center gap-1">
           <span>💬</span>
-          <span>Send feedback</span>
+          <span>{t("title", "Send feedback")}</span>
         </h3>
+
         <p className="text-xs text-[var(--text-muted)] mb-3">
-          Got an idea or found a bug? Let me know!
+          {t(
+            "subtitle",
+            "Got an idea or found a bug? Let me know!"
+          )}
         </p>
 
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type your message..."
+          placeholder={t("placeholder", "Type your message...")}
           className="w-full min-h-[80px] text-sm px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-[var(--text-main)] placeholder-[var(--text-muted)]/80"
         />
 
@@ -107,7 +115,7 @@ export default function FeedbackForm({
             disabled={!canSubmit}
             className="px-4 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-sm text-[var(--accent-contrast)]"
           >
-            {isSending ? "Sending..." : "Send"}
+            {isSending ? t("sending", "Sending…") : t("send", "Send")}
           </button>
         </div>
       </form>
@@ -124,9 +132,11 @@ export default function FeedbackForm({
             }`}
           >
             {status === "sent" ? (
-              <span>✅ Feedback sent — thank you!</span>
+              <span>{t("toast.sent", "✅ Feedback sent — thank you!")}</span>
             ) : (
-              <span>⚠️ Something went wrong. Please try again.</span>
+              <span>
+                {t("toast.error", "⚠️ Something went wrong. Please try again.")}
+              </span>
             )}
           </div>
         </div>
