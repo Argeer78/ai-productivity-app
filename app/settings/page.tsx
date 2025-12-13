@@ -104,9 +104,13 @@ export default function SettingsPage() {
 
   // 🧠 App UI language context (this controls all `t()` translations)
   const { lang: appLang, setLang: setAppLang } = useLanguage();
-
+type LanguageOption = { code: Lang; label: string; flag?: string };
 // keep readonly type (best). If you ever need to mutate/sort, use [...SUPPORTED_LANGS]
-const languageOptions = SUPPORTED_LANGS;
+const languageOptions: LanguageOption[] = SUPPORTED_LANGS.map((l) => ({
+  code: l.code,
+  label: l.label,
+  flag: l.flag,
+}));
 
   // Check existing push subscription on this device
   useEffect(() => {
@@ -825,6 +829,7 @@ const languageOptions = SUPPORTED_LANGS;
   <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
     {t("language.label", "Language")}
   </label>
+
   <p className="text-[11px] text-[var(--text-muted)] mb-2">
     {t(
       "language.description",
@@ -833,25 +838,23 @@ const languageOptions = SUPPORTED_LANGS;
   </p>
 
   <select
-  value={appLang}
-  onChange={(e) => {
-    const newLang = e.target.value as Lang;
-    setAppLang(newLang);
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LS_PREF_LANG, newLang);
-    }
-  }}
-  className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
->
-  {languageOptions.map((opt) => (
-    <option key={opt.code} value={opt.code}>
-      {opt.flag ? `${opt.flag} ` : ""}
-      {opt.label ?? opt.code.toUpperCase()}
-    </option>
-  ))}
-</select>
-
+    value={appLang}
+    onChange={(e) => {
+      const newLang = e.target.value as Lang;
+      setAppLang(newLang);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(LS_PREF_LANG, newLang);
+      }
+    }}
+    className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
+  >
+    {languageOptions.map((opt) => (
+      <option key={opt.code} value={opt.code}>
+        {opt.flag ? `${opt.flag} ` : ""}
+        {opt.label ?? opt.code.toUpperCase()}
+      </option>
+    ))}
+  </select>
 </div>
 
               {/* Focus area */}
