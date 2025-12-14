@@ -10,34 +10,46 @@ export function initTwaPortListener() {
 
     twaPort = port;
 
-    // Optional: listen for messages on the port (debug)
-    twaPort.onmessage = (ev) => {
+    // Optional debug listener
+    twaPort.onmessage = () => {
       // console.log("[TWA port] message:", ev.data);
     };
   });
 }
 
 export async function requestIntegrityTokenFromTwa(timeoutMs = 8000): Promise<string> {
-  if (!twaPort) throw new Error("TWA MessagePort not ready yet");
+  const port = twaPort; // ✅ capture once so TS knows it's not null
+  if (!port) throw new Error("TWA MessagePort not ready yet");
 
   const nonce = crypto.randomUUID();
 
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Timed out waiting for integrity token")), timeoutMs);
+    const timeout = setTimeout(() => {
+      port.removeEventListener("message", onMessage as any);
+      reject(new Error("Timed out waiting for integrity token"));
+    }, timeoutMs);
 
     const onMessage = (ev: MessageEvent) => {
       const data = ev.data;
+
       if (data?.type === "INTEGRITY_TOKEN" && data?.nonce === nonce && typeof data?.token === "string") {
         clearTimeout(timeout);
-        twaPort?.removeEventListener("message", onMessage as any);
+        port.removeEventListener("message", onMessage as any);
         resolve(data.token);
+      }
+
+      // Optional: if you send INTEGRITY_ERROR from Android, handle it
+      if (data?.type === "INTEGRITY_ERROR" && data?.nonce === nonce) {
+        clearTimeout(timeout);
+        port.removeEventListener("message", onMessage as any);
+        reject(new Error(data?.error || "Integrity error"));
       }
     };
 
     // Listen only for the response to this request
-    twaPort.addEventListener("message", onMessage as any);
+    port.addEventListener("message", onMessage as any);
 
     // Send nonce request to Android
-    twaPort.postMessage({ type: "INTEGRITY_NONCE", nonce });
+    port.postMessage({ type: "INTEGRITY_NONCE", nonce });
   });
 }
