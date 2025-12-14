@@ -242,7 +242,7 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
         icon: "🎙️",
         title: t("home.promo.voice.title", "Voice capture + AI cleanup"),
         desc: t(
-          "home.promo.voice.desc",
+          "home.promo.voice.line1",
           "Record inside Notes → AI cleans the text and suggests tasks + reminders."
         ),
         href: "/notes",
@@ -250,23 +250,23 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
       {
         icon: "🧠",
         title: t("home.promo.extract.title", "Create tasks from notes"),
-        desc: t("home.promo.extract.desc", "One click to turn paragraphs into actionable tasks."),
+        desc: t("home.promo.extract.line1", "One click to turn paragraphs into actionable tasks."),
         href: "/notes",
       },
       {
         icon: "⏰",
         title: t("home.promo.reminders.title", "Reminders that actually help"),
         desc: t(
-          "home.promo.reminders.desc",
+          "home.promo.reminders.line1",
           "Per-task reminders + daily/weekly emails so nothing slips."
         ),
         href: "/tasks",
       },
       {
         icon: "🌍",
-        title: t("home.promo.lang.title", "26 languages"),
+        title: t("home.promo.languages.titleShort", "26 languages"),
         desc: t(
-          "home.promo.lang.desc",
+          "home.promo.languages.line1",
           "UI + translated emails based on your default language."
         ),
         href: "/settings",
@@ -275,7 +275,7 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
         icon: "⚡",
         title: t("home.promo.creator.title", "AI Task Creator"),
         desc: t(
-          "home.promo.creator.desc",
+          "home.promo.planner.line1",
           "Turn a messy goal into a clean step-by-step plan."
         ),
         href: "/ai-task-creator",
@@ -284,7 +284,7 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
         icon: "💬",
         title: t("home.promo.chat.title", "AIHub Chat"),
         desc: t(
-          "home.promo.chat.desc",
+          "home.promo.aihub.line1",
           "Ask for help, summarize, translate, draft — right inside the app."
         ),
         href: "/ai-chat",
@@ -320,14 +320,14 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
               href={primaryHref}
               className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-xs font-medium text-[var(--accent-contrast)]"
             >
-              {t("home.promo.ctaPrimary", "Try it in Notes")}
+              {t("home.promo.tryNotes", "Try it in Notes")}
             </Link>
 
             <Link
               href={secondaryHref}
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs"
             >
-              {t("home.promo.ctaSecondary", "Set your language")}
+              {t("home.promo.setLanguage", "Set your language")}
             </Link>
           </div>
         </div>
@@ -364,7 +364,7 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
 
         <p className="mt-4 text-[11px] text-[var(--text-muted)]">
           {t(
-            "home.promo.note",
+            "home.promo.tip",
             "Tip: Use Voice capture in Notes to instantly get cleaned text + suggested tasks (with reminders)."
           )}
         </p>

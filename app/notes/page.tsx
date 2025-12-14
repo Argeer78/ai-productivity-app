@@ -1536,8 +1536,6 @@ export default function NotesPage() {
                         </p>
                       )}
 
-// The rest of the note’s expanded view …
-
                       <div className="mt-3 flex flex-wrap gap-2">
                         {/* 🆕 Tasks from note (suggestions in panel) */}
                         <button
