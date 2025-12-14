@@ -878,6 +878,7 @@ export default function ToolsPage() {
                 {t("tools.backToHome", "← Back to homepage")}
               </span>
             </Link>
+            <Link href="/test-integrity">Test Integrity</Link>
           </div>
         </div>
       </div>
