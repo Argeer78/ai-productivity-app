@@ -25,10 +25,11 @@ export async function POST(req: Request) {
     const res = await playintegrity.v1.decodeIntegrityToken({
       packageName: PACKAGE_NAME,
       requestBody: { integrityToken },
-      auth, // IMPORTANT: pass GoogleAuth, not auth.getClient()
+      auth, // pass GoogleAuth here
     });
 
-    const payload = res.data.tokenPayloadExternalData;
+    // ✅ FIX: correct property name
+    const payload = res.data.tokenPayloadExternal;
 
     const appVerdict = payload?.appIntegrity?.appRecognitionVerdict;
     const deviceVerdicts = payload?.deviceIntegrity?.deviceRecognitionVerdict ?? [];
@@ -38,6 +39,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, playRecognized, basicIntegrity });
   } catch (e) {
+    // Optional: log server-side for debugging
+    // console.error(e);
+
     return NextResponse.json({ ok: false, reason: "verify_failed" }, { status: 500 });
   }
 }
