@@ -1,5 +1,15 @@
 [
   {
+    "relation": ["delegate_permission/common.use_as_origin"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.aiprod.twa",
+      "sha256_cert_fingerprints": [
+        "ED:D0:1E:56:9E:E5:62:70:73:34:19:4A:71:7C:95:4A:DD:46:F9:50:E0:B2:74:A2:06:C5:35:C6:13:B3:37:50"
+      ]
+    }
+  },
+  {
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",

@@ -6,6 +6,12 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import { useT } from "@/lib/useT";
+import { requestIntegrityTokenFromTwa } from "@/lib/twaIntegrity"
+
+async function test() {
+  const token = await requestIntegrityTokenFromTwa();
+  console.log("Integrity token:", token.slice(0, 30), "...");
+}
 
 type ToolKind =
   | "dashboard"
