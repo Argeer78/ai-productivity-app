@@ -6,14 +6,14 @@ import PlausibleProvider from "next-plausible";
 import AppShell from "@/app/components/AppShell";
 import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 import { RtlDirectionManager } from "@/app/components/RtlDirectionManager";
+import TwaInit from "@/app/TwaInit";
 
 const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://aiprod.app"),
-  title:
-    "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
+  title: "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
   description:
     "AI Productivity Hub is a simple, focused workspace for notes, tasks, daily score tracking, weekly reports and travel planning – all powered by AI.",
   openGraph: {
@@ -49,8 +49,11 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#020617" />
       </head>
-      {/* No bg-slate classes here so themes can control colors */}
+
       <body className={inter.className}>
+        {/* ✅ Initialize TWA postMessage listener once (client-side) */}
+        <TwaInit />
+
         <PlausibleProvider
           domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
           trackLocalhost={false}
