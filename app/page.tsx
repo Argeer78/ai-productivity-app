@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
@@ -229,6 +229,150 @@ function ToolsSection() {
   );
 }
 
+/** ✅ New promo banner to advertise “hidden” capabilities */
+function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
+  const { t } = useT();
+
+  const primaryHref = isAuthed ? "/notes" : "/auth";
+  const secondaryHref = isAuthed ? "/settings" : "/auth";
+
+  const chips = useMemo(
+    () => [
+      {
+        icon: "🎙️",
+        title: t("home.promo.voice.title", "Voice capture + AI cleanup"),
+        desc: t(
+          "home.promo.voice.desc",
+          "Record inside Notes → AI cleans the text and suggests tasks + reminders."
+        ),
+        href: "/notes",
+      },
+      {
+        icon: "🧠",
+        title: t("home.promo.extract.title", "Create tasks from notes"),
+        desc: t("home.promo.extract.desc", "One click to turn paragraphs into actionable tasks."),
+        href: "/notes",
+      },
+      {
+        icon: "⏰",
+        title: t("home.promo.reminders.title", "Reminders that actually help"),
+        desc: t(
+          "home.promo.reminders.desc",
+          "Per-task reminders + daily/weekly emails so nothing slips."
+        ),
+        href: "/tasks",
+      },
+      {
+        icon: "🌍",
+        title: t("home.promo.lang.title", "26 languages"),
+        desc: t(
+          "home.promo.lang.desc",
+          "UI + translated emails based on your default language."
+        ),
+        href: "/settings",
+      },
+      {
+        icon: "⚡",
+        title: t("home.promo.creator.title", "AI Task Creator"),
+        desc: t(
+          "home.promo.creator.desc",
+          "Turn a messy goal into a clean step-by-step plan."
+        ),
+        href: "/ai-task-creator",
+      },
+      {
+        icon: "💬",
+        title: t("home.promo.chat.title", "AIHub Chat"),
+        desc: t(
+          "home.promo.chat.desc",
+          "Ask for help, summarize, translate, draft — right inside the app."
+        ),
+        href: "/ai-chat",
+      },
+    ],
+    [t]
+  );
+
+  return (
+    <section className="mb-14">
+      <div className="rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-5 md:p-6 shadow-lg shadow-black/5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+          <div>
+            <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
+              {t("home.promo.kicker", "HIDDEN SUPERPOWERS")}
+            </p>
+            <h2 className="text-xl md:text-2xl font-bold text-[var(--text-main)]">
+              {t(
+                "home.promo.title",
+                "Capture → Clean up → Turn into tasks → Get reminded."
+              )}
+            </h2>
+            <p className="text-xs md:text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
+              {t(
+                "home.promo.subtitle",
+                "Voice notes, AI cleanup, task suggestions with reminders, multi-language UI, and translated email digests — all in one place."
+              )}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={primaryHref}
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-xs font-medium text-[var(--accent-contrast)]"
+            >
+              {t("home.promo.ctaPrimary", "Try it in Notes")}
+            </Link>
+
+            <Link
+              href={secondaryHref}
+              className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs"
+            >
+              {t("home.promo.ctaSecondary", "Set your language")}
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {chips.map((c) => (
+            <Link
+              key={c.title}
+              href={isAuthed ? c.href : "/auth"}
+              className="group rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 hover:bg-[var(--bg-card)] hover:border-[var(--accent)]/70 transition"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-2xl bg-[var(--bg-body)] border border-[var(--border-subtle)] flex items-center justify-center text-lg">
+                  <span aria-hidden="true">{c.icon}</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-[var(--text-main)]">
+                    {c.title}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1 leading-relaxed">
+                    {c.desc}
+                  </p>
+                  <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-[var(--accent)]">
+                    <span className="font-medium">
+                      {t("home.promo.open", "Open")}
+                    </span>
+                    <span className="group-hover:translate-x-0.5 transition-transform">→</span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <p className="mt-4 text-[11px] text-[var(--text-muted)]">
+          {t(
+            "home.promo.note",
+            "Tip: Use Voice capture in Notes to instantly get cleaned text + suggested tasks (with reminders)."
+          )}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export default function HomePage() {
   const { t } = useT();
 
@@ -293,14 +437,14 @@ export default function HomePage() {
                   href={primaryCtaHref}
                   className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)]"
                 >
-                  {t("home.hero.cta.dashboard", "Open your dashboard")}
+                  {primaryCtaLabel}
                 </Link>
 
                 <Link
                   href={secondaryCtaHref}
                   className="px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
                 >
-                  {t("home.hero.cta.notes", "Go to Notes")}
+                  {secondaryCtaLabel}
                 </Link>
 
                 <Link
@@ -320,7 +464,12 @@ export default function HomePage() {
               </p>
 
               <div className="mt-5">
-                <SocialShareBar title={t("home.hero.subheading", "Capture notes, plan your day, track what matters, and let AI summarize your progress.")} />
+                <SocialShareBar
+                  title={t(
+                    "home.hero.subheading",
+                    "Capture notes, plan your day, track what matters, and let AI summarize your progress."
+                  )}
+                />
               </div>
             </div>
 
@@ -379,6 +528,9 @@ export default function HomePage() {
             </div>
           </section>
 
+          {/* ✅ NEW PROMO / AD BANNER */}
+          {!checkingUser && <PromoHighlights isAuthed={!!user} />}
+
           {/* TOOLS / WHAT YOU GET */}
           <ToolsSection />
 
@@ -402,10 +554,7 @@ export default function HomePage() {
                   {t("home.pricing.free.price", "€0")}
                 </p>
                 <p className="text-[12px] text-[var(--text-muted)] mb-3">
-                  {t(
-                    "home.pricing.free.description",
-                    "Great for light usage, daily planning and basic AI help."
-                  )}
+                  {t("home.pricing.free.description", "Great for light usage, daily planning and basic AI help.")}
                 </p>
 
                 <ul className="text-[12px] text-[var(--text-main)] space-y-1.5 mb-4">
@@ -501,7 +650,9 @@ export default function HomePage() {
 
           {/* FOOTER */}
           <footer className="border-t border-[var(--border-subtle)] pt-4 pb-2 text-[11px] text-[var(--text-muted)] flex flex-wrap gap-3 justify-between">
-            <span>{t("home.footer.copyright", "© 2025 AI Productivity Hub — aiprod.app — Owner: AlphaSynth AI")}</span>
+            <span>
+              {t("home.footer.copyright", "© 2025 AI Productivity Hub — aiprod.app — Owner: AlphaSynth AI")}
+            </span>
 
             <div className="flex gap-3">
               <Link href="/changelog" className="hover:text-[var(--text-main)]">

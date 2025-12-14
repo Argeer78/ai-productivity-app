@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/useT";
 
 // Type definition for the "beforeinstallprompt" event
 interface BeforeInstallPromptEvent extends Event {
@@ -13,6 +14,8 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function PwaInstallPrompt() {
+  const { t } = useT("pwaPrompt");
+
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
@@ -46,10 +49,7 @@ export default function PwaInstallPrompt() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
     return () => {
-      window.removeEventListener(
-        "beforeinstallprompt",
-        handleBeforeInstallPrompt
-      );
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     };
   }, []);
 
@@ -90,11 +90,12 @@ export default function PwaInstallPrompt() {
         <div className="mt-0.5">📱</div>
         <div className="flex-1">
           <p className="font-semibold mb-0.5">
-            Install AI Productivity Hub as an app
+            {t("title", "Install AI Productivity Hub as an app")}
           </p>
           <p className="text-[11px] text-[var(--text-muted)] mb-1.5">
-            Add it to your home screen for a faster, native-like experience.
+            {t("body", "Add it to your home screen for a faster, native-like experience.")}
           </p>
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -102,14 +103,15 @@ export default function PwaInstallPrompt() {
               disabled={installing}
               className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-[11px] font-medium text-slate-950 disabled:opacity-60"
             >
-              {installing ? "Installing…" : "Install app"}
+              {installing ? t("installing", "Installing…") : t("install", "Install app")}
             </button>
+
             <button
               type="button"
               onClick={handleDismiss}
               className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[11px] text-[var(--text-main)]"
             >
-              Not now
+              {t("dismiss", "Not now")}
             </button>
           </div>
         </div>

@@ -4,12 +4,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { useT } from "@/lib/useT";
 
 type Props = {
   userId?: string | null;
 };
 
 export default function SetupBanner({ userId }: Props) {
+  const { t } = useT("setupBanner");
+
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
 
@@ -26,9 +29,7 @@ export default function SetupBanner({ userId }: Props) {
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select(
-            "onboarding_use_case, onboarding_weekly_focus, onboarding_reminder"
-          )
+          .select("onboarding_use_case, onboarding_weekly_focus, onboarding_reminder")
           .eq("id", userId)
           .maybeSingle();
 
@@ -79,11 +80,16 @@ export default function SetupBanner({ userId }: Props) {
         <span className="text-lg">✨</span>
         <div>
           <p className="font-semibold text-amber-100">
-            Finish your setup to get better AI summaries & weekly reports
+            {t(
+              "title",
+              "Finish your setup to get better AI summaries & weekly reports"
+            )}
           </p>
           <p className="text-[11px] text-amber-100/80">
-            Choose your AI tone, main focus area and email preferences in
-            Settings. It takes under a minute.
+            {t(
+              "body",
+              "Choose your AI tone, main focus area and email preferences in Settings. It takes under a minute."
+            )}
           </p>
         </div>
       </div>
@@ -92,7 +98,7 @@ export default function SetupBanner({ userId }: Props) {
         href="/settings"
         className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-semibold"
       >
-        Finish setup →
+        {t("cta", "Finish setup →")}
       </Link>
     </div>
   );
