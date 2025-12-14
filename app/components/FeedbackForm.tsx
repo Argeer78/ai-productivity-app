@@ -96,10 +96,10 @@ export default function FeedbackForm({
         </h3>
 
         <p className="text-xs text-[var(--text-muted)] mb-3">
-          {t(
+          <span>{t(
             "subtitle",
             "Got an idea or found a bug? Let me know!"
-          )}
+          )}</span>
         </p>
 
         <textarea
