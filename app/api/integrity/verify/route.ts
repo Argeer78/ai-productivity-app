@@ -1,11 +1,7 @@
-// app/api/integrity/verify/route.ts
 import { NextResponse } from "next/server";
-import { playintegrity } from "@googleapis/playintegrity";
-import { GoogleAuth } from "google-auth-library";
+import { google } from "googleapis";
 
 const PACKAGE_NAME = process.env.ANDROID_PACKAGE_NAME!;
-// Store the service account JSON (stringified) in Vercel env:
-// GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
 const SERVICE_ACCOUNT = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
 
 export async function POST(req: Request) {
@@ -16,36 +12,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, reason: "missing_token" }, { status: 400 });
     }
 
-    // Auth with Play Integrity scope
-    const auth = new GoogleAuth({
+    // Create Google auth client (server-side)
+    const auth = new google.auth.GoogleAuth({
       credentials: SERVICE_ACCOUNT,
       scopes: ["https://www.googleapis.com/auth/playintegrity"],
     });
 
-    const client = await auth.getClient();
-    const api = playintegrity({ version: "v1", auth: client });
+    // Create the API client
+    const playintegrity = google.playintegrity("v1");
 
-    // Calls Google's servers to decode/verify the token
-    const res = await api.v1.decodeIntegrityToken({
+    // Call Google to decode/verify the token
+    const res = await playintegrity.v1.decodeIntegrityToken({
       packageName: PACKAGE_NAME,
       requestBody: { integrityToken },
+      auth, // IMPORTANT: pass GoogleAuth, not auth.getClient()
     });
 
     const payload = res.data.tokenPayloadExternalData;
 
-    // Minimal “monitor-mode” checks (start lenient)
     const appVerdict = payload?.appIntegrity?.appRecognitionVerdict;
     const deviceVerdicts = payload?.deviceIntegrity?.deviceRecognitionVerdict ?? [];
 
     const playRecognized = appVerdict === "PLAY_RECOGNIZED";
     const basicIntegrity = deviceVerdicts.includes("MEETS_BASIC_INTEGRITY");
 
-    return NextResponse.json({
-      ok: true,
-      playRecognized,
-      basicIntegrity,
-      // Return only what you need; don’t echo full payload to clients in production.
-    });
+    return NextResponse.json({ ok: true, playRecognized, basicIntegrity });
   } catch (e) {
     return NextResponse.json({ ok: false, reason: "verify_failed" }, { status: 500 });
   }
