@@ -1,6 +1,15 @@
 "use client";
 
 import { requestIntegrityTokenFromTwa } from "@/lib/twaIntegrity";
+import { useEffect } from "react";
+
+function OriginDebug() {
+  useEffect(() => {
+    console.log("origin:", window.location.origin);
+    console.log("href:", window.location.href);
+  }, []);
+  return null;
+}
 
 export default function TestIntegrityPage() {
   async function test() {
@@ -10,13 +19,14 @@ export default function TestIntegrityPage() {
       alert("Integrity token received ✅ (check console)");
     } catch (e: any) {
       console.error(e);
-      alert(e.message || "Error getting integrity token");
+      alert(e?.message || "Error getting integrity token");
     }
   }
 
   return (
-    <button onClick={test}>
-      Test Integrity Token
-    </button>
+    <div style={{ padding: 16 }}>
+      <OriginDebug />
+      <button onClick={test}>Test Integrity Token</button>
+    </div>
   );
 }
