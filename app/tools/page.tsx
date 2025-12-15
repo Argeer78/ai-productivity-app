@@ -6,12 +6,6 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import { useT } from "@/lib/useT";
-import { requestIntegrityTokenFromTwa } from "@/lib/twaIntegrity"
-
-async function test() {
-  const token = await requestIntegrityTokenFromTwa();
-  console.log("Integrity token:", token.slice(0, 30), "...");
-}
 
 type ToolKind =
   | "dashboard"
@@ -878,7 +872,6 @@ export default function ToolsPage() {
                 {t("tools.backToHome", "← Back to homepage")}
               </span>
             </Link>
-            <Link href="/test-integrity">Test Integrity</Link>
           </div>
         </div>
       </div>
