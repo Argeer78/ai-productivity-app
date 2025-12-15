@@ -22,7 +22,8 @@
       "namespace": "android_app",
       "package_name": "app.aiprod.hub",
       "sha256_cert_fingerprints": [
-        "C5:F1:E6:D1:49:C1:4F:97:C6:18:F9:76:4F:81:4D:A0:2C:12:83:FC:F7:97:2A:17:FC:35:35:6C:9F:C8:B3:62"
+        "C5:F1:E6:D1:49:C1:4F:97:C6:18:F9:76:4F:81:4D:A0:2C:12:83:FC:F7:97:2A:17:FC:35:35:6C:9F:C8:B3:62",
+        "BE:6A:F5:23:D4:A9:3A:E2:33:32:45:B9:DD:58:21:24:28:19:D9:EA:0F:09:3C:F6:4D:81:5E:88:6C:98:3C:B0"
       ]
     }
   }
