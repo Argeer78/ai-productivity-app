@@ -3,72 +3,42 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { useUiLanguage } from "@/app/components/UiLanguageProvider";
+import { useLanguage } from "@/app/components/LanguageProvider";
+import type { Lang } from "@/lib/i18n";
 
 type Mode = "login" | "signup" | "forgot";
 
 /* ------------------------------------------------------------------ */
-/* 🌍 Supported languages (FULL LIST – safe with fallback) */
+/* 🌍 Supported languages (SAME as Settings) */
 /* ------------------------------------------------------------------ */
-const LANGUAGES = [
-  { code: "en", label: "English", flag: "🇺🇸", region: "Global", popular: true },
-  { code: "de", label: "German", flag: "🇩🇪", region: "Europe" },
-  { code: "es", label: "Spanish", flag: "🇪🇸", region: "Europe/LatAm" },
-  { code: "fr", label: "French", flag: "🇫🇷", region: "Europe" },
-  { code: "it", label: "Italian", flag: "🇮🇹", region: "Europe" },
-  { code: "pt", label: "Portuguese", flag: "🇵🇹", region: "Europe", popular: true },
-  { code: "el", label: "Greek", flag: "🇬🇷", region: "Europe" },
-  { code: "tr", label: "Turkish", flag: "🇹🇷", region: "Europe/Asia" },
-  { code: "ru", label: "Russian", flag: "🇷🇺", region: "Europe/Asia" },
-  { code: "ro", label: "Romanian", flag: "🇷🇴", region: "Europe" },
-  { code: "ar", label: "Arabic (Standard)", flag: "🇺🇳", region: "Middle East" },
-  { code: "he", label: "Hebrew", flag: "🇮🇱", region: "Middle East" },
-  { code: "zh", label: "Chinese (Simplified)", flag: "🇨🇳", region: "Asia" },
-  { code: "ja", label: "Japanese", flag: "🇯🇵", region: "Asia" },
-  { code: "id", label: "Indonesian", flag: "🇮🇩", region: "Asia" },
-  { code: "hi", label: "Hindi", flag: "🇮🇳", region: "Popular", popular: true },
-  { code: "ko", label: "Korean", flag: "🇰🇷", region: "Popular", popular: true },
-  { code: "sr", label: "Serbian", flag: "🇷🇸", region: "Europe" },
-  { code: "bg", label: "Bulgarian", flag: "🇧🇬", region: "Europe" },
-  { code: "hu", label: "Hungarian", flag: "🇭🇺", region: "Europe" },
-  { code: "pl", label: "Polish", flag: "🇵🇱", region: "Europe" },
-  { code: "cs", label: "Czech", flag: "🇨🇿", region: "Europe" },
-  { code: "da", label: "Danish", flag: "🇩🇰", region: "Europe" },
-  { code: "sv", label: "Swedish", flag: "🇸🇪", region: "Europe" },
-  { code: "nb", label: "Norwegian (Bokmål)", flag: "🇳🇴", region: "Europe" },
-  { code: "nl", label: "Dutch (Netherlands)", flag: "🇳🇱", region: "Europe" },
+const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
+  { code: "en", label: "English", flag: "🇺🇸" },
+  { code: "de", label: "German", flag: "🇩🇪" },
+  { code: "es", label: "Spanish", flag: "🇪🇸" },
+  { code: "fr", label: "French", flag: "🇫🇷" },
+  { code: "it", label: "Italian", flag: "🇮🇹" },
+  { code: "pt", label: "Portuguese", flag: "🇵🇹" },
+  { code: "el", label: "Greek", flag: "🇬🇷" },
+  { code: "tr", label: "Turkish", flag: "🇹🇷" },
+  { code: "ru", label: "Russian", flag: "🇷🇺" },
+  { code: "ro", label: "Romanian", flag: "🇷🇴" },
+  { code: "ar", label: "Arabic", flag: "🇺🇳" },
+  { code: "he", label: "Hebrew", flag: "🇮🇱" },
+  { code: "zh", label: "Chinese (Simplified)", flag: "🇨🇳" },
+  { code: "ja", label: "Japanese", flag: "🇯🇵" },
+  { code: "id", label: "Indonesian", flag: "🇮🇩" },
+  { code: "hi", label: "Hindi", flag: "🇮🇳" },
+  { code: "ko", label: "Korean", flag: "🇰🇷" },
+  { code: "sr", label: "Serbian", flag: "🇷🇸" },
+  { code: "bg", label: "Bulgarian", flag: "🇧🇬" },
+  { code: "hu", label: "Hungarian", flag: "🇭🇺" },
+  { code: "pl", label: "Polish", flag: "🇵🇱" },
+  { code: "cs", label: "Czech", flag: "🇨🇿" },
+  { code: "da", label: "Danish", flag: "🇩🇰" },
+  { code: "sv", label: "Swedish", flag: "🇸🇪" },
+  { code: "nb", label: "Norwegian (Bokmål)", flag: "🇳🇴" },
+  { code: "nl", label: "Dutch", flag: "🇳🇱" },
 ];
-
-/* ------------------------------------------------------------------ */
-/* 🗣️ Minimal inline strings (English = fallback) */
-/* ------------------------------------------------------------------ */
-const TEXT = {
-  en: {
-    login: "Log in",
-    signup: "Sign up",
-    forgot: "Reset password",
-    email: "Email",
-    password: "Password (min 6 chars)",
-    pleaseWait: "Please wait…",
-    sendReset: "Send reset email",
-    google: "Continue with Google",
-    backHome: "← Back to home",
-    redirectNote: "After login you’ll be redirected to your dashboard.",
-    resetInfo:
-      "If an account exists for this email, a reset link has been sent.",
-    signupSuccess:
-      "Signup successful! Check your email for confirmation, then log in.",
-    loginSuccess: "Logged in! Redirecting to your dashboard…",
-    errors: {
-      emailRequired: "Please enter your email.",
-      passwordRequired: "Please enter your password.",
-      passwordShort: "Password must be at least 6 characters.",
-      authFailed: "Authentication failed.",
-      googleFailed: "Google sign-in failed.",
-      resetFailed: "Failed to send reset email.",
-    },
-  },
-};
 
 /* ------------------------------------------------------------------ */
 /* 🧠 Component */
@@ -82,8 +52,8 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { uiLang, setUiLang } = useUiLanguage();
-  const t = TEXT.en; // 🔒 Always fallback to English here
+  // ✅ Canonical language provider
+  const { lang, setLang } = useLanguage();
 
   function resetState(nextMode: Mode) {
     setMode(nextMode);
@@ -92,27 +62,17 @@ export default function AuthPage() {
     if (nextMode === "forgot") setPassword("");
   }
 
-  async function saveUiLanguage(userId: string) {
-    try {
-      await supabase.from("profiles").upsert(
-        { id: userId, ui_language: uiLang },
-        { onConflict: "id" }
-      );
-    } catch (err) {
-      console.error("[auth] failed to save ui_language", err);
-    }
-  }
-
   async function handleAuthSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setMessage("");
 
     if (!email) {
-      setError(t.errors.emailRequired);
+      setError("Please enter your email.");
       return;
     }
 
+    // PASSWORD RESET
     if (mode === "forgot") {
       try {
         setLoading(true);
@@ -126,9 +86,11 @@ export default function AuthPage() {
         });
         if (error) throw error;
 
-        setMessage(t.resetInfo);
+        setMessage(
+          "If an account exists for this email, a reset link has been sent."
+        );
       } catch {
-        setError(t.errors.resetFailed);
+        setError("Failed to send reset email.");
       } finally {
         setLoading(false);
       }
@@ -136,11 +98,11 @@ export default function AuthPage() {
     }
 
     if (!password) {
-      setError(t.errors.passwordRequired);
+      setError("Please enter your password.");
       return;
     }
     if (password.length < 6) {
-      setError(t.errors.passwordShort);
+      setError("Password must be at least 6 characters.");
       return;
     }
 
@@ -150,21 +112,23 @@ export default function AuthPage() {
       if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        if (data.user) await saveUiLanguage(data.user.id);
-        setMessage(t.signupSuccess);
+
+        setMessage(
+          "Signup successful! Check your email for confirmation, then log in."
+        );
         setMode("login");
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-        if (data.user) await saveUiLanguage(data.user.id);
-        setMessage(t.loginSuccess);
+
+        setMessage("Logged in! Redirecting…");
         setTimeout(() => (window.location.href = "/dashboard"), 800);
       }
     } catch {
-      setError(t.errors.authFailed);
+      setError("Authentication failed.");
     } finally {
       setLoading(false);
     }
@@ -184,7 +148,7 @@ export default function AuthPage() {
       });
       if (error) throw error;
     } catch {
-      setError(t.errors.googleFailed);
+      setError("Google sign-in failed.");
     } finally {
       setLoading(false);
     }
@@ -196,31 +160,31 @@ export default function AuthPage() {
         {/* 🌍 Language selector */}
         <div className="flex justify-end mb-3">
           <select
-  value={uiLang}
-  onChange={(e) => setUiLang(e.target.value)}
-  className="text-xs bg-slate-900 border border-slate-700 rounded-lg px-2 py-1"
->
-  {LANGUAGES.map((l) => (
-    <option key={l.code} value={l.code}>
-      {l.flag} {l.label}
-    </option>
-  ))}
-</select>
+            value={lang}
+            onChange={(e) => setLang(e.target.value as Lang)}
+            className="text-xs bg-slate-900 border border-slate-700 rounded-lg px-2 py-1"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.flag} {l.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <h1 className="text-2xl font-bold mb-4 text-center">
           {mode === "login"
-            ? t.login
+            ? "Log in"
             : mode === "signup"
-            ? t.signup
-            : t.forgot}
+            ? "Sign up"
+            : "Reset password"}
         </h1>
 
         {/* Mode toggles */}
         <div className="flex justify-center gap-3 mb-4 text-sm">
-          <button onClick={() => resetState("login")}>{t.login}</button>
-          <button onClick={() => resetState("signup")}>{t.signup}</button>
-          <button onClick={() => resetState("forgot")}>{t.forgot}</button>
+          <button onClick={() => resetState("login")}>Log in</button>
+          <button onClick={() => resetState("signup")}>Sign up</button>
+          <button onClick={() => resetState("forgot")}>Forgot?</button>
         </div>
 
         {error && <div className="mb-3 text-sm text-red-400">{error}</div>}
@@ -231,7 +195,7 @@ export default function AuthPage() {
         <form onSubmit={handleAuthSubmit} className="flex flex-col gap-3">
           <input
             type="email"
-            placeholder={t.email}
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700"
@@ -241,7 +205,7 @@ export default function AuthPage() {
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder={t.password}
+                placeholder="Password (min 6 chars)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 pr-9 rounded-xl bg-slate-900 border border-slate-700"
@@ -262,12 +226,12 @@ export default function AuthPage() {
             className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60"
           >
             {loading
-              ? t.pleaseWait
+              ? "Please wait…"
               : mode === "forgot"
-              ? t.sendReset
+              ? "Send reset email"
               : mode === "login"
-              ? t.login
-              : t.signup}
+              ? "Log in"
+              : "Sign up"}
           </button>
         </form>
 
@@ -277,17 +241,17 @@ export default function AuthPage() {
             disabled={loading}
             className="mt-4 w-full px-4 py-2 rounded-xl bg-white text-slate-900"
           >
-            🔑 {t.google}
+            🔑 Continue with Google
           </button>
         )}
 
         <p className="mt-4 text-xs text-slate-400 text-center">
-          {t.redirectNote}
+          After login you’ll be redirected to your dashboard.
         </p>
 
         <div className="mt-4 text-center">
           <Link href="/" className="text-xs hover:text-indigo-300">
-            {t.backHome}
+            ← Back to home
           </Link>
         </div>
       </div>
