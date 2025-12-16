@@ -385,18 +385,20 @@ export default function TravelPage() {
     setPlanning(true);
     try {
       const res = await fetch("/api/ai-travel-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          destination,
-          checkin,
-          checkout,
-          adults,
-          children,
-          minBudget,
-          maxBudget,
-        }),
-      });
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    userId: user?.id || null, // ✅ add this
+    destination,
+    checkin,
+    checkout,
+    adults,
+    children,
+    minBudget,
+    maxBudget,
+  }),
+});
+
 
       const text = await res.text();
       let data: any;

@@ -46,50 +46,87 @@ export default function PlannerPage() {
 
     setLoading(true);
     setError("");
+    setPlanText("");
+
+    // Helps correlate client logs with server logs
+    const reqId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(Date.now());
 
     try {
       const res = await fetch("/api/daily-plan", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Client-Request-Id": reqId,
+        },
         body: JSON.stringify({ userId: user.id }),
       });
 
-      const text = await res.text();
-      let data: any;
+      const raw = await res.text();
 
+      let data: any = null;
       try {
-        data = JSON.parse(text);
+        data = JSON.parse(raw);
       } catch {
-        console.error("Non-JSON response from /api/daily-plan:", text);
-        setError(t("error.invalidResponse", "Server returned an invalid response."));
-        setLoading(false);
+        // This is the key fix: you will see the HTML error page / 404 / etc.
+        console.error(
+          `[planner] NON-JSON response from /api/daily-plan (status=${res.status}, reqId=${reqId})`,
+          raw
+        );
+        setError(
+          t(
+            "error.invalidResponse",
+            "Server returned an invalid response. Please try again."
+          )
+        );
         return;
       }
 
-      if (!res.ok || !data.plan) {
-        console.error("Daily plan error payload:", data);
+      if (!res.ok || !data?.plan) {
+        console.error(
+          `[planner] API error payload (status=${res.status}, reqId=${reqId})`,
+          data
+        );
+
+        if (res.status === 401) {
+          setError(
+            data?.error ||
+              t("error.unauthorized", "You must be logged in to use the daily planner.")
+          );
+          return;
+        }
+
         if (res.status === 429) {
           setError(
-            data.error ||
+            data?.error ||
               t(
                 "error.rateLimit",
                 "You’ve reached today’s AI limit for your plan. Try again tomorrow or upgrade to Pro."
               )
           );
-        } else {
-          setError(data.error || t("error.generic", "Failed to generate daily plan."));
+          return;
         }
-        setLoading(false);
+
+        setError(
+          data?.error || t("error.generic", "Failed to generate daily plan.")
+        );
         return;
       }
 
       setPlanText(data.plan);
 
-      if (typeof data.usedToday === "number" && typeof data.dailyLimit === "number") {
+      if (
+        typeof data.usedToday === "number" &&
+        typeof data.dailyLimit === "number"
+      ) {
         setAiInfo({ usedToday: data.usedToday, dailyLimit: data.dailyLimit });
+      } else {
+        setAiInfo(null);
       }
     } catch (err) {
-      console.error(err);
+      console.error(`[planner] network/exception (reqId=${reqId})`, err);
       setError(t("error.network", "Network error while generating your plan."));
     } finally {
       setLoading(false);
@@ -111,7 +148,9 @@ export default function PlannerPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="planner" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">{t("title", "Daily Planner")}</h1>
+          <h1 className="text-2xl font-bold mb-3">
+            {t("title", "Daily Planner")}
+          </h1>
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             {t(
               "loginPrompt",
@@ -165,7 +204,9 @@ export default function PlannerPage() {
             disabled={loading}
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm"
           >
-            {loading ? t("generatingButton", "Generating plan...") : t("generateButton", "Generate today’s plan")}
+            {loading
+              ? t("generatingButton", "Generating plan...")
+              : t("generateButton", "Generate today’s plan")}
           </button>
 
           <p className="mt-1 text-[11px] text-[var(--text-muted)]">
@@ -203,7 +244,9 @@ export default function PlannerPage() {
           </p>
 
           {planText ? (
-            <pre className="whitespace-pre-wrap text-[12px] text-[var(--text-main)]">{planText}</pre>
+            <pre className="whitespace-pre-wrap text-[12px] text-[var(--text-main)]">
+              {planText}
+            </pre>
           ) : (
             <p className="text-[12px] text-[var(--text-muted)]">
               {t(
