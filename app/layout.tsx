@@ -2,11 +2,13 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
+
 import AppShell from "@/app/components/AppShell";
 import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 import { RtlDirectionManager } from "@/app/components/RtlDirectionManager";
 import TwaInit from "@/app/TwaInit";
 import AppBoot from "@/app/components/AppBoot";
+import FacebookRedirectGuard from "@/app/components/FacebookRedirectGuard";
 
 const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
@@ -52,7 +54,10 @@ export default function RootLayout({
 
       <body className={inter.className}>
         <AppBoot>
-          {/* ✅ Initialize TWA postMessage listener once */}
+          {/* 🚫 FB / Instagram in-app browser protection */}
+          <FacebookRedirectGuard />
+
+          {/* 🔗 TWA postMessage init */}
           <TwaInit />
 
           <PlausibleProvider
@@ -64,7 +69,7 @@ export default function RootLayout({
             </RtlDirectionManager>
           </PlausibleProvider>
 
-          {/* ✅ Register service worker once */}
+          {/* 🧩 Service worker (once) */}
           <ServiceWorkerRegister />
         </AppBoot>
       </body>
