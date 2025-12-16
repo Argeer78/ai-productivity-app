@@ -1,3 +1,4 @@
+// app/layout.tsx
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
@@ -9,6 +10,7 @@ import { RtlDirectionManager } from "@/app/components/RtlDirectionManager";
 import TwaInit from "@/app/TwaInit";
 import AppBoot from "@/app/components/AppBoot";
 import FacebookRedirectGuard from "@/app/components/FacebookRedirectGuard";
+import { UiLanguageProvider } from "@/app/components/UiLanguageProvider"; // ✅ NEW
 
 const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
@@ -40,11 +42,7 @@ export const viewport: Viewport = {
   themeColor: "#020617",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -53,25 +51,29 @@ export default function RootLayout({
       </head>
 
       <body className={inter.className}>
-        <AppBoot>
-          {/* 🚫 FB / Instagram in-app browser protection */}
-          <FacebookRedirectGuard />
+        {/* ✅ Make language available everywhere (including /auth) */}
+        <UiLanguageProvider>
+          <AppBoot>
+            {/* 🚫 FB / Instagram in-app browser protection */}
+            <FacebookRedirectGuard />
 
-          {/* 🔗 TWA postMessage init */}
-          <TwaInit />
+            {/* 🔗 TWA postMessage init */}
+            <TwaInit />
 
-          <PlausibleProvider
-            domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
-            trackLocalhost={false}
-          >
-            <RtlDirectionManager>
-              <AppShell>{children}</AppShell>
-            </RtlDirectionManager>
-          </PlausibleProvider>
+            <PlausibleProvider
+              domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
+              trackLocalhost={false}
+            >
+              {/* ✅ RTL manager can now react to chosen language too */}
+              <RtlDirectionManager>
+                <AppShell>{children}</AppShell>
+              </RtlDirectionManager>
+            </PlausibleProvider>
 
-          {/* 🧩 Service worker (once) */}
-          <ServiceWorkerRegister />
-        </AppBoot>
+            {/* 🧩 Service worker (once) */}
+            <ServiceWorkerRegister />
+          </AppBoot>
+        </UiLanguageProvider>
       </body>
     </html>
   );

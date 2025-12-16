@@ -3,9 +3,76 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { useUiLanguage } from "@/app/components/UiLanguageProvider";
 
 type Mode = "login" | "signup" | "forgot";
 
+/* ------------------------------------------------------------------ */
+/* 🌍 Supported languages (FULL LIST – safe with fallback) */
+/* ------------------------------------------------------------------ */
+const LANGUAGES = [
+  { code: "en", label: "English", flag: "🇺🇸", region: "Global", popular: true },
+  { code: "de", label: "German", flag: "🇩🇪", region: "Europe" },
+  { code: "es", label: "Spanish", flag: "🇪🇸", region: "Europe/LatAm" },
+  { code: "fr", label: "French", flag: "🇫🇷", region: "Europe" },
+  { code: "it", label: "Italian", flag: "🇮🇹", region: "Europe" },
+  { code: "pt", label: "Portuguese", flag: "🇵🇹", region: "Europe", popular: true },
+  { code: "el", label: "Greek", flag: "🇬🇷", region: "Europe" },
+  { code: "tr", label: "Turkish", flag: "🇹🇷", region: "Europe/Asia" },
+  { code: "ru", label: "Russian", flag: "🇷🇺", region: "Europe/Asia" },
+  { code: "ro", label: "Romanian", flag: "🇷🇴", region: "Europe" },
+  { code: "ar", label: "Arabic (Standard)", flag: "🇺🇳", region: "Middle East" },
+  { code: "he", label: "Hebrew", flag: "🇮🇱", region: "Middle East" },
+  { code: "zh", label: "Chinese (Simplified)", flag: "🇨🇳", region: "Asia" },
+  { code: "ja", label: "Japanese", flag: "🇯🇵", region: "Asia" },
+  { code: "id", label: "Indonesian", flag: "🇮🇩", region: "Asia" },
+  { code: "hi", label: "Hindi", flag: "🇮🇳", region: "Popular", popular: true },
+  { code: "ko", label: "Korean", flag: "🇰🇷", region: "Popular", popular: true },
+  { code: "sr", label: "Serbian", flag: "🇷🇸", region: "Europe" },
+  { code: "bg", label: "Bulgarian", flag: "🇧🇬", region: "Europe" },
+  { code: "hu", label: "Hungarian", flag: "🇭🇺", region: "Europe" },
+  { code: "pl", label: "Polish", flag: "🇵🇱", region: "Europe" },
+  { code: "cs", label: "Czech", flag: "🇨🇿", region: "Europe" },
+  { code: "da", label: "Danish", flag: "🇩🇰", region: "Europe" },
+  { code: "sv", label: "Swedish", flag: "🇸🇪", region: "Europe" },
+  { code: "nb", label: "Norwegian (Bokmål)", flag: "🇳🇴", region: "Europe" },
+  { code: "nl", label: "Dutch (Netherlands)", flag: "🇳🇱", region: "Europe" },
+];
+
+/* ------------------------------------------------------------------ */
+/* 🗣️ Minimal inline strings (English = fallback) */
+/* ------------------------------------------------------------------ */
+const TEXT = {
+  en: {
+    login: "Log in",
+    signup: "Sign up",
+    forgot: "Reset password",
+    email: "Email",
+    password: "Password (min 6 chars)",
+    pleaseWait: "Please wait…",
+    sendReset: "Send reset email",
+    google: "Continue with Google",
+    backHome: "← Back to home",
+    redirectNote: "After login you’ll be redirected to your dashboard.",
+    resetInfo:
+      "If an account exists for this email, a reset link has been sent.",
+    signupSuccess:
+      "Signup successful! Check your email for confirmation, then log in.",
+    loginSuccess: "Logged in! Redirecting to your dashboard…",
+    errors: {
+      emailRequired: "Please enter your email.",
+      passwordRequired: "Please enter your password.",
+      passwordShort: "Password must be at least 6 characters.",
+      authFailed: "Authentication failed.",
+      googleFailed: "Google sign-in failed.",
+      resetFailed: "Failed to send reset email.",
+    },
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* 🧠 Component */
+/* ------------------------------------------------------------------ */
 export default function AuthPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -15,12 +82,24 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const { uiLang, setUiLang } = useUiLanguage();
+  const t = TEXT.en; // 🔒 Always fallback to English here
+
   function resetState(nextMode: Mode) {
     setMode(nextMode);
     setMessage("");
     setError("");
-    if (nextMode === "forgot") {
-      setPassword("");
+    if (nextMode === "forgot") setPassword("");
+  }
+
+  async function saveUiLanguage(userId: string) {
+    try {
+      await supabase.from("profiles").upsert(
+        { id: userId, ui_language: uiLang },
+        { onConflict: "id" }
+      );
+    } catch (err) {
+      console.error("[auth] failed to save ui_language", err);
     }
   }
 
@@ -30,15 +109,13 @@ export default function AuthPage() {
     setMessage("");
 
     if (!email) {
-      setError("Please enter your email.");
+      setError(t.errors.emailRequired);
       return;
     }
 
     if (mode === "forgot") {
-      // SEND RESET EMAIL
       try {
         setLoading(true);
-
         const redirectTo =
           typeof window !== "undefined"
             ? `${window.location.origin}/auth/reset`
@@ -47,28 +124,23 @@ export default function AuthPage() {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo,
         });
-
         if (error) throw error;
 
-        setMessage(
-          "If an account exists for this email, a reset link has been sent."
-        );
-      } catch (err: any) {
-        console.error("[auth] reset password error", err);
-        setError(err.message || "Failed to send reset email.");
+        setMessage(t.resetInfo);
+      } catch {
+        setError(t.errors.resetFailed);
       } finally {
         setLoading(false);
       }
       return;
     }
 
-    // LOGIN / SIGNUP
     if (!password) {
-      setError("Please enter your password.");
+      setError(t.errors.passwordRequired);
       return;
     }
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(t.errors.passwordShort);
       return;
     }
 
@@ -76,31 +148,23 @@ export default function AuthPage() {
       setLoading(true);
 
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-
-        setMessage(
-          "Signup successful! Check your email for confirmation, then you can log in."
-        );
+        if (data.user) await saveUiLanguage(data.user.id);
+        setMessage(t.signupSuccess);
         setMode("login");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-
-        setMessage("Logged in! Redirecting to your dashboard…");
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 800);
+        if (data.user) await saveUiLanguage(data.user.id);
+        setMessage(t.loginSuccess);
+        setTimeout(() => (window.location.href = "/dashboard"), 800);
       }
-    } catch (err: any) {
-      console.error("[auth] auth error", err);
-      setError(err.message || "Authentication failed.");
+    } catch {
+      setError(t.errors.authFailed);
     } finally {
       setLoading(false);
     }
@@ -109,9 +173,6 @@ export default function AuthPage() {
   async function handleGoogleLogin() {
     try {
       setLoading(true);
-      setError("");
-      setMessage("");
-
       const redirectTo =
         typeof window !== "undefined"
           ? `${window.location.origin}/auth/callback`
@@ -121,12 +182,9 @@ export default function AuthPage() {
         provider: "google",
         options: { redirectTo },
       });
-
       if (error) throw error;
-      // Google will redirect away; nothing else to do here
-    } catch (err: any) {
-      console.error("[auth] Google login error", err);
-      setError(err.message || "Google sign-in failed.");
+    } catch {
+      setError(t.errors.googleFailed);
     } finally {
       setLoading(false);
     }
@@ -135,46 +193,34 @@ export default function AuthPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4">
       <div className="w-full max-w-md border border-slate-800 rounded-2xl p-6 bg-slate-900/70 shadow-lg">
+        {/* 🌍 Language selector */}
+        <div className="flex justify-end mb-3">
+          <select
+  value={uiLang}
+  onChange={(e) => setUiLang(e.target.value)}
+  className="text-xs bg-slate-900 border border-slate-700 rounded-lg px-2 py-1"
+>
+  {LANGUAGES.map((l) => (
+    <option key={l.code} value={l.code}>
+      {l.flag} {l.label}
+    </option>
+  ))}
+</select>
+        </div>
+
         <h1 className="text-2xl font-bold mb-4 text-center">
           {mode === "login"
-            ? "Log in"
+            ? t.login
             : mode === "signup"
-            ? "Sign up"
-            : "Reset password"}
+            ? t.signup
+            : t.forgot}
         </h1>
 
         {/* Mode toggles */}
         <div className="flex justify-center gap-3 mb-4 text-sm">
-          <button
-            className={`px-3 py-1 rounded-full border ${
-              mode === "login"
-                ? "border-indigo-500 bg-indigo-600/20"
-                : "border-slate-700"
-            }`}
-            onClick={() => resetState("login")}
-          >
-            Log in
-          </button>
-          <button
-            className={`px-3 py-1 rounded-full border ${
-              mode === "signup"
-                ? "border-indigo-500 bg-indigo-600/20"
-                : "border-slate-700"
-            }`}
-            onClick={() => resetState("signup")}
-          >
-            Sign up
-          </button>
-          <button
-            className={`px-3 py-1 rounded-full border ${
-              mode === "forgot"
-                ? "border-indigo-500 bg-indigo-600/20"
-                : "border-slate-700"
-            }`}
-            onClick={() => resetState("forgot")}
-          >
-            Forgot?
-          </button>
+          <button onClick={() => resetState("login")}>{t.login}</button>
+          <button onClick={() => resetState("signup")}>{t.signup}</button>
+          <button onClick={() => resetState("forgot")}>{t.forgot}</button>
         </div>
 
         {error && <div className="mb-3 text-sm text-red-400">{error}</div>}
@@ -182,78 +228,66 @@ export default function AuthPage() {
           <div className="mb-3 text-sm text-emerald-400">{message}</div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleAuthSubmit} className="flex flex-col gap-3">
           <input
             type="email"
-            placeholder="Email"
-            className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+            placeholder={t.email}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700"
           />
 
-         <div className="relative">
-  <input
-    type={showPassword ? "text" : "password"}
-    placeholder="Password (min 8 chars)"
-    className="w-full px-3 py-2 pr-9 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-    value={password}
-    onChange={(e) => setPassword(e.target.value)}
-  />
-  <button
-    type="button"
-    onClick={() => setShowPassword((v) => !v)}
-    className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-200 text-xs"
-    aria-label={showPassword ? "Hide password" : "Show password"}
-  >
-    {showPassword ? "🙈" : "👁️"}
-  </button>
-</div>
+          {mode !== "forgot" && (
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder={t.password}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 pr-9 rounded-xl bg-slate-900 border border-slate-700"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs"
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 inline-flex items-center justify-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-sm font-medium"
+            className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60"
           >
             {loading
-              ? mode === "login"
-                ? "Logging in..."
-                : mode === "signup"
-                ? "Signing up..."
-                : "Sending..."
+              ? t.pleaseWait
+              : mode === "forgot"
+              ? t.sendReset
               : mode === "login"
-              ? "Log in"
-              : mode === "signup"
-              ? "Sign up"
-              : "Send reset email"}
+              ? t.login
+              : t.signup}
           </button>
         </form>
 
-        {/* Google login */}
         {mode !== "forgot" && (
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 text-sm font-medium hover:bg-slate-100 disabled:opacity-60"
-            >
-              <span>🔑</span>
-              <span>Continue with Google</span>
-            </button>
-          </div>
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="mt-4 w-full px-4 py-2 rounded-xl bg-white text-slate-900"
+          >
+            🔑 {t.google}
+          </button>
         )}
 
         <p className="mt-4 text-xs text-slate-400 text-center">
-          After logging in, you&apos;ll be redirected to your dashboard.
+          {t.redirectNote}
         </p>
 
         <div className="mt-4 text-center">
-          <Link
-            href="/"
-            className="text-xs text-slate-300 hover:text-indigo-300"
-          >
-            ← Back to home
+          <Link href="/" className="text-xs hover:text-indigo-300">
+            {t.backHome}
           </Link>
         </div>
       </div>
