@@ -1,4 +1,3 @@
-// app/layout.tsx
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
@@ -7,6 +6,7 @@ import AppShell from "@/app/components/AppShell";
 import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 import { RtlDirectionManager } from "@/app/components/RtlDirectionManager";
 import TwaInit from "@/app/TwaInit";
+import AppBoot from "@/app/components/AppBoot";
 
 const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
@@ -51,20 +51,22 @@ export default function RootLayout({
       </head>
 
       <body className={inter.className}>
-        {/* ✅ Initialize TWA postMessage listener once (client-side) */}
-        <TwaInit />
+        <AppBoot>
+          {/* ✅ Initialize TWA postMessage listener once */}
+          <TwaInit />
 
-        <PlausibleProvider
-          domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
-          trackLocalhost={false}
-        >
-          <RtlDirectionManager>
-            <AppShell>{children}</AppShell>
-          </RtlDirectionManager>
-        </PlausibleProvider>
+          <PlausibleProvider
+            domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
+            trackLocalhost={false}
+          >
+            <RtlDirectionManager>
+              <AppShell>{children}</AppShell>
+            </RtlDirectionManager>
+          </PlausibleProvider>
 
-        {/* ✅ Register the PWA service worker once at root */}
-        <ServiceWorkerRegister />
+          {/* ✅ Register service worker once */}
+          <ServiceWorkerRegister />
+        </AppBoot>
       </body>
     </html>
   );
