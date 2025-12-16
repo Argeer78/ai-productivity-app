@@ -4,12 +4,13 @@ import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import { useT } from "@/lib/useT";
 import type { Lang } from "@/lib/i18n";
 
 type Mode = "login" | "signup" | "forgot";
 
 /* ------------------------------------------------------------------ */
-/* 🌍 Supported languages (SAME as Settings) */
+/* 🌍 Supported languages (same as Settings) */
 /* ------------------------------------------------------------------ */
 const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -52,14 +53,14 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // ✅ Canonical language provider
   const { lang, setLang } = useLanguage();
+  const { t } = useT("auth");
 
-  function resetState(nextMode: Mode) {
-    setMode(nextMode);
+  function resetState(next: Mode) {
+    setMode(next);
     setMessage("");
     setError("");
-    if (nextMode === "forgot") setPassword("");
+    if (next === "forgot") setPassword("");
   }
 
   async function handleAuthSubmit(e: FormEvent) {
@@ -68,11 +69,11 @@ export default function AuthPage() {
     setMessage("");
 
     if (!email) {
-      setError("Please enter your email.");
+      setError(t("error.emailRequired", "Please enter your email."));
       return;
     }
 
-    // PASSWORD RESET
+    // RESET PASSWORD
     if (mode === "forgot") {
       try {
         setLoading(true);
@@ -84,13 +85,11 @@ export default function AuthPage() {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo,
         });
-        if (error) throw error;
 
-        setMessage(
-          "If an account exists for this email, a reset link has been sent."
-        );
+        if (error) throw error;
+        setMessage(t("message.resetSent"));
       } catch {
-        setError("Failed to send reset email.");
+        setError(t("error.resetFailed"));
       } finally {
         setLoading(false);
       }
@@ -98,11 +97,12 @@ export default function AuthPage() {
     }
 
     if (!password) {
-      setError("Please enter your password.");
+      setError(t("error.passwordRequired"));
       return;
     }
+
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(t("error.passwordShort"));
       return;
     }
 
@@ -110,12 +110,10 @@ export default function AuthPage() {
       setLoading(true);
 
       if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
 
-        setMessage(
-          "Signup successful! Check your email for confirmation, then log in."
-        );
+        setMessage(t("message.signupSuccess"));
         setMode("login");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -124,11 +122,11 @@ export default function AuthPage() {
         });
         if (error) throw error;
 
-        setMessage("Logged in! Redirecting…");
+        setMessage(t("message.loginSuccess"));
         setTimeout(() => (window.location.href = "/dashboard"), 800);
       }
     } catch {
-      setError("Authentication failed.");
+      setError(t("error.authFailed"));
     } finally {
       setLoading(false);
     }
@@ -148,7 +146,7 @@ export default function AuthPage() {
       });
       if (error) throw error;
     } catch {
-      setError("Google sign-in failed.");
+      setError(t("error.googleFailed"));
     } finally {
       setLoading(false);
     }
@@ -157,7 +155,7 @@ export default function AuthPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4">
       <div className="w-full max-w-md border border-slate-800 rounded-2xl p-6 bg-slate-900/70 shadow-lg">
-        {/* 🌍 Language selector */}
+        {/* Language selector */}
         <div className="flex justify-end mb-3">
           <select
             value={lang}
@@ -174,17 +172,22 @@ export default function AuthPage() {
 
         <h1 className="text-2xl font-bold mb-4 text-center">
           {mode === "login"
-            ? "Log in"
+            ? t("login.title")
             : mode === "signup"
-            ? "Sign up"
-            : "Reset password"}
+            ? t("signup.title")
+            : t("forgot.title")}
         </h1>
 
-        {/* Mode toggles */}
         <div className="flex justify-center gap-3 mb-4 text-sm">
-          <button onClick={() => resetState("login")}>Log in</button>
-          <button onClick={() => resetState("signup")}>Sign up</button>
-          <button onClick={() => resetState("forgot")}>Forgot?</button>
+          <button onClick={() => resetState("login")}>
+            {t("login.button")}
+          </button>
+          <button onClick={() => resetState("signup")}>
+            {t("signup.button")}
+          </button>
+          <button onClick={() => resetState("forgot")}>
+            {t("forgot.title")}
+          </button>
         </div>
 
         {error && <div className="mb-3 text-sm text-red-400">{error}</div>}
@@ -195,7 +198,7 @@ export default function AuthPage() {
         <form onSubmit={handleAuthSubmit} className="flex flex-col gap-3">
           <input
             type="email"
-            placeholder="Email"
+            placeholder={t("email.placeholder")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700"
@@ -205,7 +208,7 @@ export default function AuthPage() {
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="Password (min 6 chars)"
+                placeholder={t("password.placeholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 pr-9 rounded-xl bg-slate-900 border border-slate-700"
@@ -226,12 +229,12 @@ export default function AuthPage() {
             className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60"
           >
             {loading
-              ? "Please wait…"
+              ? t("loading.button")
               : mode === "forgot"
-              ? "Send reset email"
+              ? t("forgot.button")
               : mode === "login"
-              ? "Log in"
-              : "Sign up"}
+              ? t("login.button")
+              : t("signup.button")}
           </button>
         </form>
 
@@ -241,17 +244,17 @@ export default function AuthPage() {
             disabled={loading}
             className="mt-4 w-full px-4 py-2 rounded-xl bg-white text-slate-900"
           >
-            🔑 Continue with Google
+            🔑 {t("google.button")}
           </button>
         )}
 
         <p className="mt-4 text-xs text-slate-400 text-center">
-          After login you’ll be redirected to your dashboard.
+          {t("redirect.note")}
         </p>
 
         <div className="mt-4 text-center">
           <Link href="/" className="text-xs hover:text-indigo-300">
-            ← Back to home
+            {t("backHome.link")}
           </Link>
         </div>
       </div>
