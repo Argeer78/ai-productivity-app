@@ -1,53 +1,62 @@
+// app/components/ServiceWorkerRegister.tsx
 "use client";
 
 import { useEffect } from "react";
 
 export default function ServiceWorkerRegister() {
   useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
 
-    const register = async () => {
+    // Optional: allow debugging link to bypass SW register
+    if (new URLSearchParams(window.location.search).has("nosw")) return;
+
+    let mounted = true;
+
+    (async () => {
       try {
-        const registration = await navigator.serviceWorker.register(
-          "/service-worker.js",
-          { scope: "/" }
-        );
+        const reg = await navigator.serviceWorker.register("/service-worker.js", {
+          scope: "/",
+        });
 
-        console.log("[PWA] Service worker registered", registration);
+        if (!mounted) return;
+        console.log("[PWA] SW registered:", reg);
 
-        // 🔁 If there's already a waiting SW, activate it immediately
-        if (registration.waiting) {
-          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        // If a new worker is waiting, just log it (don’t force activate + reload)
+        if (reg.waiting) {
+          console.log("[PWA] SW update waiting (will activate on next load).");
+          // If you *really* want immediate activate, do it without reload loops:
+          // reg.waiting.postMessage({ type: "SKIP_WAITING" });
         }
 
-        registration.addEventListener("updatefound", () => {
-          const newWorker = registration.installing;
+        reg.addEventListener("updatefound", () => {
+          const newWorker = reg.installing;
           if (!newWorker) return;
 
           newWorker.addEventListener("statechange", () => {
             if (newWorker.state === "installed") {
               if (navigator.serviceWorker.controller) {
-                console.log("[PWA] New service worker installed → reloading");
-                window.location.reload();
+                console.log("[PWA] New SW installed (update ready).");
+                // ✅ Don’t reload here. Show a UI “Refresh” button later if you want.
+              } else {
+                console.log("[PWA] SW installed for first time.");
               }
             }
           });
         });
 
-        // 🔄 Reload once when controller changes
-        let refreshing = false;
+        // ✅ No controllerchange reload. Avoid loops.
         navigator.serviceWorker.addEventListener("controllerchange", () => {
-          if (refreshing) return;
-          refreshing = true;
-          console.log("[PWA] Controller changed → reloading");
-          window.location.reload();
+          console.log("[PWA] controllerchange");
         });
-      } catch (err) {
-        console.error("[PWA] Service worker registration failed", err);
+      } catch (e) {
+        console.error("[PWA] SW register failed:", e);
       }
-    };
+    })();
 
-    register();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return null;
