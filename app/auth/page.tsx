@@ -123,7 +123,28 @@ export default function AuthPage() {
         if (error) throw error;
 
         setMessage(t("message.loginSuccess"));
-        setTimeout(() => (window.location.href = "/dashboard"), 800);
+
+const { data: userData } = await supabase.auth.getUser();
+const user = userData?.user;
+
+let target = "/dashboard";
+
+if (user) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("onboarding_completed")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile?.onboarding_completed) {
+    target = "/onboarding";
+  }
+}
+
+setTimeout(() => {
+  window.location.href = target;
+}, 500);
+
       }
     } catch {
       setError(t("error.authFailed"));

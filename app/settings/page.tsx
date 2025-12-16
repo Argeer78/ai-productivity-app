@@ -491,6 +491,62 @@ export default function SettingsPage() {
                   </label>
                 </div>
               </div>
+              {/* AI tone */}
+<div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
+  <div>
+    <p className="text-[11px] font-semibold text-[var(--text-main)]">
+      {t("settings.aiTone.title", "AI communication style")}
+    </p>
+    <p className="text-[11px] text-[var(--text-muted)]">
+      {t(
+        "settings.aiTone.description",
+        "Choose how the AI should talk to you in suggestions, reports, and messages."
+      )}
+    </p>
+  </div>
+
+  <div className="flex flex-wrap gap-2">
+    {(
+      [
+        ["balanced", "⚖️ Balanced"],
+        ["friendly", "😊 Friendly"],
+        ["direct", "🎯 Direct"],
+        ["motivational", "🔥 Motivational"],
+        ["casual", "😌 Casual"],
+      ] as const
+    ).map(([value, label]) => (
+      <button
+        key={value}
+        type="button"
+        onClick={() => setTone(value)}
+        className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
+          tone === value
+            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+            : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
+        }`}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
+</div>
+
+{/* Onboarding tools */}
+<div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-2">
+  <p className="text-xs font-semibold text-[var(--text-main)]">
+    {t("settings.onboarding.toolsTitle", "Onboarding & setup")}
+  </p>
+
+  <p className="text-[11px] text-[var(--text-muted)]">
+    {t(
+      "settings.onboarding.toolsDesc",
+      "You can re-run the onboarding wizard anytime to update your focus, reminders, and preferences."
+    )}
+  </p>
+  <Link href={{ pathname: "/onboarding", query: { force: "1" } }}>
+  Open onboarding wizard
+</Link>
+</div>
 
               {/* Weekly report */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
