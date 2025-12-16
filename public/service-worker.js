@@ -3,21 +3,26 @@
 // - Offline fallback + push notifications
 // -------------------------------
 
-const CACHE_NAME = "aiprod-cache-v1";
+const CACHE_VERSION = "v3"; // ⬅️ bump this on deploys
+const CACHE_NAME = `aiprod-cache-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline.html";
 
+const STATIC_ASSETS = [
+  OFFLINE_URL,
+];
+
 // --------------------------------------------------
-// INSTALL — Cache offline fallback
+// INSTALL
 // --------------------------------------------------
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll([OFFLINE_URL]))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
-  self.skipWaiting();  // Activate the service worker immediately
+  self.skipWaiting();
 });
 
 // --------------------------------------------------
-// ACTIVATE — Remove old caches
+// ACTIVATE — clean old caches
 // --------------------------------------------------
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -29,154 +34,103 @@ self.addEventListener("activate", (event) => {
       )
     )
   );
-  self.clients.claim();  // Claim all open clients (pages)
+  self.clients.claim();
 });
 
 // --------------------------------------------------
-// FETCH — Offline fallback for navigations + cache-first for GET
+// FETCH
 // --------------------------------------------------
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+  const url = new URL(request.url);
 
-  // 1) Navigation (page loads)
+  // 🚫 Never cache API requests
+  if (url.pathname.startsWith("/api")) {
+    return;
+  }
+
+  // 🚫 Never cache navigations (HTML)
   if (request.mode === "navigate") {
     event.respondWith(
-      (async () => {
-        try {
-          return await fetch(request); // Try to fetch from the network
-        } catch {
-          const cache = await caches.open(CACHE_NAME);
-          return (
-            (await cache.match(OFFLINE_URL)) ||
-            new Response("You are offline.", {
-              status: 503,
-              headers: { "Content-Type": "text/plain" },
-            })
-          );
-        }
-      })()
+      fetch(request).catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return cache.match(OFFLINE_URL);
+      })
     );
     return;
   }
 
-  // 2) Same-origin GET → cache-first
-  if (request.method === "GET" && request.url.startsWith(self.location.origin)) {
+  // ✅ Cache ONLY static assets
+  if (
+    request.method === "GET" &&
+    url.origin === self.location.origin &&
+    /\.(js|css|png|jpg|jpeg|svg|webp|woff2?)$/.test(url.pathname)
+  ) {
     event.respondWith(
       caches.match(request).then((cached) => {
-        if (cached) return cached;  // Serve from cache if available
+        if (cached) return cached;
 
-        return fetch(request)
-          .then((response) => {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));  // Cache response
-            return response;
-          })
-          .catch(() => new Response("", { status: 408 }));  // Fallback if offline
+        return fetch(request).then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        });
       })
     );
   }
 });
 
 // --------------------------------------------------
-// MESSAGE — Allow skipWaiting (manual service worker update trigger)
+// MESSAGE — allow skipWaiting
 // --------------------------------------------------
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
-    self.skipWaiting();  // Trigger service worker to take control immediately
+    self.skipWaiting();
   }
 });
 
 // --------------------------------------------------
-// 🔔 PUSH NOTIFICATIONS — Show reminders from backend
+// PUSH NOTIFICATIONS
 // --------------------------------------------------
 self.addEventListener("push", (event) => {
   let data = {};
 
   try {
-    if (event.data) {
-      try {
-        // Try to parse the data as JSON (expects payload to be JSON)
-        data = event.data.json();
-      } catch (e) {
-        // If JSON parsing fails, treat it as plain text
-        console.error("[SW] Push event data parsing error", e);
-        const text = event.data.text();
-        data = {
-          title: text || "Task reminder",  // Default title if text is empty
-          body: "",
-        };
-      }
-    } else {
-      // Fallback when no push data is provided
-      data = {
-        title: "Task reminder",
-        body: "You have something to review.",
-      };
-    }
-  } catch (e) {
-    console.error("[SW] Push event handling error:", e);
-    data = {
-      title: "Task reminder",
-      body: "You have something to review.",
-    };
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "Task reminder", body: "" };
   }
 
-  // Extract notification details (fallback values if missing)
   const title = data.title || "Task reminder";
   const body = data.body || "You have something to review.";
+  const url =
+    data?.data?.url ||
+    data.url ||
+    "https://aiprod.app/tasks";
 
-  // Check if the server provides a URL to open when the notification is clicked
-  const urlFromNested =
-    data.data && (data.data.url || data.data.link || data.data.path);
-  const urlFromRoot = data.url || data.link || data.path;
-  const url = urlFromNested || urlFromRoot || "https://aiprod.app/tasks"; // Default URL
-
-  const taskId =
-    (data.data && data.data.taskId) ||
-    data.taskId ||
-    null;
-
-  // Notification options (body, icon, vibration pattern, etc.)
   const options = {
     body,
-    icon: "/icons/icon-192.png",  // Ensure this icon exists in /public/icons
-    badge: "/icons/icon-96.png",  // Badge icon for the notification
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-96.png",
     vibrate: [80, 40, 80],
-    data: {
-      url,
-      taskId,
-    },
+    data: { url },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));  // Show the notification
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 // --------------------------------------------------
-// 🔔 CLICK — Navigate to relevant task
+// NOTIFICATION CLICK
 // --------------------------------------------------
 self.addEventListener("notificationclick", (event) => {
-  event.notification.close();  // Close the notification when clicked
-
-  // Use the URL stored in the notification data or fall back to the default
-  const urlToOpen =
-    (event.notification.data && event.notification.data.url) ||
-    "https://aiprod.app/tasks";
+  event.notification.close();
+  const url = event.notification.data?.url || "https://aiprod.app/tasks";
 
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      // Try to find an existing client (tab) with the same URL
-      const existing = clientList.find((c) =>
-        c.url.includes(new URL(urlToOpen, self.location.origin).pathname)
-      );
-
-      // If such a client exists, focus on it
-      if (existing) {
-        existing.focus();
-        return;
-      }
-
-      // Otherwise, open a new window with the target URL
-      return clients.openWindow(urlToOpen);
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      const existing = clientsArr.find((c) => c.url.includes(url));
+      if (existing) return existing.focus();
+      return clients.openWindow(url);
     })
   );
 });
