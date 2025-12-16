@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isFacebookInAppBrowser } from "@/lib/isInAppBrowser";
 
 export default function AppBoot({
   children,
@@ -13,7 +14,12 @@ export default function AppBoot({
     let cancelled = false;
 
     async function boot() {
-      // Ensure service worker is ready (prevents first-open black/white screen)
+      // 🚨 Facebook / Instagram browser = skip SW wait
+      if (isFacebookInAppBrowser()) {
+        setReady(true);
+        return;
+      }
+
       if ("serviceWorker" in navigator) {
         try {
           await navigator.serviceWorker.ready;
@@ -32,7 +38,6 @@ export default function AppBoot({
   }, []);
 
   if (!ready) {
-    // 🔒 Stable background = no flash
     return (
       <div
         style={{
