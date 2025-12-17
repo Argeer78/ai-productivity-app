@@ -405,98 +405,55 @@ export default function NotesPage() {
   }
 
   // 🆕 Generate tasks from a note using backend AI endpoint (suggestions only)
-async function handleGenerateTasksFromNote(note: Note) {
-  if (!user) {
-    setError("You need to be logged in to create tasks from notes.");
-    return;
-  }
+ async function handleGenerateTasksFromNote(note: Note) {
+  if (!user) return;
   if (!note.content?.trim()) return;
 
   setError("");
-  setVoiceTasksMessage("");
   setNoteTasksLoadingId(note.id);
 
   try {
     const res = await fetch("/api/ai/note-to-tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        noteId: note.id,
-        content: note.content,
-      }),
+      body: JSON.stringify({ content: note.content }),
     });
 
     const data = await safeReadJson(res);
 
     if (!res.ok || !data?.ok) {
       console.error("[note-to-tasks] error:", data);
-      setError(data?.error || "Failed to generate tasks from this note. Try again.");
+      setError(data?.error || "Failed to generate tasks from note.");
       return;
     }
 
-    // ✅ IMPORTANT: set task category source from THIS note (on success)
-    setTasksSourceCategory(normalizeTaskCategory(note.category || null));
+    const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    const rows = tasks
+      .map((t: any) => ({
+        user_id: user.id,
+        title: typeof t.title === "string" ? t.title.trim() : "",
+        completed: false,
+        // OPTIONAL: keep category if you want
+        category: note.category || null,
+      }))
+      .filter((r: any) => r.title.length > 0);
 
-    const rawTasks = Array.isArray(data.tasks) ? data.tasks : [];
+    if (rows.length === 0) {
+      setError("AI did not find any clear tasks in this note.");
+      return;
+    }
 
-    const suggestions: VoiceTaskSuggestion[] = rawTasks.map((t: any) => {
-      const rawTitle =
-        typeof t.title === "string" && t.title.trim()
-          ? t.title.trim()
-          : "(Untitled task)";
+    const { error: insertError } = await supabase.from("tasks").insert(rows);
+    if (insertError) {
+      console.error("[tasks-from-note] insert error:", insertError);
+      setError(insertError.message || "Failed to create tasks.");
+      return;
+    }
 
-      let dueIso: string | null = null;
-      let dueLabel: string | null = null;
-
-      // Prefer explicit ISO if provided
- if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-  const iso = t.due_iso.trim();   // iso is definitely a string
-  dueIso = iso;
-
-  const parsed = Date.parse(iso);
-  if (!Number.isNaN(parsed)) {
-    dueLabel = formatDateTime(parsed);
-  }
-}
-
-      // If no ISO, try to resolve natural language
-      if (!dueIso && typeof t.due_natural === "string" && t.due_natural.trim()) {
-        const natural = t.due_natural.trim();
-        const resolved = resolveNaturalDue(natural);
-
-        if (resolved) {
-          dueIso = resolved;
-          const parsed = Date.parse(resolved);
-          if (!Number.isNaN(parsed)) {
-            dueLabel = formatDateTime(parsed);
-          }
-        }
-
-        if (!dueLabel) dueLabel = natural;
-      }
-
-      return {
-        title: rawTitle,
-        dueIso,
-        dueLabel,
-        priority:
-          t.priority === "low" || t.priority === "medium" || t.priority === "high"
-            ? t.priority
-            : null,
-      };
-    });
-
-    const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
-    setVoiceSuggestedTasks(nonEmpty);
-
-    setVoiceTasksMessage(
-      nonEmpty.length > 0
-        ? `Generated ${nonEmpty.length} task suggestion${nonEmpty.length > 1 ? "s" : ""} from the note.`
-        : "No clear tasks were found in this note."
-    );
+    router.push("/tasks");
   } catch (err) {
-    console.error("[note-to-tasks] unexpected error:", err);
-    setError("Unexpected error while generating tasks from this note.");
+    console.error("[tasks-from-note] unexpected:", err);
+    setError("Unexpected error while creating tasks.");
   } finally {
     setNoteTasksLoadingId(null);
   }
@@ -731,6 +688,67 @@ async function handleGenerateTasksFromNote(note: Note) {
     setNotes((prev) => prev.filter((n) => n.id !== id));
     setDeletingId(null);
   }
+
+async function insertTasksFromSuggestions(
+  suggestions: VoiceTaskSuggestion[],
+  sourceCategory: TaskCategory | null
+) {
+  if (!user) return { ok: false as const, error: "Not logged in" };
+  if (suggestions.length === 0) return { ok: false as const, error: "No suggestions" };
+
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, "0");
+
+  const rows = suggestions.map((tItem) => {
+    let dueIso: string | null = tItem.dueIso;
+
+    if (!dueIso && tItem.dueLabel) {
+      const parsed = Date.parse(tItem.dueLabel);
+      if (!Number.isNaN(parsed)) dueIso = new Date(parsed).toISOString();
+      else dueIso = resolveNaturalDue(tItem.dueLabel);
+    }
+
+    let reminderAt: string | null = null;
+    let timeFrom: string | null = null;
+    let timeTo: string | null = null;
+    let dueDateForColumn: string | null = null;
+
+    if (dueIso) {
+      dueDateForColumn = dueIso;
+      const d = new Date(dueIso);
+      const h = d.getHours();
+      const m = d.getMinutes();
+      timeFrom = `${pad(h)}:${pad(m)}`;
+      const end = new Date(d.getTime() + 60 * 60 * 1000);
+      timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+      reminderAt = dueIso;
+    }
+
+    return {
+      user_id: user.id,
+      title: tItem.title,
+      description: null,
+      completed: false,
+      created_at: now.toISOString(),
+      completed_at: null,
+
+      category: sourceCategory,
+
+      time_from: timeFrom,
+      time_to: timeTo,
+      due_date: dueDateForColumn,
+
+      reminder_enabled: !!reminderAt,
+      reminder_at: reminderAt,
+      reminder_sent_at: null,
+    } as any;
+  });
+
+  const { error } = await supabase.from("tasks").insert(rows);
+  if (error) return { ok: false as const, error: error.message || "Insert failed" };
+
+  return { ok: true as const };
+}
 
   // ✅ SINGLE creation flow (used for BOTH voice + note suggestions) + auto-open Tasks
   async function handleCreateTasksFromVoice() {
@@ -1123,14 +1141,15 @@ async function handleGenerateTasksFromNote(note: Note) {
                       <div className="mt-3 flex flex-wrap gap-2">
                          {/* 🆕 Tasks from note (suggestions in panel) */}
                         <button
-                          onClick={() => handleGenerateTasksFromNote(note)}
-                          disabled={noteTasksLoadingId === note.id}
-                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
-                        >
-                          {noteTasksLoadingId === note.id
-                            ? "Finding tasks..."
-                            : "⚡ Tasks from note"}
-                        </button>
+  type="button"
+  onClick={() => handleGenerateTasksFromNote(note)}
+  disabled={noteTasksLoadingId === note.id || creatingTasks}
+  className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)] disabled:opacity-60"
+>
+  {noteTasksLoadingId === note.id || creatingTasks
+    ? "Finding tasks..."
+    : "⚡ Tasks from note"}
+</button>
 
                         <button
                           onClick={() => handleAI(note.id, note.content, "summarize")}

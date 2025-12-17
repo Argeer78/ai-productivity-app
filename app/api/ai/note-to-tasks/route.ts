@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 export async function POST(req: Request) {
   try {
-    const { content } = await req.json();
+    if (!OPENAI_API_KEY) {
+      console.error("[note-to-tasks] Missing OPENAI_API_KEY");
+      return NextResponse.json(
+        { ok: false, error: "AI is not configured on the server." },
+        { status: 500 }
+      );
+    }
 
-    if (!content?.trim()) {
+    const body = await req.json().catch(() => null);
+    const content = typeof body?.content === "string" ? body.content : "";
+
+    if (!content.trim()) {
       return NextResponse.json(
         { ok: false, error: "Missing note content." },
         { status: 400 }
@@ -26,7 +32,7 @@ Return ONLY valid JSON in this exact shape:
     {
       "title": "Task title",
       "due_natural": "tomorrow morning",
-      "priority": "low | medium | high"
+      "priority": "low" | "medium" | "high"
     }
   ]
 }
@@ -34,60 +40,74 @@ Return ONLY valid JSON in this exact shape:
 If no tasks exist, return:
 { "tasks": [] }
 
-RULES:
-- No explanations
-- No markdown
-- No text outside JSON
+NO markdown. NO extra text.
 
-NOTE CONTENT:
+NOTE:
 ${content}
-`;
+`.trim();
 
-    const completion = await client.responses.create({
-      model: "gpt-4.1-mini",
-      input: prompt,
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You output STRICT JSON only. No markdown. No extra text.",
+          },
+          { role: "user", content: prompt },
+        ],
+        // This is the key: forces JSON object output
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+      }),
     });
 
-    // ✅ THIS IS THE ONLY CORRECT WAY
-    const text = completion.output_text?.trim();
-
-    if (!text) {
-      console.error("[note-to-tasks] Empty output_text:", completion);
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      console.error("[note-to-tasks] OpenAI error:", response.status, text);
       return NextResponse.json(
-        { ok: false, error: "AI returned no text output." },
+        { ok: false, error: "AI failed to generate tasks." },
         { status: 500 }
       );
     }
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-
-    if (!jsonMatch) {
-      console.error("[note-to-tasks] No JSON found:", text);
-      return NextResponse.json(
-        { ok: false, error: "AI did not return structured JSON." },
-        { status: 500 }
-      );
-    }
+    const json = (await response.json()) as any;
+    const raw = json?.choices?.[0]?.message?.content || '{"tasks":[]}';
 
     let parsed: any;
     try {
-      parsed = JSON.parse(jsonMatch[0]);
+      parsed = JSON.parse(raw);
     } catch (err) {
-      console.error("[note-to-tasks] JSON parse failed:", jsonMatch[0]);
+      console.error("[note-to-tasks] JSON parse error:", err, raw);
       return NextResponse.json(
         { ok: false, error: "AI returned invalid JSON." },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      ok: true,
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-    });
-  } catch (err) {
-    console.error("[note-to-tasks] Unexpected error:", err);
+    const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+    const normalized = tasks
+      .map((t: any) => ({
+        title: typeof t.title === "string" ? t.title.trim() : "",
+        due_natural: typeof t.due_natural === "string" ? t.due_natural.trim() : null,
+        due_iso: typeof t.due_iso === "string" ? t.due_iso.trim() : null,
+        priority:
+          t.priority === "low" || t.priority === "medium" || t.priority === "high"
+            ? t.priority
+            : null,
+      }))
+      .filter((t: any) => t.title.length > 0);
+
+    return NextResponse.json({ ok: true, tasks: normalized }, { status: 200 });
+  } catch (err: any) {
+    console.error("[note-to-tasks] Unexpected error", err);
     return NextResponse.json(
-      { ok: false, error: "Internal server error." },
+      { ok: false, error: err?.message || "Internal server error." },
       { status: 500 }
     );
   }
