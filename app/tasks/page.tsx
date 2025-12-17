@@ -435,35 +435,30 @@ export default function TasksPage() {
   }
 
   useEffect(() => {
-  function close() {
-    setSharingTaskId(null);
-  }
-  if (sharingTaskId) {
-    document.addEventListener("click", close);
-  }
-  return () => document.removeEventListener("click", close);
-}, [sharingTaskId]);
+  function handleOutside(event: Event) {
+    if (!sharingTaskId) return;
 
-  useEffect(() => {
-  function handleClickOutside(e: MouseEvent | TouchEvent) {
+    const target = event.target as Node | null;
+
     if (
       shareMenuRef.current &&
-      !shareMenuRef.current.contains(e.target as Node)
+      target &&
+      !shareMenuRef.current.contains(target)
     ) {
       setSharingTaskId(null);
     }
   }
 
-  document.addEventListener("mousedown", handleClickOutside);
-  document.addEventListener("touchstart", handleClickOutside);
-  document.addEventListener("scroll", handleClickOutside, true);
+  document.addEventListener("mousedown", handleOutside);
+  document.addEventListener("touchstart", handleOutside);
+  document.addEventListener("scroll", handleOutside, true);
 
   return () => {
-    document.removeEventListener("mousedown", handleClickOutside);
-    document.removeEventListener("touchstart", handleClickOutside);
-    document.removeEventListener("scroll", handleClickOutside, true);
+    document.removeEventListener("mousedown", handleOutside);
+    document.removeEventListener("touchstart", handleOutside);
+    document.removeEventListener("scroll", handleOutside, true);
   };
-}, []);
+}, [sharingTaskId]);
 
   async function toggleDone(task: TaskRow) {
     if (!user) return;
