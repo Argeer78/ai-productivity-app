@@ -495,26 +495,27 @@ export default function SettingsPage() {
 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
   <div>
     <p className="text-[11px] font-semibold text-[var(--text-main)]">
-      {t("settings.aiTone.title", "AI communication style")}
+      {t("settings.tone.balanced", "AI communication style")}
     </p>
     <p className="text-[11px] text-[var(--text-muted)]">
       {t(
-        "settings.aiTone.description",
+        "settings.tone.sectionDesc",
         "Choose how the AI should talk to you in suggestions, reports, and messages."
       )}
     </p>
   </div>
 
   <div className="flex flex-wrap gap-2">
+
     {(
       [
-        ["balanced", "⚖️ Balanced"],
-        ["friendly", "😊 Friendly"],
-        ["direct", "🎯 Direct"],
-        ["motivational", "🔥 Motivational"],
-        ["casual", "😌 Casual"],
+        ["settings.tone.balanced", "⚖️ Balanced"],
+        ["settings.tone.friendly", "😊 Friendly"],
+        ["settings.tone.direct", "🎯 Direct"],
+        ["settings.tone.motivational", "🔥 Motivational"],
+        ["settings.tone.casual", "😌 Casual"],
       ] as const
-    ).map(([value, label]) => (
+    ).map(([value, label, ]) => (
       <button
         key={value}
         type="button"
