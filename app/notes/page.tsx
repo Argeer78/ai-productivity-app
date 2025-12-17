@@ -382,7 +382,7 @@ export default function NotesPage() {
       setVoiceTasksMessage("");
     }
   }
-
+  
   /**
    * ✅ Tasks from note:
    * - ONLY generates suggestions (fills voiceSuggestedTasks)
