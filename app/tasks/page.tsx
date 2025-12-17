@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
@@ -304,7 +304,7 @@ export default function TasksPage() {
   // share UI state
   const [sharingTaskId, setSharingTaskId] = useState<string | null>(null);
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
-
+  const shareMenuRef = useRef<HTMLDivElement | null>(null);
   // bulk selection
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
@@ -433,6 +433,37 @@ export default function TasksPage() {
       setSavingNew(false);
     }
   }
+
+  useEffect(() => {
+  function close() {
+    setSharingTaskId(null);
+  }
+  if (sharingTaskId) {
+    document.addEventListener("click", close);
+  }
+  return () => document.removeEventListener("click", close);
+}, [sharingTaskId]);
+
+  useEffect(() => {
+  function handleClickOutside(e: MouseEvent | TouchEvent) {
+    if (
+      shareMenuRef.current &&
+      !shareMenuRef.current.contains(e.target as Node)
+    ) {
+      setSharingTaskId(null);
+    }
+  }
+
+  document.addEventListener("mousedown", handleClickOutside);
+  document.addEventListener("touchstart", handleClickOutside);
+  document.addEventListener("scroll", handleClickOutside, true);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+    document.removeEventListener("touchstart", handleClickOutside);
+    document.removeEventListener("scroll", handleClickOutside, true);
+  };
+}, []);
 
   async function toggleDone(task: TaskRow) {
     if (!user) return;
@@ -1159,55 +1190,75 @@ export default function TasksPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border-subtle)]">
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSharingTaskId((prev) =>
-                                  prev === task.id ? null : task.id
-                                )
-                              }
-                              className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
-                            >
-                              {copiedTaskId === task.id
-                                ? t("item.copied", "✅ Copied")
-                                : t("item.share", "Share")}
-                            </button>
+                       <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border-subtle)]">
+  <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border-subtle)]">
+  <div className="relative" ref={shareMenuRef}>
+    <button
+      type="button"
+      onClick={() =>
+        setSharingTaskId((prev) =>
+          prev === task.id ? null : task.id
+        )
+      }
+      className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
+    >
+      {copiedTaskId === task.id
+        ? t("item.copied", "✅ Copied")
+        : t("item.share", "Share")}
+    </button>
 
-                            {sharingTaskId === task.id && (
-                              <div className="absolute right-0 mt-1 w-40 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xl p-2 text-[11px] z-10">
-                                <button
-                                  type="button"
-                                  onClick={() => handleShareCopy(task)}
-                                  className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
-                                >
-                                  {t("item.shareCopy", "📋 Copy text")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleShareWhatsApp(task)}
-                                  className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
-                                >
-                                  {t("item.shareWhatsApp", "💬 WhatsApp")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleShareViber(task)}
-                                  className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
-                                >
-                                  {t("item.shareViber", "📲 Viber")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleShareEmail(task)}
-                                  className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
-                                >
-                                  {t("item.shareEmail", "✉️ Email")}
-                                </button>
-                              </div>
-                            )}
-                          </div>
+    {sharingTaskId === task.id && (
+      <div
+        className="
+          absolute
+          left-0
+          sm:left-auto sm:right-0
+          mt-1
+          w-40
+          rounded-xl
+          border border-[var(--border-subtle)]
+          bg-[var(--bg-card)]
+          shadow-xl
+          p-2
+          text-[11px]
+          z-50
+        "
+      >
+        <button
+          type="button"
+          onClick={() => handleShareCopy(task)}
+          className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
+        >
+          {t("item.shareCopy", "📋 Copy text")}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleShareWhatsApp(task)}
+          className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
+        >
+          {t("item.shareWhatsApp", "💬 WhatsApp")}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleShareViber(task)}
+          className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
+        >
+          {t("item.shareViber", "📲 Viber")}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleShareEmail(task)}
+          className="w-full text-left px-2 py-1 rounded-md hover:bg-[var(--bg-elevated)]"
+        >
+          {t("item.shareEmail", "✉️ Email")}
+        </button>
+      </div>
+    )}
+  </div>
+</div>
 
                           <button
                             type="button"
