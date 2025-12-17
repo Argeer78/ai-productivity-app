@@ -30,6 +30,14 @@ const THEME_OPTIONS: { value: ThemeId; key: string; fallback: string }[] = [
   { value: "easter", key: "settings.theme.easter", fallback: "Easter 🐣" },
 ];
 
+const TONE_OPTIONS: { value: Tone; icon: string; key: string; fallback: string }[] = [
+  { value: "balanced",     icon: "⚖️", key: "settings.tone.balanced",     fallback: "Balanced" },
+  { value: "friendly",     icon: "😊", key: "settings.tone.friendly",     fallback: "Friendly" },
+  { value: "direct",       icon: "🎯", key: "settings.tone.direct",       fallback: "Direct" },
+  { value: "motivational", icon: "🔥", key: "settings.tone.motivational", fallback: "Motivational" },
+  { value: "casual",       icon: "😌", key: "settings.tone.casual",       fallback: "Casual" },
+];
+
 // Normalize anything like "hu-HU" -> "hu"
 function normalizeLang(code: string): Lang {
   const base = (code || "en").toLowerCase().split("-")[0] as Lang;
@@ -495,7 +503,7 @@ export default function SettingsPage() {
 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
   <div>
     <p className="text-[11px] font-semibold text-[var(--text-main)]">
-      {t("settings.tone.balanced", "AI communication style")}
+      {t("settings.tone.sectionTitle", "AI communication style")}
     </p>
     <p className="text-[11px] text-[var(--text-muted)]">
       {t(
@@ -505,28 +513,20 @@ export default function SettingsPage() {
     </p>
   </div>
 
-  <div className="flex flex-wrap gap-2">
-
-    {(
-      [
-        ["settings.tone.balanced", "⚖️ Balanced"],
-        ["settings.tone.friendly", "😊 Friendly"],
-        ["settings.tone.direct", "🎯 Direct"],
-        ["settings.tone.motivational", "🔥 Motivational"],
-        ["settings.tone.casual", "😌 Casual"],
-      ] as const
-    ).map(([value, label,]) => (
+  <div className="grid gap-2">
+    {TONE_OPTIONS.map((opt) => (
       <button
-        key={value}
+        key={opt.value}
         type="button"
-        onClick={() => setTone(value)}
-        className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
-          tone === value
-            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-            : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
+        onClick={() => setTone(opt.value)}
+        className={`px-3 py-2 rounded-xl border text-sm text-left ${
+          tone === opt.value
+            ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+            : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
         }`}
       >
-        {label}
+        <span className="mr-2">{opt.icon}</span>
+        {t(opt.key, opt.fallback)}
       </button>
     ))}
   </div>
@@ -544,8 +544,14 @@ export default function SettingsPage() {
       "You can re-run the onboarding wizard anytime to update your focus, reminders, and preferences."
     )}
   </p>
-  <Link href={{ pathname: "/onboarding", query: { force: "1" } }}>
-  Open onboarding wizard
+  <Link
+  href="/onboarding?force=1"
+  className="inline-flex items-center text-xs px-3 py-1.5 rounded-xl
+             border border-[var(--border-subtle)]
+             bg-[var(--bg-card)]
+             hover:bg-[var(--bg-elevated)]"
+>
+  {t("settings.onboarding.openWizard", "Open onboarding wizard")}
 </Link>
 </div>
 
