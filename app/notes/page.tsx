@@ -449,13 +449,15 @@ async function handleGenerateTasksFromNote(note: Note) {
       let dueLabel: string | null = null;
 
       // Prefer explicit ISO if provided
-      if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-        dueIso = t.due_iso.trim();
-        const parsed = Date.parse(dueIso);
-        if (!Number.isNaN(parsed)) {
-          dueLabel = formatDateTime(parsed);
-        }
-      }
+ if (typeof t.due_iso === "string" && t.due_iso.trim()) {
+  const iso = t.due_iso.trim();   // iso is definitely a string
+  dueIso = iso;
+
+  const parsed = Date.parse(iso);
+  if (!Number.isNaN(parsed)) {
+    dueLabel = formatDateTime(parsed);
+  }
+}
 
       // If no ISO, try to resolve natural language
       if (!dueIso && typeof t.due_natural === "string" && t.due_natural.trim()) {
