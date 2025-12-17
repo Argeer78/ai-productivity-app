@@ -515,7 +515,7 @@ export default function SettingsPage() {
         ["settings.tone.motivational", "🔥 Motivational"],
         ["settings.tone.casual", "😌 Casual"],
       ] as const
-    ).map(([value, label, ]) => (
+    ).map(([value, label,]) => (
       <button
         key={value}
         type="button"
