@@ -878,6 +878,42 @@ export default function TasksPage() {
               </button>
             </div>
           </form>
+{/* Filters */}
+<div className="flex flex-wrap items-center gap-2 mb-4 text-[11px]">
+  {/* View mode */}
+  <div className="flex rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+    {(["active", "completed", "all"] as const).map((mode) => (
+      <button
+        key={mode}
+        type="button"
+        onClick={() => setViewMode(mode)}
+        className={`px-3 py-1.5 ${
+          viewMode === mode
+            ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+            : "bg-[var(--bg-elevated)] text-[var(--text-muted)]"
+        }`}
+      >
+        {mode === "active" && t("filters.active", "Active")}
+        {mode === "completed" && t("filters.completed", "Completed")}
+        {mode === "all" && t("filters.all", "All")}
+      </button>
+    ))}
+  </div>
+
+  {/* Category filter */}
+  <select
+    value={categoryFilter}
+    onChange={(e) => setCategoryFilter(e.target.value)}
+    className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1"
+  >
+    <option value="all">{t("filters.allCategories", "All categories")}</option>
+    {TASK_CATEGORIES.map((cat) => (
+      <option key={cat} value={cat}>
+        {categoryLabel(cat)}
+      </option>
+    ))}
+  </select>
+</div>
 
           {/* Tasks list */}
           {loading ? (
@@ -1186,7 +1222,6 @@ export default function TasksPage() {
                         </div>
 
                        <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border-subtle)]">
-  <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border-subtle)]">
   <div className="relative" ref={shareMenuRef}>
     <button
       type="button"
@@ -1253,7 +1288,6 @@ export default function TasksPage() {
       </div>
     )}
   </div>
-</div>
 
                           <button
                             type="button"
