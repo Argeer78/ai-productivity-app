@@ -336,32 +336,50 @@ export default function NotesPage() {
       if (maybe) setTasksSourceCategory(maybe);
     }
 
-    // 3) Normalize tasks into VoiceTaskSuggestion[]
+   // 3) Normalize tasks into VoiceTaskSuggestion[] (with natural-language fallback → ISO)
     if (structured && Array.isArray(structured.tasks)) {
-      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((task) => {
+      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
         const rawTitle =
-          typeof task.title === "string" && task.title.trim()
-            ? task.title.trim()
-            : t("tasks.untitled", "(Untitled task)");
+          typeof t.title === "string" && t.title.trim()
+            ? t.title.trim()
+            : "(Untitled task)";
 
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
 
-        if (typeof task.due_iso === "string" && task.due_iso.trim()) {
-          dueIso = task.due_iso.trim();
-          const parsed = Date.parse(dueIso);
-          if (!Number.isNaN(parsed)) dueLabel = formatDateTime(parsed);
+        // 1) Prefer explicit ISO from the model
+        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
+          dueIso = t.due_iso.trim();
+          if (dueIso) {
+            const parsed = Date.parse(dueIso);
+            if (!Number.isNaN(parsed)) {
+              dueLabel = new Date(parsed).toLocaleString();
+            }
+          }
         }
 
-        if (!dueIso && typeof task.due_natural === "string" && task.due_natural.trim()) {
-          const natural = task.due_natural.trim();
+        // 2) If there's a natural-language due and no ISO, try to resolve it
+        if (
+          !dueIso &&
+          typeof t.due_natural === "string" &&
+          t.due_natural.trim()
+        ) {
+          const natural = t.due_natural.trim();
+
+          // Try to convert phrases like "tomorrow morning" → ISO
           const resolved = resolveNaturalDue(natural);
           if (resolved) {
             dueIso = resolved;
             const parsed = Date.parse(resolved);
-            if (!Number.isNaN(parsed)) dueLabel = formatDateTime(parsed);
+            if (!Number.isNaN(parsed)) {
+              dueLabel = new Date(parsed).toLocaleString();
+            }
           }
-          if (!dueLabel) dueLabel = natural;
+
+          // If we still don't have a label, use the natural text
+          if (!dueLabel) {
+            dueLabel = natural;
+          }
         }
 
         return {
@@ -369,29 +387,27 @@ export default function NotesPage() {
           dueIso,
           dueLabel,
           priority:
-            task.priority === "low" || task.priority === "medium" || task.priority === "high"
-              ? task.priority
+            t.priority === "low" ||
+            t.priority === "medium" ||
+            t.priority === "high"
+              ? t.priority
               : null,
         };
       });
 
-      setVoiceSuggestedTasks(suggestions.filter((s) => s.title.trim().length > 0));
+      const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
+      setVoiceSuggestedTasks(nonEmpty);
       setVoiceTasksMessage("");
     } else {
       setVoiceSuggestedTasks([]);
       setVoiceTasksMessage("");
     }
   }
-  
-  /**
-   * ✅ Tasks from note:
-   * - ONLY generates suggestions (fills voiceSuggestedTasks)
-   * - Uses /api/ai/note-to-tasks (we provide the route below)
-   * - NO insertion here (insertion is ONLY in handleCreateTasksFromVoice)
-   */
+
+  // 🆕 Generate tasks from a note using backend AI endpoint
   async function handleGenerateTasksFromNote(note: Note) {
     if (!user) {
-      setError(t("errors.notLoggedInTasksFromNotes", "You need to be logged in to create tasks from notes."));
+      setError("You need to be logged in to create tasks from notes.");
       return;
     }
     if (!note.content?.trim()) return;
@@ -404,48 +420,63 @@ export default function NotesPage() {
       const res = await fetch("/api/ai/note-to-tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: note.content }),
+        body: JSON.stringify({
+          noteId: note.id,
+          content: note.content,
+        }),
       });
 
-      const data = await safeReadJson(res);
+      const data = await res.json();
 
       if (!res.ok || !data?.ok) {
         console.error("[note-to-tasks] error:", data);
         setError(
-          data?.error ||
-            t("errors.generateTasksFromNoteFailed", "Failed to generate tasks from this note. Try again.")
+          data?.error || "Failed to generate tasks from this note. Try again."
         );
+        setNoteTasksLoadingId(null);
         return;
       }
 
-      // Category should come from THIS note
-      setTasksSourceCategory(normalizeTaskCategory(note.category || null));
-
       const rawTasks = Array.isArray(data.tasks) ? data.tasks : [];
-      const suggestions: VoiceTaskSuggestion[] = rawTasks.map((task: any) => {
+
+      const suggestions: VoiceTaskSuggestion[] = rawTasks.map((t: any) => {
         const rawTitle =
-          typeof task.title === "string" && task.title.trim()
-            ? task.title.trim()
-            : t("tasks.untitled", "(Untitled task)");
+          typeof t.title === "string" && t.title.trim()
+            ? t.title.trim()
+            : "(Untitled task)";
 
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
 
-        if (typeof task.due_iso === "string" && task.due_iso.trim()) {
-          dueIso = task.due_iso.trim();
-          const parsed = Date.parse(dueIso);
-          if (!Number.isNaN(parsed)) dueLabel = formatDateTime(parsed);
+        // Prefer explicit ISO if provided
+        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
+          dueIso = t.due_iso.trim();
+          if (dueIso) {
+            const parsed = Date.parse(dueIso);
+            if (!Number.isNaN(parsed)) {
+              dueLabel = new Date(parsed).toLocaleString();
+            }
+          }
         }
 
-        if (!dueIso && typeof task.due_natural === "string" && task.due_natural.trim()) {
-          const natural = task.due_natural.trim();
+        // If no ISO, try to resolve natural language
+        if (
+          !dueIso &&
+          typeof t.due_natural === "string" &&
+          t.due_natural.trim()
+        ) {
+          const natural = t.due_natural.trim();
           const resolved = resolveNaturalDue(natural);
           if (resolved) {
             dueIso = resolved;
             const parsed = Date.parse(resolved);
-            if (!Number.isNaN(parsed)) dueLabel = formatDateTime(parsed);
+            if (!Number.isNaN(parsed)) {
+              dueLabel = new Date(parsed).toLocaleString();
+            }
           }
-          if (!dueLabel) dueLabel = natural;
+          if (!dueLabel) {
+            dueLabel = natural;
+          }
         }
 
         return {
@@ -453,8 +484,10 @@ export default function NotesPage() {
           dueIso,
           dueLabel,
           priority:
-            task.priority === "low" || task.priority === "medium" || task.priority === "high"
-              ? task.priority
+            t.priority === "low" ||
+            t.priority === "medium" ||
+            t.priority === "high"
+              ? t.priority
               : null,
         };
       });
@@ -462,14 +495,18 @@ export default function NotesPage() {
       const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
       setVoiceSuggestedTasks(nonEmpty);
 
-      setVoiceTasksMessage(
-        nonEmpty.length > 0
-          ? t("tasks.suggested.fromNote", "Generated task suggestions from the note.")
-          : t("tasks.suggested.noneFound", "No clear tasks were found in this note.")
-      );
+      if (nonEmpty.length > 0) {
+        setVoiceTasksMessage(
+          `Generated ${nonEmpty.length} task suggestion${
+            nonEmpty.length > 1 ? "s" : ""
+          } from the note.`
+        );
+      } else {
+        setVoiceTasksMessage("No clear tasks were found in this note.");
+      }
     } catch (err) {
       console.error("[note-to-tasks] unexpected error:", err);
-      setError(t("errors.generateTasksFromNoteUnexpected", "Unexpected error while generating tasks from this note."));
+      setError("Unexpected error while generating tasks from this note.");
     } finally {
       setNoteTasksLoadingId(null);
     }
