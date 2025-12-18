@@ -240,21 +240,73 @@ function MiniDatePicker({ value, onChange, t }: MiniDatePickerProps) {
   );
 }
 
+function normalizeDueIso(input: string): string | null {
+  const s = input.trim();
+  if (!s) return null;
+
+  // If it already has timezone (Z or +hh:mm), trust it.
+  if (/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  // If it's ISO-like but WITHOUT timezone, treat as LOCAL time.
+  // Examples: "2025-12-18T10:00", "2025-12-18T10:00:00"
+  const m = s.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2})(?::(\d{2}))(?::(\d{2}))?)?$/
+  );
+  if (!m) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  const year = Number(m[1]);
+  const month = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  const hour = m[4] ? Number(m[4]) : 12; // default NOON to avoid date shifting
+  const minute = m[5] ? Number(m[5]) : 0;
+  const second = m[6] ? Number(m[6]) : 0;
+
+  const local = new Date(year, month, day, hour, minute, second);
+  return Number.isNaN(local.getTime()) ? null : local.toISOString();
+}
+
 function resolveNaturalDue(label: string): string | null {
   if (!label) return null;
+
   const text = label.toLowerCase();
   const now = new Date();
-  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
 
+  // Start from today at NOON (prevents "tomorrow becomes today" after toISOString)
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
+
+  // Day offset
   if (text.includes("tomorrow")) target.setDate(target.getDate() + 1);
   else if (text.includes("next week")) target.setDate(target.getDate() + 7);
 
-  if (text.includes("morning")) target.setHours(8, 0, 0, 0);
+  // Time-of-day keywords
+  if (text.includes("morning")) target.setHours(10, 0, 0, 0);
   else if (text.includes("noon")) target.setHours(12, 0, 0, 0);
   else if (text.includes("afternoon")) target.setHours(15, 0, 0, 0);
   else if (text.includes("evening") || text.includes("tonight")) target.setHours(20, 0, 0, 0);
 
-  return target.toISOString();
+  // Explicit times: "10", "10:30", "10am", "10 pm", "20:00"
+  const time = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
+  if (time) {
+    let hour = parseInt(time[1], 10);
+    const minute = time[2] ? parseInt(time[2], 10) : 0;
+    const ampm = time[3];
+
+    if (ampm === "pm" && hour < 12) hour += 12;
+    if (ampm === "am" && hour === 12) hour = 0;
+
+    // If user says just "10" with no am/pm, keep it as 10:00 local
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      target.setHours(hour, minute, 0, 0);
+    }
+  }
+
+  return target.toISOString(); // stored as UTC
 }
 
 // 24h time dropdown options (00:00 - 23:00)
@@ -327,54 +379,78 @@ export default function TasksPage() {
   const categoryLabel = (cat: string) => t(`category.${cat}`, cat);
 
   // ✅ Voice result handler MUST be inside component (it uses state setters)
-  function handleVoiceResult(payload: { rawText: string | null; structured: VoiceStructured | null }) {
-    const structured = payload.structured;
+  function handleVoiceResult(payload: {
+  rawText: string | null;
+  structured: VoiceStructured | null;
+}) {
+  const structured = payload.structured;
 
-    if (!structured || !Array.isArray(structured.tasks)) {
-      setVoiceSuggestedTasks([]);
-      setVoiceTasksMessage("");
-      return;
+  if (!structured || !Array.isArray(structured.tasks)) {
+    setVoiceSuggestedTasks([]);
+    setVoiceTasksMessage("");
+    return;
+  }
+
+  const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((tt) => {
+    const title =
+      typeof tt.title === "string" && tt.title.trim()
+        ? tt.title.trim()
+        : "(Untitled task)";
+
+    let dueIso: string | null = null;
+    let dueLabel: string | null = null;
+
+    // ✅ 1. Prefer explicit ISO from AI (normalized as LOCAL time)
+    if (typeof tt.due_iso === "string" && tt.due_iso.trim()) {
+      const normalized = normalizeDueIso(tt.due_iso);
+      if (normalized) {
+        dueIso = normalized;
+        dueLabel = new Date(normalized).toLocaleString();
+      }
     }
 
-    const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((tt) => {
-      const title =
-        typeof tt.title === "string" && tt.title.trim() ? tt.title.trim() : "(Untitled task)";
+    // ✅ 2. Otherwise resolve natural language ("tomorrow at 10", etc.)
+    if (
+      !dueIso &&
+      typeof tt.due_natural === "string" &&
+      tt.due_natural.trim()
+    ) {
+      const natural = tt.due_natural.trim();
+      const resolved = resolveNaturalDue(natural);
 
-      let dueIso: string | null = null;
-      let dueLabel: string | null = null;
-
-      if (typeof tt.due_iso === "string" && tt.due_iso.trim()) {
-        dueIso = tt.due_iso.trim();
-        const parsed = Date.parse(dueIso);
-        if (!Number.isNaN(parsed)) dueLabel = new Date(parsed).toLocaleString();
+      if (resolved) {
+        dueIso = resolved;
+        dueLabel = new Date(resolved).toLocaleString();
+      } else {
+        // fallback: show text even if date couldn't be resolved
+        dueLabel = natural;
       }
+    }
 
-      if (!dueIso && typeof tt.due_natural === "string" && tt.due_natural.trim()) {
-        const natural = tt.due_natural.trim();
-        const resolved = resolveNaturalDue(natural);
-        if (resolved) {
-          dueIso = resolved;
-          const parsed = Date.parse(resolved);
-          if (!Number.isNaN(parsed)) dueLabel = new Date(parsed).toLocaleString();
-        }
-        if (!dueLabel) dueLabel = natural;
-      }
+    return {
+      title,
+      dueIso,
+      dueLabel,
+      priority:
+        tt.priority === "low" ||
+        tt.priority === "medium" ||
+        tt.priority === "high"
+          ? tt.priority
+          : null,
+    };
+  });
 
-      return {
-        title,
-        dueIso,
-        dueLabel,
-        priority:
-          tt.priority === "low" || tt.priority === "medium" || tt.priority === "high"
-            ? tt.priority
-            : null,
-      };
-    });
+  const nonEmpty = suggestions.filter(
+    (s) => s.title.trim().length > 0
+  );
 
-    const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
-    setVoiceSuggestedTasks(nonEmpty);
-    setVoiceTasksMessage(nonEmpty.length ? "" : t("voice.noTasks", "No clear tasks found in voice input."));
-  }
+  setVoiceSuggestedTasks(nonEmpty);
+  setVoiceTasksMessage(
+    nonEmpty.length === 0
+      ? t("voice.noTasks", "No clear tasks found in voice input.")
+      : ""
+  );
+}
 
   // Load user
   useEffect(() => {
