@@ -730,27 +730,31 @@ export default function AiCompanionPage() {
               <span className="text-[10px] text-[var(--text-muted)]">Helps the companion adapt tone & questions.</span>
             </div>
 
-            {/* ✅ mobile row: allow wrapping, avoid hidden right side */}
-            <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 min-w-0">
-              <div className="shrink-0">
-                <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} />
-              </div>
+            {/* ✅ Composer row: 3 columns on desktop, 2 rows on mobile */}
+<div className="grid grid-cols-[auto,1fr] sm:grid-cols-[auto,1fr,auto] gap-2 items-end min-w-0">
+  {/* Mic (contained, never overlays) */}
+  <div className="relative overflow-hidden rounded-xl w-12 h-12 sm:w-auto sm:h-auto shrink-0">
+    <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} />
+  </div>
 
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type here… or use the mic."
-                className="flex-1 min-w-0 w-full sm:w-auto rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
-              />
+  {/* Textarea spans full width on mobile */}
+  <textarea
+    value={input}
+    onChange={(e) => setInput(e.target.value)}
+    placeholder="Type here… or use the mic."
+    className="min-w-0 w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
+  />
 
-              <button
-                type="submit"
-                disabled={sending || !input.trim()}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
-              >
-                Send
-              </button>
-            </div>
+  {/* Send: full width on mobile, normal on desktop */}
+  <button
+    type="submit"
+    disabled={sending || !input.trim()}
+    className="col-span-2 sm:col-span-1 w-full sm:w-auto px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
+  >
+    Send
+  </button>
+</div>
+
           </form>
 
           {/* Mobile history drawer */}

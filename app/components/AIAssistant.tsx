@@ -15,10 +15,10 @@ type Msg = {
 export default function AIAssistant() {
   const pathname = usePathname();
 
-  // Hide assistant completely on the AI Chat page
-  if (pathname.startsWith("/ai-chat")) {
-    return null;
-  }
+  // Hide assistant completely on pages that already have dedicated chat UIs
+if (pathname.startsWith("/ai-chat") || pathname.startsWith("/ai-companion")) {
+  return null;
+}
 
   const { t, tCommon } = useT("assistant");
 
