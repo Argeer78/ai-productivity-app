@@ -245,7 +245,6 @@ export default function AiCompanionPage() {
 
     const nowIso = new Date().toISOString();
 
-    // optimistic UI — user message
     const localUser: MsgRow = {
       id: `local-u-${nowIso}`,
       role: "user",
@@ -287,14 +286,12 @@ export default function AiCompanionPage() {
 
       setMessages((prev) => [...prev, localAssistant]);
 
-      // persist messages
       const { error: msgErr } = await supabase.from("ai_companion_messages").insert([
         { thread_id: threadId, user_id: user.id, role: "user", content: text },
         { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantText },
       ]);
       if (msgErr) console.error("[ai-companion] insert messages error", msgErr);
 
-      // update thread metadata
       const { error: updErr } = await supabase
         .from("ai_companion_threads")
         .update({
@@ -307,7 +304,6 @@ export default function AiCompanionPage() {
 
       if (updErr) console.error("[ai-companion] update thread error", updErr);
 
-      // reorder sidebar threads
       setThreads((prev) => {
         const existing = prev.find((t) => t.id === threadId);
         if (!existing) return prev;
@@ -467,10 +463,7 @@ export default function AiCompanionPage() {
     setShowMobileThreads(false);
   }
 
-  const activeThread = useMemo(
-    () => threads.find((t) => t.id === activeThreadId) || null,
-    [threads, activeThreadId]
-  );
+  const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
 
   if (checkingUser) {
     return (
@@ -504,10 +497,6 @@ export default function AiCompanionPage() {
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="ai-companion" />
 
-      {/* ✅ IMPORTANT MOBILE FIX:
-          - min-w-0 prevents flex children from forcing overflow
-          - section uses w-full to avoid off-screen width
-      */}
       <div className="flex-1 flex overflow-hidden min-w-0">
         {/* Sidebar (desktop) */}
         <aside className="hidden md:flex flex-col w-72 shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-elevated)]/70 min-w-0">
@@ -545,9 +534,7 @@ export default function AiCompanionPage() {
             {loadingThreads ? (
               <p className="p-3 text-[var(--text-muted)] text-[11px]">Loading conversations…</p>
             ) : threads.length === 0 ? (
-              <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                No conversations yet. Start a new chat and talk it out.
-              </p>
+              <p className="p-3 text-[var(--text-muted)] text-[11px]">No conversations yet. Start a new chat and talk it out.</p>
             ) : (
               threads.map((t) => {
                 const isActive = activeThreadId === t.id;
@@ -598,13 +585,10 @@ export default function AiCompanionPage() {
 
         {/* Main chat */}
         <section className="flex-1 flex flex-col relative min-w-0 w-full">
-          {/* ✅ make header wrap nicely on mobile */}
           <div className="px-3 sm:px-4 py-3 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
             <div className="min-w-0">
               <h1 className="text-base md:text-lg font-semibold">AI Companion</h1>
-              <p className="text-[11px] text-[var(--text-muted)]">
-                A gentle space to reflect, feel grounded, and write it out.
-              </p>
+              <p className="text-[11px] text-[var(--text-muted)]">A gentle space to reflect, feel grounded, and write it out.</p>
               <p className="text-[10px] text-[var(--text-muted)] mt-1">
                 Not a therapist. No diagnosis. If you’re in danger or crisis, contact local emergency services.
               </p>
@@ -612,8 +596,7 @@ export default function AiCompanionPage() {
               {activeThread?.title && (
                 <p className="mt-2 text-[11px] text-[var(--text-muted)] min-w-0">
                   <span className="truncate inline-block max-w-full align-bottom">
-                    Conversation:{" "}
-                    <span className="text-[var(--text-main)] font-semibold">{activeThread.title}</span>
+                    Conversation: <span className="text-[var(--text-main)] font-semibold">{activeThread.title}</span>
                   </span>
                   {activeThread.category ? (
                     <span className="ml-2 inline-flex items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px]">
@@ -624,7 +607,6 @@ export default function AiCompanionPage() {
               )}
             </div>
 
-            {/* ✅ mobile-safe action buttons: wrap + no overflow */}
             <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
               <button
                 type="button"
@@ -656,9 +638,7 @@ export default function AiCompanionPage() {
           {error && <p className="px-3 sm:px-4 pt-2 text-[11px] text-red-400">{error}</p>}
           {toast && <p className="px-3 sm:px-4 pt-2 text-[11px] text-emerald-400">{toast}</p>}
 
-          {/* ✅ prevent sideways overflow in the scroller */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 space-y-3 text-sm min-w-0">
-            {/* Welcome + starters */}
             {messages.length === 0 && (
               <div className="space-y-3">
                 <div className="w-full max-w-[760px] rounded-2xl px-3 py-3 bg-[var(--bg-card)] border border-[var(--border-subtle)] whitespace-pre-wrap text-[13px]">
@@ -709,10 +689,10 @@ export default function AiCompanionPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Composer */}
+          {/* ✅ Composer (fixed mic layout: compact button, never overlaps textarea) */}
           <form
             onSubmit={(e) => handleSend(e)}
-            className="border-t border-[var(--border-subtle)] px-3 sm:px-3 py-2 flex flex-col gap-2 min-w-0"
+            className="border-t border-[var(--border-subtle)] px-3 sm:px-4 py-2 flex flex-col gap-2 min-w-0"
           >
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)] min-w-0">
               <span className="hidden md:inline">Category:</span>
@@ -730,31 +710,27 @@ export default function AiCompanionPage() {
               <span className="text-[10px] text-[var(--text-muted)]">Helps the companion adapt tone & questions.</span>
             </div>
 
-            {/* ✅ Composer row: 3 columns on desktop, 2 rows on mobile */}
-<div className="grid grid-cols-[auto,1fr] sm:grid-cols-[auto,1fr,auto] gap-2 items-end min-w-0">
-  {/* Mic (contained, never overlays) */}
-  <div className="relative overflow-hidden rounded-xl w-12 h-12 sm:w-auto sm:h-auto shrink-0">
-    <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} />
-  </div>
+            <div className="flex items-end gap-2 min-w-0">
+              <div className="shrink-0">
+                {/* IMPORTANT: requires VoiceCaptureButton to support variant="compact" */}
+                <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} variant="compact" />
+              </div>
 
-  {/* Textarea spans full width on mobile */}
-  <textarea
-    value={input}
-    onChange={(e) => setInput(e.target.value)}
-    placeholder="Type here… or use the mic."
-    className="min-w-0 w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
-  />
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type here… or use the mic."
+                className="flex-1 min-w-0 w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
+              />
 
-  {/* Send: full width on mobile, normal on desktop */}
-  <button
-    type="submit"
-    disabled={sending || !input.trim()}
-    className="col-span-2 sm:col-span-1 w-full sm:w-auto px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
-  >
-    Send
-  </button>
-</div>
-
+              <button
+                type="submit"
+                disabled={sending || !input.trim()}
+                className="shrink-0 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
+              >
+                Send
+              </button>
+            </div>
           </form>
 
           {/* Mobile history drawer */}
