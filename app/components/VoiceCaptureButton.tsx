@@ -20,25 +20,23 @@ type StructuredResult = {
     reason?: string | null;
   };
   summary?: string;
+
+  // optional fields (harmless if backend doesn't send them)
+  reflection?: string | null;
+  note_title?: string | null;
 };
 
 type Props = {
   userId: string;
-  mode: "review" | "autosave";
+  mode: "review" | "autosave" | "psych";
   resetKey?: number;
-  onResult?: (payload: {
-    rawText: string | null;
-    structured: StructuredResult | null;
-  }) => void;
+  onResult?: (payload: { rawText: string | null; structured: StructuredResult | null }) => void;
 };
 
-export default function VoiceCaptureButton({
-  userId,
-  mode,
-  resetKey,
-  onResult,
-}: Props) {
-  // ✅ IMPORTANT: keys are already "notes.*" in your JSON
+// Safety: auto-stop after N seconds (prevents stuck recording)
+const MAX_RECORDING_MS = 90_000;
+
+export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }: Props) {
   const { t: rawT } = useT("");
   const t = (key: string, fallback: string) => rawT(key, fallback);
 
@@ -49,10 +47,7 @@ export default function VoiceCaptureButton({
     try {
       const d = input instanceof Date ? input : new Date(input);
       if (Number.isNaN(d.getTime())) return "";
-      return new Intl.DateTimeFormat(intlLocale, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(d);
+      return new Intl.DateTimeFormat(intlLocale, { dateStyle: "medium", timeStyle: "short" }).format(d);
     } catch {
       return "";
     }
@@ -69,25 +64,56 @@ export default function VoiceCaptureButton({
   // 🔊 device selection
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [devicesLoaded, setDevicesLoaded] = useState(false);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | "auto">(
-    "auto"
-  );
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | "auto">("auto");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const mimeTypeRef = useRef<string>("");
+  const stopTimerRef = useRef<number | null>(null);
+  const audioPreviewUrlRef = useRef<string | null>(null); // avoid stale closures
+  const onResultRef = useRef<Props["onResult"]>(onResult);
+
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
+
+  // Keep ref synced
+  useEffect(() => {
+    audioPreviewUrlRef.current = audioPreviewUrl;
+  }, [audioPreviewUrl]);
+
+  function clearStopTimer() {
+    if (stopTimerRef.current) {
+      window.clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+  }
+
+  function softHaptic(ms = 12) {
+    try {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        (navigator as any).vibrate(ms);
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      clearStopTimer();
       if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+        try {
+          mediaRecorderRef.current.stream.getTracks().forEach((trk) => trk.stop());
+        } catch {}
       }
-      if (audioPreviewUrl) {
-        URL.revokeObjectURL(audioPreviewUrl);
+      if (audioPreviewUrlRef.current) {
+        try {
+          URL.revokeObjectURL(audioPreviewUrlRef.current);
+        } catch {}
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reset when parent changes resetKey (e.g. after note save)
@@ -99,19 +125,18 @@ export default function VoiceCaptureButton({
     setSavedNoteId(null);
     setError(null);
 
-    if (audioPreviewUrl) {
-      URL.revokeObjectURL(audioPreviewUrl);
+    if (audioPreviewUrlRef.current) {
+      try {
+        URL.revokeObjectURL(audioPreviewUrlRef.current);
+      } catch {}
+      audioPreviewUrlRef.current = null;
       setAudioPreviewUrl(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
   function getSupportError(): string | null {
     if (typeof window === "undefined") {
-      return t(
-        "notes.voice.errors.notBrowser",
-        "Not in a browser environment."
-      );
+      return t("notes.voice.errors.notBrowser", "Not in a browser environment.");
     }
 
     if (!("mediaDevices" in navigator) || !navigator.mediaDevices.getUserMedia) {
@@ -121,9 +146,7 @@ export default function VoiceCaptureButton({
       );
     }
 
-    const hasMediaRecorder =
-      typeof (window as any).MediaRecorder !== "undefined";
-
+    const hasMediaRecorder = typeof (window as any).MediaRecorder !== "undefined";
     if (!hasMediaRecorder) {
       return t(
         "notes.voice.errors.noMediaRecorder",
@@ -138,13 +161,19 @@ export default function VoiceCaptureButton({
     if (typeof window === "undefined") return "";
 
     const MR = (window as any).MediaRecorder;
-    if (!MR || typeof MR.isTypeSupported !== "function") {
-      return "";
-    }
+    if (!MR || typeof MR.isTypeSupported !== "function") return "";
 
     if (MR.isTypeSupported("audio/webm")) return "audio/webm";
     if (MR.isTypeSupported("audio/mp4")) return "audio/mp4";
     return "";
+  }
+
+  function getClientTimeZone(): string {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Athens";
+    } catch {
+      return "Europe/Athens";
+    }
   }
 
   // 🔍 Load available audio inputs after permission is granted
@@ -152,10 +181,7 @@ export default function VoiceCaptureButton({
     if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
 
     try {
-      // Ask for basic audio permission first, then list devices
-      const tmpStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
+      const tmpStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const devices = await navigator.mediaDevices.enumerateDevices();
       const audioIns = devices.filter((d) => d.kind === "audioinput");
@@ -163,21 +189,65 @@ export default function VoiceCaptureButton({
       setAudioInputs(audioIns);
       setDevicesLoaded(true);
 
-      // Stop temp stream
-      tmpStream.getTracks().forEach((t) => t.stop());
+      tmpStream.getTracks().forEach((trk) => trk.stop());
 
-      // Choose a decent default if we don't have one yet
       if (selectedDeviceId === "auto" && audioIns.length > 0) {
         const preferred =
-          audioIns.find((d) => /built-in|microphone|mic|phone/i.test(d.label)) ||
-          audioIns[0];
-
+          audioIns.find((d) => /built-in|microphone|mic|phone/i.test(d.label)) || audioIns[0];
         setSelectedDeviceId(preferred.deviceId);
       }
     } catch (err) {
       console.error("[VoiceCapture] loadAudioInputs error:", err);
     }
   }
+
+  // Preload device list once (nice UX)
+  useEffect(() => {
+    // don’t spam permissions; only attempt if supported
+    if (getSupportError() !== null) return;
+    // run after mount
+    loadAudioInputs().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function stopRecordingSafe() {
+    clearStopTimer();
+
+    if (!mediaRecorderRef.current) return;
+
+    try {
+      // stop only if still recording
+      if ((mediaRecorderRef.current as any).state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      mediaRecorderRef.current.stream.getTracks().forEach((trk) => trk.stop());
+    } catch (err) {
+      console.warn("[VoiceCapture] stopRecordingSafe error", err);
+    } finally {
+      softHaptic(8);
+      setRecording(false);
+    }
+  }
+
+  // Stop if tab goes hidden (prevents accidental recording in background)
+  useEffect(() => {
+    function onVis() {
+      if (document.visibilityState === "hidden" && recording) stopRecordingSafe();
+    }
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording]);
+
+  // ESC to stop (desktop)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && recording) stopRecordingSafe();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording]);
 
   async function startRecording() {
     setError(null);
@@ -196,7 +266,6 @@ export default function VoiceCaptureButton({
       return;
     }
 
-    // Make sure we have device list before we pick input
     if (!devicesLoaded) {
       await loadAudioInputs();
     }
@@ -213,17 +282,12 @@ export default function VoiceCaptureButton({
         (audioConstraints as any).deviceId = selectedDeviceId;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
 
       const mimeType = chooseMimeType();
       mimeTypeRef.current = mimeType;
 
-      const MR = (window as any).MediaRecorder as
-        | typeof MediaRecorder
-        | undefined;
-
+      const MR = (window as any).MediaRecorder as typeof MediaRecorder | undefined;
       if (!MR) {
         setError(
           t(
@@ -234,26 +298,29 @@ export default function VoiceCaptureButton({
         return;
       }
 
-      const recorder =
-        mimeType && MR ? new MR(stream, { mimeType }) : new MR(stream);
+      const recorder = mimeType && MR ? new MR(stream, { mimeType }) : new MR(stream);
 
       chunksRef.current = [];
 
       recorder.ondataavailable = (event: BlobEvent) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
+        if (event.data.size > 0) chunksRef.current.push(event.data);
       };
 
       recorder.onstop = async () => {
+        clearStopTimer();
+
         const type = mimeTypeRef.current || "audio/webm";
         const blob = new Blob(chunksRef.current, { type });
 
-        // Preview what the browser actually recorded
-        if (audioPreviewUrl) {
-          URL.revokeObjectURL(audioPreviewUrl);
+        // Preview (optional)
+        if (audioPreviewUrlRef.current) {
+          try {
+            URL.revokeObjectURL(audioPreviewUrlRef.current);
+          } catch {}
         }
-        setAudioPreviewUrl(URL.createObjectURL(blob));
+        const previewUrl = URL.createObjectURL(blob);
+        audioPreviewUrlRef.current = previewUrl;
+        setAudioPreviewUrl(previewUrl);
 
         if (blob.size < 2000) {
           setError(
@@ -272,26 +339,18 @@ export default function VoiceCaptureButton({
         try {
           const formData = new FormData();
           const ext = type.includes("mp4") ? "mp4" : "webm";
+
           formData.append("file", blob, `voice-note.${ext}`);
           formData.append("userId", userId);
           formData.append("mode", mode);
+          formData.append("tz", getClientTimeZone());
 
-          const res = await fetch("/api/voice/capture", {
-            method: "POST",
-            body: formData,
-          });
-
+          const res = await fetch("/api/voice/capture", { method: "POST", body: formData });
           const json = await res.json();
 
           if (!res.ok || !json.ok) {
             console.error("[VoiceCapture] server error:", json);
-            setError(
-              json.error ||
-                t(
-                  "notes.voice.errors.server",
-                  "Server error while processing audio."
-                )
-            );
+            setError(json.error || t("notes.voice.errors.server", "Server error while processing audio."));
           } else {
             const rt = json.rawText || null;
             const st = (json.structured || null) as StructuredResult | null;
@@ -299,19 +358,13 @@ export default function VoiceCaptureButton({
             setRawText(rt);
             setStructured(st);
 
-            if (json.noteId) {
-              setSavedNoteId(json.noteId as string);
-            }
+            if (json.noteId) setSavedNoteId(json.noteId as string);
 
-            if (onResult) {
-              onResult({ rawText: rt, structured: st });
-            }
+            onResultRef.current?.({ rawText: rt, structured: st });
           }
         } catch (err) {
           console.error("[VoiceCapture] fetch error:", err);
-          setError(
-            t("notes.voice.errors.sendFailed", "Failed to send audio to server.")
-          );
+          setError(t("notes.voice.errors.sendFailed", "Failed to send audio to server."));
         } finally {
           setLoading(false);
         }
@@ -319,6 +372,14 @@ export default function VoiceCaptureButton({
 
       recorder.start();
       mediaRecorderRef.current = recorder;
+
+      // Start safety timer
+      clearStopTimer();
+      stopTimerRef.current = window.setTimeout(() => {
+        if (recording) stopRecordingSafe();
+      }, MAX_RECORDING_MS);
+
+      softHaptic(12);
       setRecording(true);
     } catch (err: any) {
       console.error("[VoiceCapture] getUserMedia error:", err);
@@ -333,13 +394,9 @@ export default function VoiceCaptureButton({
           )
         );
       } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-        setError(
-          t("notes.voice.errors.noMicFound", "No microphone was found on this device.")
-        );
+        setError(t("notes.voice.errors.noMicFound", "No microphone was found on this device."));
       } else if (name === "NotReadableError") {
-        setError(
-          t("notes.voice.errors.micInUse", "Your microphone is already in use by another app.")
-        );
+        setError(t("notes.voice.errors.micInUse", "Your microphone is already in use by another app."));
       } else {
         setError(
           t(
@@ -351,55 +408,39 @@ export default function VoiceCaptureButton({
     }
   }
 
-  function stopRecording() {
-    if (!mediaRecorderRef.current) return;
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
-    setRecording(false);
-  }
-
   const showMicSelector = audioInputs.length > 1;
+
+  const modeLabel =
+    mode === "autosave"
+      ? t("notes.voice.mode.autosave", "Auto-save note")
+      : mode === "psych"
+      ? t("notes.voice.mode.psych", "Reflection companion")
+      : t("notes.voice.mode.review", "Review first");
 
   return (
     <div className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold">
-            {t("notes.voice.button.label", "Voice capture")}
-          </h3>
+          <h3 className="text-sm font-semibold">{t("notes.voice.button.label", "Voice capture")}</h3>
 
           <p className="text-xs text-slate-400">
-            {t(
-              "notes.voice.button.helpText",
-              "Tap, speak your messy thoughts, and let AIProd clean it up."
-            )}
+            {t("notes.voice.button.helpText", "Hold, speak your messy thoughts, and let AIProd clean it up.")}
           </p>
 
           <p className="text-[10px] text-slate-500 mt-1">
-            {t("notes.voice.modeLabel", "Mode:")}{" "}
-            {mode === "autosave"
-              ? t("notes.voice.mode.autosave", "Auto-save note")
-              : t("notes.voice.mode.review", "Review first")}
+            {t("notes.voice.modeLabel", "Mode:")} {modeLabel}
           </p>
 
           {showMicSelector && (
             <div className="mt-2 flex items-center gap-2">
-              <span className="text-[10px] text-slate-400">
-                {t("notes.voice.mic.label", "Mic:")}
-              </span>
+              <span className="text-[10px] text-slate-400">{t("notes.voice.mic.label", "Mic:")}</span>
 
               <select
                 className="text-[10px] bg-slate-950 border border-slate-700 rounded-lg px-2 py-1"
                 value={selectedDeviceId === "auto" ? "" : selectedDeviceId}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setSelectedDeviceId(value || "auto");
-                }}
+                onChange={(e) => setSelectedDeviceId(e.target.value || "auto")}
               >
-                <option value="">
-                  {t("notes.voice.mic.auto", "Auto (browser default)")}
-                </option>
-
+                <option value="">{t("notes.voice.mic.auto", "Auto (browser default)")}</option>
                 {audioInputs.map((d) => (
                   <option key={d.deviceId} value={d.deviceId}>
                     {d.label || d.deviceId}
@@ -412,59 +453,58 @@ export default function VoiceCaptureButton({
 
         <button
           type="button"
-          onClick={recording ? stopRecording : startRecording}
           disabled={loading}
-          className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 ${
-            recording
-              ? "bg-red-500/90 hover:bg-red-500"
-              : "bg-indigo-500/90 hover:bg-indigo-500"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            if (recording || loading) return;
+
+            (e.currentTarget as any).setPointerCapture?.(e.pointerId);
+            startRecording();
+          }}
+          onPointerUp={(e) => {
+            e.preventDefault();
+            if (!recording) return;
+            stopRecordingSafe();
+          }}
+          onPointerLeave={() => {
+            if (!recording) return;
+            stopRecordingSafe();
+          }}
+          onPointerCancel={() => {
+            if (!recording) return;
+            stopRecordingSafe();
+          }}
+          className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 select-none touch-none ${
+            recording ? "bg-red-500/90" : "bg-indigo-500/90 hover:bg-indigo-500"
           } disabled:opacity-60`}
         >
           <span>
             {recording
-              ? t("notes.voice.button.stopRecording", "Stop recording")
-              : t("notes.voice.button.startRecording", "Start recording")}
+              ? t("notes.voice.button.holdRecording", "Recording… release to send")
+              : t("notes.voice.button.holdToTalk", "Hold to talk")}
           </span>
         </button>
       </div>
 
       {recording && (
         <p className="mt-1 text-[10px] text-red-300">
-          {t(
-            "notes.voice.status.recordingHint",
-            'Recording… tap “Stop recording” when you’re done.'
-          )}
+          {t("notes.voice.status.recordingHint", "Recording… release the button to send. (Esc to cancel)")}
         </p>
       )}
 
       {savedNoteId && (
         <p className="text-[10px] text-emerald-400">
-          {t(
-            "notes.voice.status.saved",
-            "Voice note saved as a note in your workspace."
-          )}
+          {t("notes.voice.status.saved", "Voice note saved as a note in your workspace.")}
         </p>
       )}
 
-      {loading && (
-        <p className="text-xs text-slate-400">
-          {t(
-            "notes.voice.status.processing",
-            "Processing your audio with AI…"
-          )}
-        </p>
-      )}
+      {loading && <p className="text-xs text-slate-400">{t("notes.voice.status.processing", "Processing your audio with AI…")}</p>}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {audioPreviewUrl && (
         <div className="mt-2">
-          <p className="text-[10px] text-slate-400">
-            {t(
-              "notes.voice.preview.label",
-              "Preview your last recording (tap ▶):"
-            )}
-          </p>
+          <p className="text-[10px] text-slate-400">{t("notes.voice.preview.label", "Preview your last recording (tap ▶):")}</p>
           <audio controls src={audioPreviewUrl} className="mt-1 w-full" />
         </div>
       )}
@@ -472,9 +512,7 @@ export default function VoiceCaptureButton({
       {rawText && (
         <div className="mt-2 space-y-2 text-xs">
           <div>
-            <p className="text-slate-400 font-semibold">
-              {t("notes.voice.output.rawTranscript", "Raw transcript:")}
-            </p>
+            <p className="text-slate-400 font-semibold">{t("notes.voice.output.rawTranscript", "Raw transcript:")}</p>
             <p className="text-slate-200 mt-1 whitespace-pre-wrap">{rawText}</p>
           </div>
 
@@ -482,20 +520,14 @@ export default function VoiceCaptureButton({
             <>
               {structured.note && (
                 <div>
-                  <p className="text-slate-400 font-semibold">
-                    {t("notes.voice.output.cleanNote", "Clean note:")}
-                  </p>
-                  <p className="text-slate-200 mt-1 whitespace-pre-wrap">
-                    {structured.note}
-                  </p>
+                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.cleanNote", "Clean note:")}</p>
+                  <p className="text-slate-200 mt-1 whitespace-pre-wrap">{structured.note}</p>
                 </div>
               )}
 
               {structured.actions && structured.actions.length > 0 && (
                 <div>
-                  <p className="text-slate-400 font-semibold">
-                    {t("notes.voice.output.actions", "Actions:")}
-                  </p>
+                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.actions", "Actions:")}</p>
                   <ul className="list-disc pl-4 mt-1 space-y-0.5">
                     {structured.actions.map((a, i) => (
                       <li key={i}>{a}</li>
@@ -506,27 +538,15 @@ export default function VoiceCaptureButton({
 
               {structured.tasks && structured.tasks.length > 0 && (
                 <div>
-                  <p className="text-slate-400 font-semibold">
-                    {t("notes.voice.output.suggestedTasks", "Suggested tasks:")}
-                  </p>
-
+                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.suggestedTasks", "Suggested tasks:")}</p>
                   <ul className="list-disc pl-4 mt-1 space-y-0.5">
                     {structured.tasks.map((task, i) => {
-                      const dueLabel =
-                        task.due_natural ||
-                        (task.due_iso ? formatDateTime(task.due_iso) : null);
-
+                      const dueLabel = task.due_natural || (task.due_iso ? formatDateTime(task.due_iso) : null);
                       return (
                         <li key={i}>
                           {task.title}
-                          {dueLabel
-                            ? ` (${t("notes.voice.output.duePrefix", "due")}: ${dueLabel})`
-                            : ""}
-                          {task.priority && (
-                            <span className="ml-1 uppercase text-[9px] text-slate-400">
-                              [{task.priority}]
-                            </span>
-                          )}
+                          {dueLabel ? ` (${t("notes.voice.output.duePrefix", "due")}: ${dueLabel})` : ""}
+                          {task.priority && <span className="ml-1 uppercase text-[9px] text-slate-400">[{task.priority}]</span>}
                         </li>
                       );
                     })}
@@ -534,39 +554,24 @@ export default function VoiceCaptureButton({
                 </div>
               )}
 
-              {structured.reminder &&
-                (structured.reminder.time_natural ||
-                  structured.reminder.time_iso ||
-                  structured.reminder.reason) && (
-                  <div>
-                    <p className="text-slate-400 font-semibold">
-                      {t(
-                        "notes.voice.output.reminderSuggestion",
-                        "Reminder suggestion:"
-                      )}
-                    </p>
+              {structured.reminder && (structured.reminder.time_natural || structured.reminder.time_iso || structured.reminder.reason) && (
+                <div>
+                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.reminderSuggestion", "Reminder suggestion:")}</p>
 
-                    <p className="text-slate-200 mt-1">
-                      {structured.reminder.time_natural
-                        ? `${t("notes.voice.output.timePrefix", "Time")}: ${structured.reminder.time_natural}`
-                        : structured.reminder.time_iso
-                        ? `${t("notes.voice.output.timePrefix", "Time")}: ${formatDateTime(
-                            structured.reminder.time_iso
-                          )}`
-                        : null}
-
-                      {structured.reminder.reason
-                        ? ` — ${t("notes.voice.output.reasonPrefix", "Reason")}: ${structured.reminder.reason}`
-                        : null}
-                    </p>
-                  </div>
-                )}
+                  <p className="text-slate-200 mt-1">
+                    {structured.reminder.time_natural
+                      ? `${t("notes.voice.output.timePrefix", "Time")}: ${structured.reminder.time_natural}`
+                      : structured.reminder.time_iso
+                      ? `${t("notes.voice.output.timePrefix", "Time")}: ${formatDateTime(structured.reminder.time_iso)}`
+                      : null}
+                    {structured.reminder.reason ? ` — ${t("notes.voice.output.reasonPrefix", "Reason")}: ${structured.reminder.reason}` : null}
+                  </p>
+                </div>
+              )}
 
               {structured.summary && (
                 <div>
-                  <p className="text-slate-400 font-semibold">
-                    {t("notes.voice.output.summary", "Summary:")}
-                  </p>
+                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.summary", "Summary:")}</p>
                   <p className="text-slate-200 mt-1">{structured.summary}</p>
                 </div>
               )}
