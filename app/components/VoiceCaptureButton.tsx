@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/lib/useT";
 import { useLanguage } from "@/app/components/LanguageProvider";
 
@@ -31,12 +31,30 @@ type Props = {
   mode: "review" | "autosave" | "psych";
   resetKey?: number;
   onResult?: (payload: { rawText: string | null; structured: StructuredResult | null }) => void;
+
+  /**
+   * NEW:
+   * - "default": full card UI (your current one)
+   * - "compact": small mic button only (perfect for chat composers)
+   */
+  variant?: "default" | "compact";
+  /**
+   * Optional className for wrapper
+   */
+  className?: string;
 };
 
 // Safety: auto-stop after N seconds (prevents stuck recording)
 const MAX_RECORDING_MS = 90_000;
 
-export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }: Props) {
+export default function VoiceCaptureButton({
+  userId,
+  mode,
+  resetKey,
+  onResult,
+  variant = "default",
+  className,
+}: Props) {
   const { t: rawT } = useT("");
   const t = (key: string, fallback: string) => rawT(key, fallback);
 
@@ -192,8 +210,7 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
       tmpStream.getTracks().forEach((trk) => trk.stop());
 
       if (selectedDeviceId === "auto" && audioIns.length > 0) {
-        const preferred =
-          audioIns.find((d) => /built-in|microphone|mic|phone/i.test(d.label)) || audioIns[0];
+        const preferred = audioIns.find((d) => /built-in|microphone|mic|phone/i.test(d.label)) || audioIns[0];
         setSelectedDeviceId(preferred.deviceId);
       }
     } catch (err) {
@@ -203,9 +220,7 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
 
   // Preload device list once (nice UX)
   useEffect(() => {
-    // don’t spam permissions; only attempt if supported
     if (getSupportError() !== null) return;
-    // run after mount
     loadAudioInputs().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -216,7 +231,6 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
     if (!mediaRecorderRef.current) return;
 
     try {
-      // stop only if still recording
       if ((mediaRecorderRef.current as any).state === "recording") {
         mediaRecorderRef.current.stop();
       }
@@ -229,7 +243,7 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
     }
   }
 
-  // Stop if tab goes hidden (prevents accidental recording in background)
+  // Stop if tab goes hidden
   useEffect(() => {
     function onVis() {
       if (document.visibilityState === "hidden" && recording) stopRecordingSafe();
@@ -258,11 +272,7 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
     const supportError = getSupportError();
     if (supportError) {
       setError(supportError);
-      console.warn(
-        "[VoiceCapture] Support error:",
-        supportError,
-        typeof navigator !== "undefined" ? navigator.userAgent : ""
-      );
+      console.warn("[VoiceCapture] Support error:", supportError, typeof navigator !== "undefined" ? navigator.userAgent : "");
       return;
     }
 
@@ -312,7 +322,6 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
         const type = mimeTypeRef.current || "audio/webm";
         const blob = new Blob(chunksRef.current, { type });
 
-        // Preview (optional)
         if (audioPreviewUrlRef.current) {
           try {
             URL.revokeObjectURL(audioPreviewUrlRef.current);
@@ -399,10 +408,7 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
         setError(t("notes.voice.errors.micInUse", "Your microphone is already in use by another app."));
       } else {
         setError(
-          t(
-            "notes.voice.errors.couldNotAccess",
-            `Could not access microphone (${name}). Check permissions and try again.`
-          )
+          t("notes.voice.errors.couldNotAccess", `Could not access microphone (${name}). Check permissions and try again.`)
         );
       }
     }
@@ -417,10 +423,69 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
       ? t("notes.voice.mode.psych", "Reflection companion")
       : t("notes.voice.mode.review", "Review first");
 
+  // =========================
+  // COMPACT VARIANT (chat UI)
+  // =========================
+  if (variant === "compact") {
+    const label = recording
+      ? t("notes.voice.button.holdRecording", "Recording… release to send")
+      : t("notes.voice.button.holdToTalk", "Hold to talk");
+
+    const a11yLabel = loading
+      ? t("notes.voice.status.processing", "Processing your audio with AI…")
+      : label;
+
+    return (
+      <div className={className}>
+        <button
+          type="button"
+          disabled={loading}
+          aria-label={a11yLabel}
+          title={label}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            if (recording || loading) return;
+            (e.currentTarget as any).setPointerCapture?.(e.pointerId);
+            startRecording();
+          }}
+          onPointerUp={(e) => {
+            e.preventDefault();
+            if (!recording) return;
+            stopRecordingSafe();
+          }}
+          onPointerLeave={() => {
+            if (!recording) return;
+            stopRecordingSafe();
+          }}
+          onPointerCancel={() => {
+            if (!recording) return;
+            stopRecordingSafe();
+          }}
+          className={`h-11 w-11 rounded-xl flex items-center justify-center select-none touch-none border border-[var(--border-subtle)] ${
+            recording ? "bg-red-500/90" : "bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
+          } disabled:opacity-60`}
+        >
+          <span className="text-[18px] leading-none">{recording ? "⏺" : "🎙️"}</span>
+        </button>
+
+        {/* minimal, non-intrusive status under button (won't cover textarea) */}
+        {error ? <p className="mt-1 text-[10px] text-red-400 max-w-[140px]">{error}</p> : null}
+        {loading ? (
+          <p className="mt-1 text-[10px] text-[var(--text-muted)] max-w-[140px]">
+            {t("notes.voice.status.processing", "Processing…")}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  // =========================
+  // DEFAULT VARIANT (full card)
+  // =========================
   return (
-    <div className="border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3">
+    <div className={`border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3 ${className || ""}`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold">{t("notes.voice.button.label", "Voice capture")}</h3>
 
           <p className="text-xs text-slate-400">
@@ -432,11 +497,11 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
           </p>
 
           {showMicSelector && (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2 min-w-0">
               <span className="text-[10px] text-slate-400">{t("notes.voice.mic.label", "Mic:")}</span>
 
               <select
-                className="text-[10px] bg-slate-950 border border-slate-700 rounded-lg px-2 py-1"
+                className="text-[10px] bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 min-w-0 max-w-full"
                 value={selectedDeviceId === "auto" ? "" : selectedDeviceId}
                 onChange={(e) => setSelectedDeviceId(e.target.value || "auto")}
               >
@@ -457,7 +522,6 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
           onPointerDown={(e) => {
             e.preventDefault();
             if (recording || loading) return;
-
             (e.currentTarget as any).setPointerCapture?.(e.pointerId);
             startRecording();
           }}
@@ -474,7 +538,7 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
             if (!recording) return;
             stopRecordingSafe();
           }}
-          className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 select-none touch-none ${
+          className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 select-none touch-none shrink-0 ${
             recording ? "bg-red-500/90" : "bg-indigo-500/90 hover:bg-indigo-500"
           } disabled:opacity-60`}
         >
@@ -546,7 +610,9 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
                         <li key={i}>
                           {task.title}
                           {dueLabel ? ` (${t("notes.voice.output.duePrefix", "due")}: ${dueLabel})` : ""}
-                          {task.priority && <span className="ml-1 uppercase text-[9px] text-slate-400">[{task.priority}]</span>}
+                          {task.priority && (
+                            <span className="ml-1 uppercase text-[9px] text-slate-400">[{task.priority}]</span>
+                          )}
                         </li>
                       );
                     })}
@@ -554,20 +620,25 @@ export default function VoiceCaptureButton({ userId, mode, resetKey, onResult }:
                 </div>
               )}
 
-              {structured.reminder && (structured.reminder.time_natural || structured.reminder.time_iso || structured.reminder.reason) && (
-                <div>
-                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.reminderSuggestion", "Reminder suggestion:")}</p>
+              {structured.reminder &&
+                (structured.reminder.time_natural || structured.reminder.time_iso || structured.reminder.reason) && (
+                  <div>
+                    <p className="text-slate-400 font-semibold">
+                      {t("notes.voice.output.reminderSuggestion", "Reminder suggestion:")}
+                    </p>
 
-                  <p className="text-slate-200 mt-1">
-                    {structured.reminder.time_natural
-                      ? `${t("notes.voice.output.timePrefix", "Time")}: ${structured.reminder.time_natural}`
-                      : structured.reminder.time_iso
-                      ? `${t("notes.voice.output.timePrefix", "Time")}: ${formatDateTime(structured.reminder.time_iso)}`
-                      : null}
-                    {structured.reminder.reason ? ` — ${t("notes.voice.output.reasonPrefix", "Reason")}: ${structured.reminder.reason}` : null}
-                  </p>
-                </div>
-              )}
+                    <p className="text-slate-200 mt-1">
+                      {structured.reminder.time_natural
+                        ? `${t("notes.voice.output.timePrefix", "Time")}: ${structured.reminder.time_natural}`
+                        : structured.reminder.time_iso
+                        ? `${t("notes.voice.output.timePrefix", "Time")}: ${formatDateTime(structured.reminder.time_iso)}`
+                        : null}
+                      {structured.reminder.reason
+                        ? ` — ${t("notes.voice.output.reasonPrefix", "Reason")}: ${structured.reminder.reason}`
+                        : null}
+                    </p>
+                  </div>
+                )}
 
               {structured.summary && (
                 <div>
