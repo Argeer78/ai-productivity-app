@@ -13,6 +13,7 @@ type ThreadRow = {
   category: string | null;
   created_at?: string;
   updated_at?: string;
+  summary?: string | null;
 };
 
 type MsgRow = {
@@ -119,7 +120,7 @@ export default function AiCompanionPage() {
       try {
         const { data, error } = await supabase
           .from("ai_companion_threads")
-          .select("id, title, category, created_at, updated_at")
+          .select("id, title, category, created_at, updated_at, summary")
           .eq("user_id", user.id)
           .order("updated_at", { ascending: false })
           .limit(50);
@@ -136,7 +137,6 @@ export default function AiCompanionPage() {
 
         if (!activeThreadId && rows.length > 0) {
           setActiveThreadId(rows[0].id);
-          // set category to match thread when opening
           if (rows[0].category && (CATEGORIES as readonly string[]).includes(rows[0].category)) {
             setCategory(rows[0].category as Category);
           }
@@ -203,7 +203,6 @@ export default function AiCompanionPage() {
     setInput("");
     setToast("");
     setError("");
-    // keep category last used (nice UX)
   }
 
   async function ensureThreadIfNeeded(firstUserText: string) {
@@ -220,7 +219,7 @@ export default function AiCompanionPage() {
         category: category || null,
         updated_at: new Date().toISOString(),
       })
-      .select("id, title, category, created_at, updated_at")
+      .select("id, title, category, created_at, updated_at, summary")
       .single();
 
     if (error || !data) throw error || new Error("Failed to create conversation");
@@ -233,148 +232,110 @@ export default function AiCompanionPage() {
   }
 
   async function handleSend(e?: FormEvent, textOverride?: string) {
-  if (e) e.preventDefault();
-  if (!user) return;
+    if (e) e.preventDefault();
+    if (!user) return;
 
-  const text = safeTrim(textOverride ?? input);
-  if (!text) return;
+    const text = safeTrim(textOverride ?? input);
+    if (!text) return;
 
-  setSending(true);
-  setError("");
-  setToast("");
-  setInput("");
+    setSending(true);
+    setError("");
+    setToast("");
+    setInput("");
 
-  const nowIso = new Date().toISOString();
+    const nowIso = new Date().toISOString();
 
-  // optimistic UI — user message
-  const localUser: MsgRow = {
-    id: `local-u-${nowIso}`,
-    role: "user",
-    content: text,
-    created_at: nowIso,
-  };
-  setMessages((prev) => [...prev, localUser]);
-
-  try {
-    const threadId = await ensureThreadIfNeeded(text);
-
-    const historyForModel = messages
-      .slice(-14)
-      .map((m) => ({ role: m.role, content: m.content }));
-
-    const res = await fetch("/api/ai-companion-chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: text,
-        category,
-        history: historyForModel,
-        threadId,
-      }),
-    });
-
-    const data = await res.json().catch(() => ({} as any));
-    if (!res.ok || !data?.ok) {
-      throw new Error(data?.error || "AI error");
-    }
-
-    // 🔑 NEW STRUCTURED RESPONSE
-    const assistantText =
-      safeTrim(data.message) || "I’m here with you. Want to try again?";
-
-    const chatSummary =
-      typeof data.chat_summary === "string" && data.chat_summary.trim()
-        ? data.chat_summary.trim()
-        : null;
-
-    // optional (future use)
-    const reflection = data.reflection ?? null;
-    const journalSuggestion = data.journal_suggestion ?? null;
-    const tasks = Array.isArray(data.tasks) ? data.tasks : null;
-
-    // assistant message (UI)
-    const localAssistant: MsgRow = {
-      id: `local-a-${Date.now()}`,
-      role: "assistant",
-      content: assistantText,
-      created_at: new Date().toISOString(),
+    // optimistic UI — user message
+    const localUser: MsgRow = {
+      id: `local-u-${nowIso}`,
+      role: "user",
+      content: text,
+      created_at: nowIso,
     };
+    setMessages((prev) => [...prev, localUser]);
 
-    setMessages((prev) => [...prev, localAssistant]);
+    try {
+      const threadId = await ensureThreadIfNeeded(text);
 
-    // persist messages
-    const { error: msgErr } = await supabase
-      .from("ai_companion_messages")
-      .insert([
-        {
-          thread_id: threadId,
-          user_id: user.id,
-          role: "user",
-          content: text,
-        },
-        {
-          thread_id: threadId,
-          user_id: user.id,
-          role: "assistant",
-          content: assistantText,
-        },
-      ]);
+      const historyForModel = messages.slice(-14).map((m) => ({ role: m.role, content: m.content }));
 
-    if (msgErr) {
-      console.error("[ai-companion] insert messages error", msgErr);
-    }
+      const res = await fetch("/api/ai-companion-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          category,
+          history: historyForModel,
+          threadId,
+        }),
+      });
 
-    // 🧠 UPDATE THREAD METADATA (SUMMARY + TIMESTAMP)
-    const { error: updErr } = await supabase
-      .from("ai_companion_threads")
-      .update({
-        updated_at: new Date().toISOString(),
-        category,
-        summary: chatSummary ?? undefined,
-      })
-      .eq("id", threadId)
-      .eq("user_id", user.id);
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "AI error");
 
-    if (updErr) {
-      console.error("[ai-companion] update thread error", updErr);
-    }
+      const assistantText = safeTrim(data.message) || "I’m here with you. Want to try again?";
 
-    // reorder sidebar threads (move active to top)
-    setThreads((prev) => {
-      const existing = prev.find((t) => t.id === threadId);
-      if (!existing) return prev;
+      const chatSummary =
+        typeof data.chat_summary === "string" && data.chat_summary.trim() ? data.chat_summary.trim() : null;
 
-      const updated: ThreadRow = {
-        ...existing,
-        updated_at: new Date().toISOString(),
-        category,
-        ...(chatSummary ? { summary: chatSummary } : {}),
+      const localAssistant: MsgRow = {
+        id: `local-a-${Date.now()}`,
+        role: "assistant",
+        content: assistantText,
+        created_at: new Date().toISOString(),
       };
 
-      return [updated, ...prev.filter((t) => t.id !== threadId)];
-    });
+      setMessages((prev) => [...prev, localAssistant]);
 
-    // 🔮 (OPTIONAL FUTURE HOOKS)
-    // reflection → show in UI
-    // journalSuggestion → “Save as journal”
-    // tasks → “Create gentle tasks”
+      // persist messages
+      const { error: msgErr } = await supabase.from("ai_companion_messages").insert([
+        { thread_id: threadId, user_id: user.id, role: "user", content: text },
+        { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantText },
+      ]);
+      if (msgErr) console.error("[ai-companion] insert messages error", msgErr);
 
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || "Something went wrong.");
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `local-err-${Date.now()}`,
-        role: "assistant",
-        content:
-          "I’m sorry — something went wrong on my side. Can you try again in a moment?",
-      },
-    ]);
-  } finally {
-    setSending(false);
+      // update thread metadata
+      const { error: updErr } = await supabase
+        .from("ai_companion_threads")
+        .update({
+          updated_at: new Date().toISOString(),
+          category,
+          summary: chatSummary ?? undefined,
+        })
+        .eq("id", threadId)
+        .eq("user_id", user.id);
+
+      if (updErr) console.error("[ai-companion] update thread error", updErr);
+
+      // reorder sidebar threads
+      setThreads((prev) => {
+        const existing = prev.find((t) => t.id === threadId);
+        if (!existing) return prev;
+
+        const updated: ThreadRow = {
+          ...existing,
+          updated_at: new Date().toISOString(),
+          category,
+          ...(chatSummary ? { summary: chatSummary } : {}),
+        };
+
+        return [updated, ...prev.filter((t) => t.id !== threadId)];
+      });
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Something went wrong.");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `local-err-${Date.now()}`,
+          role: "assistant",
+          content: "I’m sorry — something went wrong on my side. Can you try again in a moment?",
+        },
+      ]);
+    } finally {
+      setSending(false);
+    }
   }
-}
 
   function handleVoiceResult(payload: { rawText: string | null }) {
     const txt = safeTrim(payload.rawText);
@@ -396,7 +357,7 @@ export default function AiCompanionPage() {
         .update({ title: newTitle.trim(), updated_at: new Date().toISOString() })
         .eq("id", thread.id)
         .eq("user_id", user.id)
-        .select("id, title, category, created_at, updated_at")
+        .select("id, title, category, created_at, updated_at, summary")
         .single();
 
       if (error || !data) throw error || new Error("Rename failed");
@@ -418,13 +379,11 @@ export default function AiCompanionPage() {
     setThreadActionId(threadId);
     setError("");
     try {
-      // delete messages first
       const { error: msgErr } = await supabase
         .from("ai_companion_messages")
         .delete()
         .eq("thread_id", threadId)
         .eq("user_id", user.id);
-
       if (msgErr) console.error("[ai-companion] delete messages error", msgErr);
 
       const { error: thErr } = await supabase
@@ -455,7 +414,6 @@ export default function AiCompanionPage() {
     const active = threads.find((t) => t.id === activeThreadId);
     const title = (active?.title || "Journal entry").slice(0, 80);
 
-    // Build journal content: readable, not too “chat-log-ish”
     const lines: string[] = [];
     lines.push(`Category: ${active?.category || category}`);
     lines.push(`Date: ${new Date().toLocaleString()}`);
@@ -546,9 +504,13 @@ export default function AiCompanionPage() {
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="ai-companion" />
 
-      <div className="flex-1 flex overflow-hidden">
+      {/* ✅ IMPORTANT MOBILE FIX:
+          - min-w-0 prevents flex children from forcing overflow
+          - section uses w-full to avoid off-screen width
+      */}
+      <div className="flex-1 flex overflow-hidden min-w-0">
         {/* Sidebar (desktop) */}
-        <aside className="hidden md:flex flex-col w-72 border-r border-[var(--border-subtle)] bg-[var(--bg-elevated)]/70">
+        <aside className="hidden md:flex flex-col w-72 shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-elevated)]/70 min-w-0">
           <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
             <div>
               <p className="text-xs font-semibold">Conversations</p>
@@ -594,7 +556,7 @@ export default function AiCompanionPage() {
                 return (
                   <div
                     key={t.id}
-                    className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer ${
+                    className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer min-w-0 ${
                       isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
                     }`}
                     onClick={() => openThread(t)}
@@ -602,9 +564,12 @@ export default function AiCompanionPage() {
                     <div className="flex-1 min-w-0">
                       <p className="truncate font-medium text-[12px]">{t.title || "New reflection"}</p>
                       <p className="text-[10px] text-[var(--text-muted)] truncate">{t.category || "General"}</p>
+                      {t.summary ? (
+                        <p className="text-[10px] text-[var(--text-muted)] truncate opacity-80">{t.summary}</p>
+                      ) : null}
                     </div>
 
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => handleRenameThread(t)}
@@ -632,9 +597,10 @@ export default function AiCompanionPage() {
         </aside>
 
         {/* Main chat */}
-        <section className="flex-1 flex flex-col relative">
-          <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-start justify-between gap-3">
-            <div>
+        <section className="flex-1 flex flex-col relative min-w-0 w-full">
+          {/* ✅ make header wrap nicely on mobile */}
+          <div className="px-3 sm:px-4 py-3 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
+            <div className="min-w-0">
               <h1 className="text-base md:text-lg font-semibold">AI Companion</h1>
               <p className="text-[11px] text-[var(--text-muted)]">
                 A gentle space to reflect, feel grounded, and write it out.
@@ -644,8 +610,11 @@ export default function AiCompanionPage() {
               </p>
 
               {activeThread?.title && (
-                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                  Conversation: <span className="text-[var(--text-main)] font-semibold">{activeThread.title}</span>
+                <p className="mt-2 text-[11px] text-[var(--text-muted)] min-w-0">
+                  <span className="truncate inline-block max-w-full align-bottom">
+                    Conversation:{" "}
+                    <span className="text-[var(--text-main)] font-semibold">{activeThread.title}</span>
+                  </span>
                   {activeThread.category ? (
                     <span className="ml-2 inline-flex items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px]">
                       {activeThread.category}
@@ -655,7 +624,8 @@ export default function AiCompanionPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* ✅ mobile-safe action buttons: wrap + no overflow */}
+            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowMobileThreads(true)}
@@ -683,14 +653,15 @@ export default function AiCompanionPage() {
             </div>
           </div>
 
-          {error && <p className="px-4 pt-2 text-[11px] text-red-400">{error}</p>}
-          {toast && <p className="px-4 pt-2 text-[11px] text-emerald-400">{toast}</p>}
+          {error && <p className="px-3 sm:px-4 pt-2 text-[11px] text-red-400">{error}</p>}
+          {toast && <p className="px-3 sm:px-4 pt-2 text-[11px] text-emerald-400">{toast}</p>}
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 text-sm">
+          {/* ✅ prevent sideways overflow in the scroller */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 space-y-3 text-sm min-w-0">
             {/* Welcome + starters */}
             {messages.length === 0 && (
               <div className="space-y-3">
-                <div className="max-w-[760px] rounded-2xl px-3 py-3 bg-[var(--bg-card)] border border-[var(--border-subtle)] whitespace-pre-wrap text-[13px]">
+                <div className="w-full max-w-[760px] rounded-2xl px-3 py-3 bg-[var(--bg-card)] border border-[var(--border-subtle)] whitespace-pre-wrap text-[13px]">
                   {welcomeMessage}
                 </div>
 
@@ -713,9 +684,9 @@ export default function AiCompanionPage() {
               <p className="text-[12px] text-[var(--text-muted)]">Loading conversation…</p>
             ) : (
               messages.map((m) => (
-                <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} min-w-0`}>
                   <div
-                    className={`max-w-[82%] rounded-2xl px-3 py-2 text-[13px] whitespace-pre-wrap ${
+                    className={`w-fit max-w-[92%] sm:max-w-[82%] rounded-2xl px-3 py-2 text-[13px] whitespace-pre-wrap break-words ${
                       m.role === "user"
                         ? "bg-[var(--accent)] text-[var(--bg-body)] rounded-br-sm"
                         : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
@@ -728,8 +699,8 @@ export default function AiCompanionPage() {
             )}
 
             {sending && (
-              <div className="flex justify-start">
-                <div className="max-w-[70%] rounded-2xl px-3 py-2 text-[13px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
+              <div className="flex justify-start min-w-0">
+                <div className="w-fit max-w-[92%] sm:max-w-[70%] rounded-2xl px-3 py-2 text-[13px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
                   Thinking…
                 </div>
               </div>
@@ -741,14 +712,14 @@ export default function AiCompanionPage() {
           {/* Composer */}
           <form
             onSubmit={(e) => handleSend(e)}
-            className="border-t border-[var(--border-subtle)] px-3 py-2 flex flex-col gap-2"
+            className="border-t border-[var(--border-subtle)] px-3 sm:px-3 py-2 flex flex-col gap-2 min-w-0"
           >
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)] min-w-0">
               <span className="hidden md:inline">Category:</span>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as Category)}
-                className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px]"
+                className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] max-w-full"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
@@ -756,13 +727,11 @@ export default function AiCompanionPage() {
                   </option>
                 ))}
               </select>
-              <span className="text-[10px] text-[var(--text-muted)]">
-                Helps the companion adapt tone & questions.
-              </span>
+              <span className="text-[10px] text-[var(--text-muted)]">Helps the companion adapt tone & questions.</span>
             </div>
 
-            <div className="flex items-end gap-2">
-              {/* Small mic entrypoint */}
+            {/* ✅ mobile row: allow wrapping, avoid hidden right side */}
+            <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 min-w-0">
               <div className="shrink-0">
                 <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} />
               </div>
@@ -771,13 +740,13 @@ export default function AiCompanionPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type here… or use the mic."
-                className="flex-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
+                className="flex-1 min-w-0 w-full sm:w-auto rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
               />
 
               <button
                 type="submit"
                 disabled={sending || !input.trim()}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
               >
                 Send
               </button>
@@ -788,7 +757,7 @@ export default function AiCompanionPage() {
           {showMobileThreads && (
             <div className="fixed inset-0 z-50 md:hidden">
               <div className="absolute inset-0 bg-black/60" onClick={() => setShowMobileThreads(false)} />
-              <div className="absolute inset-y-0 left-0 w-[84%] max-w-xs bg-[var(--bg-body)] border-r border-[var(--border-subtle)] flex flex-col">
+              <div className="absolute inset-y-0 left-0 w-[90%] max-w-xs bg-[var(--bg-body)] border-r border-[var(--border-subtle)] flex flex-col">
                 <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold">Conversation history</p>
                   <button
@@ -836,6 +805,9 @@ export default function AiCompanionPage() {
                           <div className="flex-1 min-w-0">
                             <p className="truncate font-medium text-[12px]">{t.title || "New reflection"}</p>
                             <p className="text-[10px] text-[var(--text-muted)] truncate">{t.category || "General"}</p>
+                            {t.summary ? (
+                              <p className="text-[10px] text-[var(--text-muted)] truncate opacity-80">{t.summary}</p>
+                            ) : null}
                           </div>
 
                           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>

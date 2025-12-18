@@ -1,7 +1,7 @@
 // app/tools/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
@@ -13,6 +13,7 @@ type ToolKind =
   | "notes"
   | "tasks"
   | "ai-task-creator"
+  | "ai-companion"
   | "templates"
   | "travel"
   | "planner"
@@ -52,36 +53,17 @@ const TOOLS: ToolDef[] = [
     descriptionFallback:
       "The dashboard is your home base. It pulls together your daily productivity score, quick links to notes, tasks, travel planner and weekly history so you can see where you stand in a few seconds.",
     bestFor: [
-      {
-        key: "tools.dashboard.bestFor1",
-        fallback: "Starting your day with a quick overview",
-      },
-      {
-        key: "tools.dashboard.bestFor2",
-        fallback: "Checking your Daily Success score and streak",
-      },
+      { key: "tools.dashboard.bestFor1", fallback: "Starting your day with a quick overview" },
+      { key: "tools.dashboard.bestFor2", fallback: "Checking your Daily Success score and streak" },
       {
         key: "tools.dashboard.bestFor3",
-        fallback:
-          "Jumping into Tasks, Notes, AI Hub Chat or Weekly history from one place",
+        fallback: "Jumping into Tasks, Notes, AI Hub Chat or Weekly history from one place",
       },
     ],
     howToUse: [
-      {
-        key: "tools.dashboard.howToUse1",
-        fallback:
-          "Open the dashboard from the top navigation or from the homepage CTA.",
-      },
-      {
-        key: "tools.dashboard.howToUse2",
-        fallback:
-          "Glance at your Daily Success score and trend to see how today compares to previous days.",
-      },
-      {
-        key: "tools.dashboard.howToUse3",
-        fallback:
-          "Use the quick links to hop into Tasks, Notes, AI Hub Chat or Weekly history depending on what you want to work on.",
-      },
+      { key: "tools.dashboard.howToUse1", fallback: "Open the dashboard from the top navigation or from the homepage CTA." },
+      { key: "tools.dashboard.howToUse2", fallback: "Glance at your Daily Success score and trend to see how today compares to previous days." },
+      { key: "tools.dashboard.howToUse3", fallback: "Use the quick links to hop into Tasks, Notes, AI Hub Chat or Weekly history depending on what you want to work on." },
     ],
     ctaKey: "tools.dashboard.cta",
     ctaFallback: "Open dashboard",
@@ -98,40 +80,15 @@ const TOOLS: ToolDef[] = [
     descriptionFallback:
       "AI Hub Chat is the place to think out loud with AI. Brainstorm ideas, draft emails, ask questions, or get help with planning—all without leaving your productivity hub.",
     bestFor: [
-      {
-        key: "tools.chat.bestFor1",
-        fallback: "Drafting emails, messages, and content quickly",
-      },
-      {
-        key: "tools.chat.bestFor2",
-        fallback: "Brainstorming ideas or breaking down problems with AI",
-      },
-      {
-        key: "tools.chat.bestFor3",
-        fallback:
-          "Asking follow-up questions about plans, tasks or notes you’re working on",
-      },
+      { key: "tools.chat.bestFor1", fallback: "Drafting emails, messages, and content quickly" },
+      { key: "tools.chat.bestFor2", fallback: "Brainstorming ideas or breaking down problems with AI" },
+      { key: "tools.chat.bestFor3", fallback: "Asking follow-up questions about plans, tasks or notes you’re working on" },
     ],
     howToUse: [
-      {
-        key: "tools.chat.howToUse1",
-        fallback: "Open AI Hub Chat from the navigation bar.",
-      },
-      {
-        key: "tools.chat.howToUse2",
-        fallback:
-          "Start typing what you need: a draft, an idea, an outline, or a question.",
-      },
-      {
-        key: "tools.chat.howToUse3",
-        fallback:
-          "Iterate with the AI until you’re happy. You can copy results into Notes, Tasks or Templates.",
-      },
-      {
-        key: "tools.chat.howToUse4",
-        fallback:
-          "Save useful prompts as Templates so you can reuse them later with one click.",
-      },
+      { key: "tools.chat.howToUse1", fallback: "Open AI Hub Chat from the navigation bar." },
+      { key: "tools.chat.howToUse2", fallback: "Start typing what you need: a draft, an idea, an outline, or a question." },
+      { key: "tools.chat.howToUse3", fallback: "Iterate with the AI until you’re happy. You can copy results into Notes, Tasks or Templates." },
+      { key: "tools.chat.howToUse4", fallback: "Save useful prompts as Templates so you can reuse them later with one click." },
     ],
     proHintKey: "tools.chat.proHint",
     proHintFallback:
@@ -151,39 +108,15 @@ const TOOLS: ToolDef[] = [
     descriptionFallback:
       "The Notes page gives you a clean space to write. AI can summarize, tidy messy text, translate, or pull out tasks so your notes actually turn into action.",
     bestFor: [
-      {
-        key: "tools.notes.bestFor1",
-        fallback: "Daily journaling or end-of-day reflections",
-      },
-      {
-        key: "tools.notes.bestFor2",
-        fallback: "Meeting notes, call notes, or brain dumps",
-      },
-      {
-        key: "tools.notes.bestFor3",
-        fallback: "Creating tasks directly from notes using AI",
-      },
+      { key: "tools.notes.bestFor1", fallback: "Daily journaling or end-of-day reflections" },
+      { key: "tools.notes.bestFor2", fallback: "Meeting notes, call notes, or brain dumps" },
+      { key: "tools.notes.bestFor3", fallback: "Creating tasks directly from notes using AI" },
     ],
     howToUse: [
-      {
-        key: "tools.notes.howToUse1",
-        fallback: "Go to the Notes page from the navigation bar.",
-      },
-      {
-        key: "tools.notes.howToUse2",
-        fallback:
-          "Create a new note for today or for a topic (e.g. 'Client calls', 'Ideas', 'Study notes').",
-      },
-      {
-        key: "tools.notes.howToUse3",
-        fallback:
-          "Write freely. When you’re done, use the built-in AI actions to summarize, clean up, or extract tasks.",
-      },
-      {
-        key: "tools.notes.howToUse4",
-        fallback:
-          "Send any extracted tasks straight into your Tasks page so you don’t lose them.",
-      },
+      { key: "tools.notes.howToUse1", fallback: "Go to the Notes page from the navigation bar." },
+      { key: "tools.notes.howToUse2", fallback: "Create a new note for today or for a topic (e.g. 'Client calls', 'Ideas', 'Study notes')." },
+      { key: "tools.notes.howToUse3", fallback: "Write freely. When you’re done, use the built-in AI actions to summarize, clean up, or extract tasks." },
+      { key: "tools.notes.howToUse4", fallback: "Send any extracted tasks straight into your Tasks page so you don’t lose them." },
     ],
     proHintKey: "tools.notes.proHint",
     proHintFallback:
@@ -203,47 +136,18 @@ const TOOLS: ToolDef[] = [
     descriptionFallback:
       "Tasks is where you turn ideas into clear, scheduled actions. Add due dates, time windows, categories and optional per-task reminders that can trigger email & browser push notifications.",
     bestFor: [
-      {
-        key: "tools.tasks.bestFor1",
-        fallback:
-          "Planning your day or week with a realistic task list",
-      },
-      {
-        key: "tools.tasks.bestFor2",
-        fallback:
-          "Grouping tasks by category (Work, Personal, Health, etc.)",
-      },
-      {
-        key: "tools.tasks.bestFor3",
-        fallback:
-          "Setting gentle reminders so tasks don’t disappear from your brain",
-      },
+      { key: "tools.tasks.bestFor1", fallback: "Planning your day or week with a realistic task list" },
+      { key: "tools.tasks.bestFor2", fallback: "Grouping tasks by category (Work, Personal, Health, etc.)" },
+      { key: "tools.tasks.bestFor3", fallback: "Setting gentle reminders so tasks don’t disappear from your brain" },
     ],
     howToUse: [
-      {
-        key: "tools.tasks.howToUse1",
-        fallback:
-          "Open the Tasks page and add a new task with a short, action-based title (e.g. 'Draft landing copy', '30min walk').",
-      },
-      {
-        key: "tools.tasks.howToUse2",
-        fallback:
-          "Optionally set a due date, a time window (From / To), and a category.",
-      },
-      {
-        key: "tools.tasks.howToUse3",
-        fallback:
-          "If something really matters, add a reminder time. You’ll get an email and — if push is enabled — a browser notification.",
-      },
-      {
-        key: "tools.tasks.howToUse4",
-        fallback:
-          "Use the view filters (Active / History / All) and category filter to stay focused on what matters right now.",
-      },
+      { key: "tools.tasks.howToUse1", fallback: "Open the Tasks page and add a new task with a short, action-based title (e.g. 'Draft landing copy', '30min walk')." },
+      { key: "tools.tasks.howToUse2", fallback: "Optionally set a due date, a time window (From / To), and a category." },
+      { key: "tools.tasks.howToUse3", fallback: "If something really matters, add a reminder time. You’ll get an email and — if push is enabled — a browser notification." },
+      { key: "tools.tasks.howToUse4", fallback: "Use the view filters (Active / History / All) and category filter to stay focused on what matters right now." },
     ],
     proHintKey: "tools.tasks.proHint",
-    proHintFallback:
-      "Combined with the AI Task Creator and weekly reports, Tasks becomes your central hub for execution.",
+    proHintFallback: "Combined with the AI Task Creator and weekly reports, Tasks becomes your central hub for execution.",
     ctaKey: "tools.tasks.cta",
     ctaFallback: "Open Tasks",
   },
@@ -259,42 +163,15 @@ const TOOLS: ToolDef[] = [
     descriptionFallback:
       "The AI Task Creator is for those moments where you know what you want, but not how to break it down. Paste your goal or brain dump, and AI will propose concrete tasks you can send straight into your Tasks list.",
     bestFor: [
-      {
-        key: "tools.aiTaskCreator.bestFor1",
-        fallback: "Breaking big projects into small, shippable steps",
-      },
-      {
-        key: "tools.aiTaskCreator.bestFor2",
-        fallback:
-          "Planning a study plan, side-project, or new habit",
-      },
-      {
-        key: "tools.aiTaskCreator.bestFor3",
-        fallback:
-          "Overcoming procrastination by making the next step tiny and obvious",
-      },
+      { key: "tools.aiTaskCreator.bestFor1", fallback: "Breaking big projects into small, shippable steps" },
+      { key: "tools.aiTaskCreator.bestFor2", fallback: "Planning a study plan, side-project, or new habit" },
+      { key: "tools.aiTaskCreator.bestFor3", fallback: "Overcoming procrastination by making the next step tiny and obvious" },
     ],
     howToUse: [
-      {
-        key: "tools.aiTaskCreator.howToUse1",
-        fallback:
-          "Open the AI Task Creator from the navigation or from the Tasks page link.",
-      },
-      {
-        key: "tools.aiTaskCreator.howToUse2",
-        fallback:
-          "Describe your goal or paste your messy notes (e.g. 'I want to redesign my website this month').",
-      },
-      {
-        key: "tools.aiTaskCreator.howToUse3",
-        fallback:
-          "Ask AI to generate a list of tasks. Adjust any task titles, add / remove steps until it feels right.",
-      },
-      {
-        key: "tools.aiTaskCreator.howToUse4",
-        fallback:
-          "Send the tasks you like directly into your Tasks page, with suggested priorities or time estimates.",
-      },
+      { key: "tools.aiTaskCreator.howToUse1", fallback: "Open the AI Task Creator from the navigation or from the Tasks page link." },
+      { key: "tools.aiTaskCreator.howToUse2", fallback: "Describe your goal or paste your messy notes (e.g. 'I want to redesign my website this month')." },
+      { key: "tools.aiTaskCreator.howToUse3", fallback: "Ask AI to generate a list of tasks. Adjust any task titles, add / remove steps until it feels right." },
+      { key: "tools.aiTaskCreator.howToUse4", fallback: "Send the tasks you like directly into your Tasks page, with suggested priorities or time estimates." },
     ],
     proHintKey: "tools.aiTaskCreator.proHint",
     proHintFallback:
@@ -303,54 +180,55 @@ const TOOLS: ToolDef[] = [
     ctaFallback: "Use AI Task Creator",
   },
   {
+    id: "ai-companion",
+    slug: "/ai-companion",
+    emoji: "💛",
+    nameKey: "tools.aiCompanion.name",
+    nameFallback: "AI Companion",
+    taglineKey: "tools.aiCompanion.shortTagline",
+    taglineFallback: "A private space to reflect, feel grounded, and write it out.",
+    descriptionKey: "tools.aiCompanion.description",
+    descriptionFallback:
+      "AI Companion is your calm, private chat space for reflection and emotional clarity. It’s designed for gentle journaling-style conversations: you can talk through stress, anxiety, relationships, work pressure, or simply do a quick check-in. Each conversation is saved to your history, and you can optionally save the chat as a Journal note so your insights don’t disappear. Not a therapist, no diagnosis — but a supportive, structured space to slow down and take small next steps.",
+    bestFor: [
+      { key: "tools.aiCompanion.bestFor1", fallback: "Daily check-ins (how you feel, what’s on your mind, what you need today)" },
+      { key: "tools.aiCompanion.bestFor2", fallback: "Calming down when you feel anxious, overwhelmed, or stuck" },
+      { key: "tools.aiCompanion.bestFor3", fallback: "Turning messy emotions into clear reflections you can act on" },
+      { key: "tools.aiCompanion.bestFor4", fallback: "Saving meaningful conversations as journal entries in Notes" },
+    ],
+    howToUse: [
+      { key: "tools.aiCompanion.howToUse1", fallback: "Open AI Companion and pick a category (General, Stress, Work, Relationships, etc.) to shape the tone and questions." },
+      { key: "tools.aiCompanion.howToUse2", fallback: "Start with a starter prompt (or just type what’s happening). You can also use the mic for voice input." },
+      { key: "tools.aiCompanion.howToUse3", fallback: "Keep chatting until you feel clearer. Your conversation history stays in the sidebar so you can revisit later." },
+      { key: "tools.aiCompanion.howToUse4", fallback: "When something is worth keeping, click “Save as journal” to store it as a Journal note in Notes." },
+    ],
+    proHintKey: "tools.aiCompanion.proHint",
+    proHintFallback:
+      "Pro tip: Use categories like “Stress” or “Work” when you want the companion to ask more targeted questions and guide you toward small, realistic next steps.",
+    ctaKey: "tools.aiCompanion.cta",
+    ctaFallback: "Open AI Companion",
+  },
+  {
     id: "templates",
     slug: "/templates",
     emoji: "📚",
     nameKey: "tools.templates.name",
     nameFallback: "AI Templates",
     taglineKey: "tools.templates.shortTagline",
-    taglineFallback:
-      "Reusable prompts for things you do all the time.",
+    taglineFallback: "Reusable prompts for things you do all the time.",
     descriptionKey: "tools.templates.description",
     descriptionFallback:
       "Templates let you save your favorite prompts for emails, content, journaling, planning and more. Instead of rewriting the same instructions each time, you click a template and start from a strong base.",
     bestFor: [
-      {
-        key: "tools.templates.bestFor1",
-        fallback: "Email replies, outreach or customer support",
-      },
-      {
-        key: "tools.templates.bestFor2",
-        fallback:
-          "Content outlines, LinkedIn posts, blog ideas",
-      },
-      {
-        key: "tools.templates.bestFor3",
-        fallback:
-          "Recurring journaling prompts or daily check-ins",
-      },
+      { key: "tools.templates.bestFor1", fallback: "Email replies, outreach or customer support" },
+      { key: "tools.templates.bestFor2", fallback: "Content outlines, LinkedIn posts, blog ideas" },
+      { key: "tools.templates.bestFor3", fallback: "Recurring journaling prompts or daily check-ins" },
     ],
     howToUse: [
-      {
-        key: "tools.templates.howToUse1",
-        fallback:
-          "Open the Templates page from the navigation.",
-      },
-      {
-        key: "tools.templates.howToUse2",
-        fallback:
-          "Browse existing templates for emails, planning, journaling or travel—or create your own.",
-      },
-      {
-        key: "tools.templates.howToUse3",
-        fallback:
-          "Fill in the small input fields (e.g. topic, audience, tone) and run the template with AI.",
-      },
-      {
-        key: "tools.templates.howToUse4",
-        fallback:
-          "Save templates you like and reuse them from Notes, AI Hub Chat or directly from the Templates page.",
-      },
+      { key: "tools.templates.howToUse1", fallback: "Open the Templates page from the navigation." },
+      { key: "tools.templates.howToUse2", fallback: "Browse existing templates for emails, planning, journaling or travel—or create your own." },
+      { key: "tools.templates.howToUse3", fallback: "Fill in the small input fields (e.g. topic, audience, tone) and run the template with AI." },
+      { key: "tools.templates.howToUse4", fallback: "Save templates you like and reuse them from Notes, AI Hub Chat or directly from the Templates page." },
     ],
     proHintKey: "tools.templates.proHint",
     proHintFallback:
@@ -370,47 +248,18 @@ const TOOLS: ToolDef[] = [
     descriptionFallback:
       "Plan detailed multi-day itineraries in seconds. Get highlights, food recommendations, daily routes, budgets, and prefilled Booking.com links that you can reuse later from My Trips.",
     bestFor: [
-      {
-        key: "tools.travel.bestFor1",
-        fallback:
-          "Planning weekend trips or long holidays quickly",
-      },
-      {
-        key: "tools.travel.bestFor2",
-        fallback:
-          "Getting ideas for what to see, eat and do in a new city",
-      },
-      {
-        key: "tools.travel.bestFor3",
-        fallback:
-          "Creating structured daily itineraries instead of random bookmarks",
-      },
+      { key: "tools.travel.bestFor1", fallback: "Planning weekend trips or long holidays quickly" },
+      { key: "tools.travel.bestFor2", fallback: "Getting ideas for what to see, eat and do in a new city" },
+      { key: "tools.travel.bestFor3", fallback: "Creating structured daily itineraries instead of random bookmarks" },
     ],
     howToUse: [
-      {
-        key: "tools.travel.howToUse1",
-        fallback:
-          "Open the Travel Planner and enter your destination, dates, travel style and preferences.",
-      },
-      {
-        key: "tools.travel.howToUse2",
-        fallback:
-          "Let AI generate a day-by-day itinerary with activities, food suggestions and logistics.",
-      },
-      {
-        key: "tools.travel.howToUse3",
-        fallback:
-          "Edit or regenerate parts you don’t like until it feels right.",
-      },
-      {
-        key: "tools.travel.howToUse4",
-        fallback:
-          "Save the trip so it appears in My Trips, where you can revisit or reuse it anytime.",
-      },
+      { key: "tools.travel.howToUse1", fallback: "Open the Travel Planner and enter your destination, dates, travel style and preferences." },
+      { key: "tools.travel.howToUse2", fallback: "Let AI generate a day-by-day itinerary with activities, food suggestions and logistics." },
+      { key: "tools.travel.howToUse3", fallback: "Edit or regenerate parts you don’t like until it feels right." },
+      { key: "tools.travel.howToUse4", fallback: "Save the trip so it appears in My Trips, where you can revisit or reuse it anytime." },
     ],
     proHintKey: "tools.travel.proHint",
-    proHintFallback:
-      "Pro is ideal if you plan lots of trips or want richer, more detailed itineraries with multiple alternatives.",
+    proHintFallback: "Pro is ideal if you plan lots of trips or want richer, more detailed itineraries with multiple alternatives.",
     ctaKey: "tools.travel.cta",
     ctaFallback: "Open Travel Planner",
   },
@@ -421,53 +270,23 @@ const TOOLS: ToolDef[] = [
     nameKey: "tools.planner.name",
     nameFallback: "Daily Planner",
     taglineKey: "tools.planner.shortTagline",
-    taglineFallback:
-      "Plan your day with AI-assisted tasks & focus.",
+    taglineFallback: "Plan your day with AI-assisted tasks & focus.",
     descriptionKey: "tools.planner.description",
     descriptionFallback:
       "Start every day with clarity. The Daily Planner helps you review your goals, create an achievable schedule, and use AI to break big goals into actionable tasks you can actually finish.",
     bestFor: [
-      {
-        key: "tools.planner.bestFor1",
-        fallback:
-          "Structuring your day when you feel overwhelmed",
-      },
-      {
-        key: "tools.planner.bestFor2",
-        fallback:
-          "Turning a messy to-do list into a realistic schedule",
-      },
-      {
-        key: "tools.planner.bestFor3",
-        fallback:
-          "Connecting your Daily Success score with concrete actions",
-      },
+      { key: "tools.planner.bestFor1", fallback: "Structuring your day when you feel overwhelmed" },
+      { key: "tools.planner.bestFor2", fallback: "Turning a messy to-do list into a realistic schedule" },
+      { key: "tools.planner.bestFor3", fallback: "Connecting your Daily Success score with concrete actions" },
     ],
     howToUse: [
-      {
-        key: "tools.planner.howToUse1",
-        fallback:
-          "Open the Daily Planner in the morning or the night before.",
-      },
-      {
-        key: "tools.planner.howToUse2",
-        fallback:
-          "Write what you want to focus on and the constraints you have (meetings, energy, time).",
-      },
-      {
-        key: "tools.planner.howToUse3",
-        fallback:
-          "Let AI suggest a structured plan with time blocks and priority tasks.",
-      },
-      {
-        key: "tools.planner.howToUse4",
-        fallback:
-          "Send tasks directly into the Tasks page and use the Daily Success score to review how it went.",
-      },
+      { key: "tools.planner.howToUse1", fallback: "Open the Daily Planner in the morning or the night before." },
+      { key: "tools.planner.howToUse2", fallback: "Write what you want to focus on and the constraints you have (meetings, energy, time)." },
+      { key: "tools.planner.howToUse3", fallback: "Let AI suggest a structured plan with time blocks and priority tasks." },
+      { key: "tools.planner.howToUse4", fallback: "Send tasks directly into the Tasks page and use the Daily Success score to review how it went." },
     ],
     proHintKey: "tools.planner.proHint",
-    proHintFallback:
-      "With Pro, you can lean on the planner more often and let AI handle bigger, more complex planning sessions.",
+    proHintFallback: "With Pro, you can lean on the planner more often and let AI handle bigger, more complex planning sessions.",
     ctaKey: "tools.planner.cta",
     ctaFallback: "Use Daily Planner",
   },
@@ -478,53 +297,23 @@ const TOOLS: ToolDef[] = [
     nameKey: "tools.myTrips.name",
     nameFallback: "My Trips",
     taglineKey: "tools.myTrips.shortTagline",
-    taglineFallback:
-      "Manage and revisit all your AI-generated trips.",
+    taglineFallback: "Manage and revisit all your AI-generated trips.",
     descriptionKey: "tools.myTrips.description",
     descriptionFallback:
       "All trips you generate with the Travel Planner are saved in My Trips. You can reopen any itinerary, tweak it with AI, or copy details for bookings and logistics.",
     bestFor: [
-      {
-        key: "tools.myTrips.bestFor1",
-        fallback:
-          "Keeping all your trip ideas and plans in one place",
-      },
-      {
-        key: "tools.myTrips.bestFor2",
-        fallback:
-          "Reusing an old itinerary for a new trip with tweaks",
-      },
-      {
-        key: "tools.myTrips.bestFor3",
-        fallback:
-          "Quickly grabbing hotel or activity suggestions you liked before",
-      },
+      { key: "tools.myTrips.bestFor1", fallback: "Keeping all your trip ideas and plans in one place" },
+      { key: "tools.myTrips.bestFor2", fallback: "Reusing an old itinerary for a new trip with tweaks" },
+      { key: "tools.myTrips.bestFor3", fallback: "Quickly grabbing hotel or activity suggestions you liked before" },
     ],
     howToUse: [
-      {
-        key: "tools.myTrips.howToUse1",
-        fallback:
-          "Open My Trips from the navigation to see all saved itineraries.",
-      },
-      {
-        key: "tools.myTrips.howToUse2",
-        fallback:
-          "Click into a trip to view the full AI-generated plan.",
-      },
-      {
-        key: "tools.myTrips.howToUse3",
-        fallback:
-          "Regenerate or adjust sections (e.g. food, activities) if your preferences changed.",
-      },
-      {
-        key: "tools.myTrips.howToUse4",
-        fallback:
-          "Copy important details into your calendar, booking sites or share them with travel partners.",
-      },
+      { key: "tools.myTrips.howToUse1", fallback: "Open My Trips from the navigation to see all saved itineraries." },
+      { key: "tools.myTrips.howToUse2", fallback: "Click into a trip to view the full AI-generated plan." },
+      { key: "tools.myTrips.howToUse3", fallback: "Regenerate or adjust sections (e.g. food, activities) if your preferences changed." },
+      { key: "tools.myTrips.howToUse4", fallback: "Copy important details into your calendar, booking sites or share them with travel partners." },
     ],
     proHintKey: "tools.myTrips.proHint",
-    proHintFallback:
-      "If you travel often, Pro plus My Trips becomes your personal travel library powered by AI.",
+    proHintFallback: "If you travel often, Pro plus My Trips becomes your personal travel library powered by AI.",
     ctaKey: "tools.myTrips.cta",
     ctaFallback: "View My Trips",
   },
@@ -535,53 +324,23 @@ const TOOLS: ToolDef[] = [
     nameKey: "tools.dailySuccess.name",
     nameFallback: "Daily Success score",
     taglineKey: "tools.dailySuccess.shortTagline",
-    taglineFallback:
-      "A tiny 0–100 score that tracks your days.",
+    taglineFallback: "A tiny 0–100 score that tracks your days.",
     descriptionKey: "tools.dailySuccess.description",
     descriptionFallback:
       "Daily Success is a simple score that reflects how your day went based on your own subjective rating. It helps you see patterns over time without obsessing over perfection.",
     bestFor: [
-      {
-        key: "tools.dailySuccess.bestFor1",
-        fallback:
-          "Building a gentle, non-obsessive productivity habit",
-      },
-      {
-        key: "tools.dailySuccess.bestFor2",
-        fallback:
-          "Seeing how your days trend across weeks and months",
-      },
-      {
-        key: "tools.dailySuccess.bestFor3",
-        fallback:
-          "Connecting your mood, tasks and wins to a quick daily check-in",
-      },
+      { key: "tools.dailySuccess.bestFor1", fallback: "Building a gentle, non-obsessive productivity habit" },
+      { key: "tools.dailySuccess.bestFor2", fallback: "Seeing how your days trend across weeks and months" },
+      { key: "tools.dailySuccess.bestFor3", fallback: "Connecting your mood, tasks and wins to a quick daily check-in" },
     ],
     howToUse: [
-      {
-        key: "tools.dailySuccess.howToUse1",
-        fallback:
-          "At the end of the day (or during your evening reflection), open the Daily Success section from the Dashboard.",
-      },
-      {
-        key: "tools.dailySuccess.howToUse2",
-        fallback:
-          "Rate your day from 0–100 based on how satisfied you feel with your progress.",
-      },
-      {
-        key: "tools.dailySuccess.howToUse3",
-        fallback:
-          "Optionally add a quick note about why you gave that score.",
-      },
-      {
-        key: "tools.dailySuccess.howToUse4",
-        fallback:
-          "Review your scores over time via Weekly history to spot streaks, slumps and what tends to help.",
-      },
+      { key: "tools.dailySuccess.howToUse1", fallback: "At the end of the day (or during your evening reflection), open the Daily Success section from the Dashboard." },
+      { key: "tools.dailySuccess.howToUse2", fallback: "Rate your day from 0–100 based on how satisfied you feel with your progress." },
+      { key: "tools.dailySuccess.howToUse3", fallback: "Optionally add a quick note about why you gave that score." },
+      { key: "tools.dailySuccess.howToUse4", fallback: "Review your scores over time via Weekly history to spot streaks, slumps and what tends to help." },
     ],
     proHintKey: "tools.dailySuccess.proHint",
-    proHintFallback:
-      "Your Daily Success scores feed directly into your weekly AI reports, so Pro users get richer insights and better suggestions.",
+    proHintFallback: "Your Daily Success scores feed directly into your weekly AI reports, so Pro users get richer insights and better suggestions.",
     ctaKey: "tools.dailySuccess.cta",
     ctaFallback: "Update Daily Success",
   },
@@ -597,47 +356,18 @@ const TOOLS: ToolDef[] = [
     descriptionFallback:
       "Weekly history shows your past weekly AI reports, so you can see how your scores, streaks and focus areas evolved. It’s like a lightweight performance review, written for humans.",
     bestFor: [
-      {
-        key: "tools.weeklyHistory.bestFor1",
-        fallback:
-          "Reviewing your last week in a few minutes",
-      },
-      {
-        key: "tools.weeklyHistory.bestFor2",
-        fallback:
-          "Spotting streaks, slumps and patterns over time",
-      },
-      {
-        key: "tools.weeklyHistory.bestFor3",
-        fallback:
-          "Choosing a single focus for the upcoming week",
-      },
+      { key: "tools.weeklyHistory.bestFor1", fallback: "Reviewing your last week in a few minutes" },
+      { key: "tools.weeklyHistory.bestFor2", fallback: "Spotting streaks, slumps and patterns over time" },
+      { key: "tools.weeklyHistory.bestFor3", fallback: "Choosing a single focus for the upcoming week" },
     ],
     howToUse: [
-      {
-        key: "tools.weeklyHistory.howToUse1",
-        fallback:
-          "Open the Weekly history page from the navigation or from Settings.",
-      },
-      {
-        key: "tools.weeklyHistory.howToUse2",
-        fallback:
-          "Browse previous weeks to see your scores, highlights, and suggested focus points.",
-      },
-      {
-        key: "tools.weeklyHistory.howToUse3",
-        fallback:
-          "At the end of each week, skim your report and choose one key focus for the next week.",
-      },
-      {
-        key: "tools.weeklyHistory.howToUse4",
-        fallback:
-          "Use those insights to adjust your tasks and Daily Success habits.",
-      },
+      { key: "tools.weeklyHistory.howToUse1", fallback: "Open the Weekly history page from the navigation or from Settings." },
+      { key: "tools.weeklyHistory.howToUse2", fallback: "Browse previous weeks to see your scores, highlights, and suggested focus points." },
+      { key: "tools.weeklyHistory.howToUse3", fallback: "At the end of each week, skim your report and choose one key focus for the next week." },
+      { key: "tools.weeklyHistory.howToUse4", fallback: "Use those insights to adjust your tasks and Daily Success habits." },
     ],
     proHintKey: "tools.weeklyHistory.proHint",
-    proHintFallback:
-      "Weekly AI email reports are part of Pro — you’ll get them delivered automatically to your inbox.",
+    proHintFallback: "Weekly AI email reports are part of Pro — you’ll get them delivered automatically to your inbox.",
     ctaKey: "tools.weeklyHistory.cta",
     ctaFallback: "View weekly history",
   },
@@ -648,68 +378,47 @@ const TOOLS: ToolDef[] = [
     nameKey: "tools.settings.name",
     nameFallback: "Settings, notifications & themes",
     taglineKey: "tools.settings.shortTagline",
-    taglineFallback:
-      "Control how the app talks to you and looks.",
+    taglineFallback: "Control how the app talks to you and looks.",
     descriptionKey: "tools.settings.description",
     descriptionFallback:
       "Settings is where you tune the experience: AI tone, reminder cadence, email digests, push notifications, timezone and themes (including seasonal ones like Halloween or Christmas).",
     bestFor: [
-      {
-        key: "tools.settings.bestFor1",
-        fallback:
-          "Choosing a communication style for the AI (balanced, friendly, direct, etc.)",
-      },
-      {
-        key: "tools.settings.bestFor2",
-        fallback:
-          "Turning daily digests and weekly reports on or off",
-      },
-      {
-        key: "tools.settings.bestFor3",
-        fallback:
-          "Enabling push notifications for per-task reminders",
-      },
-      {
-        key: "tools.settings.bestFor4",
-        fallback:
-          "Changing timezone and picking a theme that feels right",
-      },
+      { key: "tools.settings.bestFor1", fallback: "Choosing a communication style for the AI (balanced, friendly, direct, etc.)" },
+      { key: "tools.settings.bestFor2", fallback: "Turning daily digests and weekly reports on or off" },
+      { key: "tools.settings.bestFor3", fallback: "Enabling push notifications for per-task reminders" },
+      { key: "tools.settings.bestFor4", fallback: "Changing timezone and picking a theme that feels right" },
     ],
     howToUse: [
-      {
-        key: "tools.settings.howToUse1",
-        fallback: "Open Settings from the navigation.",
-      },
-      {
-        key: "tools.settings.howToUse2",
-        fallback:
-          "Pick your preferred AI tone so replies feel more like ‘you’.",
-      },
-      {
-        key: "tools.settings.howToUse3",
-        fallback:
-          "Turn on or off the daily email digest and weekly AI reports, depending on how many emails you want to receive.",
-      },
-      {
-        key: "tools.settings.howToUse4",
-        fallback:
-          "Scroll to the Task reminders (push) section to enable browser notifications and set your timezone in Notification settings.",
-      },
-      {
-        key: "tools.settings.howToUse5",
-        fallback:
-          "Experiment with themes (dark, light, ocean, seasonal, etc.) until the app visually fits your taste.",
-      },
+      { key: "tools.settings.howToUse1", fallback: "Open Settings from the navigation." },
+      { key: "tools.settings.howToUse2", fallback: "Pick your preferred AI tone so replies feel more like ‘you’." },
+      { key: "tools.settings.howToUse3", fallback: "Turn on or off the daily email digest and weekly AI reports, depending on how many emails you want to receive." },
+      { key: "tools.settings.howToUse4", fallback: "Scroll to the Task reminders (push) section to enable browser notifications and set your timezone in Notification settings." },
+      { key: "tools.settings.howToUse5", fallback: "Experiment with themes (dark, light, ocean, seasonal, etc.) until the app visually fits your taste." },
     ],
     ctaKey: "tools.settings.cta",
     ctaFallback: "Open Settings",
   },
 ];
 
+function joinUrl(base: string, path: string) {
+  if (!path) return base;
+  if (path.startsWith("http")) return path;
+  if (path.startsWith("#")) return base + path;
+  return base.replace(/\/$/, "") + (path.startsWith("/") ? path : `/${path}`);
+}
+
 export default function ToolsPage() {
   const { t } = useT("tools");
   const [user, setUser] = useState<any | null>(null);
   const [, setCheckingUser] = useState(true);
+
+  const [toast, setToast] = useState("");
+  const [sharingId, setSharingId] = useState<string | null>(null);
+
+  const origin = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return window.location.origin;
+  }, []);
 
   useEffect(() => {
     async function loadUser() {
@@ -725,9 +434,61 @@ export default function ToolsPage() {
     loadUser();
   }, []);
 
+  useEffect(() => {
+    if (!toast) return;
+    const tmr = window.setTimeout(() => setToast(""), 2200);
+    return () => window.clearTimeout(tmr);
+  }, [toast]);
+
+  async function handleShare(tool: ToolDef) {
+    if (!origin) return;
+
+    const url = joinUrl(origin, tool.slug);
+    const title = t(tool.nameKey, tool.nameFallback);
+    const text = t(tool.taglineKey, tool.taglineFallback);
+
+    setSharingId(tool.id);
+
+    try {
+      const nav = navigator as any;
+
+      if (nav?.share) {
+        await nav.share({ title, text, url });
+        setToast(t("tools.share.shared", "Shared ✅"));
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        setToast(t("tools.share.copied", "Link copied ✅"));
+        return;
+      }
+
+      // Fallback if clipboard blocked
+      window.prompt(t("tools.share.copyPrompt", "Copy this link:"), url);
+      setToast(t("tools.share.copied", "Link copied ✅"));
+    } catch (e: any) {
+      // Ignore abort errors (user cancelled share sheet)
+      if (String(e?.name || "").toLowerCase() === "aborterror") return;
+      console.error("[tools] share error", e);
+      setToast(t("tools.share.failed", "Couldn’t share link."));
+    } finally {
+      setSharingId(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active={user ? "dashboard" : undefined} />
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed z-[80] left-1/2 -translate-x-1/2 top-16 md:top-20">
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] shadow-xl">
+            {toast}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 pt-10 pb-16 md:pb-20 text-sm">
@@ -737,10 +498,7 @@ export default function ToolsPage() {
               {t("tools.header.sectionLabel", "ALL TOOLS")}
             </p>
             <h1 className="text-2xl md:text-3xl font-bold mb-2">
-              {t(
-                "tools.header.title",
-                "Every tool in AI Productivity Hub, explained."
-              )}
+              {t("tools.header.title", "Every tool in AI Productivity Hub, explained.")}
             </h1>
             <p className="text-xs md:text-sm text-[var(--text-muted)] max-w-2xl">
               {t(
@@ -772,7 +530,7 @@ export default function ToolsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Link
                       href={tool.slug}
                       className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] md:text-xs hover:bg-[var(--bg-card)]"
@@ -780,11 +538,23 @@ export default function ToolsPage() {
                       {t(tool.ctaKey, tool.ctaFallback)}
                       <span className="text-[10px]">↗</span>
                     </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => handleShare(tool)}
+                      disabled={!origin || sharingId === tool.id}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] md:text-xs hover:bg-[var(--bg-card)] disabled:opacity-60"
+                      title={t("tools.share.title", "Share this tool")}
+                    >
+                      {sharingId === tool.id
+                        ? t("tools.share.sharing", "Sharing…")
+                        : t("tools.share.cta", "Share")}
+                      <span className="text-[10px]">⤴︎</span>
+                    </button>
+
                     <span className="hidden md:inline text-[10px] text-[var(--text-muted)]">
                       {t("tools.tool.routeLabel", "Route:")}{" "}
-                      <code className="text-[10px] opacity-80">
-                        {tool.slug}
-                      </code>
+                      <code className="text-[10px] opacity-80">{tool.slug}</code>
                     </span>
                   </div>
                 </div>
@@ -800,10 +570,7 @@ export default function ToolsPage() {
                     </p>
                     <ul className="space-y-1.5 text-[var(--text-muted)]">
                       {tool.bestFor.map((item) => (
-                        <li
-                          key={item.key}
-                          className="flex gap-2 items-start"
-                        >
+                        <li key={item.key} className="flex gap-2 items-start">
                           <span className="mt-[2px]">•</span>
                           <span>{t(item.key, item.fallback)}</span>
                         </li>
@@ -838,10 +605,7 @@ export default function ToolsPage() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold text-[var(--text-main)] mb-1">
-                  {t(
-                    "tools.changelog.title",
-                    "What’s new & release notes"
-                  )}
+                  {t("tools.changelog.title", "What’s new & release notes")}
                 </p>
                 <p className="text-[11px] md:text-[12px] text-[var(--text-muted)] max-w-lg">
                   {t(
@@ -868,9 +632,7 @@ export default function ToolsPage() {
               href="/"
               className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-main)]"
             >
-              <span>
-                {t("tools.backToHome", "← Back to homepage")}
-              </span>
+              <span>{t("tools.backToHome", "← Back to homepage")}</span>
             </Link>
           </div>
         </div>
