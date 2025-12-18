@@ -277,36 +277,83 @@ function resolveNaturalDue(label: string): string | null {
   const text = label.toLowerCase();
   const now = new Date();
 
-  // Start from today at NOON (prevents "tomorrow becomes today" after toISOString)
-  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
+  // Base date = today 09:00 (same logic as Notes page)
+  const target = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    9,
+    0,
+    0,
+    0
+  );
 
-  // Day offset
-  if (text.includes("tomorrow")) target.setDate(target.getDate() + 1);
-  else if (text.includes("next week")) target.setDate(target.getDate() + 7);
+  // --- Day offset (EN + GR) ---
+  if (
+    text.includes("tomorrow") ||
+    text.includes("αύριο") ||
+    text.includes("αυριο")
+  ) {
+    target.setDate(target.getDate() + 1);
+  } else if (
+    text.includes("next week") ||
+    text.includes("επόμενη εβδομάδα") ||
+    text.includes("επομενη εβδομαδα")
+  ) {
+    target.setDate(target.getDate() + 7);
+  } else if (
+    text.includes("today") ||
+    text.includes("σήμερα") ||
+    text.includes("σημερα")
+  ) {
+    // keep today
+  }
 
-  // Time-of-day keywords
-  if (text.includes("morning")) target.setHours(10, 0, 0, 0);
-  else if (text.includes("noon")) target.setHours(12, 0, 0, 0);
-  else if (text.includes("afternoon")) target.setHours(15, 0, 0, 0);
-  else if (text.includes("evening") || text.includes("tonight")) target.setHours(20, 0, 0, 0);
+  // --- Time-of-day keywords ---
+  if (text.includes("morning") || text.includes("πρωί") || text.includes("πρωι")) {
+    target.setHours(8, 0, 0, 0);
+  } else if (text.includes("noon") || text.includes("μεσημέρι") || text.includes("μεσημερι")) {
+    target.setHours(12, 0, 0, 0);
+  } else if (text.includes("afternoon") || text.includes("απόγευμα") || text.includes("απογευμα")) {
+    target.setHours(15, 0, 0, 0);
+  } else if (
+    text.includes("evening") ||
+    text.includes("tonight") ||
+    text.includes("βράδυ") ||
+    text.includes("βραδυ") ||
+    text.includes("απόψε") ||
+    text.includes("αποψε")
+  ) {
+    target.setHours(20, 0, 0, 0);
+  }
 
-  // Explicit times: "10", "10:30", "10am", "10 pm", "20:00"
-  const time = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
-  if (time) {
-    let hour = parseInt(time[1], 10);
-    const minute = time[2] ? parseInt(time[2], 10) : 0;
-    const ampm = time[3];
+  // --- Explicit time: 10, 10:30, 10am, 10 μμ, 20:00 ---
+  const timeMatch = text.match(
+    /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|πμ|μμ)?\b|\b(\d{1,2}):(\d{2})\b/
+  );
 
-    if (ampm === "pm" && hour < 12) hour += 12;
-    if (ampm === "am" && hour === 12) hour = 0;
+  if (timeMatch) {
+    let hour: number | null = null;
+    let minute: number | null = null;
 
-    // If user says just "10" with no am/pm, keep it as 10:00 local
-    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+    if (timeMatch[1]) {
+      hour = parseInt(timeMatch[1], 10);
+      minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      const ampm = timeMatch[3];
+
+      if ((ampm === "pm" || ampm === "μμ") && hour < 12) hour += 12;
+      if ((ampm === "am" || ampm === "πμ") && hour === 12) hour = 0;
+    } else if (timeMatch[4] && timeMatch[5]) {
+      hour = parseInt(timeMatch[4], 10);
+      minute = parseInt(timeMatch[5], 10);
+    }
+
+    if (hour !== null && minute !== null) {
       target.setHours(hour, minute, 0, 0);
     }
   }
 
-  return target.toISOString(); // stored as UTC
+  return target.toISOString();
 }
 
 // 24h time dropdown options (00:00 - 23:00)
@@ -391,38 +438,63 @@ export default function TasksPage() {
     return;
   }
 
-  const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((tt) => {
+  const now = new Date();
+
+  const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
     const title =
-      typeof tt.title === "string" && tt.title.trim()
-        ? tt.title.trim()
+      typeof t.title === "string" && t.title.trim()
+        ? t.title.trim()
         : "(Untitled task)";
 
     let dueIso: string | null = null;
     let dueLabel: string | null = null;
 
-    // ✅ 1. Prefer explicit ISO from AI (normalized as LOCAL time)
-    if (typeof tt.due_iso === "string" && tt.due_iso.trim()) {
-      const normalized = normalizeDueIso(tt.due_iso);
-      if (normalized) {
-        dueIso = normalized;
-        dueLabel = new Date(normalized).toLocaleString();
-      }
-    }
+    const natural =
+      typeof t.due_natural === "string" && t.due_natural.trim()
+        ? t.due_natural.trim()
+        : null;
 
-    // ✅ 2. Otherwise resolve natural language ("tomorrow at 10", etc.)
-    if (
-      !dueIso &&
-      typeof tt.due_natural === "string" &&
-      tt.due_natural.trim()
-    ) {
-      const natural = tt.due_natural.trim();
+    const naturalLower = (natural || "").toLowerCase();
+
+    const hasRelativeIntent =
+      naturalLower.includes("tomorrow") ||
+      naturalLower.includes("today") ||
+      naturalLower.includes("tonight") ||
+      naturalLower.includes("next") ||
+      naturalLower.includes("in ");
+
+    // ✅ 1) If user said something relative → ALWAYS trust natural language
+    if (natural && hasRelativeIntent) {
       const resolved = resolveNaturalDue(natural);
-
       if (resolved) {
         dueIso = resolved;
         dueLabel = new Date(resolved).toLocaleString();
       } else {
-        // fallback: show text even if date couldn't be resolved
+        dueLabel = natural;
+      }
+    }
+
+    // ✅ 2) Otherwise, fall back to ISO — but only if it's not in the past
+    if (!dueIso && typeof t.due_iso === "string" && t.due_iso.trim()) {
+      const normalized = normalizeDueIso(t.due_iso);
+      if (normalized) {
+        const parsed = new Date(normalized);
+
+        // Ignore past dates (very common AI mistake)
+        if (parsed.getTime() > now.getTime() - 60_000) {
+          dueIso = normalized;
+          dueLabel = parsed.toLocaleString();
+        }
+      }
+    }
+
+    // ✅ 3) Last fallback: natural without keywords
+    if (!dueIso && natural) {
+      const resolved = resolveNaturalDue(natural);
+      if (resolved) {
+        dueIso = resolved;
+        dueLabel = new Date(resolved).toLocaleString();
+      } else {
         dueLabel = natural;
       }
     }
@@ -432,17 +504,15 @@ export default function TasksPage() {
       dueIso,
       dueLabel,
       priority:
-        tt.priority === "low" ||
-        tt.priority === "medium" ||
-        tt.priority === "high"
-          ? tt.priority
+        t.priority === "low" ||
+        t.priority === "medium" ||
+        t.priority === "high"
+          ? t.priority
           : null,
     };
   });
 
-  const nonEmpty = suggestions.filter(
-    (s) => s.title.trim().length > 0
-  );
+  const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
 
   setVoiceSuggestedTasks(nonEmpty);
   setVoiceTasksMessage(
