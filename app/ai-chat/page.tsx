@@ -2,10 +2,13 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import { useT } from "@/lib/useT";
+
+// ✅ Auth gate (modal + requireAuth)
+import AuthGateModal from "@/app/components/AuthGateModal";
+import { useAuthGate } from "@/app/hooks/useAuthGate";
 
 type ThreadRow = {
   id: string;
@@ -22,15 +25,7 @@ type ChatMessage = {
   created_at: string;
 };
 
-const CATEGORIES = [
-  "General",
-  "Planning",
-  "Work",
-  "Study",
-  "Mindset",
-  "Health",
-  "Ideas",
-] as const;
+const CATEGORIES = ["General", "Planning", "Work", "Study", "Mindset", "Health", "Ideas"] as const;
 
 // ✅ Same limits as dashboard
 const FREE_DAILY_LIMIT = 20;
@@ -53,6 +48,9 @@ export default function AIChatPage() {
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+
+  // ✅ Auth gate hook
+  const { open: authOpen, authHref, copy: authCopy, close: closeAuth, requireAuth } = useAuthGate(user);
 
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [loadingThreads, setLoadingThreads] = useState(false);
@@ -104,11 +102,7 @@ export default function AIChatPage() {
 
     async function loadPlan() {
       try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", user.id)
-          .maybeSingle();
+        const { data, error } = await supabase.from("profiles").select("plan").eq("id", user.id).maybeSingle();
 
         if (error && (error as any).code !== "PGRST116") {
           console.error("[ai-chat] loadPlan error", error);
@@ -155,12 +149,7 @@ export default function AIChatPage() {
     const today = getTodayString();
 
     try {
-      const { data, error } = await supabase
-        .from("ai_usage")
-        .select("id, count")
-        .eq("user_id", user.id)
-        .eq("usage_date", today)
-        .maybeSingle();
+      const { data, error } = await supabase.from("ai_usage").select("id, count").eq("user_id", user.id).eq("usage_date", today).maybeSingle();
 
       if (error && (error as any).code !== "PGRST116") {
         console.error("[ai-chat] incrementAiUsage select error", error);
@@ -168,9 +157,7 @@ export default function AIChatPage() {
       }
 
       if (!data) {
-        const { error: insertError } = await supabase.from("ai_usage").insert([
-          { user_id: user.id, usage_date: today, count: 1 },
-        ]);
+        const { error: insertError } = await supabase.from("ai_usage").insert([{ user_id: user.id, usage_date: today, count: 1 }]);
 
         if (insertError) {
           console.error("[ai-chat] incrementAiUsage insert error", insertError);
@@ -180,10 +167,7 @@ export default function AIChatPage() {
         setAiCountToday(1);
       } else {
         const newCount = (data.count || 0) + 1;
-        const { error: updateError } = await supabase
-          .from("ai_usage")
-          .update({ count: newCount })
-          .eq("id", data.id);
+        const { error: updateError } = await supabase.from("ai_usage").update({ count: newCount }).eq("id", data.id);
 
         if (updateError) {
           console.error("[ai-chat] incrementAiUsage update error", updateError);
@@ -275,11 +259,23 @@ export default function AIChatPage() {
     loadMessages();
   }, [user, activeThreadId]);
 
-  // 5) Send message
+  function startNewChat() {
+    setActiveThreadId(null);
+    setMessages([]);
+    setInput("");
+    setCategory("General");
+  }
+
+  // 5) Send message (auth-gated)
   async function handleSend(e: FormEvent) {
     e.preventDefault();
-    if (!user) {
-      setError(t("errors.notLoggedIn", "You must be logged in to chat with AI."));
+
+    if (
+      !requireAuth(undefined, {
+        title: "Log in to chat",
+        subtitle: "Create a free account to message the AI and save your conversation history.",
+      })
+    ) {
       return;
     }
 
@@ -287,12 +283,7 @@ export default function AIChatPage() {
     if (!text) return;
 
     if (!isPro && remaining <= 0) {
-      setError(
-        t(
-          "errors.freeLimitReached",
-          `You reached your daily AI limit for the free plan (${FREE_DAILY_LIMIT} replies).`
-        )
-      );
+      setError(t("errors.freeLimitReached", `You reached your daily AI limit for the free plan (${FREE_DAILY_LIMIT} replies).`));
       return;
     }
 
@@ -300,10 +291,7 @@ export default function AIChatPage() {
     setError("");
 
     try {
-      const historyForModel = messages.slice(-15).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const historyForModel = messages.slice(-15).map((m) => ({ role: m.role, content: m.content }));
 
       const res = await fetch("/api/ai-hub-chat", {
         method: "POST",
@@ -343,9 +331,7 @@ export default function AIChatPage() {
 
       if (!activeThreadId) {
         const fallbackTitle =
-          titleFromServer ||
-          text.split("\n")[0].slice(0, 80).trim() ||
-          t("newConversationFallback", "New conversation");
+          titleFromServer || text.split("\n")[0].slice(0, 80).trim() || t("newConversationFallback", "New conversation");
 
         const { data: threadData, error: threadError } = await supabase
           .from("ai_chat_threads")
@@ -408,28 +394,28 @@ export default function AIChatPage() {
     }
   }
 
-  // 6) Delete thread
+  // 6) Delete thread (auth-gated)
   async function handleDeleteThread(threadId: string) {
-    if (!user || !threadId) return;
+    if (
+      !requireAuth(undefined, {
+        title: "Log in to manage chats",
+        subtitle: "Create an account to delete conversations and keep your history synced.",
+      })
+    ) {
+      return;
+    }
+
+    if (!threadId) return;
     if (!window.confirm(t("confirm.deleteThread", "Delete this chat? This cannot be undone."))) return;
 
     setThreadActionId(threadId);
     setError("");
 
     try {
-      const { error: msgErr } = await supabase
-        .from("ai_chat_messages")
-        .delete()
-        .eq("thread_id", threadId)
-        .eq("user_id", user.id);
-
+      const { error: msgErr } = await supabase.from("ai_chat_messages").delete().eq("thread_id", threadId).eq("user_id", user.id);
       if (msgErr) console.error("[ai-chat] delete messages error", msgErr);
 
-      const { error: threadErr } = await supabase
-        .from("ai_chat_threads")
-        .delete()
-        .eq("id", threadId)
-        .eq("user_id", user.id);
+      const { error: threadErr } = await supabase.from("ai_chat_threads").delete().eq("id", threadId).eq("user_id", user.id);
 
       if (threadErr) {
         console.error("[ai-chat] delete thread error", threadErr);
@@ -448,9 +434,16 @@ export default function AIChatPage() {
     }
   }
 
-  // 7) Rename thread
+  // 7) Rename thread (auth-gated)
   async function handleRenameThread(thread: ThreadRow) {
-    if (!user) return;
+    if (
+      !requireAuth(undefined, {
+        title: "Log in to manage chats",
+        subtitle: "Create an account to rename conversations and keep your history synced.",
+      })
+    ) {
+      return;
+    }
 
     const currentTitle = thread.title || t("untitledChat", "Untitled chat");
     const newTitle = window.prompt(t("prompt.renameTitle", "New title for this chat:"), currentTitle);
@@ -490,45 +483,17 @@ export default function AIChatPage() {
     }
   }
 
-  function startNewChat() {
-    setActiveThreadId(null);
-    setMessages([]);
-    setInput("");
-    setCategory("General");
-  }
-
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
-        <p className="text-sm text-[var(--text-muted)]">
-          {t("status.checkingSession", "Checking your session…")}
-        </p>
+        <p className="text-sm text-[var(--text-muted)]">{t("status.checkingSession", "Checking your session…")}</p>
       </main>
     );
   }
 
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
-        <AppHeader active="ai-chat" />
-        <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">{t("title", "AI Hub Chat")}</h1>
-          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            {t(
-              "login.body",
-              "Log in or create a free account to chat with your AI coach and keep your conversations saved."
-            )}
-          </p>
-          <Link
-            href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
-          >
-            {t("login.cta", "Go to login / signup")}
-          </Link>
-        </div>
-      </main>
-    );
-  }
+  // ✅ IMPORTANT: no "return login page" — visitors can view the full UI
+
+  const canInteract = !!user;
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
@@ -541,7 +506,9 @@ export default function AIChatPage() {
             <p className="text-xs font-semibold">{t("conversations", "Conversations")}</p>
             <button
               type="button"
-              onClick={startNewChat}
+              onClick={() => {
+                if (!requireAuth(() => startNewChat(), { title: "Log in to start chats", subtitle: "Create an account to start and save conversations." })) return;
+              }}
               className="text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
             >
               {t("newChat", "+ New chat")}
@@ -549,14 +516,27 @@ export default function AIChatPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
-            {loadingThreads ? (
-              <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                {t("sidebar.loading", "Loading conversations…")}
-              </p>
+            {!user ? (
+              <div className="p-3 text-[11px] text-[var(--text-muted)]">
+                <p className="font-semibold text-[var(--text-main)] mb-1">{t("visitor.title", "Browsing mode")}</p>
+                <p className="mb-2">{t("visitor.body", "Log in to see your saved chat history and continue conversations.")}</p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    requireAuth(undefined, {
+                      title: "Log in to view history",
+                      subtitle: "Create a free account to save and load your chat conversations.",
+                    })
+                  }
+                  className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
+                >
+                  {t("visitor.cta", "Log in / Sign up")}
+                </button>
+              </div>
+            ) : loadingThreads ? (
+              <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("sidebar.loading", "Loading conversations…")}</p>
             ) : threads.length === 0 ? (
-              <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                {t("sidebar.empty", "No conversations yet. Start a new chat on the right.")}
-              </p>
+              <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("sidebar.empty", "No conversations yet. Start a new chat on the right.")}</p>
             ) : (
               threads.map((thread) => {
                 const isActive = activeThreadId === thread.id;
@@ -566,19 +546,16 @@ export default function AIChatPage() {
                   <div
                     key={thread.id}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer ${
-                      isActive
-                        ? "bg-[var(--bg-card)] text-[var(--text-main)]"
-                        : "hover:bg-[var(--bg-elevated)] text-[var(--text-main)]"
+                      isActive ? "bg-[var(--bg-card)] text-[var(--text-main)]" : "hover:bg-[var(--bg-elevated)] text-[var(--text-main)]"
                     }`}
-                    onClick={() => setActiveThreadId(thread.id)}
+                    onClick={() => {
+                      if (!requireAuth()) return;
+                      setActiveThreadId(thread.id);
+                    }}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate font-medium">
-                        {thread.title || t("sampleTitle", "New conversation")}
-                      </p>
-                      <p className="text-[10px] text-[var(--text-muted)] truncate">
-                        {categoryLabel(thread.category || "General")}
-                      </p>
+                      <p className="truncate font-medium">{thread.title || t("sampleTitle", "New conversation")}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] truncate">{categoryLabel(thread.category || "General")}</p>
                     </div>
 
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -613,34 +590,32 @@ export default function AIChatPage() {
           <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-3">
             <div>
               <h1 className="text-base md:text-lg font-semibold">{t("title", "AI Hub Chat")}</h1>
-              <p className="text-[11px] text-[var(--text-muted)]">
-                {t("subtitle", "A general-purpose AI coach for planning, ideas and questions.")}
-              </p>
+              <p className="text-[11px] text-[var(--text-muted)]">{t("subtitle", "A general-purpose AI coach for planning, ideas and questions.")}</p>
             </div>
 
             <div className="flex flex-col items-end gap-1">
-              {isPro ? (
-                <span className="text-[10px] text-[var(--text-muted)]">
-                  {t("aiRepliesToday", "AI replies today:")}{" "}
-                  <span className="font-semibold">
-                    {aiCountToday} {t("unlimitedNote", "(unlimited)")}
-                  </span>{" "}
-                  ({plan})
-                </span>
+              {canInteract ? (
+                isPro ? (
+                  <span className="text-[10px] text-[var(--text-muted)]">
+                    {t("aiRepliesToday", "AI replies today:")} <span className="font-semibold">{aiCountToday} {t("unlimitedNote", "(unlimited)")}</span> ({plan})
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-[var(--text-muted)]">
+                    {t("aiRepliesToday", "AI replies today:")} <span className="font-semibold">{aiCountToday}/{FREE_DAILY_LIMIT}</span> {t("usage.freeSuffix", "(free)")}
+                  </span>
+                )
               ) : (
                 <span className="text-[10px] text-[var(--text-muted)]">
-                  {t("aiRepliesToday", "AI replies today:")}{" "}
-                  <span className="font-semibold">
-                    {aiCountToday}/{FREE_DAILY_LIMIT}
-                  </span>{" "}
-                  {t("usage.freeSuffix", "(free)")}
+                  {t("visitor.usageHint", "Log in to start chatting and save your conversations.")}
                 </span>
               )}
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowMobileThreads(true)}
+                  onClick={() => {
+                    if (!requireAuth(() => setShowMobileThreads(true), { title: "Log in to view history", subtitle: "Create an account to access your saved conversations." })) return;
+                  }}
                   className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                 >
                   {t("mobile.historyButton", "History")}
@@ -648,7 +623,9 @@ export default function AIChatPage() {
 
                 <button
                   type="button"
-                  onClick={startNewChat}
+                  onClick={() => {
+                    if (!requireAuth(() => startNewChat(), { title: "Log in to start chats", subtitle: "Create an account to start and save conversations." })) return;
+                  }}
                   className="md:hidden text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                 >
                   {t("newChat", "+ New chat")}
@@ -660,10 +637,25 @@ export default function AIChatPage() {
           {error && <p className="px-4 pt-2 text-[11px] text-red-400">{error}</p>}
 
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 text-sm">
-            {loadingMessages && messages.length === 0 ? (
-              <p className="text-[12px] text-[var(--text-muted)]">
-                {t("messages.loading", "Loading conversation…")}
-              </p>
+            {!canInteract ? (
+              <div className="text-[12px] text-[var(--text-muted)] mt-4">
+                <p className="mb-2 font-semibold text-[var(--text-main)]">{t("visitor.previewTitle", "Preview mode")}</p>
+                <p className="mb-3">{t("visitor.previewBody", "You can explore the chat UI, but you’ll need an account to send messages and save history.")}</p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    requireAuth(undefined, {
+                      title: "Create a free account",
+                      subtitle: "Log in or sign up to send messages and save your AI chats.",
+                    })
+                  }
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[12px]"
+                >
+                  {t("visitor.previewCta", "Log in / Sign up")}
+                </button>
+              </div>
+            ) : loadingMessages && messages.length === 0 ? (
+              <p className="text-[12px] text-[var(--text-muted)]">{t("messages.loading", "Loading conversation…")}</p>
             ) : messages.length === 0 ? (
               <div className="text-[12px] text-[var(--text-muted)] mt-4">
                 <p className="mb-1">{t("suggestion.start", "Start by asking something like:")}</p>
@@ -695,7 +687,10 @@ export default function AIChatPage() {
               <span className="hidden md:inline">{t("categoryLabel", "Category:")}</span>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  // allow changing category even in preview
+                  setCategory(e.target.value);
+                }}
                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px]"
               >
                 {CATEGORIES.map((c) => (
@@ -704,28 +699,43 @@ export default function AIChatPage() {
                   </option>
                 ))}
               </select>
-              <span className="text-[10px] text-[var(--text-muted)]">
-                {t("category.help", "Helps the AI adapt tone & suggestions.")}
-              </span>
+              <span className="text-[10px] text-[var(--text-muted)]">{t("category.help", "Helps the AI adapt tone & suggestions.")}</span>
             </div>
 
             <div className="flex items-end gap-2">
               <textarea
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                readOnly={!canInteract}
+                onFocus={() => {
+                  if (canInteract) return;
+                  requireAuth(undefined, {
+                    title: "Log in to chat",
+                    subtitle: "Create a free account to message the AI and save your conversations.",
+                  });
+                }}
+                onChange={(e) => {
+                  if (!requireAuth()) return;
+                  setInput(e.target.value);
+                }}
                 placeholder={t("input.placeholder", "Ask anything — planning, focus, ideas, mindset…")}
                 className="flex-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[120px] resize-y"
               />
               <button
                 type="submit"
-                disabled={sending || !input.trim() || (!isPro && remaining <= 0)}
+                onClick={(e) => {
+                  // ensure clicking the button in preview opens the modal (even if textarea never focused)
+                  if (!canInteract) {
+                    e.preventDefault();
+                    requireAuth(undefined, {
+                      title: "Log in to send",
+                      subtitle: "Create a free account to send messages to the AI.",
+                    });
+                  }
+                }}
+                disabled={sending || (!canInteract ? false : !input.trim()) || (canInteract && !isPro && remaining <= 0)}
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
               >
-                {sending
-                  ? t("input.sending", "Sending…")
-                  : !isPro && remaining <= 0
-                  ? t("input.limitReached", "Daily limit reached")
-                  : t("input.send", "Send")}
+                {sending ? t("input.sending", "Sending…") : canInteract && !isPro && remaining <= 0 ? t("input.limitReached", "Daily limit reached") : t("input.send", "Send")}
               </button>
             </div>
           </form>
@@ -746,15 +756,27 @@ export default function AIChatPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
-                  {loadingThreads ? (
-                    <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                      {t("sidebar.loading", "Loading conversations…")}
-                    </p>
+                  {!user ? (
+                    <div className="p-3 text-[11px] text-[var(--text-muted)]">
+                      <p className="font-semibold text-[var(--text-main)] mb-1">{t("visitor.mobileTitle", "Preview mode")}</p>
+                      <p className="mb-2">{t("visitor.mobileBody", "Log in to access your chat history on mobile.")}</p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          requireAuth(undefined, {
+                            title: "Log in to view history",
+                            subtitle: "Create an account to access your saved conversations.",
+                          })
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
+                      >
+                        {t("visitor.mobileCta", "Log in / Sign up")}
+                      </button>
+                    </div>
+                  ) : loadingThreads ? (
+                    <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("sidebar.loading", "Loading conversations…")}</p>
                   ) : threads.length === 0 ? (
-                    <p className="p-3 text-[var(--text-muted)] text-[11px]">
-  {t("mobile.empty", "No conversations yet. Start a new chat.")}
-</p>
-
+                    <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("mobile.empty", "No conversations yet. Start a new chat.")}</p>
                   ) : (
                     threads.map((thread) => {
                       const isActive = activeThreadId === thread.id;
@@ -764,20 +786,17 @@ export default function AIChatPage() {
                         <div
                           key={thread.id}
                           className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer ${
-                            isActive
-                              ? "bg-[var(--bg-card)] text-[var(--text-main)]"
-                              : "hover:bg-[var(--bg-elevated)] text-[var(--text-main)]"
+                            isActive ? "bg-[var(--bg-card)] text-[var(--text-main)]" : "hover:bg-[var(--bg-elevated)] text-[var(--text-main)]"
                           }`}
                           onClick={() => {
+                            if (!requireAuth()) return;
                             setActiveThreadId(thread.id);
                             setShowMobileThreads(false);
                           }}
                         >
                           <div className="flex-1 min-w-0">
                             <p className="truncate font-medium">{thread.title || t("sampleTitle", "New conversation")}</p>
-                            <p className="text-[10px] text-[var(--text-muted)] truncate">
-                              {categoryLabel(thread.category || "General")}
-                            </p>
+                            <p className="text-[10px] text-[var(--text-muted)] truncate">{categoryLabel(thread.category || "General")}</p>
                           </div>
 
                           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -808,6 +827,9 @@ export default function AIChatPage() {
               </div>
             </div>
           )}
+
+          {/* ✅ Auth modal (reusable) */}
+          <AuthGateModal open={authOpen} onClose={closeAuth} authHref={authHref} copy={authCopy} />
         </section>
       </div>
     </main>

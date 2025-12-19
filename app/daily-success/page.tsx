@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
+import { useAuthGate } from "@/app/hooks/useAuthGate";
+import AuthGateModal from "@/app/components/AuthGateModal";
 
 type PlanType = "free" | "pro" | "founder";
 
@@ -28,6 +30,9 @@ export default function DailySuccessPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
   const [plan, setPlan] = useState<PlanType>("free");
+
+  // ✅ Auth gate
+  const gate = useAuthGate(user);
 
   const [morningInput, setMorningInput] = useState("");
   const [topPriorities, setTopPriorities] = useState<string[]>(["", "", ""]);
@@ -74,11 +79,7 @@ export default function DailySuccessPage() {
 
     async function loadPlan() {
       try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", user.id)
-          .maybeSingle();
+        const { data, error } = await supabase.from("profiles").select("plan").eq("id", user.id).maybeSingle();
 
         if (error && (error as any).code !== "PGRST116") {
           console.error("Daily Success: plan load error", error);
@@ -122,6 +123,19 @@ export default function DailySuccessPage() {
     e.preventDefault();
     setError("");
     setStatusMessage("");
+
+    // ✅ Gate (full page stays, action requires login)
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("dailySuccessSystem.auth.morning.title", "Log in to generate your daily plan."),
+        subtitle: t(
+          "dailySuccessSystem.auth.morning.subtitle",
+          "Create a free account to save your progress and use the AI Daily Success System."
+        ),
+      })
+    ) {
+      return;
+    }
 
     const trimmed = morningInput.trim();
     const priorities = topPriorities.map((p) => p.trim()).filter(Boolean);
@@ -176,6 +190,19 @@ Please:
     setError("");
     setStatusMessage("");
 
+    // ✅ Gate
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("dailySuccessSystem.auth.evening.title", "Log in to reflect with AI."),
+        subtitle: t(
+          "dailySuccessSystem.auth.evening.subtitle",
+          "Create a free account to save your reflection and track your scores over time."
+        ),
+      })
+    ) {
+      return;
+    }
+
     const trimmed = eveningInput.trim();
     if (!trimmed) {
       setError(
@@ -208,7 +235,11 @@ ${trimmed}
 
   // 5) Load score stats (today + last days)
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setAvgLast7(null);
+      setScoreStreak(0);
+      return;
+    }
 
     async function loadScores() {
       setScoreLoading(true);
@@ -249,16 +280,13 @@ ${trimmed}
 
         const last7 = list.filter((r) => r.score_date >= sevenStr);
         if (last7.length) {
-          const avg =
-            last7.reduce((sum, r) => sum + (r.score || 0), 0) / last7.length;
+          const avg = last7.reduce((sum, r) => sum + (r.score || 0), 0) / last7.length;
           setAvgLast7(Math.round(avg));
         } else {
           setAvgLast7(null);
         }
 
-        const goodDateSet = new Set(
-          list.filter((r) => r.score >= 60).map((r) => r.score_date)
-        );
+        const goodDateSet = new Set(list.filter((r) => r.score >= 60).map((r) => r.score_date));
 
         let streakCount = 0;
         const current = new Date();
@@ -282,16 +310,24 @@ ${trimmed}
 
   // 6) Save today's score
   async function handleSaveScore() {
-    if (!user) {
-      setScoreMessage(
-        t("dailySuccessSystem.score.loginToSave", "Log in to save your daily score.")
-      );
+    setError("");
+    setScoreMessage("");
+
+    // ✅ Gate
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("dailySuccessSystem.auth.saveScore.title", "Log in to save your daily score."),
+        subtitle: t(
+          "dailySuccessSystem.auth.saveScore.subtitle",
+          "Create a free account to track your averages and streak."
+        ),
+      })
+    ) {
       return;
     }
+    if (!user) return;
 
     setSavingScore(true);
-    setScoreMessage("");
-    setError("");
 
     try {
       const todayStr = getTodayStr();
@@ -314,9 +350,7 @@ ${trimmed}
         return;
       }
 
-      setScoreMessage(
-        t("dailySuccessSystem.score.savedMessage", "Saved! Your streak and averages are updated.")
-      );
+      setScoreMessage(t("dailySuccessSystem.score.savedMessage", "Saved! Your streak and averages are updated."));
     } catch (err) {
       console.error(err);
       setError(t("dailySuccessSystem.score.saveError", "Failed to save your daily score."));
@@ -327,12 +361,19 @@ ${trimmed}
 
   // 7) Ask AI to suggest today's score
   async function handleSuggestScore() {
-    if (!user) {
-      setSuggestError(
-        t("dailySuccessSystem.suggest.loginRequired", "Log in to let AI suggest a score.")
-      );
+    // ✅ Gate
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("dailySuccessSystem.auth.suggestScore.title", "Log in to let AI suggest your score."),
+        subtitle: t(
+          "dailySuccessSystem.auth.suggestScore.subtitle",
+          "AI uses your saved activity to estimate a realistic score."
+        ),
+      })
+    ) {
       return;
     }
+    if (!user) return;
 
     setSuggestLoading(true);
     setSuggestError(null);
@@ -359,10 +400,7 @@ ${trimmed}
     } catch (err) {
       console.error("[daily-success] suggest error", err);
       setSuggestError(
-        t(
-          "dailySuccessSystem.suggest.networkError",
-          "Network error while asking AI to suggest your score."
-        )
+        t("dailySuccessSystem.suggest.networkError", "Network error while asking AI to suggest your score.")
       );
     } finally {
       setSuggestLoading(false);
@@ -388,6 +426,10 @@ ${trimmed}
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="daily-success" />
+
+      {/* ✅ Auth modal */}
+      <AuthGateModal open={gate.open} onClose={gate.close} copy={gate.copy} authHref={gate.authHref} />
+
       <div className="flex-1">
         <div className="max-w-4xl mx-auto px-4 py-8 md:py-10 text-sm">
           {/* Header */}
@@ -402,7 +444,28 @@ ${trimmed}
                   "Start your day with a focused plan, end it with a clear reflection, and track your progress with a simple score."
                 )}
               </p>
+
+              {!user && (
+                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                  {t(
+                    "dailySuccessSystem.auth.inline",
+                    "You're viewing as a guest. Log in to generate plans, reflect with AI, and save your score."
+                  )}{" "}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      gate.openGate({
+                        title: t("dailySuccessSystem.auth.title", "Log in to use the Daily Success System."),
+                      })
+                    }
+                    className="underline underline-offset-2 text-[var(--accent)] hover:opacity-90"
+                  >
+                    {t("dailySuccessSystem.auth.cta", "Go to login / signup")}
+                  </button>
+                </p>
+              )}
             </div>
+
             <Link
               href="/dashboard"
               className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
@@ -438,9 +501,7 @@ ${trimmed}
           {/* Score stats card */}
           <div className="mb-5 grid md:grid-cols-3 gap-3 text-[11px]">
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
-              <p className="text-[var(--text-muted)] mb-1">
-                {t("dailySuccessSystem.todaysScore.heading", "Today's score")}
-              </p>
+              <p className="text-[var(--text-muted)] mb-1">{t("dailySuccessSystem.todaysScore.heading", "Today's score")}</p>
               <p className="text-xl font-semibold">
                 {score}
                 <span className="text-[11px] text-[var(--text-muted)] ml-1">/100</span>
@@ -454,9 +515,7 @@ ${trimmed}
             </div>
 
             <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-card)] p-3">
-              <p className="text-[var(--text-muted)] mb-1">
-                {t("dailySuccessSystem.avg7d.label", "Avg last 7 days")}
-              </p>
+              <p className="text-[var(--text-muted)] mb-1">{t("dailySuccessSystem.avg7d.label", "Avg last 7 days")}</p>
               <p className="text-xl font-semibold">{avgLast7 !== null ? `${avgLast7}/100` : "—"}</p>
               <p className="text-[var(--text-muted)] mt-1">
                 {t("dailySuccessSystem.avg7d.help", "Aim for consistency, not perfection.")}
@@ -470,9 +529,7 @@ ${trimmed}
               <p className="text-xl font-semibold">
                 {scoreStreak}{" "}
                 {t(
-                  scoreStreak === 1
-                    ? "dailySuccessSystem.streak.day"
-                    : "dailySuccessSystem.streak.days",
+                  scoreStreak === 1 ? "dailySuccessSystem.streak.day" : "dailySuccessSystem.streak.days",
                   scoreStreak === 1 ? "day" : "days"
                 )}
               </p>
@@ -597,10 +654,7 @@ ${trimmed}
               {/* Score slider + AI suggest */}
               <div className="mt-5 border-t border-[var(--border-subtle)] pt-3">
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                  {t(
-                    "dailySuccessSystem.evening.scoreQuestion",
-                    "How would you rate today overall?"
-                  )}
+                  {t("dailySuccessSystem.evening.scoreQuestion", "How would you rate today overall?")}
                 </label>
 
                 <div className="flex items-center gap-3">
@@ -631,10 +685,7 @@ ${trimmed}
                   >
                     {suggestLoading
                       ? t("dailySuccessSystem.evening.aiSuggestLoading", "Asking AI…")
-                      : t(
-                          "dailySuccessSystem.evening.aiSuggestLabel",
-                          "Let AI suggest today's score"
-                        )}
+                      : t("dailySuccessSystem.evening.aiSuggestLabel", "Let AI suggest today's score")}
                   </button>
 
                   <p className="text-[10px] text-[var(--text-muted)]">
@@ -647,8 +698,7 @@ ${trimmed}
 
                 {suggestReason && (
                   <p className="mt-2 text-[11px] text-[var(--text-main)]">
-                    {t("dailySuccessSystem.evening.aiSuggestReasonPrefix", "Suggested because:")}{" "}
-                    {suggestReason}
+                    {t("dailySuccessSystem.evening.aiSuggestReasonPrefix", "Suggested because:")} {suggestReason}
                   </p>
                 )}
 
@@ -672,12 +722,7 @@ ${trimmed}
                 </p>
                 <ul className="text-[11px] text-[var(--text-muted)] list-disc list-inside space-y-1">
                   <li>{t("dailySuccessSystem.hint.tip1", "Mention 2–3 things you're proud of.")}</li>
-                  <li>
-                    {t(
-                      "dailySuccessSystem.hint.tip2",
-                      "Be honest about distractions and procrastination."
-                    )}
-                  </li>
+                  <li>{t("dailySuccessSystem.hint.tip2", "Be honest about distractions and procrastination.")}</li>
                   <li>{t("dailySuccessSystem.hint.tip3", "Add how you'd like tomorrow to feel.")}</li>
                 </ul>
               </div>

@@ -206,12 +206,7 @@ function MiniDatePicker({ value, onChange, t }: MiniDatePickerProps) {
             {weeks.map((week, wi) =>
               week.map((day, di) => {
                 if (!day) {
-                  return (
-                    <span
-                      key={`${wi}-${di}`}
-                      className="h-6 text-center text-[var(--text-muted)]/40"
-                    />
-                  );
+                  return <span key={`${wi}-${di}`} className="h-6 text-center text-[var(--text-muted)]/40" />;
                 }
 
                 const thisYmd = toYmd(new Date(year, month, day));
@@ -244,17 +239,12 @@ function normalizeDueIso(input: string): string | null {
   const s = input.trim();
   if (!s) return null;
 
-  // If it already has timezone (Z or +hh:mm), trust it.
   if (/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)) {
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
   }
 
-  // If it's ISO-like but WITHOUT timezone, treat as LOCAL time.
-  // Examples: "2025-12-18T10:00", "2025-12-18T10:00:00"
-  const m = s.match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2})(?::(\d{2}))(?::(\d{2}))?)?$/
-  );
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2})(?::(\d{2}))(?::(\d{2}))?)?$/);
   if (!m) {
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
@@ -263,7 +253,7 @@ function normalizeDueIso(input: string): string | null {
   const year = Number(m[1]);
   const month = Number(m[2]) - 1;
   const day = Number(m[3]);
-  const hour = m[4] ? Number(m[4]) : 12; // default NOON to avoid date shifting
+  const hour = m[4] ? Number(m[4]) : 12;
   const minute = m[5] ? Number(m[5]) : 0;
   const second = m[6] ? Number(m[6]) : 0;
 
@@ -277,39 +267,16 @@ function resolveNaturalDue(label: string): string | null {
   const text = label.toLowerCase();
   const now = new Date();
 
-  // Base date = today 09:00 (same logic as Notes page)
-  const target = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    9,
-    0,
-    0,
-    0
-  );
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
 
-  // --- Day offset (EN + GR) ---
-  if (
-    text.includes("tomorrow") ||
-    text.includes("αύριο") ||
-    text.includes("αυριο")
-  ) {
+  if (text.includes("tomorrow") || text.includes("αύριο") || text.includes("αυριο")) {
     target.setDate(target.getDate() + 1);
-  } else if (
-    text.includes("next week") ||
-    text.includes("επόμενη εβδομάδα") ||
-    text.includes("επομενη εβδομαδα")
-  ) {
+  } else if (text.includes("next week") || text.includes("επόμενη εβδομάδα") || text.includes("επομενη εβδομαδα")) {
     target.setDate(target.getDate() + 7);
-  } else if (
-    text.includes("today") ||
-    text.includes("σήμερα") ||
-    text.includes("σημερα")
-  ) {
+  } else if (text.includes("today") || text.includes("σήμερα") || text.includes("σημερα")) {
     // keep today
   }
 
-  // --- Time-of-day keywords ---
   if (text.includes("morning") || text.includes("πρωί") || text.includes("πρωι")) {
     target.setHours(8, 0, 0, 0);
   } else if (text.includes("noon") || text.includes("μεσημέρι") || text.includes("μεσημερι")) {
@@ -327,10 +294,7 @@ function resolveNaturalDue(label: string): string | null {
     target.setHours(20, 0, 0, 0);
   }
 
-  // --- Explicit time: 10, 10:30, 10am, 10 μμ, 20:00 ---
-  const timeMatch = text.match(
-    /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|πμ|μμ)?\b|\b(\d{1,2}):(\d{2})\b/
-  );
+  const timeMatch = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|πμ|μμ)?\b|\b(\d{1,2}):(\d{2})\b/);
 
   if (timeMatch) {
     let hour: number | null = null;
@@ -356,10 +320,8 @@ function resolveNaturalDue(label: string): string | null {
   return target.toISOString();
 }
 
-// 24h time dropdown options (00:00 - 23:00)
 const TIME_OPTIONS = Array.from({ length: 24 }, (_, h) => `${pad(h)}:00`);
 
-// Category list (values stay stable for DB)
 const TASK_CATEGORIES = ["Work", "Personal", "Health", "Study", "Errands", "Home", "Travel", "Other"] as const;
 
 const taskCategoryStyles: Record<string, string> = {
@@ -373,11 +335,108 @@ const taskCategoryStyles: Record<string, string> = {
   Other: "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-subtle)]",
 };
 
+const DEMO_TASKS: TaskRow[] = [
+  {
+    id: "demo-task-1",
+    user_id: "visitor",
+    title: "Welcome to Tasks (demo)",
+    description: "You can browse tasks as a visitor. Click “Add task”, “Mark as done”, or edit anything → login popup.",
+    completed: false,
+    due_date: new Date(Date.now() + 86400000).toISOString(),
+    created_at: new Date().toISOString(),
+    completed_at: null,
+    category: "Work",
+    time_from: "09:00",
+    time_to: "10:00",
+    reminder_enabled: false,
+    reminder_at: null,
+  },
+  {
+    id: "demo-task-2",
+    user_id: "visitor",
+    title: "Plan the week",
+    description: "Draft 3 priorities + block time.",
+    completed: true,
+    due_date: null,
+    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    completed_at: new Date(Date.now() - 86400000).toISOString(),
+    category: "Personal",
+    time_from: null,
+    time_to: null,
+    reminder_enabled: false,
+    reminder_at: null,
+  },
+];
+
+function AuthGateModal({
+  open,
+  onClose,
+  title = "Log in to continue",
+  subtitle = "Create an account to add, edit, or complete tasks.",
+}: {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  subtitle?: string;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-sm rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">{title}</p>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <a
+            href="/auth"
+            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
+          >
+            Log in / Sign up
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
+          >
+            Not now
+          </button>
+        </div>
+
+        <p className="mt-3 text-[10px] text-[var(--text-muted)]">You can still browse this page as a visitor.</p>
+      </div>
+    </div>
+  );
+}
+
 export default function TasksPage() {
   const { t } = useT("tasks");
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+
+  // Auth gate
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  function requireAuth(action?: () => void) {
+    if (!user) {
+      setAuthModalOpen(true);
+      return false;
+    }
+    action?.();
+    return true;
+  }
 
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -425,102 +484,79 @@ export default function TasksPage() {
   const todayYmd = new Date().toISOString().slice(0, 10);
   const categoryLabel = (cat: string) => t(`category.${cat}`, cat);
 
-  // ✅ Voice result handler MUST be inside component (it uses state setters)
-  function handleVoiceResult(payload: {
-  rawText: string | null;
-  structured: VoiceStructured | null;
-}) {
-  const structured = payload.structured;
+  function handleVoiceResult(payload: { rawText: string | null; structured: VoiceStructured | null }) {
+    if (!requireAuth()) return;
 
-  if (!structured || !Array.isArray(structured.tasks)) {
-    setVoiceSuggestedTasks([]);
-    setVoiceTasksMessage("");
-    return;
-  }
+    const structured = payload.structured;
 
-  const now = new Date();
-
-  const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
-    const title =
-      typeof t.title === "string" && t.title.trim()
-        ? t.title.trim()
-        : "(Untitled task)";
-
-    let dueIso: string | null = null;
-    let dueLabel: string | null = null;
-
-    const natural =
-      typeof t.due_natural === "string" && t.due_natural.trim()
-        ? t.due_natural.trim()
-        : null;
-
-    const naturalLower = (natural || "").toLowerCase();
-
-    const hasRelativeIntent =
-      naturalLower.includes("tomorrow") ||
-      naturalLower.includes("today") ||
-      naturalLower.includes("tonight") ||
-      naturalLower.includes("next") ||
-      naturalLower.includes("in ");
-
-    // ✅ 1) If user said something relative → ALWAYS trust natural language
-    if (natural && hasRelativeIntent) {
-      const resolved = resolveNaturalDue(natural);
-      if (resolved) {
-        dueIso = resolved;
-        dueLabel = new Date(resolved).toLocaleString();
-      } else {
-        dueLabel = natural;
-      }
+    if (!structured || !Array.isArray(structured.tasks)) {
+      setVoiceSuggestedTasks([]);
+      setVoiceTasksMessage("");
+      return;
     }
 
-    // ✅ 2) Otherwise, fall back to ISO — but only if it's not in the past
-    if (!dueIso && typeof t.due_iso === "string" && t.due_iso.trim()) {
-      const normalized = normalizeDueIso(t.due_iso);
-      if (normalized) {
-        const parsed = new Date(normalized);
+    const now = new Date();
 
-        // Ignore past dates (very common AI mistake)
-        if (parsed.getTime() > now.getTime() - 60_000) {
-          dueIso = normalized;
-          dueLabel = parsed.toLocaleString();
+    const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((tt) => {
+      const title = typeof tt.title === "string" && tt.title.trim() ? tt.title.trim() : "(Untitled task)";
+
+      let dueIso: string | null = null;
+      let dueLabel: string | null = null;
+
+      const natural = typeof tt.due_natural === "string" && tt.due_natural.trim() ? tt.due_natural.trim() : null;
+      const naturalLower = (natural || "").toLowerCase();
+
+      const hasRelativeIntent =
+        naturalLower.includes("tomorrow") ||
+        naturalLower.includes("today") ||
+        naturalLower.includes("tonight") ||
+        naturalLower.includes("next") ||
+        naturalLower.includes("in ");
+
+      if (natural && hasRelativeIntent) {
+        const resolved = resolveNaturalDue(natural);
+        if (resolved) {
+          dueIso = resolved;
+          dueLabel = new Date(resolved).toLocaleString();
+        } else {
+          dueLabel = natural;
         }
       }
-    }
 
-    // ✅ 3) Last fallback: natural without keywords
-    if (!dueIso && natural) {
-      const resolved = resolveNaturalDue(natural);
-      if (resolved) {
-        dueIso = resolved;
-        dueLabel = new Date(resolved).toLocaleString();
-      } else {
-        dueLabel = natural;
+      if (!dueIso && typeof tt.due_iso === "string" && tt.due_iso.trim()) {
+        const normalized = normalizeDueIso(tt.due_iso);
+        if (normalized) {
+          const parsed = new Date(normalized);
+          if (parsed.getTime() > now.getTime() - 60_000) {
+            dueIso = normalized;
+            dueLabel = parsed.toLocaleString();
+          }
+        }
       }
-    }
 
-    return {
-      title,
-      dueIso,
-      dueLabel,
-      priority:
-        t.priority === "low" ||
-        t.priority === "medium" ||
-        t.priority === "high"
-          ? t.priority
-          : null,
-    };
-  });
+      if (!dueIso && natural) {
+        const resolved = resolveNaturalDue(natural);
+        if (resolved) {
+          dueIso = resolved;
+          dueLabel = new Date(resolved).toLocaleString();
+        } else {
+          dueLabel = natural;
+        }
+      }
 
-  const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
+      return {
+        title,
+        dueIso,
+        dueLabel,
+        priority: tt.priority === "low" || tt.priority === "medium" || tt.priority === "high" ? tt.priority : null,
+      };
+    });
 
-  setVoiceSuggestedTasks(nonEmpty);
-  setVoiceTasksMessage(
-    nonEmpty.length === 0
-      ? t("voice.noTasks", "No clear tasks found in voice input.")
-      : ""
-  );
-}
+    const nonEmpty = suggestions.filter((s) => s.title.trim().length > 0);
+
+    setVoiceSuggestedTasks(nonEmpty);
+    setVoiceTasksMessage(nonEmpty.length === 0 ? t("voice.noTasks", "No clear tasks found in voice input.") : "");
+  }
 
   // Load user
   useEffect(() => {
@@ -566,15 +602,19 @@ export default function TasksPage() {
     }
   }
 
-  // Load tasks
+  // Load tasks (or demo tasks for visitors)
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setTasks(DEMO_TASKS);
+      setOpenTaskIds(DEMO_TASKS.length ? [DEMO_TASKS[0].id] : []);
+      return;
+    }
     fetchTasks(user.id);
   }, [user]);
 
   async function handleAddTask(e: FormEvent) {
     e.preventDefault();
-    if (!user) return;
+    if (!requireAuth()) return;
 
     const title = newTitle.trim();
     const description = newDescription.trim();
@@ -584,8 +624,7 @@ export default function TasksPage() {
     setError("");
 
     try {
-      const dueDateIso =
-        newDueDate.trim() !== "" ? new Date(newDueDate + "T00:00:00").toISOString() : null;
+      const dueDateIso = newDueDate.trim() !== "" ? new Date(newDueDate + "T00:00:00").toISOString() : null;
 
       let reminderAtIso: string | null = null;
       if (newReminderEnabled && newReminderAtLocal) {
@@ -661,7 +700,8 @@ export default function TasksPage() {
   }, [sharingTaskId]);
 
   async function handleCreateTasksFromVoice() {
-    if (!user || voiceSuggestedTasks.length === 0) return;
+    if (!requireAuth()) return;
+    if (voiceSuggestedTasks.length === 0) return;
 
     setCreatingVoiceTasks(true);
     setError("");
@@ -707,7 +747,7 @@ export default function TasksPage() {
   }
 
   async function toggleDone(task: TaskRow) {
-    if (!user) return;
+    if (!requireAuth()) return;
 
     const newDone = !task.completed;
     setSavingTaskId(task.id);
@@ -743,7 +783,7 @@ export default function TasksPage() {
   }
 
   async function handleUpdateTask(task: TaskRow, updates: Partial<TaskRow>) {
-    if (!user) return;
+    if (!requireAuth()) return;
 
     setSavingTaskId(task.id);
     setError("");
@@ -784,7 +824,7 @@ export default function TasksPage() {
   }
 
   async function handleDeleteTask(task: TaskRow) {
-    if (!user) return;
+    if (!requireAuth()) return;
     if (!window.confirm(t("confirmDelete", "Delete this task?"))) return;
 
     setDeletingTaskId(task.id);
@@ -811,12 +851,12 @@ export default function TasksPage() {
   }
 
   function toggleSelected(taskId: string) {
+    if (!requireAuth()) return;
     setSelectedTaskIds((prev) => (prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]));
   }
 
   function getTaskShareText(task: TaskRow) {
     const lines: string[] = [];
-
     lines.push(`Task: ${task.title || "(untitled task)"}`);
     if (task.category) lines.push(`Category: ${task.category}`);
 
@@ -837,11 +877,11 @@ export default function TasksPage() {
 
     lines.push("");
     lines.push("— Shared from AI Productivity Hub");
-
     return lines.join("\n");
   }
 
   function handleShareCopy(task: TaskRow) {
+    if (!requireAuth()) return;
     const text = getTaskShareText(task);
     navigator.clipboard?.writeText?.(text).then(() => {
       setCopiedTaskId(task.id);
@@ -850,22 +890,27 @@ export default function TasksPage() {
   }
 
   function handleShareWhatsApp(task: TaskRow) {
+    if (!requireAuth()) return;
     const text = encodeURIComponent(getTaskShareText(task));
     window.open(`https://wa.me/?text=${text}`, "_blank");
   }
 
   function handleShareViber(task: TaskRow) {
+    if (!requireAuth()) return;
     const text = encodeURIComponent(getTaskShareText(task));
     window.open(`viber://forward?text=${text}`, "_blank");
   }
 
   function handleShareEmail(task: TaskRow) {
+    if (!requireAuth()) return;
     const subject = encodeURIComponent(`Task: ${task.title || "Shared task"}`);
     const body = encodeURIComponent(getTaskShareText(task));
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
 
   function handleBulkCopy(mode: "today" | "selected") {
+    if (!requireAuth()) return;
+
     let list: TaskRow[];
 
     if (mode === "today") {
@@ -905,50 +950,55 @@ export default function TasksPage() {
     );
   }
 
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
-        <AppHeader active="tasks" />
-        <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">{t("title", "Tasks")}</h1>
-          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            {t("loginPrompt", "Log in or create a free account to track your tasks.")}
-          </p>
-          <Link
-            href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
-          >
-            {t("goToAuth", "Go to login / signup")}
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
   const filteredTasks = tasks.filter((task) => {
     const done = !!task.completed;
     const passesView = viewMode === "active" ? !done : viewMode === "completed" ? done : true;
-
     const passesCategory = categoryFilter === "all" ? true : (task.category || "") === categoryFilter;
-
     return passesView && passesCategory;
   });
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="tasks" />
+      <AuthGateModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
-          <h1 className="text-2xl md:text-3xl font-bold mb-3">{t("title", "Tasks")}</h1>
-          <p className="text-xs md:text-sm text-[var(--text-muted)] mb-4">
-            {t("subtitle", "Capture tasks, check them off, and keep track of your progress.")}
-          </p>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold">{t("title", "Tasks")}</h1>
+              <p className="text-xs md:text-sm text-[var(--text-muted)] mt-1">
+                {t("subtitle", "Capture tasks, check them off, and keep track of your progress.")}
+              </p>
+              {!user && (
+                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                  You’re browsing as a <span className="font-semibold">visitor</span>. Click any action to log in.
+                </p>
+              )}
+            </div>
+
+            {!user && (
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+              >
+                Log in
+              </button>
+            )}
+          </div>
 
           {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
 
           {/* New task form */}
           <form
-            onSubmit={handleAddTask}
+            onSubmit={(e) => {
+              if (!user) {
+                e.preventDefault();
+                setAuthModalOpen(true);
+                return;
+              }
+              handleAddTask(e);
+            }}
             className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 space-y-3 text-sm"
           >
             <div className="mb-2 flex items-center justify-between">
@@ -956,6 +1006,12 @@ export default function TasksPage() {
 
               <Link
                 href="/ai-task-creator"
+                onClick={(e) => {
+                  if (!user) {
+                    e.preventDefault();
+                    setAuthModalOpen(true);
+                  }
+                }}
                 className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px]"
               >
                 {t("aiTaskCreator", "🤖 AI Task Creator")}
@@ -964,11 +1020,23 @@ export default function TasksPage() {
 
             {/* 🎤 Voice capture */}
             <div className="flex items-center gap-2 flex-wrap">
-              <VoiceCaptureButton userId={user.id} mode="review" resetKey={voiceResetKey} onResult={handleVoiceResult} />
+              {user ? (
+                <VoiceCaptureButton userId={user.id} mode="review" resetKey={voiceResetKey} onResult={handleVoiceResult} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAuthModalOpen(true)}
+                  className="px-4 py-2 rounded-full text-sm font-medium bg-indigo-500/90 hover:bg-indigo-500 text-white"
+                >
+                  Hold to talk
+                </button>
+              )}
+
               {voiceSuggestedTasks.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
+                    if (!user) return setAuthModalOpen(true);
                     setVoiceSuggestedTasks([]);
                     setVoiceTasksMessage("");
                     setVoiceResetKey((k) => k + 1);
@@ -983,14 +1051,24 @@ export default function TasksPage() {
             <input
               type="text"
               value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
+              readOnly={!user}
+              onFocus={() => requireAuth()}
+              onChange={(e) => {
+                if (!requireAuth()) return;
+                setNewTitle(e.target.value);
+              }}
               placeholder={t("form.titlePlaceholder", "Task title…")}
               className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2"
             />
 
             <textarea
               value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
+              readOnly={!user}
+              onFocus={() => requireAuth()}
+              onChange={(e) => {
+                if (!requireAuth()) return;
+                setNewDescription(e.target.value);
+              }}
               placeholder={t("form.descriptionPlaceholder", "Optional description or notes…")}
               className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2 min-h-[60px]"
             />
@@ -998,14 +1076,27 @@ export default function TasksPage() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
                 <span className="text-[11px] text-[var(--text-muted)]">{t("form.dueDateLabel", "Due date")}</span>
-                <MiniDatePicker value={newDueDate} onChange={setNewDueDate} t={t} />
+                <div onMouseDown={(e) => (!user ? (e.preventDefault(), setAuthModalOpen(true)) : null)}>
+                  <MiniDatePicker
+                    value={newDueDate}
+                    onChange={(val) => {
+                      if (!requireAuth()) return;
+                      setNewDueDate(val);
+                    }}
+                    t={t}
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
                 <span className="text-[11px] text-[var(--text-muted)]">{t("form.categoryLabel", "Category")}</span>
                 <select
                   value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
+                  onFocus={() => requireAuth()}
+                  onChange={(e) => {
+                    if (!requireAuth()) return;
+                    setNewCategory(e.target.value);
+                  }}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
                   <option value="">{t("form.category.none", "None")}</option>
@@ -1021,7 +1112,11 @@ export default function TasksPage() {
                 <span className="text-[11px] text-[var(--text-muted)]">{t("form.timeLabel", "Time (optional)")}</span>
                 <select
                   value={newTimeFrom}
-                  onChange={(e) => setNewTimeFrom(e.target.value)}
+                  onFocus={() => requireAuth()}
+                  onChange={(e) => {
+                    if (!requireAuth()) return;
+                    setNewTimeFrom(e.target.value);
+                  }}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
                   <option value="">{t("form.time.from", "From")}</option>
@@ -1034,7 +1129,11 @@ export default function TasksPage() {
                 <span>–</span>
                 <select
                   value={newTimeTo}
-                  onChange={(e) => setNewTimeTo(e.target.value)}
+                  onFocus={() => requireAuth()}
+                  onChange={(e) => {
+                    if (!requireAuth()) return;
+                    setNewTimeTo(e.target.value);
+                  }}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
                   <option value="">{t("form.time.to", "To")}</option>
@@ -1047,21 +1146,32 @@ export default function TasksPage() {
               </div>
 
               <div className="flex flex-col gap-1 text-xs text-[var(--text-main)]">
-                <label className="flex items-center gap-2">
+                <label
+                  className="flex items-center gap-2"
+                  onMouseDown={(e) => (!user ? (e.preventDefault(), setAuthModalOpen(true)) : null)}
+                >
                   <input
                     type="checkbox"
                     checked={newReminderEnabled}
-                    onChange={(e) => setNewReminderEnabled(e.target.checked)}
+                    onChange={(e) => {
+                      if (!requireAuth()) return;
+                      setNewReminderEnabled(e.target.checked);
+                    }}
                     className="h-3 w-3 rounded border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                   />
                   <span>{t("form.reminderLabel", "Set reminder for this task")}</span>
                 </label>
+
                 {newReminderEnabled && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <input
                       type="datetime-local"
                       value={newReminderAtLocal}
-                      onChange={(e) => setNewReminderAtLocal(e.target.value)}
+                      onFocus={() => requireAuth()}
+                      onChange={(e) => {
+                        if (!requireAuth()) return;
+                        setNewReminderAtLocal(e.target.value);
+                      }}
                       className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                     />
                   </div>
@@ -1087,7 +1197,8 @@ export default function TasksPage() {
                 {voiceSuggestedTasks.map((tt, i) => (
                   <li key={i}>
                     {tt.title}
-                    {tt.dueLabel && <span className="text-[var(--text-muted)]"> — {tt.dueLabel}</span>}
+                    {tt.dueLabel && <span className="text-[var(--text-muted)]"> — {tt.dueLabel}</span>
+                    }
                   </li>
                 ))}
               </ul>
@@ -1139,7 +1250,6 @@ export default function TasksPage() {
               ))}
             </select>
 
-            {/* (optional) bulk copy hooks you already have */}
             <button
               type="button"
               onClick={() => handleBulkCopy("today")}
@@ -1171,24 +1281,20 @@ export default function TasksPage() {
                 const isSaving = savingTaskId === task.id;
                 const isDeleting = deletingTaskId === task.id;
                 const dueDateValue = task.due_date ? task.due_date.slice(0, 10) : "";
-                const completedAt = task.completed_at ? new Date(task.completed_at) : null;
 
                 const cat = task.category || "Other";
                 const catClass = taskCategoryStyles[cat] || taskCategoryStyles["Other"];
 
                 const isSelected = selectedTaskIds.includes(task.id);
-
                 const isOpen = openTaskIds.includes(task.id);
                 const toggleOpen = () => {
-                  setOpenTaskIds((prev) =>
-                    prev.includes(task.id) ? prev.filter((id) => id !== task.id) : [...prev, task.id]
-                  );
+                  setOpenTaskIds((prev) => (prev.includes(task.id) ? prev.filter((id) => id !== task.id) : [...prev, task.id]));
                 };
 
                 const reminderLocal = toLocalDateTimeInput(task.reminder_at);
 
                 async function handleReminderChange(enabled: boolean, localVal: string) {
-                  if (!user) return;
+                  if (!requireAuth()) return;
 
                   let reminderAt: string | null = null;
                   if (enabled && localVal) reminderAt = fromLocalInputToIso(localVal);
@@ -1216,9 +1322,7 @@ export default function TasksPage() {
                       return;
                     }
 
-                    setTasks((prev) =>
-                      prev.map((tRow) => (tRow.id === task.id ? ((data as TaskRow) || tRow) : tRow))
-                    );
+                    setTasks((prev) => prev.map((tRow) => (tRow.id === task.id ? ((data as TaskRow) || tRow) : tRow)));
                   } catch (err) {
                     console.error("[tasks] reminder update exception]", err);
                     setError(t("reminderUpdateError", "Could not update reminder."));
@@ -1228,10 +1332,7 @@ export default function TasksPage() {
                 }
 
                 return (
-                  <div
-                    key={task.id}
-                    className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm"
-                  >
+                  <div key={task.id} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm">
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
@@ -1255,7 +1356,10 @@ export default function TasksPage() {
                         {task.completed ? t("item.done", "✅ Done") : t("item.markDone", "✔ Mark as done")}
                       </button>
 
-                      <label className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+                      <label
+                        className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]"
+                        onMouseDown={(e) => (!user ? (e.preventDefault(), setAuthModalOpen(true)) : null)}
+                      >
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -1266,11 +1370,7 @@ export default function TasksPage() {
                       </label>
 
                       <div className="flex-1 min-w-0 flex items-center gap-2">
-                        <p
-                          className={`truncate text-sm ${
-                            task.completed ? "line-through text-[var(--text-muted)]" : "text-[var(--text-main)]"
-                          }`}
-                        >
+                        <p className={`truncate text-sm ${task.completed ? "line-through text-[var(--text-muted)]" : "text-[var(--text-main)]"}`}>
                           {task.title || t("item.untitled", "(untitled task)")}
                         </p>
 
@@ -1288,6 +1388,8 @@ export default function TasksPage() {
                           <input
                             type="text"
                             defaultValue={task.title || ""}
+                            readOnly={!user}
+                            onFocus={() => requireAuth()}
                             onBlur={(e) => handleUpdateTask(task, { title: e.target.value })}
                             className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-sm text-[var(--text-main)] placeholder:text-[var(--text-muted)]"
                             placeholder={t("form.titlePlaceholder", "Task title…")}
@@ -1296,6 +1398,7 @@ export default function TasksPage() {
                           <div className="flex items-center gap-2">
                             <select
                               defaultValue={task.category || ""}
+                              onFocus={() => requireAuth()}
                               onChange={(e) => handleUpdateTask(task, { category: e.target.value || null })}
                               className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                             >
@@ -1313,6 +1416,8 @@ export default function TasksPage() {
                           <label className="block mb-1 text-[10px] text-[var(--text-muted)]">{t("item.detailsLabel", "Details")}</label>
                           <textarea
                             defaultValue={task.description || ""}
+                            readOnly={!user}
+                            onFocus={() => requireAuth()}
                             onBlur={(e) => handleUpdateTask(task, { description: e.target.value })}
                             className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-xs text-[var(--text-main)] min-h-[48px]"
                             placeholder={t("item.detailsPlaceholder", "Details or notes…")}
@@ -1321,11 +1426,15 @@ export default function TasksPage() {
 
                         <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                            <div className="flex items-center gap-2">
+                            <div
+                              className="flex items-center gap-2"
+                              onMouseDown={(e) => (!user ? (e.preventDefault(), setAuthModalOpen(true)) : null)}
+                            >
                               <span>{t("item.dueLabel", "Due:")}</span>
                               <MiniDatePicker
                                 value={dueDateValue}
                                 onChange={(ymd) => {
+                                  if (!requireAuth()) return;
                                   const iso = new Date(ymd + "T00:00:00").toISOString();
                                   handleUpdateTask(task, { due_date: iso });
                                 }}
@@ -1337,6 +1446,7 @@ export default function TasksPage() {
                               <span>{t("form.timeLabel", "Time (optional)")}</span>
                               <select
                                 defaultValue={task.time_from || ""}
+                                onFocus={() => requireAuth()}
                                 onChange={(e) => handleUpdateTask(task, { time_from: e.target.value || null })}
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               >
@@ -1350,6 +1460,7 @@ export default function TasksPage() {
                               <span>–</span>
                               <select
                                 defaultValue={task.time_to || ""}
+                                onFocus={() => requireAuth()}
                                 onChange={(e) => handleUpdateTask(task, { time_to: e.target.value || null })}
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               >
@@ -1364,7 +1475,10 @@ export default function TasksPage() {
 
                             <div className="flex items-center gap-2 flex-wrap">
                               <span>{t("item.reminderLabel", "Reminder:")}</span>
-                              <label className="flex items-center gap-1">
+                              <label
+                                className="flex items-center gap-1"
+                                onMouseDown={(e) => (!user ? (e.preventDefault(), setAuthModalOpen(true)) : null)}
+                              >
                                 <input
                                   type="checkbox"
                                   defaultChecked={!!task.reminder_enabled}
@@ -1376,6 +1490,8 @@ export default function TasksPage() {
                               <input
                                 type="datetime-local"
                                 defaultValue={reminderLocal}
+                                readOnly={!user}
+                                onFocus={() => requireAuth()}
                                 onBlur={(e) => handleReminderChange(true, e.target.value)}
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               />
@@ -1386,10 +1502,9 @@ export default function TasksPage() {
                             <span>
                               {t("item.createdLabel", "Created:")} {new Date(task.created_at).toLocaleString()}
                             </span>
-
-                            {completedAt && (
+                            {task.completed_at && (
                               <span className="text-[var(--accent)]">
-                                {t("item.completedLabel", "Completed:")} {completedAt.toLocaleString()}
+                                {t("item.completedLabel", "Completed:")} {new Date(task.completed_at).toLocaleString()}
                               </span>
                             )}
                           </div>
@@ -1399,7 +1514,10 @@ export default function TasksPage() {
                           <div className="relative" ref={shareMenuRef}>
                             <button
                               type="button"
-                              onClick={() => setSharingTaskId((prev) => (prev === task.id ? null : task.id))}
+                              onClick={() => {
+                                if (!requireAuth()) return;
+                                setSharingTaskId((prev) => (prev === task.id ? null : task.id));
+                              }}
                               className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]"
                             >
                               {copiedTaskId === task.id ? t("item.copied", "✅ Copied") : t("item.share", "Share")}
@@ -1414,7 +1532,6 @@ export default function TasksPage() {
                                 >
                                   {t("item.shareCopy", "📋 Copy text")}
                                 </button>
-
                                 <button
                                   type="button"
                                   onClick={() => handleShareWhatsApp(task)}
@@ -1422,7 +1539,6 @@ export default function TasksPage() {
                                 >
                                   {t("item.shareWhatsApp", "💬 WhatsApp")}
                                 </button>
-
                                 <button
                                   type="button"
                                   onClick={() => handleShareViber(task)}
@@ -1430,7 +1546,6 @@ export default function TasksPage() {
                                 >
                                   {t("item.shareViber", "📲 Viber")}
                                 </button>
-
                                 <button
                                   type="button"
                                   onClick={() => handleShareEmail(task)}
@@ -1459,7 +1574,6 @@ export default function TasksPage() {
             </div>
           )}
 
-          {/* Centered feedback form for Tasks page */}
           {tasks.length > 0 && (
             <section className="mt-10 mb-8">
               <div className="max-w-md mx-auto">

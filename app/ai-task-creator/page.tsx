@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
+import { useAuthGate } from "@/app/hooks/useAuthGate";
+import AuthGateModal from "@/app/components/AuthGateModal";
 
 type SuggestedTask = {
   title: string;
@@ -24,27 +26,20 @@ export default function AITaskCreatorPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [plan, setPlan] = useState<PlanType>("free");
 
+  // ✅ Auth gate
+  const gate = useAuthGate(user);
+
   // Form fields
-  const [gender, setGender] = useState<"male" | "female" | "other" | "skip">(
-    "skip"
-  );
-  const [ageRange, setAgeRange] = useState<
-    "under18" | "18-24" | "25-34" | "35-44" | "45plus"
-  >("25-34");
+  const [gender, setGender] = useState<"male" | "female" | "other" | "skip">("skip");
+  const [ageRange, setAgeRange] = useState<"under18" | "18-24" | "25-34" | "35-44" | "45plus">("25-34");
   const [jobRole, setJobRole] = useState("");
-  const [workType, setWorkType] = useState<
-    "work" | "study" | "day-off" | "mixed"
-  >("work");
+  const [workType, setWorkType] = useState<"work" | "study" | "day-off" | "mixed">("work");
   const [hobbies, setHobbies] = useState("");
   const [todayPlan, setTodayPlan] = useState("");
   const [mainGoal, setMainGoal] = useState("");
-  const [hoursAvailable, setHoursAvailable] = useState<
-    "<1" | "1-2" | "2-4" | "4plus"
-  >("2-4");
+  const [hoursAvailable, setHoursAvailable] = useState<"<1" | "1-2" | "2-4" | "4plus">("2-4");
   const [energyLevel, setEnergyLevel] = useState(6); // 1–10
-  const [intensity, setIntensity] = useState<
-    "light" | "balanced" | "aggressive"
-  >("balanced");
+  const [intensity, setIntensity] = useState<"light" | "balanced" | "aggressive">("balanced");
 
   // AI suggestions
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -78,11 +73,7 @@ export default function AITaskCreatorPage() {
 
     async function loadPlan() {
       try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", user.id)
-          .maybeSingle();
+        const { data, error } = await supabase.from("profiles").select("plan").eq("id", user.id).maybeSingle();
 
         if (error && (error as any).code !== "PGRST116") {
           console.error("[ai-task-creator] plan load error", error);
@@ -110,19 +101,23 @@ export default function AITaskCreatorPage() {
     setSuggestError("");
     setStatusMessage("");
 
-    if (!user) {
-      setSuggestError(
-        translate("errors.loginRequired", "Log in to generate AI tasks.")
-      );
+    // ✅ Gate for guests
+    if (
+      !gate.requireAuth(undefined, {
+        title: translate("errors.loginRequired", "Log in to generate AI tasks."),
+        subtitle: translate(
+          "loginPrompt",
+          "Log in or create a free account to let AI generate a personalized task list for your day."
+        ),
+      })
+    ) {
       return;
     }
+    if (!user) return;
 
     if (!todayPlan.trim() && !mainGoal.trim()) {
       setSuggestError(
-        translate(
-          "errors.missingGoalOrPlan",
-          "Tell the AI at least your main plan or goal for today."
-        )
+        translate("errors.missingGoalOrPlan", "Tell the AI at least your main plan or goal for today.")
       );
       return;
     }
@@ -151,33 +146,22 @@ export default function AITaskCreatorPage() {
       if (!res.ok || !data?.ok) {
         console.error("[ai-task-creator] suggestion error", data);
         setSuggestError(
-          data?.error ||
-            translate(
-              "errors.generateFailed",
-              "Could not generate tasks. Please try again."
-            )
+          data?.error || translate("errors.generateFailed", "Could not generate tasks. Please try again.")
         );
         return;
       }
 
       const tasks = (data.tasks || []) as SuggestedTask[];
       setSuggestedTasks(tasks);
+
       if (tasks.length === 0) {
         setSuggestError(
-          translate(
-            "errors.noTasksReturned",
-            "AI did not return any tasks. Try adding more detail."
-          )
+          translate("errors.noTasksReturned", "AI did not return any tasks. Try adding more detail.")
         );
       }
     } catch (err) {
       console.error("[ai-task-creator] suggest exception", err);
-      setSuggestError(
-        translate(
-          "errors.networkGenerate",
-          "Network error while generating tasks."
-        )
-      );
+      setSuggestError(translate("errors.networkGenerate", "Network error while generating tasks."));
     } finally {
       setLoadingSuggestions(false);
     }
@@ -185,20 +169,25 @@ export default function AITaskCreatorPage() {
 
   // 4) Create tasks in Supabase and go to /tasks
   async function handleCreateTasks() {
-    if (!user) {
-      setSuggestError(
-        translate("errors.loginToCreate", "Log in to create tasks.")
-      );
+    setSuggestError("");
+    setStatusMessage("");
+
+    // ✅ Gate for guests
+    if (
+      !gate.requireAuth(undefined, {
+        title: translate("errors.loginToCreate", "Log in to create tasks."),
+        subtitle: translate(
+          "tasksSection.footerNote",
+          "Tasks will be added to your normal Tasks list. You can edit them later like any other task."
+        ),
+      })
+    ) {
       return;
     }
+    if (!user) return;
 
     if (!suggestedTasks.length) {
-      setSuggestError(
-        translate(
-          "errors.noTasksYet",
-          "Generate tasks first, or add at least one task."
-        )
-      );
+      setSuggestError(translate("errors.noTasksYet", "Generate tasks first, or add at least one task."));
       return;
     }
 
@@ -207,16 +196,11 @@ export default function AITaskCreatorPage() {
       .filter((t) => t.title.length > 0);
 
     if (!cleaned.length) {
-      setSuggestError(
-        translate("errors.emptyAfterClean", "Your task list is empty.")
-      );
+      setSuggestError(translate("errors.emptyAfterClean", "Your task list is empty."));
       return;
     }
 
     setCreatingTasks(true);
-    setSuggestError("");
-    setStatusMessage("");
-
     try {
       const rows = cleaned.map((t) => ({
         user_id: user.id,
@@ -227,30 +211,15 @@ export default function AITaskCreatorPage() {
       const { error } = await supabase.from("tasks").insert(rows);
       if (error) {
         console.error("[ai-task-creator] insert error", error);
-        setSuggestError(
-          translate(
-            "errors.insertFailed",
-            "Failed to create tasks in your account."
-          )
-        );
+        setSuggestError(translate("errors.insertFailed", "Failed to create tasks in your account."));
         return;
       }
 
-      setStatusMessage(
-        translate(
-          "status.created",
-          "Tasks created! Redirecting to your Tasks…"
-        )
-      );
+      setStatusMessage(translate("status.created", "Tasks created! Redirecting to your Tasks…"));
       router.push("/tasks");
     } catch (err) {
       console.error("[ai-task-creator] create exception", err);
-      setSuggestError(
-        translate(
-          "errors.networkCreate",
-          "Network error while creating tasks."
-        )
-      );
+      setSuggestError(translate("errors.networkCreate", "Network error while creating tasks."));
     } finally {
       setCreatingTasks(false);
     }
@@ -259,34 +228,7 @@ export default function AITaskCreatorPage() {
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
-        <p className="text-sm text-[var(--text-muted)]">
-          {translate("checkingSession", "Checking your session…")}
-        </p>
-      </main>
-    );
-  }
-
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
-        <AppHeader active="tasks" />
-        <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">
-            {translate("title", "AI Task Creator")}
-          </h1>
-          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            {translate(
-              "loginPrompt",
-              "Log in or create a free account to let AI generate a personalized task list for your day."
-            )}
-          </p>
-          <Link
-            href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
-          >
-            {translate("loginCta", "Go to login / signup")}
-          </Link>
-        </div>
+        <p className="text-sm text-[var(--text-muted)]">{translate("checkingSession", "Checking your session…")}</p>
       </main>
     );
   }
@@ -294,20 +236,41 @@ export default function AITaskCreatorPage() {
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="tasks" />
+
+      {/* ✅ Auth modal (global for this page) */}
+      <AuthGateModal open={gate.open} onClose={gate.close} copy={gate.copy} authHref={gate.authHref} />
+
       <div className="flex-1">
         <div className="max-w-4xl mx-auto px-4 py-8 md:py-10 text-sm">
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                {translate("title", "AI Task Creator")}
-              </h1>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1">{translate("title", "AI Task Creator")}</h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)]">
                 {translate(
                   "subtitle",
                   "Answer a few quick questions and let AI build a realistic task list for today. Then one click to add them to your Tasks."
                 )}
               </p>
+              {!user && (
+                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                  {translate(
+                    "loginPrompt",
+                    "Log in or create a free account to let AI generate a personalized task list for your day."
+                  )}{" "}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      gate.openGate({
+                        title: translate("errors.loginRequired", "Log in to generate AI tasks."),
+                      })
+                    }
+                    className="underline underline-offset-2 text-[var(--accent)] hover:opacity-90"
+                  >
+                    {translate("loginCta", "Go to login / signup")}
+                  </button>
+                </p>
+              )}
             </div>
             <Link
               href="/tasks"
@@ -319,27 +282,13 @@ export default function AITaskCreatorPage() {
 
           {!isPro && (
             <div className="mb-4 rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-4 py-3 text-[11px] text-[var(--accent)]">
-              <p className="font-semibold mb-1">
-                {translate(
-                  "freeBanner.title",
-                  "Works on Free – shines on Pro."
-                )}
-              </p>
+              <p className="font-semibold mb-1">{translate("freeBanner.title", "Works on Free – shines on Pro.")}</p>
               <p>
-                {translate(
-                  "freeBanner.body",
-                  "AI task creation uses your daily AI limit. "
-                )}
+                {translate("freeBanner.body", "AI task creation uses your daily AI limit. ")}
                 <span className="font-semibold">
-                  {translate(
-                    "freeBanner.highlight",
-                    "Pro gives you much higher limits and more automation"
-                  )}
+                  {translate("freeBanner.highlight", "Pro gives you much higher limits and more automation")}
                 </span>{" "}
-                {translate(
-                  "freeBanner.tail",
-                  "for planning and weekly reports."
-                )}
+                {translate("freeBanner.tail", "for planning and weekly reports.")}
               </p>
               <button
                 type="button"
@@ -351,32 +300,18 @@ export default function AITaskCreatorPage() {
             </div>
           )}
 
-          {suggestError && (
-            <p className="text-xs text-red-400 mb-2">{suggestError}</p>
-          )}
-          {statusMessage && (
-            <p className="text-xs text-emerald-400 mb-2">
-              {statusMessage}
-            </p>
-          )}
+          {suggestError && <p className="text-xs text-red-400 mb-2">{suggestError}</p>}
+          {statusMessage && <p className="text-xs text-emerald-400 mb-2">{statusMessage}</p>}
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* LEFT: Questionnaire */}
             <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4">
-              <h2 className="text-sm font-semibold mb-2">
-                {translate("form.heading", "Tell the AI about your day")}
-              </h2>
+              <h2 className="text-sm font-semibold mb-2">{translate("form.heading", "Tell the AI about your day")}</h2>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
-                {translate(
-                  "form.subheading",
-                  "The more realistic you are, the better the task suggestions."
-                )}
+                {translate("form.subheading", "The more realistic you are, the better the task suggestions.")}
               </p>
 
-              <form
-                onSubmit={handleGenerateSuggestions}
-                className="space-y-3 text-[12px]"
-              >
+              <form onSubmit={handleGenerateSuggestions} className="space-y-3 text-[12px]">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-[var(--text-muted)] mb-1">
@@ -384,26 +319,13 @@ export default function AITaskCreatorPage() {
                     </label>
                     <select
                       value={gender}
-                      onChange={(e) =>
-                        setGender(e.target.value as typeof gender)
-                      }
+                      onChange={(e) => setGender(e.target.value as typeof gender)}
                       className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1.5"
                     >
-                      <option value="skip">
-                        {translate(
-                          "form.gender.skip",
-                          "Prefer not to say"
-                        )}
-                      </option>
-                      <option value="male">
-                        {translate("form.gender.male", "Male")}
-                      </option>
-                      <option value="female">
-                        {translate("form.gender.female", "Female")}
-                      </option>
-                      <option value="other">
-                        {translate("form.gender.other", "Other")}
-                      </option>
+                      <option value="skip">{translate("form.gender.skip", "Prefer not to say")}</option>
+                      <option value="male">{translate("form.gender.male", "Male")}</option>
+                      <option value="female">{translate("form.gender.female", "Female")}</option>
+                      <option value="other">{translate("form.gender.other", "Other")}</option>
                     </select>
                   </div>
 
@@ -413,36 +335,21 @@ export default function AITaskCreatorPage() {
                     </label>
                     <select
                       value={ageRange}
-                      onChange={(e) =>
-                        setAgeRange(e.target.value as typeof ageRange)
-                      }
+                      onChange={(e) => setAgeRange(e.target.value as typeof ageRange)}
                       className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1.5"
                     >
-                      <option value="under18">
-                        {translate("form.age.under18", "< 18")}
-                      </option>
-                      <option value="18-24">
-                        {translate("form.age.18_24", "18–24")}
-                      </option>
-                      <option value="25-34">
-                        {translate("form.age.25_34", "25–34")}
-                      </option>
-                      <option value="35-44">
-                        {translate("form.age.35_44", "35–44")}
-                      </option>
-                      <option value="45plus">
-                        {translate("form.age.45plus", "45+")}
-                      </option>
+                      <option value="under18">{translate("form.age.under18", "< 18")}</option>
+                      <option value="18-24">{translate("form.age.18_24", "18–24")}</option>
+                      <option value="25-34">{translate("form.age.25_34", "25–34")}</option>
+                      <option value="35-44">{translate("form.age.35_44", "35–44")}</option>
+                      <option value="45plus">{translate("form.age.45plus", "45+")}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {translate(
-                      "form.job.label",
-                      "What do you mainly do?"
-                    )}
+                    {translate("form.job.label", "What do you mainly do?")}
                   </label>
                   <input
                     type="text"
@@ -459,70 +366,39 @@ export default function AITaskCreatorPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                      {translate(
-                        "form.workType.label",
-                        "What kind of day is it?"
-                      )}
+                      {translate("form.workType.label", "What kind of day is it?")}
                     </label>
                     <select
                       value={workType}
-                      onChange={(e) =>
-                        setWorkType(e.target.value as typeof workType)
-                      }
+                      onChange={(e) => setWorkType(e.target.value as typeof workType)}
                       className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1.5"
                     >
-                      <option value="work">
-                        {translate("form.workType.work", "Work day")}
-                      </option>
-                      <option value="study">
-                        {translate("form.workType.study", "Study day")}
-                      </option>
-                      <option value="mixed">
-                        {translate("form.workType.mixed", "Mixed")}
-                      </option>
-                      <option value="day-off">
-                        {translate("form.workType.dayOff", "Day off")}
-                      </option>
+                      <option value="work">{translate("form.workType.work", "Work day")}</option>
+                      <option value="study">{translate("form.workType.study", "Study day")}</option>
+                      <option value="mixed">{translate("form.workType.mixed", "Mixed")}</option>
+                      <option value="day-off">{translate("form.workType.dayOff", "Day off")}</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                      {translate(
-                        "form.hours.label",
-                        "Time available today"
-                      )}
+                      {translate("form.hours.label", "Time available today")}
                     </label>
                     <select
                       value={hoursAvailable}
-                      onChange={(e) =>
-                        setHoursAvailable(
-                          e.target.value as typeof hoursAvailable
-                        )
-                      }
+                      onChange={(e) => setHoursAvailable(e.target.value as typeof hoursAvailable)}
                       className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1.5"
                     >
-                      <option value="<1">
-                        {translate("form.hours.lt1", "< 1 hour")}
-                      </option>
-                      <option value="1-2">
-                        {translate("form.hours.1_2", "1–2 hours")}
-                      </option>
-                      <option value="2-4">
-                        {translate("form.hours.2_4", "2–4 hours")}
-                      </option>
-                      <option value="4plus">
-                        {translate("form.hours.4plus", "4+ hours")}
-                      </option>
+                      <option value="<1">{translate("form.hours.lt1", "< 1 hour")}</option>
+                      <option value="1-2">{translate("form.hours.1_2", "1–2 hours")}</option>
+                      <option value="2-4">{translate("form.hours.2_4", "2–4 hours")}</option>
+                      <option value="4plus">{translate("form.hours.4plus", "4+ hours")}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {translate(
-                      "form.energy.label",
-                      "Energy level right now"
-                    )}
+                    {translate("form.energy.label", "Energy level right now")}
                   </label>
                   <div className="flex items-center gap-3">
                     <input
@@ -533,24 +409,16 @@ export default function AITaskCreatorPage() {
                       onChange={(e) => setEnergyLevel(Number(e.target.value))}
                       className="flex-1"
                     />
-                    <span className="text-xs w-6 text-right">
-                      {energyLevel}
-                    </span>
+                    <span className="text-xs w-6 text-right">{energyLevel}</span>
                   </div>
                   <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                    {translate(
-                      "form.energy.help",
-                      "1 = exhausted, 10 = full of energy."
-                    )}
+                    {translate("form.energy.help", "1 = exhausted, 10 = full of energy.")}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {translate(
-                      "form.intensity.label",
-                      "How intense should today be?"
-                    )}
+                    {translate("form.intensity.label", "How intense should today be?")}
                   </label>
                   <div className="flex gap-2 text-[11px]">
                     <button
@@ -591,28 +459,19 @@ export default function AITaskCreatorPage() {
 
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {translate(
-                      "form.todayPlan.label",
-                      "What's your plan or context for today?"
-                    )}
+                    {translate("form.todayPlan.label", "What's your plan or context for today?")}
                   </label>
                   <textarea
                     value={todayPlan}
                     onChange={(e) => setTodayPlan(e.target.value)}
-                    placeholder={translate(
-                      "form.todayPlan.placeholder",
-                      "Meetings, deadlines, errands, appointments, etc."
-                    )}
+                    placeholder={translate("form.todayPlan.placeholder", "Meetings, deadlines, errands, appointments, etc.")}
                     className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 min-h-[70px]"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {translate(
-                      "form.mainGoal.label",
-                      "Main goal for today"
-                    )}
+                    {translate("form.mainGoal.label", "Main goal for today")}
                   </label>
                   <input
                     type="text"
@@ -628,26 +487,17 @@ export default function AITaskCreatorPage() {
 
                 <div>
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                    {translate(
-                      "form.hobbies.label",
-                      "Hobbies or interests (optional)"
-                    )}
+                    {translate("form.hobbies.label", "Hobbies or interests (optional)")}
                   </label>
                   <input
                     type="text"
                     value={hobbies}
                     onChange={(e) => setHobbies(e.target.value)}
-                    placeholder={translate(
-                      "form.hobbies.placeholder",
-                      "e.g. gym, reading, coding, gaming"
-                    )}
+                    placeholder={translate("form.hobbies.placeholder", "e.g. gym, reading, coding, gaming")}
                     className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-1.5"
                   />
                   <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                    {translate(
-                      "form.hobbies.help",
-                      "The AI can include 1–2 fun or restorative tasks if relevant."
-                    )}
+                    {translate("form.hobbies.help", "The AI can include 1–2 fun or restorative tasks if relevant.")}
                   </p>
                 </div>
 
@@ -658,19 +508,14 @@ export default function AITaskCreatorPage() {
                 >
                   {loadingSuggestions
                     ? translate("buttons.thinking", "Thinking…")
-                    : translate(
-                        "buttons.generate",
-                        "✨ AI: Suggest my tasks for today"
-                      )}
+                    : translate("buttons.generate", "✨ AI: Suggest my tasks for today")}
                 </button>
               </form>
             </section>
 
             {/* RIGHT: Suggested tasks + create button */}
             <section className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4 flex flex-col">
-              <h2 className="text-sm font-semibold mb-2">
-                {translate("tasksSection.heading", "AI-suggested tasks")}
-              </h2>
+              <h2 className="text-sm font-semibold mb-2">{translate("tasksSection.heading", "AI-suggested tasks")}</h2>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 {translate(
                   "tasksSection.subheading",
@@ -680,10 +525,7 @@ export default function AITaskCreatorPage() {
 
               {loadingSuggestions && (
                 <p className="text-[12px] text-[var(--text-muted)] mb-2">
-                  {translate(
-                    "tasksSection.generating",
-                    "Generating suggestions based on your answers…"
-                  )}
+                  {translate("tasksSection.generating", "Generating suggestions based on your answers…")}
                 </p>
               )}
 
@@ -699,23 +541,15 @@ export default function AITaskCreatorPage() {
               {suggestedTasks.length > 0 && (
                 <div className="flex-1 overflow-y-auto mb-3 space-y-2">
                   {suggestedTasks.map((task, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-2 text-[12px]"
-                    >
-                      <span className="mt-1 text-[var(--text-muted)] text-[11px]">
-                        {idx + 1}.
-                      </span>
+                    <div key={idx} className="flex items-start gap-2 text-[12px]">
+                      <span className="mt-1 text-[var(--text-muted)] text-[11px]">{idx + 1}.</span>
                       <div className="flex-1">
                         <input
                           type="text"
                           value={task.title}
                           onChange={(e) => {
                             const next = [...suggestedTasks];
-                            next[idx] = {
-                              ...next[idx],
-                              title: e.target.value,
-                            };
+                            next[idx] = { ...next[idx], title: e.target.value };
                             setSuggestedTasks(next);
                           }}
                           className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-1.5 mb-1"
@@ -728,11 +562,7 @@ export default function AITaskCreatorPage() {
                           )}
                           {task.size && (
                             <span className="px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] capitalize">
-                              {task.size}{" "}
-                              {translate(
-                                "tasksSection.sizeSuffix",
-                                "task"
-                              )}
+                              {task.size} {translate("tasksSection.sizeSuffix", "task")}
                             </span>
                           )}
                         </div>
@@ -740,11 +570,7 @@ export default function AITaskCreatorPage() {
                       <button
                         type="button"
                         className="mt-1 text-[11px] text-red-400 hover:text-red-300"
-                        onClick={() =>
-                          setSuggestedTasks((prev) =>
-                            prev.filter((_, i) => i !== idx)
-                          )
-                        }
+                        onClick={() => setSuggestedTasks((prev) => prev.filter((_, i) => i !== idx))}
                       >
                         {translate("tasksSection.delete", "✕")}
                       </button>
@@ -762,10 +588,7 @@ export default function AITaskCreatorPage() {
                 >
                   {creatingTasks
                     ? translate("tasksSection.creating", "Creating tasks…")
-                    : translate(
-                        "tasksSection.createButton",
-                        "✅ Auto-create these tasks and open Tasks"
-                      )}
+                    : translate("tasksSection.createButton", "✅ Auto-create these tasks and open Tasks")}
                 </button>
                 <p className="text-[10px] text-[var(--text-muted)] mt-2">
                   {translate(

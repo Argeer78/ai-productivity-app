@@ -6,6 +6,9 @@ import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
 
+import { useAuthGate } from "@/app/hooks/useAuthGate";
+import AuthGateModal from "@/app/components/AuthGateModal";
+
 const BOOKING_AFFILIATE_ID = process.env.NEXT_PUBLIC_BOOKING_AID || "";
 const FLIGHTS_AFFILIATE_ID = process.env.NEXT_PUBLIC_FLIGHTS_AID || "";
 // Kept here if you want later; not directly used in current implementation
@@ -58,8 +61,7 @@ function buildBookingUrl(params: {
   url.searchParams.set("checkout", params.checkout);
 
   if (params.adults) url.searchParams.set("group_adults", String(params.adults));
-  if (params.children)
-    url.searchParams.set("group_children", String(params.children));
+  if (params.children) url.searchParams.set("group_children", String(params.children));
 
   return url.toString();
 }
@@ -163,11 +165,7 @@ function CalendarInput({
         onClick={() => setOpen((v) => !v)}
         className="w-full text-left px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm flex items-center justify-between"
       >
-        <span
-          className={
-            value ? "text-[var(--text-main)]" : "text-[var(--text-muted)]"
-          }
-        >
+        <span className={value ? "text-[var(--text-main)]" : "text-[var(--text-muted)]"}>
           {value || placeholder}
         </span>
 
@@ -188,9 +186,7 @@ function CalendarInput({
               {t("travelPage.calendar.prevArrow", "◀")}
             </button>
 
-            <span className="text-xs font-semibold text-[var(--text-main)]">
-              {monthLabel}
-            </span>
+            <span className="text-xs font-semibold text-[var(--text-main)]">{monthLabel}</span>
 
             <button
               type="button"
@@ -226,16 +222,13 @@ function CalendarInput({
               let classes =
                 "h-7 rounded-lg flex items-center justify-center cursor-pointer transition ";
               if (isDisabled) {
-                classes +=
-                  "text-[var(--text-muted)] opacity-40 cursor-not-allowed";
+                classes += "text-[var(--text-muted)] opacity-40 cursor-not-allowed";
               } else if (isSelected) {
                 classes += "bg-[var(--accent)] text-[var(--bg-body)]";
               } else if (isToday) {
-                classes +=
-                  "border border-[var(--accent)] text-[var(--text-main)]";
+                classes += "border border-[var(--accent)] text-[var(--text-main)]";
               } else {
-                classes +=
-                  "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]";
+                classes += "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]";
               }
 
               return (
@@ -260,26 +253,40 @@ function CalendarInput({
 export default function TravelPage() {
   // ✅ Notes-style wiring: fully-qualified keys stored in DB
   const { t: rawT } = useT("");
-  const t = (key: string, fallback: string) =>
-    rawT(`travelPage.${key}`, fallback);
+  const t = (key: string, fallback: string) => rawT(`travelPage.${key}`, fallback);
 
-  // Auth (for saving trips)
+  // Auth (only required for saving trips)
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
+  const gate = useAuthGate(user);
+
+  // ✅ session-safe auth init (avoids AuthSessionMissingError)
   useEffect(() => {
-    async function loadUser() {
-      try {
-        const { data, error } = await supabase.auth.getUser();
-        if (error) console.error("[travel] auth error", error);
-        setUser(data?.user ?? null);
-      } catch (err) {
-        console.error("[travel] auth error", err);
-      } finally {
-        setCheckingUser(false);
-      }
+    let mounted = true;
+
+    async function init() {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      setUser(data.session?.user ?? null);
+      setCheckingUser(false);
+
+      const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!mounted) return;
+        setUser(session?.user ?? null);
+      });
+
+      return () => sub.subscription.unsubscribe();
     }
-    loadUser();
+
+    let cleanup: undefined | (() => void);
+    init().then((fn) => (cleanup = fn));
+
+    return () => {
+      mounted = false;
+      if (cleanup) cleanup();
+    };
   }, []);
 
   // Today string for min date
@@ -376,29 +383,26 @@ export default function TravelPage() {
     setSaveMessage("");
 
     if (!destination || !checkin || !checkout) {
-      setPlanError(
-        t("error.missingFields", "Please fill destination and dates first.")
-      );
+      setPlanError(t("error.missingFields", "Please fill destination and dates first."));
       return;
     }
 
     setPlanning(true);
     try {
       const res = await fetch("/api/ai-travel-plan", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    userId: user?.id || null, // ✅ add this
-    destination,
-    checkin,
-    checkout,
-    adults,
-    children,
-    minBudget,
-    maxBudget,
-  }),
-});
-
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user?.id || null, // ✅ allow guests
+          destination,
+          checkin,
+          checkout,
+          adults,
+          children,
+          minBudget,
+          maxBudget,
+        }),
+      });
 
       const text = await res.text();
       let data: any;
@@ -406,16 +410,12 @@ export default function TravelPage() {
         data = JSON.parse(text);
       } catch {
         console.error("Non-JSON travel response:", text);
-        setPlanError(
-          t("error.invalidResponse", "Server returned an invalid response.")
-        );
+        setPlanError(t("error.invalidResponse", "Server returned an invalid response."));
         return;
       }
 
       if (!res.ok || !data.plan) {
-        setPlanError(
-          data.error || t("error.generateFailed", "Failed to generate travel plan.")
-        );
+        setPlanError(data.error || t("error.generateFailed", "Failed to generate travel plan."));
         return;
       }
 
@@ -429,17 +429,25 @@ export default function TravelPage() {
   }
 
   async function saveTripPlan() {
-    if (!user) return;
+    setSaveMessage("");
+
+    // ✅ gate save (opens modal) instead of silently failing / locking page
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("auth.saveTitle", "Log in to save this trip"),
+        subtitle: t("auth.saveSubtitle", "Saved trips are stored in your account so you can access them later."),
+      })
+    ) {
+      return;
+    }
+    if (!user?.id) return;
 
     if (!destination || !checkin || !checkout || !planText) {
-      setSaveMessage(
-        t("save.missingFields", "Fill destination, dates and generate a plan first.")
-      );
+      setSaveMessage(t("save.missingFields", "Fill destination, dates and generate a plan first."));
       return;
     }
 
     setSavingTrip(true);
-    setSaveMessage("");
     try {
       const { error } = await supabase.from("travel_plans").insert([
         {
@@ -475,20 +483,19 @@ export default function TravelPage() {
       ? buildBookingUrl({ destination, checkin, checkout, adults, children })
       : null;
 
-  const encodedDest = destination ? encodeURIComponent(destination.trim()) : "";
-
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="travel" />
+
+      {/* ✅ Always mounted (like Settings) */}
+      <AuthGateModal open={gate.open} onClose={gate.close} copy={gate.copy} authHref={gate.authHref} />
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
           {/* Hero / Intro */}
           <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                {t("title", "Travel Planner (beta)")}
-              </h1>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1">{t("title", "Travel Planner (beta)")}</h1>
               <p className="text-xs md:text-sm text-[var(--text-muted)] max-w-xl">
                 {t(
                   "subtitle",
@@ -504,19 +511,23 @@ export default function TravelPage() {
               ) : user ? (
                 <span>
                   {t("loggedInAs", "Logged in as")}{" "}
-                  <span className="font-semibold text-[var(--text-main)]">
-                    {user.email}
-                  </span>
+                  <span className="font-semibold text-[var(--text-main)]">{user.email}</span>
                 </span>
               ) : (
                 <span>
                   {t("guestBrowsing", "You're browsing as guest.")}{" "}
-                  <a
-                    href="/auth"
+                  <button
+                    type="button"
+                    onClick={() =>
+                      gate.openGate({
+                        title: t("auth.title", "Create an account to save trips"),
+                        subtitle: t("auth.subtitle", "Saving trips requires an account."),
+                      })
+                    }
                     className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
                   >
                     {t("createAccountLink", "Create a free account")}
-                  </a>{" "}
+                  </button>{" "}
                   {t("saveTripsHint", "to save trips.")}
                 </span>
               )}
@@ -541,10 +552,7 @@ export default function TravelPage() {
                       type="text"
                       value={destination}
                       onChange={(e) => setDestination(e.target.value)}
-                      placeholder={t(
-                        "destination.placeholder",
-                        "e.g. Athens, Barcelona, London"
-                      )}
+                      placeholder={t("destination.placeholder", "e.g. Athens, Barcelona, London")}
                       className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                     />
                   </div>
@@ -606,9 +614,7 @@ export default function TravelPage() {
                         type="number"
                         min={1}
                         value={adults}
-                        onChange={(e) =>
-                          setAdults(Math.max(1, Number(e.target.value) || 1))
-                        }
+                        onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
@@ -620,9 +626,7 @@ export default function TravelPage() {
                         type="number"
                         min={0}
                         value={children}
-                        onChange={(e) =>
-                          setChildren(Math.max(0, Number(e.target.value) || 0))
-                        }
+                        onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
@@ -664,9 +668,7 @@ export default function TravelPage() {
                       disabled={planning}
                       className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs md:text-sm disabled:opacity-60"
                     >
-                      {planning
-                        ? t("buttons.generating", "Generating...")
-                        : t("generateButton", "Generate AI trip plan")}
+                      {planning ? t("buttons.generating", "Generating...") : t("generateButton", "Generate AI trip plan")}
                     </button>
 
                     {bookingUrl && (
@@ -674,9 +676,7 @@ export default function TravelPage() {
                         type="button"
                         onClick={() => {
                           logTravelClick({ clickType: "stay", provider: "booking" });
-                          if (typeof window !== "undefined") {
-                            window.open(bookingUrl, "_blank", "noreferrer");
-                          }
+                          if (typeof window !== "undefined") window.open(bookingUrl, "_blank", "noreferrer");
                         }}
                         className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm"
                       >
@@ -686,10 +686,7 @@ export default function TravelPage() {
                   </div>
 
                   <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                    {t(
-                      "bookingNote",
-                      "Booking links may be affiliate links. They help support the app at no extra cost to you."
-                    )}
+                    {t("bookingNote", "Booking links may be affiliate links. They help support the app at no extra cost to you.")}
                   </p>
                 </div>
               </div>
@@ -711,17 +708,11 @@ export default function TravelPage() {
                         type="text"
                         value={departureCity}
                         onChange={(e) => setDepartureCity(e.target.value)}
-                        placeholder={t(
-                          "flights.departureCity.placeholder",
-                          "e.g. Athens, London"
-                        )}
+                        placeholder={t("flights.departureCity.placeholder", "e.g. Athens, London")}
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                       <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                        {t(
-                          "flights.departureCity.helper",
-                          "If empty, we'll use your destination as a fallback."
-                        )}
+                        {t("flights.departureCity.helper", "If empty, we'll use your destination as a fallback.")}
                       </p>
                     </div>
 
@@ -740,14 +731,9 @@ export default function TravelPage() {
                           children,
                         });
 
-                        logTravelClick({
-                          clickType: "flight",
-                          provider: "google-flights",
-                        });
+                        logTravelClick({ clickType: "flight", provider: "google-flights" });
 
-                        if (typeof window !== "undefined") {
-                          window.open(url, "_blank", "noreferrer");
-                        }
+                        if (typeof window !== "undefined") window.open(url, "_blank", "noreferrer");
                       }}
                       className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm disabled:opacity-60"
                     >
@@ -755,10 +741,7 @@ export default function TravelPage() {
                     </button>
 
                     <p className="text-[10px] text-[var(--text-muted)]">
-                      {t(
-                        "flights.note",
-                        "We send you to a flights search page (for now Google Flights). You can hook in a proper affiliate link later."
-                      )}
+                      {t("flights.note", "We send you to a flights search page (for now Google Flights). You can hook in a proper affiliate link later.")}
                     </p>
                   </div>
                 </div>
@@ -778,17 +761,11 @@ export default function TravelPage() {
                         type="text"
                         value={pickupLocation}
                         onChange={(e) => setPickupLocation(e.target.value)}
-                        placeholder={t(
-                          "carRental.pickup.placeholder",
-                          "e.g. Airport, city name"
-                        )}
+                        placeholder={t("carRental.pickup.placeholder", "e.g. Airport, city name")}
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                       <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                        {t(
-                          "carRental.pickup.helper",
-                          "If empty, we'll use your destination as pickup location."
-                        )}
+                        {t("carRental.pickup.helper", "If empty, we'll use your destination as pickup location.")}
                       </p>
                     </div>
 
@@ -803,14 +780,9 @@ export default function TravelPage() {
                           dropoffDate: checkout,
                         });
 
-                        logTravelClick({
-                          clickType: "car",
-                          provider: "booking-cars",
-                        });
+                        logTravelClick({ clickType: "car", provider: "booking-cars" });
 
-                        if (typeof window !== "undefined") {
-                          window.open(url, "_blank", "noreferrer");
-                        }
+                        if (typeof window !== "undefined") window.open(url, "_blank", "noreferrer");
                       }}
                       className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:text-sm disabled:opacity-60"
                     >
@@ -818,10 +790,7 @@ export default function TravelPage() {
                     </button>
 
                     <p className="text-[10px] text-[var(--text-muted)]">
-                      {t(
-                        "carRental.note",
-                        "Car rental search opens on Booking.com. If your affiliate ID is set, it will be tracked via your aid."
-                      )}
+                      {t("carRental.note", "Car rental search opens on Booking.com. If your affiliate ID is set, it will be tracked via your aid.")}
                     </p>
                   </div>
                 </div>
@@ -837,19 +806,14 @@ export default function TravelPage() {
                 </p>
 
                 {planText ? (
-                  <div className="text-[12px] text-[var(--text-main)] whitespace-pre-wrap mb-3">
-                    {planText}
-                  </div>
+                  <div className="text-[12px] text-[var(--text-main)] whitespace-pre-wrap mb-3">{planText}</div>
                 ) : (
                   <p className="text-[12px] text-[var(--text-muted)]">
-                    {t(
-                      "aiItinerary.helper",
-                      "Fill in your trip details and click Generate AI trip plan to get a structured itinerary and suggestions."
-                    )}
+                    {t("aiItinerary.helper", "Fill in your trip details and click Generate AI trip plan to get a structured itinerary and suggestions.")}
                   </p>
                 )}
 
-                {planText && user && (
+                {planText && (
                   <>
                     <button
                       type="button"
@@ -857,31 +821,31 @@ export default function TravelPage() {
                       disabled={savingTrip}
                       className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs md:text-sm text-white disabled:opacity-60"
                     >
-                      {savingTrip
-                        ? t("save.buttonSaving", "Saving trip...")
-                        : t("save.button", "Save this trip to my account")}
+                      {savingTrip ? t("save.buttonSaving", "Saving trip...") : t("save.button", "Save this trip to my account")}
                     </button>
 
                     {saveMessage && (
-                      <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                        {saveMessage}
-                      </p>
+                      <p className="mt-2 text-[11px] text-[var(--text-muted)]">{saveMessage}</p>
+                    )}
+
+                    {!user && (
+                      <div className="mt-2 text-[11px] text-[var(--text-muted)]">
+                        <p className="mb-1">{t("itinerary.guestSavePrompt", "Want to save this trip and access it later?")}</p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            gate.openGate({
+                              title: t("auth.saveTitle", "Log in to save this trip"),
+                              subtitle: t("auth.saveSubtitle", "Saved trips are stored in your account so you can access them later."),
+                            })
+                          }
+                          className="inline-block mt-1 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+                        >
+                          {t("itinerary.guestSaveButton", "Create a free account / Log in")}
+                        </button>
+                      </div>
                     )}
                   </>
-                )}
-
-                {planText && !user && (
-                  <div className="mt-2 text-[11px] text-[var(--text-muted)]">
-                    <p className="mb-1">
-                      {t("itinerary.guestSavePrompt", "Want to save this trip and access it later?")}
-                    </p>
-                    <a
-                      href="/auth"
-                      className="inline-block mt-1 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
-                    >
-                      {t("itinerary.guestSaveButton", "Create a free account / Log in")}
-                    </a>
-                  </div>
                 )}
               </div>
 
@@ -893,9 +857,7 @@ export default function TravelPage() {
 
                 {assistantStep === 1 && (
                   <div className="space-y-2">
-                    <p className="text-[12px] text-[var(--text-main)]">
-                      {t("assistant.step1.title", "1/3 – Where do you want to go?")}
-                    </p>
+                    <p className="text-[12px] text-[var(--text-main)]">{t("assistant.step1.title", "1/3 – Where do you want to go?")}</p>
                     <input
                       type="text"
                       value={assistantDestination}
@@ -942,19 +904,14 @@ export default function TravelPage() {
                   </div>
                 )}
 
-                {/* Step 2/3 + 3/3 keep travelPage-prefixed keys so you can add them later */}
                 {assistantStep === 2 && (
                   <div className="space-y-2">
-                    <p className="text-[12px] text-[var(--text-main)]">
-                      {t("assistant.step2.title", "2/3 – How many days do you want to stay?")}
-                    </p>
+                    <p className="text-[12px] text-[var(--text-main)]">{t("assistant.step2.title", "2/3 – How many days do you want to stay?")}</p>
                     <input
                       type="number"
                       min={2}
                       value={assistantDays}
-                      onChange={(e) =>
-                        setAssistantDays(Math.max(2, Number(e.target.value) || 2))
-                      }
+                      onChange={(e) => setAssistantDays(Math.max(2, Number(e.target.value) || 2))}
                       className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                     />
                     <div className="flex items-center gap-2 mt-1">
@@ -990,37 +947,27 @@ export default function TravelPage() {
 
                 {assistantStep === 3 && (
                   <div className="space-y-2">
-                    <p className="text-[12px] text-[var(--text-main)]">
-                      {t("assistant.step3.title", "3/3 – Who's going?")}
-                    </p>
+                    <p className="text-[12px] text-[var(--text-main)]">{t("assistant.step3.title", "3/3 – Who's going?")}</p>
 
                     <div className="flex gap-3">
                       <div className="flex-1">
-                        <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                          {t("adults.label", "Adults")}
-                        </label>
+                        <label className="block text-[11px] text-[var(--text-muted)] mb-1">{t("adults.label", "Adults")}</label>
                         <input
                           type="number"
                           min={1}
                           value={assistantAdults}
-                          onChange={(e) =>
-                            setAssistantAdults(Math.max(1, Number(e.target.value) || 1))
-                          }
+                          onChange={(e) => setAssistantAdults(Math.max(1, Number(e.target.value) || 1))}
                           className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                         />
                       </div>
 
                       <div className="flex-1">
-                        <label className="block text-[11px] text-[var(--text-muted)] mb-1">
-                          {t("children.label", "Children")}
-                        </label>
+                        <label className="block text-[11px] text-[var(--text-muted)] mb-1">{t("children.label", "Children")}</label>
                         <input
                           type="number"
                           min={0}
                           value={assistantChildren}
-                          onChange={(e) =>
-                            setAssistantChildren(Math.max(0, Number(e.target.value) || 0))
-                          }
+                          onChange={(e) => setAssistantChildren(Math.max(0, Number(e.target.value) || 0))}
                           className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                         />
                       </div>
@@ -1039,20 +986,13 @@ export default function TravelPage() {
                         {t("assistant.apply", "Apply to form & use AI")}
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setAssistantStep(2)}
-                        className="text-[11px] text-[var(--text-muted)]"
-                      >
+                      <button type="button" onClick={() => setAssistantStep(2)} className="text-[11px] text-[var(--text-muted)]">
                         {t("assistant.back", "← Back")}
                       </button>
                     </div>
 
                     <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                      {t(
-                        "assistant.finalHint",
-                        "Once applied, just hit Generate AI trip plan to get your itinerary."
-                      )}
+                      {t("assistant.finalHint", "Once applied, just hit Generate AI trip plan to get your itinerary.")}
                     </p>
                   </div>
                 )}
@@ -1060,7 +1000,7 @@ export default function TravelPage() {
             </div>
           </div>
 
-          {/* Bottom CTA for guests (kept as travelPage.* keys for later) */}
+          {/* Bottom CTA for guests */}
           {!user && !checkingUser && (
             <div className="rounded-2xl border border-[var(--accent)]/60 bg-[var(--accent-soft)]/60 p-4 text-xs max-w-xl">
               <p className="text-[var(--accent-strong,white)] font-semibold mb-1">
@@ -1072,12 +1012,18 @@ export default function TravelPage() {
                   "Create a free account to save your AI-generated itineraries, sync them with your productivity dashboard, and get weekly summaries."
                 )}
               </p>
-              <a
-                href="/auth"
+              <button
+                type="button"
+                onClick={() =>
+                  gate.openGate({
+                    title: t("auth.title", "Create a free account"),
+                    subtitle: t("auth.subtitle", "Log in to save trips and access them later."),
+                  })
+                }
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--bg-body)] font-medium inline-block"
               >
                 {t("guestCta.button", "Create free account / Log in")}
-              </a>
+              </button>
             </div>
           )}
         </div>

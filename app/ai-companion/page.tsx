@@ -2,10 +2,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuthGate } from "@/app/hooks/useAuthGate";
+import AuthGateModal from "@/app/components/AuthGateModal";
 
 type ThreadRow = {
   id: string;
@@ -72,6 +73,9 @@ export default function AiCompanionPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
+  // ✅ Auth gate (opens login/signup modal)
+  const gate = useAuthGate(user);
+
   // threads + messages
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [loadingThreads, setLoadingThreads] = useState(false);
@@ -96,6 +100,7 @@ export default function AiCompanionPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const welcomeMessage = useMemo(() => makeWelcomeMessage(category), [category]);
+  const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
 
   // Load user
   useEffect(() => {
@@ -110,9 +115,13 @@ export default function AiCompanionPage() {
     loadUser();
   }, []);
 
-  // Load threads
+  // Load threads (authed only)
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setThreads([]);
+      setActiveThreadId(null);
+      return;
+    }
 
     async function loadThreads() {
       setLoadingThreads(true);
@@ -153,7 +162,7 @@ export default function AiCompanionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Load messages for active thread
+  // Load messages for active thread (authed only)
   useEffect(() => {
     if (!user || !activeThreadId) {
       setMessages([]);
@@ -233,6 +242,11 @@ export default function AiCompanionPage() {
 
   async function handleSend(e?: FormEvent, textOverride?: string) {
     if (e) e.preventDefault();
+
+    // ✅ Gate send for guests
+    if (!gate.requireAuth(undefined, { title: "Log in to chat", subtitle: "Create a free account to save your reflections." })) {
+      return;
+    }
     if (!user) return;
 
     const text = safeTrim(textOverride ?? input);
@@ -334,11 +348,16 @@ export default function AiCompanionPage() {
   }
 
   function handleVoiceResult(payload: { rawText: string | null }) {
+    // ✅ Gate mic for guests (don’t call VoiceCaptureButton without a userId)
+    if (!gate.requireAuth(undefined, { title: "Log in to use voice", subtitle: "Voice capture saves your chats to your account." })) {
+      return;
+    }
     const txt = safeTrim(payload.rawText);
     if (txt) handleSend(undefined, txt);
   }
 
   async function handleRenameThread(thread: ThreadRow) {
+    if (!gate.requireAuth(undefined, { title: "Log in to manage chats" })) return;
     if (!user) return;
 
     const currentTitle = thread.title || "Untitled";
@@ -369,6 +388,7 @@ export default function AiCompanionPage() {
   }
 
   async function handleDeleteThread(threadId: string) {
+    if (!gate.requireAuth(undefined, { title: "Log in to manage chats" })) return;
     if (!user) return;
     if (!window.confirm("Delete this conversation? This cannot be undone.")) return;
 
@@ -404,6 +424,7 @@ export default function AiCompanionPage() {
   }
 
   async function saveAsJournalEntry() {
+    if (!gate.requireAuth(undefined, { title: "Log in to save notes", subtitle: "Save this conversation into your Notes." })) return;
     if (!user) return;
     if (messages.length === 0) return;
 
@@ -454,6 +475,12 @@ export default function AiCompanionPage() {
   }
 
   function openThread(thread: ThreadRow) {
+    // If guest: clicking history should open auth gate
+    if (!user) {
+      gate.openGate({ title: "Log in to view history", subtitle: "Your conversations are saved to your account." });
+      return;
+    }
+
     setActiveThreadId(thread.id);
     setToast("");
     setError("");
@@ -463,8 +490,6 @@ export default function AiCompanionPage() {
     setShowMobileThreads(false);
   }
 
-  const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
-
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
@@ -473,29 +498,12 @@ export default function AiCompanionPage() {
     );
   }
 
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
-        <AppHeader active="ai-companion" />
-        <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">AI Companion</h1>
-          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            Log in to use the AI Companion and keep your reflections saved.
-          </p>
-          <Link
-            href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
-          >
-            Go to login / signup
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="ai-companion" />
+
+      {/* ✅ Auth modal (global for this page) */}
+      <AuthGateModal open={gate.open} onClose={gate.close} copy={gate.copy} authHref={gate.authHref} />
 
       <div className="flex-1 flex overflow-hidden min-w-0">
         {/* Sidebar (desktop) */}
@@ -528,13 +536,32 @@ export default function AiCompanionPage() {
                 </option>
               ))}
             </select>
+
+            {!user && (
+              <p className="mt-2 text-[10px] text-[var(--text-muted)]">
+                Log in to save conversations and view history.
+              </p>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
             {loadingThreads ? (
               <p className="p-3 text-[var(--text-muted)] text-[11px]">Loading conversations…</p>
+            ) : !user ? (
+              <div className="p-3 text-[11px] text-[var(--text-muted)]">
+                <p className="mb-2">Your history will appear here after login.</p>
+                <button
+                  type="button"
+                  onClick={() => gate.openGate({ title: "Log in to unlock history" })}
+                  className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
+                >
+                  Log in / Sign up
+                </button>
+              </div>
             ) : threads.length === 0 ? (
-              <p className="p-3 text-[var(--text-muted)] text-[11px]">No conversations yet. Start a new chat and talk it out.</p>
+              <p className="p-3 text-[var(--text-muted)] text-[11px]">
+                No conversations yet. Start a new chat and talk it out.
+              </p>
             ) : (
               threads.map((t) => {
                 const isActive = activeThreadId === t.id;
@@ -588,7 +615,9 @@ export default function AiCompanionPage() {
           <div className="px-3 sm:px-4 py-3 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
             <div className="min-w-0">
               <h1 className="text-base md:text-lg font-semibold">AI Companion</h1>
-              <p className="text-[11px] text-[var(--text-muted)]">A gentle space to reflect, feel grounded, and write it out.</p>
+              <p className="text-[11px] text-[var(--text-muted)]">
+                A gentle space to reflect, feel grounded, and write it out.
+              </p>
               <p className="text-[10px] text-[var(--text-muted)] mt-1">
                 Not a therapist. No diagnosis. If you’re in danger or crisis, contact local emergency services.
               </p>
@@ -689,7 +718,7 @@ export default function AiCompanionPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* ✅ Composer (fixed mic layout: compact button, never overlaps textarea) */}
+          {/* Composer */}
           <form
             onSubmit={(e) => handleSend(e)}
             className="border-t border-[var(--border-subtle)] px-3 sm:px-4 py-2 flex flex-col gap-2 min-w-0"
@@ -712,8 +741,25 @@ export default function AiCompanionPage() {
 
             <div className="flex items-end gap-2 min-w-0">
               <div className="shrink-0">
-                {/* IMPORTANT: requires VoiceCaptureButton to support variant="compact" */}
-                <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} variant="compact" />
+                {user ? (
+                  // ✅ Only render real mic button when authed (needs userId)
+                  <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} variant="compact" />
+                ) : (
+                  // ✅ Guest: show same spot, but gate on click
+                  <button
+                    type="button"
+                    onClick={() =>
+                      gate.openGate({
+                        title: "Log in to use voice",
+                        subtitle: "Voice capture saves your chats to your account.",
+                      })
+                    }
+                    className="h-10 px-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[12px]"
+                    title="Voice"
+                  >
+                    🎤
+                  </button>
+                )}
               </div>
 
               <textarea
@@ -762,11 +808,27 @@ export default function AiCompanionPage() {
                       </option>
                     ))}
                   </select>
+
+                  {!user && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => gate.openGate({ title: "Log in to view history" })}
+                        className="w-full text-[11px] px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                      >
+                        Log in / Sign up
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
                   {loadingThreads ? (
                     <p className="p-3 text-[var(--text-muted)] text-[11px]">Loading conversations…</p>
+                  ) : !user ? (
+                    <p className="p-3 text-[var(--text-muted)] text-[11px]">
+                      Your conversations will appear here after you log in.
+                    </p>
                   ) : threads.length === 0 ? (
                     <p className="p-3 text-[var(--text-muted)] text-[11px]">No conversations yet. Start a new chat.</p>
                   ) : (

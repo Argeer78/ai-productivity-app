@@ -11,6 +11,9 @@ import NotificationSettings from "@/app/components/NotificationSettings";
 import { useTheme, type ThemeId } from "@/app/components/ThemeProvider";
 import { subscribeToPush } from "@/lib/pushClient";
 
+import { useAuthGate } from "@/app/hooks/useAuthGate";
+import AuthGateModal from "@/app/components/AuthGateModal";
+
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
 import { useT } from "@/lib/useT";
@@ -31,11 +34,11 @@ const THEME_OPTIONS: { value: ThemeId; key: string; fallback: string }[] = [
 ];
 
 const TONE_OPTIONS: { value: Tone; icon: string; key: string; fallback: string }[] = [
-  { value: "balanced",     icon: "⚖️", key: "settings.tone.balanced",     fallback: "Balanced" },
-  { value: "friendly",     icon: "😊", key: "settings.tone.friendly",     fallback: "Friendly" },
-  { value: "direct",       icon: "🎯", key: "settings.tone.direct",       fallback: "Direct" },
+  { value: "balanced", icon: "⚖️", key: "settings.tone.balanced", fallback: "Balanced" },
+  { value: "friendly", icon: "😊", key: "settings.tone.friendly", fallback: "Friendly" },
+  { value: "direct", icon: "🎯", key: "settings.tone.direct", fallback: "Direct" },
   { value: "motivational", icon: "🔥", key: "settings.tone.motivational", fallback: "Motivational" },
-  { value: "casual",       icon: "😌", key: "settings.tone.casual",       fallback: "Casual" },
+  { value: "casual", icon: "😌", key: "settings.tone.casual", fallback: "Casual" },
 ];
 
 // Normalize anything like "hu-HU" -> "hu"
@@ -50,6 +53,9 @@ export default function SettingsPage() {
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+
+  // ✅ Auth gate works with null user
+  const gate = useAuthGate(user);
 
   const [tone, setTone] = useState<Tone>("balanced");
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
@@ -77,7 +83,7 @@ export default function SettingsPage() {
   // Current app language (global)
   const { lang: appLang, setLang: setAppLang } = useLanguage();
 
-  // ✅ Pending language selection (NOT saved until Save button)
+  // ✅ Pending language selection
   const [pendingLang, setPendingLang] = useState<Lang>(normalizeLang(appLang || "en"));
 
   // Keep pendingLang in sync if appLang changes externally
@@ -97,18 +103,41 @@ export default function SettingsPage() {
     []
   );
 
-  // Check existing push subscription on this device
+  // ✅ Load user (session-safe)
+  useEffect(() => {
+    let mounted = true;
+
+    async function init() {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      setUser(data.session?.user ?? null);
+      setCheckingUser(false);
+
+      const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!mounted) return;
+        setUser(session?.user ?? null);
+      });
+
+      return () => sub.subscription.unsubscribe();
+    }
+
+    let cleanup: undefined | (() => void);
+    init().then((fn) => (cleanup = fn));
+
+    return () => {
+      mounted = false;
+      if (cleanup) cleanup();
+    };
+  }, []);
+
+  // Check push subscription (only when logged in)
   useEffect(() => {
     async function checkPush() {
       if (typeof window === "undefined") return;
 
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-        setPushStatus(
-          t(
-            "settings.taskReminders.notSupported",
-            "Push notifications are not supported in this browser."
-          )
-        );
+        setPushStatus(t("settings.taskReminders.notSupported", "Push notifications are not supported in this browser."));
         setPushEnabled(false);
         return;
       }
@@ -119,12 +148,7 @@ export default function SettingsPage() {
 
         if (sub) {
           setPushEnabled(true);
-          setPushStatus(
-            t(
-              "settings.taskReminders.enabled",
-              "✅ Push notifications enabled for this device."
-            )
-          );
+          setPushStatus(t("settings.taskReminders.enabled", "✅ Push notifications enabled for this device."));
         } else {
           setPushEnabled(false);
           setPushStatus(null);
@@ -132,38 +156,17 @@ export default function SettingsPage() {
       } catch (err) {
         console.error("checkPush error:", err);
         setPushEnabled(false);
-        setPushStatus(
-          t(
-            "settings.taskReminders.statusCheckError",
-            "Could not check push notification status."
-          )
-        );
+        setPushStatus(t("settings.taskReminders.statusCheckError", "Could not check push notification status."));
       }
     }
 
-    if (user) checkPush();
+    if (user?.id) checkPush();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
-  // Load user
+  // Load profile settings (only when logged in)
   useEffect(() => {
-    async function loadUser() {
-      try {
-        const { data, error } = await supabase.auth.getUser();
-        if (error) console.error(error);
-        setUser(data?.user ?? null);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setCheckingUser(false);
-      }
-    }
-    loadUser();
-  }, []);
-
-  // Load profile settings
-  useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     async function loadProfile() {
       setLoadingProfile(true);
@@ -190,21 +193,16 @@ export default function SettingsPage() {
           .eq("id", user.id)
           .maybeSingle();
 
-        if (error && error.code !== "PGRST116") throw error;
+        if (error && (error as any).code !== "PGRST116") throw error;
 
         if (data) {
           if (data.ai_tone) setTone(data.ai_tone as Tone);
           if (data.focus_area) setFocusArea(data.focus_area);
 
-          if (typeof data.daily_digest_enabled === "boolean") {
-            setDailyDigestEnabled(data.daily_digest_enabled);
-          }
+          if (typeof data.daily_digest_enabled === "boolean") setDailyDigestEnabled(data.daily_digest_enabled);
 
-          if (typeof data.weekly_report_enabled === "boolean") {
-            setWeeklyReportEnabled(data.weekly_report_enabled);
-          } else {
-            setWeeklyReportEnabled(true);
-          }
+          if (typeof data.weekly_report_enabled === "boolean") setWeeklyReportEnabled(data.weekly_report_enabled);
+          else setWeeklyReportEnabled(true);
 
           setPlan(data.plan === "pro" ? "pro" : "free");
 
@@ -222,18 +220,6 @@ export default function SettingsPage() {
                 window.localStorage.setItem(LS_PREF_LANG, base);
               } catch {}
             }
-          } else {
-            // Fallback to LS_PREF_LANG
-            if (typeof window !== "undefined") {
-              try {
-                const lsLang = window.localStorage.getItem(LS_PREF_LANG);
-                if (lsLang) {
-                  const base = normalizeLang(lsLang);
-                  setAppLang(base);
-                  setPendingLang(base);
-                }
-              } catch {}
-            }
           }
         }
       } catch (err) {
@@ -245,15 +231,25 @@ export default function SettingsPage() {
     }
 
     loadProfile();
-  }, [user, setAppLang]);
+  }, [user?.id, setAppLang]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) return;
-
-    setSaving(true);
     setError("");
     setSuccess("");
+
+    // ✅ If logged out, open gate (but still allow local language apply below if you want)
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("settings.auth.title", "Log in to save Settings"),
+        subtitle: t("settings.auth.subtitle", "Settings are saved to your account."),
+      })
+    ) {
+      return;
+    }
+    if (!user?.id) return;
+
+    setSaving(true);
 
     try {
       const langToSave = normalizeLang(pendingLang || "en");
@@ -269,8 +265,6 @@ export default function SettingsPage() {
           onboarding_weekly_focus: onboardingWeeklyFocus.trim() || null,
           onboarding_reminder: onboardingReminder || "none",
           ui_theme: theme,
-
-          // ✅ persist language only on Save
           ui_language: langToSave,
         })
         .eq("id", user.id);
@@ -281,22 +275,15 @@ export default function SettingsPage() {
         return;
       }
 
-      // ✅ apply globally after successful save
       setAppLang(langToSave);
 
-      // ✅ store locally for fast boot
       if (typeof window !== "undefined") {
         try {
           window.localStorage.setItem(LS_PREF_LANG, langToSave);
         } catch {}
       }
 
-      setSuccess(
-        t(
-          "settings.saveSuccess",
-          "Settings saved. Your AI will now use this style and preferences."
-        )
-      );
+      setSuccess(t("settings.saveSuccess", "Settings saved. Your AI will now use this style and preferences."));
     } catch (err) {
       console.error(err);
       setError(t("settings.saveErrorGeneric", "Something went wrong while saving."));
@@ -306,24 +293,25 @@ export default function SettingsPage() {
   }
 
   async function handleEnablePush() {
-    if (!user) {
-      setPushStatus(t("settings.taskReminders.needsLogin", "You need to be logged in."));
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("settings.auth.pushTitle", "Log in to enable reminders"),
+        subtitle: t("settings.auth.pushSubtitle", "Push reminders are tied to your account."),
+      })
+    ) {
       return;
     }
+    if (!user?.id) return;
 
     setPushLoading(true);
     setPushStatus(null);
 
     try {
       await subscribeToPush(user.id);
-
       setPushEnabled(true);
-      setPushStatus(
-        t("settings.taskReminders.enabled", "✅ Push notifications enabled for this device.")
-      );
+      setPushStatus(t("settings.taskReminders.enabled", "✅ Push notifications enabled for this device."));
     } catch (err: any) {
       console.error("handleEnablePush error:", err);
-
       if (typeof Notification !== "undefined" && Notification.permission === "denied") {
         setPushStatus(
           t(
@@ -337,7 +325,6 @@ export default function SettingsPage() {
             (err?.message ? ` ${err.message}` : "")
         );
       }
-
       setPushEnabled(false);
     } finally {
       setPushLoading(false);
@@ -345,20 +332,19 @@ export default function SettingsPage() {
   }
 
   async function handleDisablePush() {
-    if (!user) {
-      setPushStatus(t("settings.taskReminders.needsLogin", "You need to be logged in."));
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("settings.auth.pushTitle", "Log in to manage reminders"),
+        subtitle: t("settings.auth.pushSubtitle", "Push reminders are tied to your account."),
+      })
+    ) {
       return;
     }
+    if (!user?.id) return;
 
     if (typeof window === "undefined") return;
-
     if (!("serviceWorker" in navigator)) {
-      setPushStatus(
-        t(
-          "settings.taskReminders.serviceWorkerUnsupported",
-          "Service workers are not supported in this browser."
-        )
-      );
+      setPushStatus(t("settings.taskReminders.serviceWorkerUnsupported", "Service workers are not supported in this browser."));
       return;
     }
 
@@ -396,36 +382,20 @@ export default function SettingsPage() {
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
-        <p className="text-sm text-[var(--text-muted)]">
-          {t("settings.checkingSession", "Checking your session...")}
-        </p>
+        <p className="text-sm text-[var(--text-muted)]">{t("settings.checkingSession", "Checking your session...")}</p>
       </main>
     );
   }
 
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
-        <AppHeader active="settings" />
-        <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h1 className="text-2xl font-bold mb-3">{t("settings.title", "Settings")}</h1>
-          <p className="mb-4 text-center max-w-sm text-sm text-[var(--text-muted)]">
-            {t("settings.loginPrompt", "Log in or create a free account to customize your AI experience.")}
-          </p>
-          <Link
-            href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
-          >
-            {t("settings.goToAuth", "Go to login / signup")}
-          </Link>
-        </div>
-      </main>
-    );
-  }
+  const isLoggedIn = !!user?.id;
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="settings" />
+
+      {/* ✅ Always mounted */}
+      <AuthGateModal open={gate.open} onClose={gate.close} copy={gate.copy} authHref={gate.authHref} />
+
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
           <h1 className="text-2xl md:text-3xl font-bold mb-1">{t("settings.title", "Settings")}</h1>
@@ -433,10 +403,38 @@ export default function SettingsPage() {
             {t("settings.subtitle", "Customize how the AI talks to you and what to focus on.")}
           </p>
 
-          {loadingProfile ? (
-            <p className="text-sm text-[var(--text-muted)]">
-              {t("settings.loadingSettings", "Loading your settings...")}
-            </p>
+          {/* ✅ Guest banner (no lock) */}
+          {!isLoggedIn && (
+            <div className="mb-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+              <p className="text-sm font-semibold mb-1">{t("settings.guest.title", "You’re browsing as a guest")}</p>
+              <p className="text-[11px] text-[var(--text-muted)] mb-3">
+                {t("settings.guest.subtitle", "You can view settings, but saving requires an account.")}
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() =>
+                    gate.openGate({
+                      title: t("settings.auth.title", "Log in to save Settings"),
+                      subtitle: t("settings.auth.subtitle", "Settings are saved to your account."),
+                    })
+                  }
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
+                >
+                  {t("settings.guest.cta", "Log in / signup")}
+                </button>
+                <Link
+                  href="/auth"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
+                >
+                  {t("settings.guest.openAuth", "Open auth page")}
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {loadingProfile && isLoggedIn ? (
+            <p className="text-sm text-[var(--text-muted)]">{t("settings.loadingSettings", "Loading your settings...")}</p>
           ) : (
             <form
               onSubmit={handleSave}
@@ -462,10 +460,6 @@ export default function SettingsPage() {
                     <textarea
                       value={onboardingUseCase}
                       onChange={(e) => setOnboardingUseCase(e.target.value)}
-                      placeholder={t(
-                        "settings.onboarding.useCasePlaceholder",
-                        "Example: I’m a solo founder using this for planning my week, journaling progress and drafting emails."
-                      )}
                       className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1.5 text-[11px] text-[var(--text-main)] resize-vertical"
                       rows={2}
                     />
@@ -476,10 +470,6 @@ export default function SettingsPage() {
                     <textarea
                       value={onboardingWeeklyFocus}
                       onChange={(e) => setOnboardingWeeklyFocus(e.target.value)}
-                      placeholder={t(
-                        "settings.onboarding.weekGoalPlaceholder",
-                        "Example: Shipping one small improvement to my product every week."
-                      )}
                       className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1.5 text-[11px] text-[var(--text-main)] resize-vertical"
                       rows={2}
                     />
@@ -499,61 +489,36 @@ export default function SettingsPage() {
                   </label>
                 </div>
               </div>
+
               {/* AI tone */}
-<div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
-  <div>
-    <p className="text-[11px] font-semibold text-[var(--text-main)]">
-      {t("settings.tone.sectionTitle", "AI communication style")}
-    </p>
-    <p className="text-[11px] text-[var(--text-muted)]">
-      {t(
-        "settings.tone.sectionDesc",
-        "Choose how the AI should talk to you in suggestions, reports, and messages."
-      )}
-    </p>
-  </div>
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold text-[var(--text-main)]">
+                    {t("settings.tone.sectionTitle", "AI communication style")}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    {t("settings.tone.sectionDesc", "Choose how the AI should talk to you in suggestions, reports, and messages.")}
+                  </p>
+                </div>
 
-  <div className="grid gap-2">
-    {TONE_OPTIONS.map((opt) => (
-      <button
-        key={opt.value}
-        type="button"
-        onClick={() => setTone(opt.value)}
-        className={`px-3 py-2 rounded-xl border text-sm text-left ${
-          tone === opt.value
-            ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-            : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
-        }`}
-      >
-        <span className="mr-2">{opt.icon}</span>
-        {t(opt.key, opt.fallback)}
-      </button>
-    ))}
-  </div>
-</div>
-
-{/* Onboarding tools */}
-<div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-2">
-  <p className="text-xs font-semibold text-[var(--text-main)]">
-    {t("settings.onboarding.toolsTitle", "Onboarding & setup")}
-  </p>
-
-  <p className="text-[11px] text-[var(--text-muted)]">
-    {t(
-      "settings.onboarding.toolsDesc",
-      "You can re-run the onboarding wizard anytime to update your focus, reminders, and preferences."
-    )}
-  </p>
-  <Link
-  href="/onboarding?force=1"
-  className="inline-flex items-center text-xs px-3 py-1.5 rounded-xl
-             border border-[var(--border-subtle)]
-             bg-[var(--bg-card)]
-             hover:bg-[var(--bg-elevated)]"
->
-  {t("settings.onboarding.openWizard", "Open onboarding wizard")}
-</Link>
-</div>
+                <div className="grid gap-2">
+                  {TONE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setTone(opt.value)}
+                      className={`px-3 py-2 rounded-xl border text-sm text-left ${
+                        tone === opt.value
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
+                      }`}
+                    >
+                      <span className="mr-2">{opt.icon}</span>
+                      {t(opt.key, opt.fallback)}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Weekly report */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
@@ -579,35 +544,17 @@ export default function SettingsPage() {
                     >
                       {t("settings.weeklyReport.unlockPro", "🔒 Unlock with Pro")}
                     </a>
-
-                    <Link
-                      href="/weekly-history"
-                      className="block mt-2 text-[11px] text-[var(--accent)] hover:opacity-90"
-                    >
-                      {t("settings.weeklyReport.howItWorks", "See how weekly reports work →")}
-                    </Link>
                   </>
                 ) : (
-                  <>
-                    <p className="text-sm mb-2">
-                      {t(
-                        "settings.weeklyReport.enabledDescription",
-                        "Receive a weekly AI summary of your progress, wins, and what to focus on next week."
-                      )}
-                    </p>
-
-                    <label className="flex items-center gap-2 text-xs mb-1">
-                      <input
-                        type="checkbox"
-                        checked={weeklyReportEnabled}
-                        onChange={(e) => setWeeklyReportEnabled(e.target.checked)}
-                        className="h-4 w-4 rounded border-[var(--border-subtle)] bg-[var(--bg-body)]"
-                      />
-                      <span>
-                        {t("settings.weeklyReport.toggle", "Send me weekly AI productivity reports")}
-                      </span>
-                    </label>
-                  </>
+                  <label className="flex items-center gap-2 text-xs mb-1">
+                    <input
+                      type="checkbox"
+                      checked={weeklyReportEnabled}
+                      onChange={(e) => setWeeklyReportEnabled(e.target.checked)}
+                      className="h-4 w-4 rounded border-[var(--border-subtle)] bg-[var(--bg-body)]"
+                    />
+                    <span>{t("settings.weeklyReport.toggle", "Send me weekly AI productivity reports")}</span>
+                  </label>
                 )}
               </div>
 
@@ -638,12 +585,6 @@ export default function SettingsPage() {
                 <p className="text-[11px] font-semibold text-[var(--text-main)]">
                   {t("settings.taskReminders.title", "Task reminders (push notifications)")}
                 </p>
-                <p className="text-[11px] text-[var(--text-muted)]">
-                  {t(
-                    "settings.taskReminders.description",
-                    "Enable browser notifications for task reminders. You’ll see a notification when a task you set a reminder for is due."
-                  )}
-                </p>
 
                 <div className="flex items-center gap-2 flex-wrap">
                   {pushEnabled ? (
@@ -653,9 +594,7 @@ export default function SettingsPage() {
                       disabled={pushLoading}
                       className="px-3 py-2 rounded-xl border border-red-400 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-60"
                     >
-                      {pushLoading
-                        ? t("settings.taskReminders.disabling", "Disabling…")
-                        : t("settings.taskReminders.disable", "Disable task reminders (push)")}
+                      {pushLoading ? t("settings.taskReminders.disabling", "Disabling…") : t("settings.taskReminders.disable", "Disable task reminders (push)")}
                     </button>
                   ) : (
                     <button
@@ -664,9 +603,7 @@ export default function SettingsPage() {
                       disabled={pushLoading}
                       className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-xs hover:bg-[var(--bg-card)] disabled:opacity-60"
                     >
-                      {pushLoading
-                        ? t("settings.taskReminders.enabling", "Enabling…")
-                        : t("settings.taskReminders.enable", "Enable task reminders (push)")}
+                      {pushLoading ? t("settings.taskReminders.enabling", "Enabling…") : t("settings.taskReminders.enable", "Enable task reminders (push)")}
                     </button>
                   )}
 
@@ -674,59 +611,48 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Notification channels */}
-              <NotificationSettings userId={user.id} />
+              {/* Notification channels (requires userId) */}
+              {isLoggedIn ? (
+                <NotificationSettings userId={user.id} />
+              ) : (
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                  <p className="text-[11px] font-semibold text-[var(--text-main)]">
+                    {t("settings.notifications.title", "Notification channels")}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    {t("settings.notifications.loginNote", "Log in to manage email/push notification channels.")}
+                  </p>
+                </div>
+              )}
 
               {/* Theme */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
                 <div>
-                  <p className="text-[11px] font-semibold text-[var(--text-main)]">
-                    {t("settings.section.theme", "Theme & appearance")}
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    {t("settings.theme.description", "Choose your app theme. Seasonal themes turn on extra colors.")}
-                  </p>
+                  <p className="text-[11px] font-semibold text-[var(--text-main)]">{t("settings.section.theme", "Theme & appearance")}</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">{t("settings.theme.description", "Choose your app theme. Seasonal themes turn on extra colors.")}</p>
                 </div>
 
-                <div className="space-y-2 text-[11px]">
-                  <div className="flex flex-wrap gap-2">
-                    {THEME_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setTheme(opt.value)}
-                        className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
-                          theme === opt.value
-                            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                            : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
-                        }`}
-                      >
-                        {t(opt.key, opt.fallback)}
-                      </button>
-                    ))}
-                  </div>
-
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    {t(
-                      "settings.theme.deviceNote",
-                      "Your choice is saved on this device. The default theme follows a dark style; Light is easier in bright environments. Seasonal themes (Halloween, Christmas, Easter) add a bit of fun."
-                    )}
-                  </p>
+                <div className="flex flex-wrap gap-2">
+                  {THEME_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setTheme(opt.value)}
+                      className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
+                        theme === opt.value
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
+                      }`}
+                    >
+                      {t(opt.key, opt.fallback)}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* ✅ Language (pending, not saved until Save) */}
+              {/* Language */}
               <div>
-                <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
-                  {t("settings.language.title", "Language")}
-                </label>
-
-                <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                  {t(
-                    "settings.language.description",
-                    "This changes the app interface language and is used as the default target for the “Translate with AI” button."
-                  )}
-                </p>
+                <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">{t("settings.language.title", "Language")}</label>
 
                 <select
                   value={pendingLang}
@@ -741,9 +667,9 @@ export default function SettingsPage() {
                   ))}
                 </select>
 
-                {pendingLang !== normalizeLang(appLang || "en") && (
-                  <p className="mt-1 text-[11px] text-amber-300">
-                    {t("settings.language.pendingNote", "Language will apply after you press Save settings.")}
+                {!isLoggedIn && (
+                  <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                    {t("settings.language.guestNote", "Log in to sync language to your account.")}
                   </p>
                 )}
               </div>
@@ -753,23 +679,11 @@ export default function SettingsPage() {
                 <label className="block text-xs font-semibold text-[var(--text-main)] mb-1">
                   {t("settings.mainFocus.label", "Main focus area (optional)")}
                 </label>
-
-                <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                  {t(
-                    "settings.mainFocus.placeholder",
-                    'Example: "Work projects", "University study", "Personal growth", or leave blank.'
-                  )}
-                </p>
-
                 <input
                   type="text"
                   value={focusArea}
                   onChange={(e) => setFocusArea(e.target.value)}
                   className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
-                  placeholder={t(
-                    "settings.mainFocus.placeholder",
-                    'Example: "Work projects", "University study", "Personal growth", or leave blank.'
-                  )}
                 />
               </div>
 
@@ -784,16 +698,21 @@ export default function SettingsPage() {
               {/* Subscription */}
               <div className="pt-4 border-t border-[var(--border-subtle)] mt-4">
                 <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                  {t(
-                    "settings.subscription.manage",
-                    "Manage your subscription, billing details, and invoices in the secure Stripe customer portal."
-                  )}
+                  {t("settings.subscription.manage", "Manage your subscription, billing details, and invoices in the secure Stripe customer portal.")}
                 </p>
 
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!user) return;
+                    if (
+                      !gate.requireAuth(undefined, {
+                        title: t("settings.auth.portalTitle", "Log in to manage subscription"),
+                        subtitle: t("settings.auth.portalSubtitle", "Billing is linked to your account."),
+                      })
+                    ) {
+                      return;
+                    }
+                    if (!user?.id) return;
 
                     try {
                       try {
@@ -829,7 +748,16 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!user) return;
+                    if (
+                      !gate.requireAuth(undefined, {
+                        title: t("settings.auth.exportTitle", "Log in to export your data"),
+                        subtitle: t("settings.auth.exportSubtitle", "Your export is generated from your account data."),
+                      })
+                    ) {
+                      return;
+                    }
+                    if (!user?.id) return;
+
                     try {
                       const res = await fetch("/api/export", {
                         method: "POST",

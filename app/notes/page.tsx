@@ -51,9 +51,7 @@ function resolveNaturalDue(label: string): string | null {
   }
 
   // --- Explicit times: “8am”, “8 pm”, “20:00” etc ---
-  const timeMatch = text.match(
-    /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?|\b(\d{1,2}):(\d{2})\b/
-  );
+  const timeMatch = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?|\b(\d{1,2}):(\d{2})\b/);
 
   if (timeMatch) {
     let hour: number | null = null;
@@ -192,6 +190,85 @@ async function safeReadJson(res: Response): Promise<any> {
   }
 }
 
+// --- Demo notes for visitors ---
+const DEMO_NOTES: Note[] = [
+  {
+    id: "demo-1",
+    user_id: "visitor",
+    title: "Welcome to Notes (demo)",
+    content:
+      "This is a preview of how Notes works.\n\nTry clicking “✨ Summarize” or typing in the editor — you’ll get a login/signup popup.",
+    created_at: new Date().toISOString(),
+    category: "Journal",
+    ai_result: null,
+  },
+  {
+    id: "demo-2",
+    user_id: "visitor",
+    title: "Meeting notes (example)",
+    content:
+      "Client call:\n- Main goal: redesign onboarding\n- Pain points: too many steps, unclear pricing\n- Next: propose 2 flows + quick wireframe\n",
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    category: "Meeting Notes",
+    ai_result: "AI result preview will show here after you use an AI action (requires login).",
+  },
+];
+
+function AuthGateModal({
+  open,
+  onClose,
+  title = "Log in to continue",
+  subtitle = "Create an account to write, save, or use AI.",
+}: {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  subtitle?: string;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-sm rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">{title}</p>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <a
+            href="/auth"
+            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
+          >
+            Log in / Sign up
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
+          >
+            Not now
+          </button>
+        </div>
+
+        <p className="mt-3 text-[10px] text-[var(--text-muted)]">
+          You can still browse this page as a visitor.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function NotesPage() {
   const router = useRouter();
   const { t: rawT } = useT("");
@@ -202,6 +279,18 @@ export default function NotesPage() {
 
   const [user, setUser] = useState<SupabaseUser>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+
+  // Auth gate modal (visitor → popup)
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  function requireAuth(action?: () => void) {
+    if (!user) {
+      setAuthModalOpen(true);
+      track?.("auth_gate_opened", { page: "notes" });
+      return false;
+    }
+    action?.();
+    return true;
+  }
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [title, setTitle] = useState("");
@@ -277,6 +366,8 @@ export default function NotesPage() {
   }
 
   function handleAskAssistantAboutNote(note: Note) {
+    // visitor gating (still show button)
+    if (!requireAuth()) return;
     if (!note?.content) return;
 
     window.dispatchEvent(
@@ -292,6 +383,7 @@ export default function NotesPage() {
   }
 
   function handleResetVoice() {
+    // allow reset even for visitors (pure UI)
     setTitle("");
     setContent("");
     setNewCategory("");
@@ -303,6 +395,10 @@ export default function NotesPage() {
   }
 
   function handleVoiceResult(payload: { rawText: string | null; structured: VoiceStructured | null }) {
+    // voice action requires auth (recording + processing)
+    // If VoiceCaptureButton is somehow triggered while visitor, we gate here too.
+    if (!requireAuth()) return;
+
     const structured = payload.structured;
 
     // 1) Note content + smart title
@@ -336,18 +432,15 @@ export default function NotesPage() {
       if (maybe) setTasksSourceCategory(maybe);
     }
 
-   // 3) Normalize tasks into VoiceTaskSuggestion[] (with natural-language fallback → ISO)
+    // 3) Normalize tasks into VoiceTaskSuggestion[]
     if (structured && Array.isArray(structured.tasks)) {
       const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
         const rawTitle =
-          typeof t.title === "string" && t.title.trim()
-            ? t.title.trim()
-            : "(Untitled task)";
+          typeof t.title === "string" && t.title.trim() ? t.title.trim() : "(Untitled task)";
 
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
 
-        // 1) Prefer explicit ISO from the model
         if (typeof t.due_iso === "string" && t.due_iso.trim()) {
           dueIso = t.due_iso.trim();
           if (dueIso) {
@@ -358,15 +451,8 @@ export default function NotesPage() {
           }
         }
 
-        // 2) If there's a natural-language due and no ISO, try to resolve it
-        if (
-          !dueIso &&
-          typeof t.due_natural === "string" &&
-          t.due_natural.trim()
-        ) {
+        if (!dueIso && typeof t.due_natural === "string" && t.due_natural.trim()) {
           const natural = t.due_natural.trim();
-
-          // Try to convert phrases like "tomorrow morning" → ISO
           const resolved = resolveNaturalDue(natural);
           if (resolved) {
             dueIso = resolved;
@@ -375,23 +461,14 @@ export default function NotesPage() {
               dueLabel = new Date(parsed).toLocaleString();
             }
           }
-
-          // If we still don't have a label, use the natural text
-          if (!dueLabel) {
-            dueLabel = natural;
-          }
+          if (!dueLabel) dueLabel = natural;
         }
 
         return {
           title: rawTitle,
           dueIso,
           dueLabel,
-          priority:
-            t.priority === "low" ||
-            t.priority === "medium" ||
-            t.priority === "high"
-              ? t.priority
-              : null,
+          priority: t.priority === "low" || t.priority === "medium" || t.priority === "high" ? t.priority : null,
         };
       });
 
@@ -404,60 +481,59 @@ export default function NotesPage() {
     }
   }
 
-  // 🆕 Generate tasks from a note using backend AI endpoint (suggestions only)
- async function handleGenerateTasksFromNote(note: Note) {
-  if (!user) return;
-  if (!note.content?.trim()) return;
+  // 🆕 Generate tasks from a note using backend AI endpoint (creates tasks) — requires auth
+  async function handleGenerateTasksFromNote(note: Note) {
+    if (!requireAuth()) return;
+    if (!note.content?.trim()) return;
 
-  setError("");
-  setNoteTasksLoadingId(note.id);
+    setError("");
+    setNoteTasksLoadingId(note.id);
 
-  try {
-    const res = await fetch("/api/ai/note-to-tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: note.content }),
-    });
+    try {
+      const res = await fetch("/api/ai/note-to-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: note.content }),
+      });
 
-    const data = await safeReadJson(res);
+      const data = await safeReadJson(res);
 
-    if (!res.ok || !data?.ok) {
-      console.error("[note-to-tasks] error:", data);
-      setError(data?.error || "Failed to generate tasks from note.");
-      return;
+      if (!res.ok || !data?.ok) {
+        console.error("[note-to-tasks] error:", data);
+        setError(data?.error || "Failed to generate tasks from note.");
+        return;
+      }
+
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      const rows = tasks
+        .map((t: any) => ({
+          user_id: (user as any)!.id,
+          title: typeof t.title === "string" ? t.title.trim() : "",
+          completed: false,
+          category: note.category || null,
+        }))
+        .filter((r: any) => r.title.length > 0);
+
+      if (rows.length === 0) {
+        setError("AI did not find any clear tasks in this note.");
+        return;
+      }
+
+      const { error: insertError } = await supabase.from("tasks").insert(rows);
+      if (insertError) {
+        console.error("[tasks-from-note] insert error:", insertError);
+        setError(insertError.message || "Failed to create tasks.");
+        return;
+      }
+
+      router.push("/tasks");
+    } catch (err) {
+      console.error("[tasks-from-note] unexpected:", err);
+      setError("Unexpected error while creating tasks.");
+    } finally {
+      setNoteTasksLoadingId(null);
     }
-
-    const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-    const rows = tasks
-      .map((t: any) => ({
-        user_id: user.id,
-        title: typeof t.title === "string" ? t.title.trim() : "",
-        completed: false,
-        // OPTIONAL: keep category if you want
-        category: note.category || null,
-      }))
-      .filter((r: any) => r.title.length > 0);
-
-    if (rows.length === 0) {
-      setError("AI did not find any clear tasks in this note.");
-      return;
-    }
-
-    const { error: insertError } = await supabase.from("tasks").insert(rows);
-    if (insertError) {
-      console.error("[tasks-from-note] insert error:", insertError);
-      setError(insertError.message || "Failed to create tasks.");
-      return;
-    }
-
-    router.push("/tasks");
-  } catch (err) {
-    console.error("[tasks-from-note] unexpected:", err);
-    setError("Unexpected error while creating tasks.");
-  } finally {
-    setNoteTasksLoadingId(null);
   }
-}
 
   useEffect(() => {
     async function load() {
@@ -481,7 +557,7 @@ export default function NotesPage() {
         .single();
       setPlan(inserted?.plan || "free");
     } else {
-      setPlan(data.plan || "free");
+      setPlan((data as any).plan || "free");
     }
   }
 
@@ -515,7 +591,7 @@ export default function NotesPage() {
       .eq("usage_date", today)
       .maybeSingle();
 
-    setAiCountToday(data?.count || 0);
+    setAiCountToday((data as any)?.count || 0);
   }
 
   useEffect(() => {
@@ -523,7 +599,14 @@ export default function NotesPage() {
       ensureProfile();
       fetchNotes();
       fetchAiUsage();
+    } else {
+      // Visitor mode
+      setNotes(DEMO_NOTES);
+      setOpenNoteIds(DEMO_NOTES.length ? [DEMO_NOTES[0].id] : []);
+      setPlan("free");
+      setAiCountToday(0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
@@ -531,7 +614,7 @@ export default function NotesPage() {
 
   async function handleSaveNote(e: FormEvent) {
     e.preventDefault();
-    if (!user) return;
+    if (!requireAuth()) return;
 
     if (!title.trim() && !content.trim()) {
       setError(t("errors.saveNoteMissing", "Please enter a title or content."));
@@ -555,7 +638,7 @@ export default function NotesPage() {
       {
         title: finalTitle || null,
         content,
-        user_id: user.id,
+        user_id: user!.id,
         created_at: createdAtIso,
         category: newCategory || null,
       },
@@ -593,19 +676,16 @@ export default function NotesPage() {
       return 1;
     }
 
-    const newCount = data.count + 1;
-    await supabase.from("ai_usage").update({ count: newCount }).eq("id", data.id);
+    const newCount = (data as any).count + 1;
+    await supabase.from("ai_usage").update({ count: newCount }).eq("id", (data as any).id);
     setAiCountToday(newCount);
     return newCount;
   }
 
   async function handleAI(noteId: string, noteContent: string | null, mode: AiMode) {
+    // ✅ keep buttons visible but gated
+    if (!requireAuth()) return;
     if (!noteContent?.trim()) return;
-
-    if (!user) {
-      setError(t("errors.notLoggedInForAI", "You need to be logged in to use AI on notes."));
-      return;
-    }
 
     if (remaining <= 0) {
       setError(t("errors.dailyLimitReached", "Daily AI limit reached."));
@@ -631,7 +711,7 @@ export default function NotesPage() {
       .from("notes")
       .update({ ai_result: data.result })
       .eq("id", noteId)
-      .eq("user_id", user.id);
+      .eq("user_id", user!.id);
 
     if (updateError) {
       console.error("[notes] AI result update error", updateError);
@@ -649,6 +729,7 @@ export default function NotesPage() {
   }
 
   function startEdit(note: Note) {
+    if (!requireAuth()) return;
     setEditingNoteId(note.id);
     setEditTitle(note.title || "");
     setEditContent(note.content || "");
@@ -656,7 +737,7 @@ export default function NotesPage() {
   }
 
   async function saveEdit(id: string) {
-    if (!user) return;
+    if (!requireAuth()) return;
 
     setSavingEditId(id);
 
@@ -664,7 +745,7 @@ export default function NotesPage() {
       .from("notes")
       .update({ title: editTitle, content: editContent, category: editCategory || null })
       .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("user_id", user!.id);
 
     setSavingEditId(null);
     cancelEdit();
@@ -679,80 +760,19 @@ export default function NotesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!user) return;
+    if (!requireAuth()) return;
     if (!confirm(t("confirm.deleteNote", "Delete this note?"))) return;
 
     setDeletingId(id);
-    await supabase.from("notes").delete().eq("id", id).eq("user_id", user.id);
+    await supabase.from("notes").delete().eq("id", id).eq("user_id", user!.id);
 
     setNotes((prev) => prev.filter((n) => n.id !== id));
     setDeletingId(null);
   }
 
-async function insertTasksFromSuggestions(
-  suggestions: VoiceTaskSuggestion[],
-  sourceCategory: TaskCategory | null
-) {
-  if (!user) return { ok: false as const, error: "Not logged in" };
-  if (suggestions.length === 0) return { ok: false as const, error: "No suggestions" };
-
-  const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, "0");
-
-  const rows = suggestions.map((tItem) => {
-    let dueIso: string | null = tItem.dueIso;
-
-    if (!dueIso && tItem.dueLabel) {
-      const parsed = Date.parse(tItem.dueLabel);
-      if (!Number.isNaN(parsed)) dueIso = new Date(parsed).toISOString();
-      else dueIso = resolveNaturalDue(tItem.dueLabel);
-    }
-
-    let reminderAt: string | null = null;
-    let timeFrom: string | null = null;
-    let timeTo: string | null = null;
-    let dueDateForColumn: string | null = null;
-
-    if (dueIso) {
-      dueDateForColumn = dueIso;
-      const d = new Date(dueIso);
-      const h = d.getHours();
-      const m = d.getMinutes();
-      timeFrom = `${pad(h)}:${pad(m)}`;
-      const end = new Date(d.getTime() + 60 * 60 * 1000);
-      timeTo = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
-      reminderAt = dueIso;
-    }
-
-    return {
-      user_id: user.id,
-      title: tItem.title,
-      description: null,
-      completed: false,
-      created_at: now.toISOString(),
-      completed_at: null,
-
-      category: sourceCategory,
-
-      time_from: timeFrom,
-      time_to: timeTo,
-      due_date: dueDateForColumn,
-
-      reminder_enabled: !!reminderAt,
-      reminder_at: reminderAt,
-      reminder_sent_at: null,
-    } as any;
-  });
-
-  const { error } = await supabase.from("tasks").insert(rows);
-  if (error) return { ok: false as const, error: error.message || "Insert failed" };
-
-  return { ok: true as const };
-}
-
-  // ✅ SINGLE creation flow (used for BOTH voice + note suggestions) + auto-open Tasks
+  // ✅ SINGLE creation flow (used for voice suggestions) + auto-open Tasks
   async function handleCreateTasksFromVoice() {
-    if (!user) return;
+    if (!requireAuth()) return;
     if (voiceSuggestedTasks.length === 0) return;
 
     setCreatingTasks(true);
@@ -763,17 +783,15 @@ async function insertTasksFromSuggestions(
       const now = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
 
-      const finalCategory =
-        tasksSourceCategory ?? normalizeTaskCategory(newCategory || null) ?? null;
+      const finalCategory = tasksSourceCategory ?? normalizeTaskCategory(newCategory || null) ?? null;
 
       const rows = voiceSuggestedTasks.map((tItem) => {
         let dueIso: string | null = tItem.dueIso || null;
 
         if (!dueIso && tItem.dueLabel) {
           const parsed = Date.parse(tItem.dueLabel);
-          if (!Number.isNaN(parsed)) {
-            dueIso = new Date(parsed).toISOString();
-          } else {
+          if (!Number.isNaN(parsed)) dueIso = new Date(parsed).toISOString();
+          else {
             const resolved = resolveNaturalDue(tItem.dueLabel);
             if (resolved) dueIso = resolved;
           }
@@ -800,7 +818,7 @@ async function insertTasksFromSuggestions(
         }
 
         return {
-          user_id: user.id,
+          user_id: user!.id,
           title: tItem.title,
           description: null,
           completed: false,
@@ -852,33 +870,14 @@ async function insertTasksFromSuggestions(
     );
   }
 
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col items-center justify-center p-4">
-        <h1 className="text-2xl font-bold mb-3">{t("title", "Notes")}</h1>
-
-        <p className="text-[var(--text-muted)] mb-4 text-center max-w-md">
-          {t("loginRequired", "You must log in to view your notes.")}
-        </p>
-
-        <a
-          href="/auth"
-          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
-        >
-          {t("loginButton", "Log in / Sign up")}
-        </a>
-      </main>
-    );
-  }
-
-  const userId = user.id as string;
-
   const filteredNotes =
     categoryFilter === "all" ? notes : notes.filter((n) => (n.category || "") === categoryFilter);
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8 pb-24">
       <AppHeader active="notes" />
+
+      <AuthGateModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
       <div className="max-w-5xl mx-auto mt-6 grid gap-6 md:grid-cols-[1.2fr,1fr]">
         {/* CREATE NOTE */}
@@ -892,24 +891,55 @@ async function insertTasksFromSuggestions(
                   "Use AI to summarize, bullet, or rewrite your notes. Capture ideas with your voice, too."
                 )}
               </p>
+
+              {!user && (
+                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                  You’re browsing as a <span className="font-semibold">visitor</span>. Click any action to log in.
+                </p>
+              )}
             </div>
-            <button
-              onClick={() => supabase.auth.signOut()}
-              className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
-            >
-              {t("create.logout", "Log out")}
-            </button>
+
+            {user ? (
+              <button
+                onClick={() => supabase.auth.signOut()}
+                className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+              >
+                {t("create.logout", "Log out")}
+              </button>
+            ) : (
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+              >
+                Log in
+              </button>
+            )}
           </div>
 
           {error && <div className="text-sm text-red-400 mb-3">{error}</div>}
 
-          <form onSubmit={handleSaveNote} className="flex flex-col gap-3">
+          <form
+            onSubmit={(e) => {
+              if (!user) {
+                e.preventDefault();
+                setAuthModalOpen(true);
+                return;
+              }
+              handleSaveNote(e);
+            }}
+            className="flex flex-col gap-3"
+          >
             <input
               type="text"
-              placeholder={t("form.titlePlaceholder", "Note title")}
+              placeholder={"Note title"}
               className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm focus:outline-none"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              readOnly={!user}
+              onFocus={() => requireAuth()}
+              onChange={(e) => {
+                if (!requireAuth()) return;
+                setTitle(e.target.value);
+              }}
             />
 
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
@@ -918,7 +948,11 @@ async function insertTasksFromSuggestions(
                 <input
                   type="date"
                   value={noteDate}
-                  onChange={(e) => setNoteDate(e.target.value)}
+                  onFocus={() => requireAuth()}
+                  onChange={(e) => {
+                    if (!requireAuth()) return;
+                    setNoteDate(e.target.value);
+                  }}
                   className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
                 />
               </div>
@@ -927,7 +961,9 @@ async function insertTasksFromSuggestions(
                 <span>{t("form.categoryLabel", "Category:")}</span>
                 <select
                   value={newCategory}
+                  onFocus={() => requireAuth()}
                   onChange={(e) => {
+                    if (!requireAuth()) return;
                     setNewCategory(e.target.value);
                     setTasksSourceCategory(normalizeTaskCategory(e.target.value || null));
                   }}
@@ -947,7 +983,10 @@ async function insertTasksFromSuggestions(
                   id="auto-title"
                   type="checkbox"
                   checked={autoTitleEnabled}
-                  onChange={(e) => setAutoTitleEnabled(e.target.checked)}
+                  onChange={(e) => {
+                    // allow toggling in visitor too (harmless)
+                    setAutoTitleEnabled(e.target.checked);
+                  }}
                   className="h-3 w-3"
                 />
                 <label htmlFor="auto-title" className="cursor-pointer text-[11px]">
@@ -957,10 +996,15 @@ async function insertTasksFromSuggestions(
             </div>
 
             <textarea
-              placeholder={t("form.contentPlaceholder", "Write your note here...")}
+              placeholder={"Write your note here..."}
               className="w-full min-h-[120px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              readOnly={!user}
+              onFocus={() => requireAuth()}
+              onChange={(e) => {
+                if (!requireAuth()) return;
+                setContent(e.target.value);
+              }}
             />
 
             <div className="flex flex-col gap-2 text-[11px] text-[var(--text-muted)]">
@@ -1000,7 +1044,23 @@ async function insertTasksFromSuggestions(
             </div>
 
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <VoiceCaptureButton userId={userId} mode={voiceMode} resetKey={voiceResetKey} onResult={handleVoiceResult} />
+              {user ? (
+                <VoiceCaptureButton
+                  userId={user.id as string}
+                  mode={voiceMode}
+                  resetKey={voiceResetKey}
+                  onResult={handleVoiceResult}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAuthModalOpen(true)}
+                  className="px-4 py-2 rounded-full text-sm font-medium bg-indigo-500/90 hover:bg-indigo-500 text-white"
+                >
+                  Hold to talk
+                </button>
+              )}
+
               {(content || title || voiceSuggestedTasks.length > 0) && (
                 <button
                   type="button"
@@ -1012,7 +1072,7 @@ async function insertTasksFromSuggestions(
               )}
             </div>
 
-            {/* Suggested tasks (from voice OR from note) */}
+            {/* Suggested tasks */}
             {voiceSuggestedTasks.length > 0 && (
               <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px]">
                 <div className="flex items-center justify-between mb-2">
@@ -1032,16 +1092,13 @@ async function insertTasksFromSuggestions(
                   ))}
                 </ul>
 
-                {/* ✅ SINGLE Create tasks button */}
                 <button
                   type="button"
                   onClick={handleCreateTasksFromVoice}
                   disabled={creatingTasks}
                   className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-[11px] disabled:opacity-60"
                 >
-                  {creatingTasks
-                    ? t("tasks.suggested.creating", "Creating tasks…")
-                    : t("tasks.suggested.createButton", "Create tasks")}
+                  {creatingTasks ? t("tasks.suggested.creating", "Creating tasks…") : t("tasks.suggested.createButton", "Create tasks")}
                 </button>
               </div>
             )}
@@ -1058,7 +1115,7 @@ async function insertTasksFromSuggestions(
           {plan === "free" && (
             <div className="mt-3 text-[11px] text-[var(--text-muted)]">
               {t("buttons.upgradeHint", "AI limit reached often?")}{" "}
-              <button disabled={billingLoading} onClick={() => {}} className="underline text-[var(--accent)]">
+              <button disabled={billingLoading} onClick={() => setAuthModalOpen(true)} className="underline text-[var(--accent)]">
                 {t("buttons.upgradeToPro", "Upgrade to Pro")}
               </button>
             </div>
@@ -1086,7 +1143,14 @@ async function insertTasksFromSuggestions(
               </select>
 
               <button
-                onClick={fetchNotes}
+                onClick={() => {
+                  if (!user) {
+                    // visitor: just reset to demo list
+                    setNotes(DEMO_NOTES);
+                    return;
+                  }
+                  fetchNotes();
+                }}
                 className="text-sm px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
               >
                 {t("list.refresh", "Refresh")}
@@ -1139,17 +1203,27 @@ async function insertTasksFromSuggestions(
                       {note.content && <p className="mt-2 text-xs text-[var(--text-main)] whitespace-pre-wrap">{note.content}</p>}
 
                       <div className="mt-3 flex flex-wrap gap-2">
-                         {/* 🆕 Tasks from note (suggestions in panel) */}
+                        {/* Tasks from note */}
                         <button
-  type="button"
-  onClick={() => handleGenerateTasksFromNote(note)}
-  disabled={noteTasksLoadingId === note.id || creatingTasks}
-  className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)] disabled:opacity-60"
->
-  {noteTasksLoadingId === note.id || creatingTasks
-    ? "Finding tasks..."
-    : "⚡ Tasks from note"}
-</button>
+                          type="button"
+                          onClick={() => handleGenerateTasksFromNote(note)}
+                          disabled={noteTasksLoadingId === note.id || creatingTasks}
+                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)] disabled:opacity-60"
+                        >
+                          {noteTasksLoadingId === note.id || creatingTasks ? "Finding tasks..." : "⚡ Tasks from note"}
+                        </button>
+
+                        {/* ✅ Translate with AI (you asked to keep visible; gated on click) */}
+                        <button
+                          onClick={() => {
+                            // You can wire this to your translate endpoint later; for now it just gates.
+                            if (!requireAuth()) return;
+                            setError(""); // or call your translate action here
+                          }}
+                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
+                        >
+                          🌍 Translate text
+                        </button>
 
                         <button
                           onClick={() => handleAI(note.id, note.content, "summarize")}
@@ -1276,6 +1350,7 @@ async function insertTasksFromSuggestions(
 
           <section className="mt-6">
             <div className="max-w-md mx-auto">
+              {/* Feedback can remain visible; or gate it too if you want */}
               <FeedbackForm user={user} />
             </div>
           </section>
