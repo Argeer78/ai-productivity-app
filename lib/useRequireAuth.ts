@@ -1,15 +1,34 @@
 // lib/useRequireAuth.ts
-import { useAuthModal } from "@/app/components/AuthModal";
+"use client";
+
+import { useAuthGate } from "@/app/hooks/useAuthGate";
+
+type OpenOptions = {
+  title?: string;
+  subtitle?: string;
+  ctaLabel?: string;
+  secondaryLabel?: string;
+  footerHint?: string;
+};
 
 export function useRequireAuth(user: any) {
-  const { open } = useAuthModal();
+  const gate = useAuthGate(user);
 
-  return function requireAuth(cb?: () => void) {
-    if (!user) {
-      open();
-      return false;
-    }
-    cb?.();
-    return true;
+  // Backward-compatible: old code calls `open()` to show auth UI
+  function open(opts?: OpenOptions) {
+    gate.openGate(opts);
+  }
+
+  // Preferred: guard actions; returns true if authed, otherwise opens modal + false
+  function requireAuth(opts?: OpenOptions) {
+    return gate.requireAuth(undefined, opts);
+  }
+
+  return {
+    open,
+    requireAuth,
+
+    // expose the gate so pages can mount <AuthGateModal ... />
+    gate,
   };
 }
