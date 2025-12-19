@@ -38,6 +38,8 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  if (request.headers.get("range")) return;
+
   // 🚫 Never cache API requests (let browser handle normally)
   if (url.pathname.startsWith("/api")) return;
 
@@ -70,7 +72,7 @@ self.addEventListener("fetch", (event) => {
         const response = await fetch(request);
 
         // ✅ Only cache successful responses
-        if (response && response.ok) {
+        if (response && response.ok && response.type === "basic") {
           const clone = response.clone();
           const cache = await caches.open(CACHE_NAME);
           cache.put(request, clone);
