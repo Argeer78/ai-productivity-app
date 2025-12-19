@@ -1042,36 +1042,51 @@ export default function NotesPage() {
                 </button>
               </div>
             </div>
-
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-              {user ? (
-                <VoiceCaptureButton
-                  userId={user.id as string}
-                  mode={voiceMode}
-                  resetKey={voiceResetKey}
-                  onResult={handleVoiceResult}
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAuthModalOpen(true)}
-                  className="px-4 py-2 rounded-full text-sm font-medium bg-indigo-500/90 hover:bg-indigo-500 text-white"
-                >
-                  Hold to talk
-                </button>
-              )}
+          <div className="mt-2 flex items-center gap-2">
+  {user ? (
+    <VoiceCaptureButton
+      userId={user.id as string}
+      mode={voiceMode}
+      resetKey={voiceResetKey}
+      onResult={handleVoiceResult}
+      variant="icon"              // ✅ NEW
+      size="md"
+    />
+  ) : (
+    <button
+      type="button"
+      onClick={() => setAuthModalOpen(true)}
+      aria-label={t("voice.loginToUse", "Log in to use voice")}
+      className="
+        h-10 w-10 rounded-full
+        flex items-center justify-center
+        bg-[var(--accent)]
+        text-[var(--bg-body)]
+        hover:opacity-90
+      "
+    >
+      🎤
+    </button>
+  )}
 
-              {(content || title || voiceSuggestedTasks.length > 0) && (
-                <button
-                  type="button"
-                  onClick={handleResetVoice}
-                  className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px] hover:bg-[var(--bg-card)]"
-                >
-                  {t("voice.resetButton", "Reset voice note")}
-                </button>
-              )}
-            </div>
-
+  {(content || title || voiceSuggestedTasks.length > 0) && (
+    <button
+      type="button"
+      onClick={handleResetVoice}
+      className="
+        px-3 py-1.5 rounded-full
+        border border-[var(--border-subtle)]
+        bg-[var(--bg-elevated)]
+        text-[11px]
+        hover:bg-[var(--bg-card)]
+      "
+    >
+      {t("voice.resetButton", "Reset voice")}
+    </button>
+  )}
+</div>   
+</div> 
             {/* Suggested tasks */}
             {voiceSuggestedTasks.length > 0 && (
               <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px]">

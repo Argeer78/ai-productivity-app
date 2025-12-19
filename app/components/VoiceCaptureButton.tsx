@@ -30,14 +30,24 @@ type Props = {
   userId: string;
   mode: "review" | "autosave" | "psych";
   resetKey?: number;
-  onResult?: (payload: { rawText: string | null; structured: StructuredResult | null }) => void;
+  onResult?: (payload: {
+    rawText: string | null;
+    structured: StructuredResult | null;
+  }) => void;
 
   /**
-   * NEW:
-   * - "default": full card UI (your current one)
-   * - "compact": small mic button only (perfect for chat composers)
+   * Variants:
+   * - "default": full card UI (original)
+   * - "compact": small mic button + tiny status (used in composers)
+   * - "icon": alias of compact (for pages that pass variant="icon")
    */
-  variant?: "default" | "compact";
+  variant?: "default" | "compact" | "icon";
+
+  /**
+   * Optional sizing for compact/icon button
+   */
+  size?: "sm" | "md";
+
   /**
    * Optional className for wrapper
    */
@@ -53,6 +63,7 @@ export default function VoiceCaptureButton({
   resetKey,
   onResult,
   variant = "default",
+  size = "md",
   className,
 }: Props) {
   const { t: rawT } = useT("");
@@ -65,7 +76,10 @@ export default function VoiceCaptureButton({
     try {
       const d = input instanceof Date ? input : new Date(input);
       if (Number.isNaN(d.getTime())) return "";
-      return new Intl.DateTimeFormat(intlLocale, { dateStyle: "medium", timeStyle: "short" }).format(d);
+      return new Intl.DateTimeFormat(intlLocale, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(d);
     } catch {
       return "";
     }
@@ -82,7 +96,9 @@ export default function VoiceCaptureButton({
   // 🔊 device selection
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [devicesLoaded, setDevicesLoaded] = useState(false);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | "auto">("auto");
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | "auto">(
+    "auto"
+  );
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -123,7 +139,9 @@ export default function VoiceCaptureButton({
       clearStopTimer();
       if (mediaRecorderRef.current) {
         try {
-          mediaRecorderRef.current.stream.getTracks().forEach((trk) => trk.stop());
+          mediaRecorderRef.current.stream
+            .getTracks()
+            .forEach((trk) => trk.stop());
         } catch {}
       }
       if (audioPreviewUrlRef.current) {
@@ -210,7 +228,9 @@ export default function VoiceCaptureButton({
       tmpStream.getTracks().forEach((trk) => trk.stop());
 
       if (selectedDeviceId === "auto" && audioIns.length > 0) {
-        const preferred = audioIns.find((d) => /built-in|microphone|mic|phone/i.test(d.label)) || audioIns[0];
+        const preferred =
+          audioIns.find((d) => /built-in|microphone|mic|phone/i.test(d.label)) ||
+          audioIns[0];
         setSelectedDeviceId(preferred.deviceId);
       }
     } catch (err) {
@@ -272,7 +292,11 @@ export default function VoiceCaptureButton({
     const supportError = getSupportError();
     if (supportError) {
       setError(supportError);
-      console.warn("[VoiceCapture] Support error:", supportError, typeof navigator !== "undefined" ? navigator.userAgent : "");
+      console.warn(
+        "[VoiceCapture] Support error:",
+        supportError,
+        typeof navigator !== "undefined" ? navigator.userAgent : ""
+      );
       return;
     }
 
@@ -292,7 +316,9 @@ export default function VoiceCaptureButton({
         (audioConstraints as any).deviceId = selectedDeviceId;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: audioConstraints,
+      });
 
       const mimeType = chooseMimeType();
       mimeTypeRef.current = mimeType;
@@ -308,7 +334,8 @@ export default function VoiceCaptureButton({
         return;
       }
 
-      const recorder = mimeType && MR ? new MR(stream, { mimeType }) : new MR(stream);
+      const recorder =
+        mimeType && MR ? new MR(stream, { mimeType }) : new MR(stream);
 
       chunksRef.current = [];
 
@@ -354,12 +381,21 @@ export default function VoiceCaptureButton({
           formData.append("mode", mode);
           formData.append("tz", getClientTimeZone());
 
-          const res = await fetch("/api/voice/capture", { method: "POST", body: formData });
+          const res = await fetch("/api/voice/capture", {
+            method: "POST",
+            body: formData,
+          });
           const json = await res.json();
 
           if (!res.ok || !json.ok) {
             console.error("[VoiceCapture] server error:", json);
-            setError(json.error || t("notes.voice.errors.server", "Server error while processing audio."));
+            setError(
+              json.error ||
+                t(
+                  "notes.voice.errors.server",
+                  "Server error while processing audio."
+                )
+            );
           } else {
             const rt = json.rawText || null;
             const st = (json.structured || null) as StructuredResult | null;
@@ -373,7 +409,9 @@ export default function VoiceCaptureButton({
           }
         } catch (err) {
           console.error("[VoiceCapture] fetch error:", err);
-          setError(t("notes.voice.errors.sendFailed", "Failed to send audio to server."));
+          setError(
+            t("notes.voice.errors.sendFailed", "Failed to send audio to server.")
+          );
         } finally {
           setLoading(false);
         }
@@ -408,7 +446,10 @@ export default function VoiceCaptureButton({
         setError(t("notes.voice.errors.micInUse", "Your microphone is already in use by another app."));
       } else {
         setError(
-          t("notes.voice.errors.couldNotAccess", `Could not access microphone (${name}). Check permissions and try again.`)
+          t(
+            "notes.voice.errors.couldNotAccess",
+            `Could not access microphone (${name}). Check permissions and try again.`
+          )
         );
       }
     }
@@ -424,9 +465,9 @@ export default function VoiceCaptureButton({
       : t("notes.voice.mode.review", "Review first");
 
   // =========================
-  // COMPACT VARIANT (chat UI)
+  // COMPACT / ICON VARIANT
   // =========================
-  if (variant === "compact") {
+  if (variant === "compact" || variant === "icon") {
     const label = recording
       ? t("notes.voice.button.holdRecording", "Recording… release to send")
       : t("notes.voice.button.holdToTalk", "Hold to talk");
@@ -434,6 +475,15 @@ export default function VoiceCaptureButton({
     const a11yLabel = loading
       ? t("notes.voice.status.processing", "Processing your audio with AI…")
       : label;
+
+    const btnSize =
+      size === "sm" ? "h-9 w-9" : "h-10 w-10";
+    const iconSize =
+      size === "sm" ? "text-[16px]" : "text-[18px]";
+
+    // Make "icon" look like a simple mic icon button (round, minimal)
+    const shapeClass =
+      variant === "icon" ? "rounded-full" : "rounded-xl";
 
     return (
       <div className={className}>
@@ -461,17 +511,26 @@ export default function VoiceCaptureButton({
             if (!recording) return;
             stopRecordingSafe();
           }}
-          className={`h-11 w-11 rounded-xl flex items-center justify-center select-none touch-none border border-[var(--border-subtle)] ${
-            recording ? "bg-red-500/90" : "bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
+          className={`${btnSize} ${shapeClass} flex items-center justify-center select-none touch-none border border-[var(--border-subtle)] ${
+            recording
+              ? "bg-red-500/90 text-white"
+              : "bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
           } disabled:opacity-60`}
         >
-          <span className="text-[18px] leading-none">{recording ? "⏺" : "🎙️"}</span>
+          <span className={`${iconSize} leading-none`}>
+            {recording ? "⏺" : "🎙️"}
+          </span>
         </button>
 
-        {/* minimal, non-intrusive status under button (won't cover textarea) */}
-        {error ? <p className="mt-1 text-[10px] text-red-400 max-w-[140px]">{error}</p> : null}
+        {/* minimal, non-intrusive status under button */}
+        {error ? (
+          <p className="mt-1 text-[10px] text-red-400 max-w-[160px]">
+            {error}
+          </p>
+        ) : null}
+
         {loading ? (
-          <p className="mt-1 text-[10px] text-[var(--text-muted)] max-w-[140px]">
+          <p className="mt-1 text-[10px] text-[var(--text-muted)] max-w-[160px]">
             {t("notes.voice.status.processing", "Processing…")}
           </p>
         ) : null}
@@ -483,13 +542,22 @@ export default function VoiceCaptureButton({
   // DEFAULT VARIANT (full card)
   // =========================
   return (
-    <div className={`border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3 ${className || ""}`}>
+    <div
+      className={`border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3 ${
+        className || ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold">{t("notes.voice.button.label", "Voice capture")}</h3>
+          <h3 className="text-sm font-semibold">
+            {t("notes.voice.button.label", "Voice capture")}
+          </h3>
 
           <p className="text-xs text-slate-400">
-            {t("notes.voice.button.helpText", "Hold, speak your messy thoughts, and let AIProd clean it up.")}
+            {t(
+              "notes.voice.button.helpText",
+              "Hold, speak your messy thoughts, and let AIProd clean it up."
+            )}
           </p>
 
           <p className="text-[10px] text-slate-500 mt-1">
@@ -498,14 +566,18 @@ export default function VoiceCaptureButton({
 
           {showMicSelector && (
             <div className="mt-2 flex items-center gap-2 min-w-0">
-              <span className="text-[10px] text-slate-400">{t("notes.voice.mic.label", "Mic:")}</span>
+              <span className="text-[10px] text-slate-400">
+                {t("notes.voice.mic.label", "Mic:")}
+              </span>
 
               <select
                 className="text-[10px] bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 min-w-0 max-w-full"
                 value={selectedDeviceId === "auto" ? "" : selectedDeviceId}
                 onChange={(e) => setSelectedDeviceId(e.target.value || "auto")}
               >
-                <option value="">{t("notes.voice.mic.auto", "Auto (browser default)")}</option>
+                <option value="">
+                  {t("notes.voice.mic.auto", "Auto (browser default)")}
+                </option>
                 {audioInputs.map((d) => (
                   <option key={d.deviceId} value={d.deviceId}>
                     {d.label || d.deviceId}
@@ -552,23 +624,38 @@ export default function VoiceCaptureButton({
 
       {recording && (
         <p className="mt-1 text-[10px] text-red-300">
-          {t("notes.voice.status.recordingHint", "Recording… release the button to send. (Esc to cancel)")}
+          {t(
+            "notes.voice.status.recordingHint",
+            "Recording… release the button to send. (Esc to cancel)"
+          )}
         </p>
       )}
 
       {savedNoteId && (
         <p className="text-[10px] text-emerald-400">
-          {t("notes.voice.status.saved", "Voice note saved as a note in your workspace.")}
+          {t(
+            "notes.voice.status.saved",
+            "Voice note saved as a note in your workspace."
+          )}
         </p>
       )}
 
-      {loading && <p className="text-xs text-slate-400">{t("notes.voice.status.processing", "Processing your audio with AI…")}</p>}
+      {loading && (
+        <p className="text-xs text-slate-400">
+          {t("notes.voice.status.processing", "Processing your audio with AI…")}
+        </p>
+      )}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {audioPreviewUrl && (
         <div className="mt-2">
-          <p className="text-[10px] text-slate-400">{t("notes.voice.preview.label", "Preview your last recording (tap ▶):")}</p>
+          <p className="text-[10px] text-slate-400">
+            {t(
+              "notes.voice.preview.label",
+              "Preview your last recording (tap ▶):"
+            )}
+          </p>
           <audio controls src={audioPreviewUrl} className="mt-1 w-full" />
         </div>
       )}
@@ -576,7 +663,9 @@ export default function VoiceCaptureButton({
       {rawText && (
         <div className="mt-2 space-y-2 text-xs">
           <div>
-            <p className="text-slate-400 font-semibold">{t("notes.voice.output.rawTranscript", "Raw transcript:")}</p>
+            <p className="text-slate-400 font-semibold">
+              {t("notes.voice.output.rawTranscript", "Raw transcript:")}
+            </p>
             <p className="text-slate-200 mt-1 whitespace-pre-wrap">{rawText}</p>
           </div>
 
@@ -584,14 +673,20 @@ export default function VoiceCaptureButton({
             <>
               {structured.note && (
                 <div>
-                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.cleanNote", "Clean note:")}</p>
-                  <p className="text-slate-200 mt-1 whitespace-pre-wrap">{structured.note}</p>
+                  <p className="text-slate-400 font-semibold">
+                    {t("notes.voice.output.cleanNote", "Clean note:")}
+                  </p>
+                  <p className="text-slate-200 mt-1 whitespace-pre-wrap">
+                    {structured.note}
+                  </p>
                 </div>
               )}
 
               {structured.actions && structured.actions.length > 0 && (
                 <div>
-                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.actions", "Actions:")}</p>
+                  <p className="text-slate-400 font-semibold">
+                    {t("notes.voice.output.actions", "Actions:")}
+                  </p>
                   <ul className="list-disc pl-4 mt-1 space-y-0.5">
                     {structured.actions.map((a, i) => (
                       <li key={i}>{a}</li>
@@ -602,16 +697,24 @@ export default function VoiceCaptureButton({
 
               {structured.tasks && structured.tasks.length > 0 && (
                 <div>
-                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.suggestedTasks", "Suggested tasks:")}</p>
+                  <p className="text-slate-400 font-semibold">
+                    {t("notes.voice.output.suggestedTasks", "Suggested tasks:")}
+                  </p>
                   <ul className="list-disc pl-4 mt-1 space-y-0.5">
                     {structured.tasks.map((task, i) => {
-                      const dueLabel = task.due_natural || (task.due_iso ? formatDateTime(task.due_iso) : null);
+                      const dueLabel =
+                        task.due_natural ||
+                        (task.due_iso ? formatDateTime(task.due_iso) : null);
                       return (
                         <li key={i}>
                           {task.title}
-                          {dueLabel ? ` (${t("notes.voice.output.duePrefix", "due")}: ${dueLabel})` : ""}
+                          {dueLabel
+                            ? ` (${t("notes.voice.output.duePrefix", "due")}: ${dueLabel})`
+                            : ""}
                           {task.priority && (
-                            <span className="ml-1 uppercase text-[9px] text-slate-400">[{task.priority}]</span>
+                            <span className="ml-1 uppercase text-[9px] text-slate-400">
+                              [{task.priority}]
+                            </span>
                           )}
                         </li>
                       );
@@ -621,10 +724,15 @@ export default function VoiceCaptureButton({
               )}
 
               {structured.reminder &&
-                (structured.reminder.time_natural || structured.reminder.time_iso || structured.reminder.reason) && (
+                (structured.reminder.time_natural ||
+                  structured.reminder.time_iso ||
+                  structured.reminder.reason) && (
                   <div>
                     <p className="text-slate-400 font-semibold">
-                      {t("notes.voice.output.reminderSuggestion", "Reminder suggestion:")}
+                      {t(
+                        "notes.voice.output.reminderSuggestion",
+                        "Reminder suggestion:"
+                      )}
                     </p>
 
                     <p className="text-slate-200 mt-1">
@@ -634,7 +742,10 @@ export default function VoiceCaptureButton({
                         ? `${t("notes.voice.output.timePrefix", "Time")}: ${formatDateTime(structured.reminder.time_iso)}`
                         : null}
                       {structured.reminder.reason
-                        ? ` — ${t("notes.voice.output.reasonPrefix", "Reason")}: ${structured.reminder.reason}`
+                        ? ` — ${t(
+                            "notes.voice.output.reasonPrefix",
+                            "Reason"
+                          )}: ${structured.reminder.reason}`
                         : null}
                     </p>
                   </div>
@@ -642,7 +753,9 @@ export default function VoiceCaptureButton({
 
               {structured.summary && (
                 <div>
-                  <p className="text-slate-400 font-semibold">{t("notes.voice.output.summary", "Summary:")}</p>
+                  <p className="text-slate-400 font-semibold">
+                    {t("notes.voice.output.summary", "Summary:")}
+                  </p>
                   <p className="text-slate-200 mt-1">{structured.summary}</p>
                 </div>
               )}
