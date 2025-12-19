@@ -125,9 +125,10 @@ export default function AppBoot({ children }: { children: React.ReactNode }) {
       cookiesEnabled: navigator.cookieEnabled,
 
       serviceWorker: {
-        supported: "serviceWorker" in navigator,
-        readyResolved: false,
-      },
+  supported: "serviceWorker" in navigator,
+  readyResolved: false,
+  controller: false, // ✅ REQUIRED by type
+},
 
       storage: {
         localStorage: "error",
