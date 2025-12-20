@@ -197,10 +197,7 @@ function ToolsSection() {
 
             <ul className="space-y-1.5 mb-4">
               {card.bulletKeys.map((b) => (
-                <li
-                  key={b.key}
-                  className="flex items-start gap-2 text-[11px] text-[var(--text-muted)]"
-                >
+                <li key={b.key} className="flex items-start gap-2 text-[11px] text-[var(--text-muted)]">
                   <span className="mt-[2px] text-[var(--accent)]">•</span>
                   <span>{t(b.key, b.fallback)}</span>
                 </li>
@@ -213,9 +210,7 @@ function ToolsSection() {
                 className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] md:text-xs text-[var(--text-main)] group-hover:border-[var(--accent)] group-hover:text-[var(--accent)]"
               >
                 {t(card.ctaKey, card.ctaFallback)}
-                <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">
-                  ↗
-                </span>
+                <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">↗</span>
               </Link>
 
               <span className="text-[10px] text-[var(--text-muted)]">
@@ -229,7 +224,7 @@ function ToolsSection() {
   );
 }
 
-/** ✅ New promo banner to advertise “hidden” capabilities */
+/** ✅ Promo banner for “hidden” capabilities */
 function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
   const { t } = useT();
 
@@ -241,10 +236,7 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
       {
         icon: "🎙️",
         title: t("home.promo.voice.title", "Voice capture + AI cleanup"),
-        desc: t(
-          "home.promo.voice.line1",
-          "Record inside Notes → AI cleans the text and suggests tasks + reminders."
-        ),
+        desc: t("home.promo.voice.line1", "Record inside Notes → AI cleans the text and suggests tasks + reminders."),
         href: "/notes",
       },
       {
@@ -256,37 +248,25 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
       {
         icon: "⏰",
         title: t("home.promo.reminders.title", "Reminders that actually help"),
-        desc: t(
-          "home.promo.reminders.line1",
-          "Per-task reminders + daily/weekly emails so nothing slips."
-        ),
+        desc: t("home.promo.reminders.line1", "Per-task reminders + daily/weekly emails so nothing slips."),
         href: "/tasks",
       },
       {
         icon: "🌍",
         title: t("home.promo.languages.titleShort", "26 languages"),
-        desc: t(
-          "home.promo.languages.line1",
-          "UI + translated emails based on your default language."
-        ),
+        desc: t("home.promo.languages.line1", "UI + translated emails based on your default language."),
         href: "/settings",
       },
       {
         icon: "⚡",
         title: t("home.promo.creator.title", "AI Task Creator"),
-        desc: t(
-          "home.promo.planner.line1",
-          "Turn a messy goal into a clean step-by-step plan."
-        ),
+        desc: t("home.promo.planner.line1", "Turn a messy goal into a clean step-by-step plan."),
         href: "/ai-task-creator",
       },
       {
         icon: "💬",
         title: t("home.promo.chat.title", "AIHub Chat"),
-        desc: t(
-          "home.promo.aihub.line1",
-          "Ask for help, summarize, translate, draft — right inside the app."
-        ),
+        desc: t("home.promo.aihub.line1", "Ask for help, summarize, translate, draft — right inside the app."),
         href: "/ai-chat",
       },
     ],
@@ -302,10 +282,7 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
               {t("home.promo.kicker", "HIDDEN SUPERPOWERS")}
             </p>
             <h2 className="text-xl md:text-2xl font-bold text-[var(--text-main)]">
-              {t(
-                "home.promo.title",
-                "Capture → Clean up → Turn into tasks → Get reminded."
-              )}
+              {t("home.promo.title", "Capture → Clean up → Turn into tasks → Get reminded.")}
             </h2>
             <p className="text-xs md:text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
               {t(
@@ -344,16 +321,10 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
                   <span aria-hidden="true">{c.icon}</span>
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-[var(--text-main)]">
-                    {c.title}
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)] mt-1 leading-relaxed">
-                    {c.desc}
-                  </p>
+                  <p className="text-sm font-semibold text-[var(--text-main)]">{c.title}</p>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1 leading-relaxed">{c.desc}</p>
                   <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-[var(--accent)]">
-                    <span className="font-medium">
-                      {t("home.promo.open", "Open")}
-                    </span>
+                    <span className="font-medium">{t("home.promo.open", "Open")}</span>
                     <span className="group-hover:translate-x-0.5 transition-transform">→</span>
                   </div>
                 </div>
@@ -363,10 +334,7 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
         </div>
 
         <p className="mt-4 text-[11px] text-[var(--text-muted)]">
-          {t(
-            "home.promo.tip",
-            "Tip: Use Voice capture in Notes to instantly get cleaned text + suggested tasks (with reminders)."
-          )}
+          {t("home.promo.tip", "Tip: Use Voice capture in Notes to instantly get cleaned text + suggested tasks (with reminders).")}
         </p>
       </div>
     </section>
@@ -394,14 +362,10 @@ export default function HomePage() {
   }, []);
 
   const primaryCtaHref = user ? "/dashboard" : "/auth";
-  const primaryCtaLabel = user
-    ? t("home.hero.cta.dashboard", "Open your dashboard")
-    : t("home.hero.cta.dashboard", "Open your dashboard");
+  const primaryCtaLabel = t("home.hero.cta.dashboard", "Open your dashboard");
 
   const secondaryCtaHref = user ? "/notes" : "/auth";
-  const secondaryCtaLabel = user
-    ? t("home.hero.cta.notes", "Go to Notes")
-    : t("home.hero.cta.notes", "Go to Notes");
+  const secondaryCtaLabel = t("home.hero.cta.notes", "Go to Notes");
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
@@ -426,10 +390,7 @@ export default function HomePage() {
               </h1>
 
               <p className="text-sm md:text-base text-[var(--text-muted)] mb-5 max-w-xl">
-                {t(
-                  "home.hero.subheading",
-                  "Capture notes, plan your day, track what matters, and let AI summarize your progress."
-                )}
+                {t("home.hero.subheading", "Capture notes, plan your day, track what matters, and let AI summarize your progress.")}
               </p>
 
               <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -448,6 +409,14 @@ export default function HomePage() {
                 </Link>
 
                 <Link
+                  href="/pricing"
+                  className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-transparent hover:bg-[var(--bg-card)] text-[11px] md:text-xs text-[var(--text-muted)] flex items-center gap-1"
+                >
+                  {t("home.hero.cta.pricing", "Pricing")}
+                  <span className="text-[10px]">→</span>
+                </Link>
+
+                <Link
                   href="/tools"
                   className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-transparent hover:bg-[var(--bg-card)] text-[11px] md:text-xs text-[var(--text-muted)] flex items-center gap-1"
                 >
@@ -457,18 +426,12 @@ export default function HomePage() {
               </div>
 
               <p className="text-[11px] text-[var(--text-muted)]">
-                {t(
-                  "home.hero.noCard",
-                  "No credit card required • Free plan included • Built for solo makers, students and busy humans ✨"
-                )}
+                {t("home.hero.noCard", "No credit card required • Free plan included • Built for solo makers, students and busy humans ✨")}
               </p>
 
               <div className="mt-5">
                 <SocialShareBar
-                  title={t(
-                    "home.hero.subheading",
-                    "Capture notes, plan your day, track what matters, and let AI summarize your progress."
-                  )}
+                  title={t("home.hero.subheading", "Capture notes, plan your day, track what matters, and let AI summarize your progress.")}
                 />
               </div>
             </div>
@@ -476,22 +439,14 @@ export default function HomePage() {
             {/* Preview panel */}
             <div className="hidden md:block">
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-xl">
-                <p className="text-[11px] text-[var(--text-muted)] mb-2">
-                  {t("home.today.title", "Today at a glance")}
-                </p>
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">{t("home.today.title", "Today at a glance")}</p>
 
                 <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3 mb-3">
-                  <p className="text-xs text-[var(--text-muted)] mb-1">
-                    {t("home.today.productivity", "Productivity score")}
-                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mb-1">{t("home.today.productivity", "Productivity score")}</p>
 
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-2xl font-semibold text-[var(--text-main)]">
-                      {t("home.today.scoreExample", "78")}
-                    </span>
-                    <span className="text-[11px] text-[var(--accent)]">
-                      {t("home.today.scoreDelta", "+12 vs yesterday")}
-                    </span>
+                    <span className="text-2xl font-semibold text-[var(--text-main)]">{t("home.today.scoreExample", "78")}</span>
+                    <span className="text-[11px] text-[var(--accent)]">{t("home.today.scoreDelta", "+12 vs yesterday")}</span>
                   </div>
 
                   <div className="h-1.5 rounded-full bg-[var(--border-subtle)] overflow-hidden">
@@ -501,18 +456,14 @@ export default function HomePage() {
 
                 <div className="grid grid-cols-2 gap-3 mb-3 text-[11px]">
                   <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
-                    <p className="text-[var(--text-muted)] mb-1">
-                      {t("home.today.focusTitle", "Today’s focus")}
-                    </p>
+                    <p className="text-[var(--text-muted)] mb-1">{t("home.today.focusTitle", "Today’s focus")}</p>
                     <p className="text-[var(--text-main)]">
                       {t("home.today.focusExample", "Ship landing page, reply to clients, 30min learning.")}
                     </p>
                   </div>
 
                   <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
-                    <p className="text-[var(--text-muted)] mb-1">
-                      {t("home.today.aiWinsTitle", "AI wins")}
-                    </p>
+                    <p className="text-[var(--text-muted)] mb-1">{t("home.today.aiWinsTitle", "AI wins")}</p>
                     <ul className="text-[var(--text-main)] list-disc list-inside space-y-0.5">
                       <li>{t("home.today.aiWins1", "Summarized 4 messy notes")}</li>
                       <li>{t("home.today.aiWins2", "Drafted 2 emails")}</li>
@@ -528,95 +479,77 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* ✅ NEW PROMO / AD BANNER */}
+          {/* ✅ PROMO / AD BANNER */}
           {!checkingUser && <PromoHighlights isAuthed={!!user} />}
 
           {/* TOOLS / WHAT YOU GET */}
           <ToolsSection />
 
-          {/* PRICING */}
-          <section id="pricing" className="mb-14">
-            <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-              {t("home.pricing.heading", "PRICING")}
-            </p>
+          {/* ✅ PRICING TEASER (pricing moved to /pricing) */}
+          <section className="mb-14" id="pricing">
+            <div className="rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-5 md:p-6">
+              <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
+                {t("home.pricing.heading", "PRICING")}
+              </p>
 
-            <h2 className="text-xl md:text-2xl font-bold mb-4">
-              {t("home.pricing.subtitle", "Start free. Upgrade when it becomes part of your day.")}
-            </h2>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-bold text-[var(--text-main)]">
+                    {t("home.pricing.subtitle", "Start free. Upgrade when it becomes part of your day.")}
+                  </h2>
+                  <p className="text-xs md:text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
+                    {t(
+                      "home.pricing.teaser",
+                      "Pricing is now on a dedicated page so people can choose Monthly vs Yearly (and currency) without cluttering the homepage."
+                    )}
+                  </p>
+                </div>
 
-            <div className="grid md:grid-cols-2 gap-5 text-sm">
-              {/* FREE PLAN */}
-              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-5 flex flex-col">
-                <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
-                  {t("home.pricing.free.title", "FREE")}
-                </p>
-                <p className="text-2xl font-bold mb-1 text-[var(--text-main)]">
-                  {t("home.pricing.free.price", "€0")}
-                </p>
-                <p className="text-[12px] text-[var(--text-muted)] mb-3">
-                  {t("home.pricing.free.description", "Great for light usage, daily planning and basic AI help.")}
-                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href="/pricing"
+                    className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)]"
+                  >
+                    {t("home.pricing.cta", "View pricing")}
+                  </Link>
 
-                <ul className="text-[12px] text-[var(--text-main)] space-y-1.5 mb-4">
-                  <li>✔ {t("home.pricing.free.feature1", "Notes")}</li>
-                  <li>✔ {t("home.pricing.free.feature2", "Tasks")}</li>
-                  <li>✔ {t("home.pricing.free.feature3", "Daily Success Score")}</li>
-                  <li>✔ {t("home.pricing.free.feature4", "Weekly Goals")}</li>
-                  <li>✔ {t("home.pricing.free.feature5", "Travel Planner (basic)")}</li>
-                  <li>✔ {t("home.pricing.free.feature6", "20 AI messages/day")}</li>
-                  <li>✔ {t("home.pricing.free.feature7", "Templates (basic)")}</li>
-                  <li>✔ {t("home.pricing.free.feature8", "Sync across devices")}</li>
-                </ul>
-
-                <Link
-                  href={primaryCtaHref}
-                  className="mt-auto inline-flex justify-center px-4 py-2 rounded-xl bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs font-medium border border-[var(--border-subtle)]"
-                >
-                  {t("home.pricing.free.cta", "Open your dashboard")}
-                </Link>
+                  <Link
+                    href={user ? "/dashboard" : "/auth"}
+                    className="px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
+                  >
+                    {t("home.pricing.cta.secondary", "Open dashboard")}
+                  </Link>
+                </div>
               </div>
 
-              {/* PRO PLAN */}
-              <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-5 flex flex-col relative overflow-hidden">
-                <p className="relative text-xs font-semibold text-[var(--accent)] mb-1">
-                  {t("home.pricing.pro.title", "PRO")}
-                </p>
+              <div className="mt-4 grid md:grid-cols-3 gap-3 text-[12px]">
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                  <p className="font-semibold">{t("home.pricing.teaser.freeTitle", "Free plan")}</p>
+                  <p className="text-[var(--text-muted)] mt-1">
+                    {t("home.pricing.teaser.freeDesc", "Notes + Tasks + reminders basics + 20 AI calls/day.")}
+                  </p>
+                </div>
 
-                <p className="relative text-2xl font-bold mb-1 text-[var(--text-main)]">
-                  {t("home.pricing.pro.priceMonthly", "€8.49 / month")}
-                </p>
-                <p className="relative text-sm text-[var(--text-muted)] mb-1">
-                  {t("home.pricing.pro.priceYear", "€79 / year (save 25%)")}
-                </p>
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                  <p className="font-semibold">{t("home.pricing.teaser.proTitle", "Pro")}</p>
+                  <p className="text-[var(--text-muted)] mt-1">
+                    {t("home.pricing.teaser.proDesc", "Unlimited AI for normal use + Weekly AI reports + advanced planning.")}
+                  </p>
+                </div>
 
-                <p className="relative text-[12px] text-[var(--text-muted)] mb-3">
-                  {t("home.pricing.subtitle", "Start free. Upgrade when it becomes part of your day.")}
-                </p>
-
-                <ul className="relative text-[12px] text-[var(--text-main)] space-y-1.5 mb-4">
-                  <li>🔥 {t("home.pricing.pro.feature1", "Everything in Free")}</li>
-                  <li>🔥 {t("home.pricing.pro.feature2", "Unlimited AI messages")}</li>
-                  <li>🔥 {t("home.pricing.pro.feature3", "Weekly AI Email Report")}</li>
-                  <li>🔥 {t("home.pricing.pro.feature4", "AI Task Planning")}</li>
-                  <li>🔥 {t("home.pricing.pro.feature5", "Advanced Travel Planner")}</li>
-                  <li>🔥 {t("home.pricing.pro.feature6", "Unlimited Notes & Templates")}</li>
-                </ul>
-
-                <Link
-                  href={user ? "/dashboard" : "/auth"}
-                  className="relative mt-auto inline-flex justify-center px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-xs font-medium text-[var(--accent-contrast)]"
-                >
-                  {t("home.pricing.pro.cta", "Manage your plan")}
-                </Link>
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                  <p className="font-semibold">{t("home.pricing.teaser.cancelTitle", "Cancel anytime")}</p>
+                  <p className="text-[var(--text-muted)] mt-1">
+                    {t("home.pricing.teaser.cancelDesc", "Keep your data even if you downgrade.")}
+                  </p>
+                </div>
               </div>
             </div>
           </section>
 
           {/* FAQ */}
           <section className="mb-12">
-            <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-              {t("home.faq.title", "FAQ")}
-            </p>
+            <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">{t("home.faq.title", "FAQ")}</p>
 
             <div className="space-y-4 text-sm max-w-3xl">
               <div>
@@ -638,9 +571,7 @@ export default function HomePage() {
               </div>
 
               <div>
-                <p className="font-semibold text-[var(--text-main)] mb-1">
-                  {t("home.faq.q3", "Can I cancel anytime?")}
-                </p>
+                <p className="font-semibold text-[var(--text-main)] mb-1">{t("home.faq.q3", "Can I cancel anytime?")}</p>
                 <p className="text-[13px] text-[var(--text-muted)]">
                   {t("home.faq.a3", "Yes! You keep your data even after cancellation.")}
                 </p>
@@ -650,9 +581,7 @@ export default function HomePage() {
 
           {/* FOOTER */}
           <footer className="border-t border-[var(--border-subtle)] pt-4 pb-2 text-[11px] text-[var(--text-muted)] flex flex-wrap gap-3 justify-between">
-            <span>
-              {t("home.footer.copyright", "© 2025 AI Productivity Hub — aiprod.app — Owner: AlphaSynth AI")}
-            </span>
+            <span>{t("home.footer.copyright", "© 2025 AI Productivity Hub — aiprod.app — Owner: AlphaSynth AI")}</span>
 
             <div className="flex gap-3">
               <Link href="/changelog" className="hover:text-[var(--text-main)]">

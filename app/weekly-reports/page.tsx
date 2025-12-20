@@ -193,7 +193,7 @@ export default function WeeklyReportsPage() {
               </p>
 
               <Link
-                href="/dashboard#pricing"
+                href="/pricing"
                 className="inline-block px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 font-medium text-xs"
               >
                 {t("lockedCta", "🔒 Unlock Weekly Reports with Pro")}

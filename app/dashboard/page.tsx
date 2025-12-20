@@ -289,24 +289,24 @@ export default function DashboardPage() {
 
   // Ensure profile exists & load plan + AI usage + streak + recent activity + weekly goal
   useEffect(() => {
-  // ✅ depend only on stable primitive
-  if (!user?.id) {
-    // ✅ only update state if it actually changes (prevents loops in weird cases)
-    setPlan((p) => (p === "free" ? p : "free"));
-    setAiCountToday((v) => (v === 0 ? v : 0));
-    setStreak((v) => (v === 0 ? v : 0));
-    setActiveDays((v) => (v === 0 ? v : 0));
-    setRecentNotes([]);
-    setRecentTasks([]);
-    setWeekAiCalls(0);
-    setWeekTimeSaved(0);
-    setWeekNotesCreated(0);
-    setWeekTasksCompleted(0);
-    setWeeklyGoalId(null);
-    setWeeklyGoalText("");
-    setWeeklyGoalCompleted(false);
-    return;
-  }
+    // ✅ depend only on stable primitive
+    if (!user?.id) {
+      // ✅ only update state if it actually changes (prevents loops in weird cases)
+      setPlan((p) => (p === "free" ? p : "free"));
+      setAiCountToday((v) => (v === 0 ? v : 0));
+      setStreak((v) => (v === 0 ? v : 0));
+      setActiveDays((v) => (v === 0 ? v : 0));
+      setRecentNotes([]);
+      setRecentTasks([]);
+      setWeekAiCalls(0);
+      setWeekTimeSaved(0);
+      setWeekNotesCreated(0);
+      setWeekTasksCompleted(0);
+      setWeeklyGoalId(null);
+      setWeeklyGoalText("");
+      setWeeklyGoalCompleted(false);
+      return;
+    }
 
     async function loadData() {
       setLoadingData(true);
@@ -551,7 +551,11 @@ export default function DashboardPage() {
     setWeeklyGoalMarking(true);
 
     try {
-      const { error } = await supabase.from("weekly_goals").update({ completed: newCompleted }).eq("id", weeklyGoalId).eq("user_id", user.id);
+      const { error } = await supabase
+        .from("weekly_goals")
+        .update({ completed: newCompleted })
+        .eq("id", weeklyGoalId)
+        .eq("user_id", user.id);
 
       if (error) {
         console.error("Weekly goal complete toggle error:", error);
@@ -614,7 +618,9 @@ export default function DashboardPage() {
       if (!res.ok || !data.summary) {
         console.error("AI summary error payload:", data);
         if (res.status === 429) {
-          setSummaryError(data.error || t("dashboard.aiSummary.planLimit", "You’ve reached today’s AI limit for your plan."));
+          setSummaryError(
+            data.error || t("dashboard.aiSummary.planLimit", "You’ve reached today’s AI limit for your plan.")
+          );
         } else {
           setSummaryError(data.error || t("dashboard.aiSummary.failed", "Failed to generate summary."));
         }
@@ -667,10 +673,7 @@ export default function DashboardPage() {
             <div className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
               <p className="text-sm font-semibold">{t("dashboard.guest.title", "Welcome 👋")}</p>
               <p className="text-[12px] text-[var(--text-muted)] mt-1">
-                {t(
-                  "dashboard.guest.subtitle",
-                  "Log in to see your plan, AI usage, streaks, and your recent notes/tasks."
-                )}
+                {t("dashboard.guest.subtitle", "Log in to see your plan, AI usage, streaks, and your recent notes/tasks.")}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -693,11 +696,14 @@ export default function DashboardPage() {
           {user && <SetupBanner userId={user.id} />}
 
           {user && showBanner && (
-            <div className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${streakCfg.gradient} text-white shadow-md`}>
+            <div
+              className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${streakCfg.gradient} text-white shadow-md`}
+            >
               <div>
                 <p className="font-semibold text-sm md:text-base">
                   {streakCfg.emoji} {streakCfg.title} {t("dashboard.streakBannerMain", "You’re on a")}{" "}
-                  <span className="font-bold">{streak}-day</span> {t("dashboard.streakBannerTail", "productivity streak.")}
+                  <span className="font-bold">{streak}-day</span>{" "}
+                  {t("dashboard.streakBannerTail", "productivity streak.")}
                 </p>
                 <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
               </div>
@@ -714,7 +720,8 @@ export default function DashboardPage() {
 
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-                {t("dashboard.plan.label", "Plan:")} <span className="font-semibold">{user ? planLabelUpper : "—"}</span>
+                {t("dashboard.plan.label", "Plan:")}{" "}
+                <span className="font-semibold">{user ? planLabelUpper : "—"}</span>
               </span>
 
               <span className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
@@ -723,7 +730,8 @@ export default function DashboardPage() {
                   {user ? (
                     isPro ? (
                       <>
-                        {aiCountToday} {t("dashboard.aiToday.unlimitedSuffix", "used (unlimited for normal use)")}
+                        {aiCountToday}{" "}
+                        {t("dashboard.aiToday.unlimitedSuffix", "used (unlimited for normal use)")}
                       </>
                     ) : (
                       <>
@@ -763,6 +771,43 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <>
+                  {/* ✅ Upgrade teaser card (replaces removed pricing section) */}
+                  {!isPro && (
+                    <div className="mb-6 rounded-2xl border border-[var(--accent)]/60 bg-[var(--accent-soft)]/50 p-4">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div>
+                          <p className="text-xs font-semibold text-[var(--accent)] mb-1">
+                            {t("dashboard.upgradeTeaser.badge", "UPGRADE")}
+                          </p>
+                          <p className="text-sm font-semibold">
+                            {t("dashboard.upgradeTeaser.title", "Unlock Pro features")}
+                          </p>
+                          <p className="text-[12px] text-[var(--text-muted)] mt-1 max-w-xl">
+                            {t(
+                              "dashboard.upgradeTeaser.subtitle",
+                              "Get weekly AI reports and more powerful planning workflows. Cancel anytime."
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            href="/pricing"
+                            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
+                          >
+                            {t("dashboard.upgradeTeaser.cta", "See pricing")}
+                          </Link>
+
+                          <span className="text-[11px] text-[var(--text-muted)]">
+                            {t("dashboard.upgradeTeaser.from", "From")}{" "}
+                            <span className="font-semibold text-[var(--text-main)]">{monthlyPriceLabel}</span>
+                            /{t("dashboard.upgradeTeaser.mo", "mo")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Top stats grid */}
                   <div className="grid md:grid-cols-3 gap-5 mb-8 text-sm">
                     {/* Account card */}
@@ -798,11 +843,17 @@ export default function DashboardPage() {
                       </p>
 
                       {isPro ? (
-                        <Link href="/weekly-reports" className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90">
+                        <Link
+                          href="/weekly-reports"
+                          className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90"
+                        >
                           {t("dashboard.link.weeklyReports", "📅 View Weekly Reports →")}
                         </Link>
                       ) : (
-                        <Link href="/dashboard#pricing" className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90">
+                        <Link
+                          href="/pricing"
+                          className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90"
+                        >
                           {t("dashboard.unlockReports", "🔒 Unlock Weekly Reports with Pro →")}
                         </Link>
                       )}
@@ -882,7 +933,7 @@ export default function DashboardPage() {
                         ) : (
                           <>
                             {t("dashboard.freeLimitReached", "You reached today’s limit on the free plan.")}{" "}
-                            <Link href="/dashboard#pricing" className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2">
+                            <Link href="/pricing" className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2">
                               {t("dashboard.upgradeToPro", "Upgrade to Pro")}
                             </Link>{" "}
                             {t("dashboard.upgradeBenefitsShort", "for unlimited daily AI (for normal use).")}
@@ -983,14 +1034,13 @@ export default function DashboardPage() {
                           )}
                         </p>
 
-                        <button
-                          type="button"
-                          onClick={() => startCheckout(currency, billingPeriod === "yearly" ? "yearly" : "pro")}
-                          disabled={billingLoading}
-                          className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)] disabled:opacity-60"
+                        {/* ✅ Keep existing fast upgrade button (but route users to /pricing) */}
+                        <Link
+                          href="/pricing"
+                          className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
                         >
-                          {billingLoading ? t("dashboard.billing.loading", "Loading...") : t("settings.weeklyReport.unlockPro", "🔒 Unlock with Pro")}
-                        </button>
+                          {t("settings.weeklyReport.unlockPro", "🔒 Unlock with Pro")}
+                        </Link>
                       </>
                     ) : (
                       <>
@@ -1109,24 +1159,47 @@ export default function DashboardPage() {
 
               {/* Quick actions (always visible) */}
               <div className="flex flex-wrap gap-3 mb-4">
-                <Link href="/notes" className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]">
+                <Link
+                  href="/notes"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
+                >
                   {t("dashboard.quickLinks.goToNotes", "Go to Notes")}
                 </Link>
 
-                <Link href="/tasks" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
+                <Link
+                  href="/tasks"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
+                >
                   {t("dashboard.quickLinks.goToTasks", "Go to Tasks")}
                 </Link>
 
-                <Link href="/templates" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
+                <Link
+                  href="/templates"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
+                >
                   {t("dashboard.quickLinks.templates", "🧠 AI Templates")}
                 </Link>
 
-                <Link href="/planner" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
+                <Link
+                  href="/planner"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
+                >
                   {t("dashboard.quickLinks.dailyPlanner", "🗓 Daily Planner")}
                 </Link>
 
-                <Link href="/weekly-reports" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
+                <Link
+                  href="/weekly-reports"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
+                >
                   {t("dashboard.quickLinks.weeklyReports", "📅 Weekly Reports")}
+                </Link>
+
+                {/* ✅ Pricing shortcut */}
+                <Link
+                  href="/pricing"
+                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
+                >
+                  {t("dashboard.quickLinks.pricing", "💳 Pricing")}
                 </Link>
               </div>
 
@@ -1138,7 +1211,6 @@ export default function DashboardPage() {
                     {t("feedback.quick.subtitle", "Tell me what’s working, what’s confusing, or what you’d love to see next.")}
                   </p>
                   <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
-                    {/* If guest, still render but pass null user if your component supports it; otherwise keep gating */}
                     {user ? (
                       <FeedbackForm user={user} />
                     ) : (

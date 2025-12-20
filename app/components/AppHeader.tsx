@@ -27,6 +27,7 @@ import {
 type HeaderProps = {
   active?:
     | "dashboard"
+    | "pricing"
     | "notes"
     | "tasks"
     | "planner"
@@ -166,8 +167,7 @@ export default function AppHeader({ active }: HeaderProps) {
     }
   }
 
-  const navLinkBase =
-    "px-2 py-1.5 rounded-lg whitespace-nowrap transition-colors text-xs sm:text-sm";
+  const navLinkBase = "px-2 py-1.5 rounded-lg whitespace-nowrap transition-colors text-xs sm:text-sm";
   const navLinkInactive = "text-[var(--text-muted)] hover:bg-[var(--accent-soft)]";
   const navLinkActive = "bg-[var(--accent-soft)] text-[var(--accent)] font-semibold";
 
@@ -175,6 +175,7 @@ export default function AppHeader({ active }: HeaderProps) {
     "flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--accent-soft)] text-xs text-[var(--text-main)]";
 
   const appsActive = [
+    "pricing",
     "notes",
     "tasks",
     "planner",
@@ -198,6 +199,7 @@ export default function AppHeader({ active }: HeaderProps) {
     adminOnly?: boolean;
   }[] = [
     { key: "dashboard", label: navLabel("dashboard", "Dashboard"), href: "/dashboard" },
+    { key: "pricing", label: navLabel("pricing", "Pricing"), href: "/pricing" },
     { key: "notes", label: navLabel("notes", "Notes"), href: "/notes" },
     { key: "tasks", label: navLabel("tasks", "Tasks"), href: "/tasks" },
     { key: "planner", label: navLabel("planner", "Planner"), href: "/planner" },
@@ -237,6 +239,13 @@ export default function AppHeader({ active }: HeaderProps) {
             className={`${navLinkBase} ${active === "dashboard" ? navLinkActive : navLinkInactive}`}
           >
             {navLabel("dashboard", "Dashboard")}
+          </Link>
+
+          <Link
+            href="/pricing"
+            className={`${navLinkBase} ${active === "pricing" ? navLinkActive : navLinkInactive}`}
+          >
+            {navLabel("pricing", "Pricing")}
           </Link>
 
           {/* Apps dropdown (wrapped) */}
