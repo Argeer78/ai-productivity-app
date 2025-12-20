@@ -1,4 +1,3 @@
-// app/pricing/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -125,12 +124,14 @@ export default function PricingPage() {
               <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                 {t("pricing.kicker", "PRICING")}
               </p>
+
               <h1 className="text-2xl md:text-3xl font-bold">
-                {t("pricing.title", "Start free. Upgrade when it becomes part of your day.")}
+                {t("pricing.hero.title", "Start free. Upgrade when it becomes part of your day.")}
               </h1>
+
               <p className="text-xs md:text-sm text-[var(--text-muted)] mt-2 max-w-2xl">
                 {t(
-                  "pricing.subtitle",
+                  "pricing.hero.subtitle",
                   "Pick Monthly or Yearly, choose your currency, and you’ll go to Stripe Checkout. Cancel anytime from Stripe."
                 )}
               </p>
@@ -172,7 +173,6 @@ export default function PricingPage() {
 
             <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4">
               <p className="text-xs font-semibold text-[var(--accent)] mb-1">{t("pricing.pro.title", "PRO")}</p>
-              {/* ✅ show current selected price */}
               <p className="text-2xl font-bold">
                 {proPrice}
                 <span className="text-xs font-normal text-[var(--text-muted)]"> / {billingPeriod}</span>
@@ -204,7 +204,7 @@ export default function PricingPage() {
             </div>
           </div>
 
-          {/* PRO PLAN (your original block style) */}
+          {/* PRO PLAN */}
           <section className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-5 text-xs md:text-sm max-w-xl mb-4">
             <p className="font-semibold mb-1 text-sm md:text-base">
               {t("pricing.pro.sectionTitle", "Upgrade to AI Productivity Hub PRO")}
@@ -291,7 +291,7 @@ export default function PricingPage() {
             ) : null}
           </section>
 
-          {/* Founder / early supporter (your original block style) */}
+          {/* Founder */}
           <section className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-5 text-xs md:text-sm max-w-xl">
             <p className="text-[var(--accent)] font-semibold mb-1 text-sm md:text-base">
               🎉 {t("pricing.founder.sectionTitle", "Early Supporter Discount")}
@@ -348,12 +348,10 @@ export default function PricingPage() {
             </p>
           </section>
 
-          {/* Small footer */}
+          {/* Footer */}
           <div className="mt-10 text-[11px] text-[var(--text-muted)]">
             <p>{t("pricing.footer.note1", "Payments are handled securely by Stripe.")}</p>
-            <p className="mt-1">
-              {t("pricing.footer.note2", "If you have any issues, contact support from Settings → Feedback.")}
-            </p>
+            <p className="mt-1">{t("pricing.footer.note2", "If you have any issues, contact support from Settings → Feedback.")}</p>
 
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href="/privacy-policy" className="hover:text-[var(--text-main)]">

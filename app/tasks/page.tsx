@@ -25,6 +25,8 @@ type VoiceStructured = {
   }[];
 };
 
+type RepeatType = "none" | "daily" | "weekly" | "monthly";
+
 type TaskRow = {
   id: string;
   user_id: string;
@@ -40,6 +42,12 @@ type TaskRow = {
 
   reminder_enabled: boolean | null;
   reminder_at: string | null; // ISO
+
+  // ✅ NEW repeat fields
+  reminder_repeat: RepeatType | null; // none/daily/weekly/monthly
+  reminder_time: string | null; // "HH:MM:SS" (local wall time)
+  reminder_weekdays: number[] | null; // for weekly: 0..6
+  reminder_month_day: number | null; // for monthly: 1..31
 };
 
 type MiniDatePickerProps = {
@@ -82,6 +90,21 @@ function fromLocalInputToIso(local: string): string | null {
   const d = new Date(local);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
+}
+
+/**
+ * Repeat reminder time helpers
+ * - DB stores "HH:MM:SS"
+ * - UI uses "HH:MM"
+ */
+function toLocalTimeInput(dbTime: string | null): string {
+  if (!dbTime) return "";
+  // "HH:MM:SS" -> "HH:MM"
+  return dbTime.slice(0, 5);
+}
+function fromLocalTimeInputToDb(localHHMM: string): string | null {
+  if (!localHHMM) return null;
+  return `${localHHMM}:00`;
 }
 
 /**
@@ -350,6 +373,10 @@ const DEMO_TASKS: TaskRow[] = [
     time_to: "10:00",
     reminder_enabled: false,
     reminder_at: null,
+    reminder_repeat: "none",
+    reminder_time: null,
+    reminder_weekdays: null,
+    reminder_month_day: null,
   },
   {
     id: "demo-task-2",
@@ -365,6 +392,10 @@ const DEMO_TASKS: TaskRow[] = [
     time_to: null,
     reminder_enabled: false,
     reminder_at: null,
+    reminder_repeat: "none",
+    reminder_time: null,
+    reminder_weekdays: null,
+    reminder_month_day: null,
   },
 ];
 
@@ -421,6 +452,16 @@ function AuthGateModal({
   );
 }
 
+const WEEKDAYS = [
+  { v: 0, key: "weekday.sun", fallback: "Sun" },
+  { v: 1, key: "weekday.mon", fallback: "Mon" },
+  { v: 2, key: "weekday.tue", fallback: "Tue" },
+  { v: 3, key: "weekday.wed", fallback: "Wed" },
+  { v: 4, key: "weekday.thu", fallback: "Thu" },
+  { v: 5, key: "weekday.fri", fallback: "Fri" },
+  { v: 6, key: "weekday.sat", fallback: "Sat" },
+];
+
 export default function TasksPage() {
   const { t } = useT("tasks");
 
@@ -450,9 +491,15 @@ export default function TasksPage() {
   const [newTimeFrom, setNewTimeFrom] = useState<string>("");
   const [newTimeTo, setNewTimeTo] = useState<string>("");
 
-  // reminder fields for new task
+  // reminder fields for new task (legacy one-time)
   const [newReminderEnabled, setNewReminderEnabled] = useState(false);
   const [newReminderAtLocal, setNewReminderAtLocal] = useState<string>("");
+
+  // ✅ NEW repeat reminder fields for new task
+  const [newReminderRepeat, setNewReminderRepeat] = useState<RepeatType>("none");
+  const [newReminderTimeLocal, setNewReminderTimeLocal] = useState<string>("09:00");
+  const [newReminderWeekdays, setNewReminderWeekdays] = useState<number[]>([]);
+  const [newReminderMonthDay, setNewReminderMonthDay] = useState<number>(1);
 
   const [savingNew, setSavingNew] = useState(false);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
@@ -581,7 +628,7 @@ export default function TasksPage() {
       const { data, error } = await supabase
         .from("tasks")
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at, reminder_repeat, reminder_time, reminder_weekdays, reminder_month_day"
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
@@ -626,10 +673,18 @@ export default function TasksPage() {
     try {
       const dueDateIso = newDueDate.trim() !== "" ? new Date(newDueDate + "T00:00:00").toISOString() : null;
 
+      // legacy one-time reminder
       let reminderAtIso: string | null = null;
       if (newReminderEnabled && newReminderAtLocal) {
         reminderAtIso = fromLocalInputToIso(newReminderAtLocal);
       }
+
+      // ✅ NEW repeat reminder fields
+      const repeat = newReminderRepeat;
+      const repeatEnabled = repeat !== "none";
+      const reminder_time = repeatEnabled ? fromLocalTimeInputToDb(newReminderTimeLocal) : null;
+      const reminder_weekdays = repeat === "weekly" ? (newReminderWeekdays.length ? newReminderWeekdays : [new Date().getDay()]) : null;
+      const reminder_month_day = repeat === "monthly" ? newReminderMonthDay : null;
 
       const { data, error } = await supabase
         .from("tasks")
@@ -644,12 +699,20 @@ export default function TasksPage() {
             category: newCategory || null,
             time_from: newTimeFrom || null,
             time_to: newTimeTo || null,
+
+            // legacy
             reminder_enabled: !!reminderAtIso,
             reminder_at: reminderAtIso,
+
+            // new repeat
+            reminder_repeat: repeat,
+            reminder_time,
+            reminder_weekdays,
+            reminder_month_day,
           },
         ])
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at, reminder_repeat, reminder_time, reminder_weekdays, reminder_month_day"
         )
         .single();
 
@@ -667,8 +730,16 @@ export default function TasksPage() {
       setNewCategory("");
       setNewTimeFrom("");
       setNewTimeTo("");
+
+      // reset legacy reminder
       setNewReminderEnabled(false);
       setNewReminderAtLocal("");
+
+      // reset repeat reminder
+      setNewReminderRepeat("none");
+      setNewReminderTimeLocal("09:00");
+      setNewReminderWeekdays([]);
+      setNewReminderMonthDay(1);
     } catch (err) {
       console.error("[tasks] insert exception", err);
       setError(t("addError", "Failed to add task."));
@@ -724,6 +795,12 @@ export default function TasksPage() {
         reminder_enabled: !!tt.dueIso,
         reminder_at: tt.dueIso,
         reminder_sent_at: null,
+
+        // ✅ repeat defaults
+        reminder_repeat: "none",
+        reminder_time: null,
+        reminder_weekdays: null,
+        reminder_month_day: null,
       }));
 
       const { error: insertError } = await supabase.from("tasks").insert(rows);
@@ -763,7 +840,7 @@ export default function TasksPage() {
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at, reminder_repeat, reminder_time, reminder_weekdays, reminder_month_day"
         )
         .single();
 
@@ -798,13 +875,19 @@ export default function TasksPage() {
           category: updates.category !== undefined ? updates.category : task.category,
           time_from: updates.time_from !== undefined ? updates.time_from : task.time_from,
           time_to: updates.time_to !== undefined ? updates.time_to : task.time_to,
+
           reminder_enabled: updates.reminder_enabled !== undefined ? updates.reminder_enabled : task.reminder_enabled,
           reminder_at: updates.reminder_at !== undefined ? updates.reminder_at : task.reminder_at,
+
+          reminder_repeat: updates.reminder_repeat !== undefined ? updates.reminder_repeat : task.reminder_repeat,
+          reminder_time: updates.reminder_time !== undefined ? updates.reminder_time : task.reminder_time,
+          reminder_weekdays: updates.reminder_weekdays !== undefined ? updates.reminder_weekdays : task.reminder_weekdays,
+          reminder_month_day: updates.reminder_month_day !== undefined ? updates.reminder_month_day : task.reminder_month_day,
         })
         .eq("id", task.id)
         .eq("user_id", user.id)
         .select(
-          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
+          "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at, reminder_repeat, reminder_time, reminder_weekdays, reminder_month_day"
         )
         .single();
 
@@ -1021,54 +1104,54 @@ export default function TasksPage() {
             {/* 🎤 Voice capture */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-  {user ? (
-    <VoiceCaptureButton
-      userId={user.id}
-      mode="review"
-      resetKey={voiceResetKey}
-      onResult={handleVoiceResult}
-      variant="icon"              // ✅ NEW
-      size="md"
-    />
-  ) : (
-    <button
-      type="button"
-      onClick={() => setAuthModalOpen(true)}
-      aria-label={t("voice.loginToUse", "Log in to use voice")}
-      className="
-        h-10 w-10 rounded-full
-        flex items-center justify-center
-        bg-[var(--accent)]
-        text-[var(--bg-body)]
-        hover:opacity-90
-      "
-    >
-      🎤
-    </button>
-  )}
+                {user ? (
+                  <VoiceCaptureButton
+                    userId={user.id}
+                    mode="review"
+                    resetKey={voiceResetKey}
+                    onResult={handleVoiceResult}
+                    variant="icon"
+                    size="md"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAuthModalOpen(true)}
+                    aria-label={t("voice.loginToUse", "Log in to use voice")}
+                    className="
+                      h-10 w-10 rounded-full
+                      flex items-center justify-center
+                      bg-[var(--accent)]
+                      text-[var(--bg-body)]
+                      hover:opacity-90
+                    "
+                  >
+                    🎤
+                  </button>
+                )}
 
-  {voiceSuggestedTasks.length > 0 && (
-    <button
-      type="button"
-      onClick={() => {
-        if (!user) return setAuthModalOpen(true);
-        setVoiceSuggestedTasks([]);
-        setVoiceTasksMessage("");
-        setVoiceResetKey((k) => k + 1);
-      }}
-      className="
-        px-3 py-1.5 rounded-full
-        border border-[var(--border-subtle)]
-        bg-[var(--bg-elevated)]
-        text-[11px]
-        hover:bg-[var(--bg-card)]
-      "
-    >
-      {t("voice.clear", "Clear voice")}
-    </button>
-  )}
-</div>
-</div>
+                {voiceSuggestedTasks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!user) return setAuthModalOpen(true);
+                      setVoiceSuggestedTasks([]);
+                      setVoiceTasksMessage("");
+                      setVoiceResetKey((k) => k + 1);
+                    }}
+                    className="
+                      px-3 py-1.5 rounded-full
+                      border border-[var(--border-subtle)]
+                      bg-[var(--bg-elevated)]
+                      text-[11px]
+                      hover:bg-[var(--bg-card)]
+                    "
+                  >
+                    {t("voice.clear", "Clear voice")}
+                  </button>
+                )}
+              </div>
+            </div>
 
             <input
               type="text"
@@ -1167,6 +1250,7 @@ export default function TasksPage() {
                 </select>
               </div>
 
+              {/* ✅ Existing one-time reminder */}
               <div className="flex flex-col gap-1 text-xs text-[var(--text-main)]">
                 <label
                   className="flex items-center gap-2"
@@ -1200,6 +1284,104 @@ export default function TasksPage() {
                 )}
               </div>
 
+              {/* ✅ NEW repeat reminders */}
+              <div className="flex flex-col gap-1 text-xs text-[var(--text-main)]">
+                <span className="text-[11px] text-[var(--text-muted)]">{t("repeat.label", "Repeat reminder")}</span>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={newReminderRepeat}
+                    onFocus={() => requireAuth()}
+                    onChange={(e) => {
+                      if (!requireAuth()) return;
+                      const v = e.target.value as RepeatType;
+                      setNewReminderRepeat(v);
+                      if (v === "none") {
+                        setNewReminderWeekdays([]);
+                      } else if (v === "weekly" && newReminderWeekdays.length === 0) {
+                        setNewReminderWeekdays([new Date().getDay()]);
+                      } else if (v === "monthly" && (!newReminderMonthDay || newReminderMonthDay < 1)) {
+                        setNewReminderMonthDay(1);
+                      }
+                    }}
+                    className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
+                  >
+                    <option value="none">{t("repeat.none", "No repeat")}</option>
+                    <option value="daily">{t("repeat.daily", "Daily")}</option>
+                    <option value="weekly">{t("repeat.weekly", "Weekly")}</option>
+                    <option value="monthly">{t("repeat.monthly", "Monthly")}</option>
+                  </select>
+
+                  <input
+                    type="time"
+                    value={newReminderTimeLocal}
+                    onFocus={() => requireAuth()}
+                    onChange={(e) => {
+                      if (!requireAuth()) return;
+                      setNewReminderTimeLocal(e.target.value);
+                    }}
+                    className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
+                    aria-label={t("repeat.timeLabel", "Reminder time")}
+                  />
+                </div>
+
+                {newReminderRepeat === "weekly" && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {WEEKDAYS.map((d) => {
+                      const active = newReminderWeekdays.includes(d.v);
+                      return (
+                        <button
+                          key={d.v}
+                          type="button"
+                          onClick={() => {
+                            if (!requireAuth()) return;
+                            setNewReminderWeekdays((prev) => {
+                              const next = prev.includes(d.v) ? prev.filter((x) => x !== d.v) : [...prev, d.v];
+                              return next.length ? next : prev; // don’t allow empty
+                            });
+                          }}
+                          className={`px-2 py-1 rounded-lg border text-[10px] ${
+                            active
+                              ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
+                              : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                          }`}
+                        >
+                          {t(d.key, d.fallback)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {newReminderRepeat === "monthly" && (
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-[10px] text-[var(--text-muted)]">{t("repeat.monthly.onDay", "On day")}</span>
+                    <select
+                      value={newReminderMonthDay}
+                      onFocus={() => requireAuth()}
+                      onChange={(e) => {
+                        if (!requireAuth()) return;
+                        setNewReminderMonthDay(Number(e.target.value));
+                      }}
+                      className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
+                    >
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <p className="text-[10px] text-[var(--text-muted)]">
+                  {t(
+                    "repeat.note",
+                    "Repeat reminders are stored on the task. Delivery (push/email) is handled by your reminder worker."
+                  )}
+                </p>
+              </div>
+
               <button
                 type="submit"
                 disabled={savingNew}
@@ -1219,8 +1401,7 @@ export default function TasksPage() {
                 {voiceSuggestedTasks.map((tt, i) => (
                   <li key={i}>
                     {tt.title}
-                    {tt.dueLabel && <span className="text-[var(--text-muted)]"> — {tt.dueLabel}</span>
-                    }
+                    {tt.dueLabel && <span className="text-[var(--text-muted)]"> — {tt.dueLabel}</span>}
                   </li>
                 ))}
               </ul>
@@ -1334,7 +1515,7 @@ export default function TasksPage() {
                       .eq("id", task.id)
                       .eq("user_id", user.id)
                       .select(
-                        "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at"
+                        "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at, reminder_repeat, reminder_time, reminder_weekdays, reminder_month_day"
                       )
                       .single();
 
@@ -1352,6 +1533,52 @@ export default function TasksPage() {
                     setSavingTaskId(null);
                   }
                 }
+
+                // ✅ NEW: repeat reminder handler (stored on task)
+                async function handleRepeatPatch(patch: Partial<TaskRow>) {
+                  if (!requireAuth()) return;
+
+                  setSavingTaskId(task.id);
+                  setError("");
+
+                  try {
+                    const merged = {
+                      reminder_repeat: patch.reminder_repeat ?? task.reminder_repeat ?? "none",
+                      reminder_time: patch.reminder_time ?? task.reminder_time ?? null,
+                      reminder_weekdays: patch.reminder_weekdays ?? task.reminder_weekdays ?? null,
+                      reminder_month_day: patch.reminder_month_day ?? task.reminder_month_day ?? null,
+                    };
+
+                    const { data, error } = await supabase
+                      .from("tasks")
+                      .update(merged)
+                      .eq("id", task.id)
+                      .eq("user_id", user.id)
+                      .select(
+                        "id, user_id, title, description, completed, due_date, created_at, completed_at, category, time_from, time_to, reminder_enabled, reminder_at, reminder_repeat, reminder_time, reminder_weekdays, reminder_month_day"
+                      )
+                      .single();
+
+                    if (error) {
+                      console.error("[tasks] repeat reminder update error", error);
+                      setError(t("reminderUpdateError", "Could not update reminder."));
+                      return;
+                    }
+
+                    setTasks((prev) => prev.map((tRow) => (tRow.id === task.id ? ((data as TaskRow) || tRow) : tRow)));
+                  } catch (err) {
+                    console.error("[tasks] repeat reminder update exception", err);
+                    setError(t("reminderUpdateError", "Could not update reminder."));
+                  } finally {
+                    setSavingTaskId(null);
+                  }
+                }
+
+                const repeat: RepeatType = (task.reminder_repeat || "none") as RepeatType;
+                const repeatTimeLocal = toLocalTimeInput(task.reminder_time);
+
+                const selectedWeekdays = Array.isArray(task.reminder_weekdays) ? task.reminder_weekdays : [];
+                const monthDay = task.reminder_month_day ?? 1;
 
                 return (
                   <div key={task.id} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-sm">
@@ -1495,6 +1722,7 @@ export default function TasksPage() {
                               </select>
                             </div>
 
+                            {/* Existing one-time reminder */}
                             <div className="flex items-center gap-2 flex-wrap">
                               <span>{t("item.reminderLabel", "Reminder:")}</span>
                               <label
@@ -1518,6 +1746,129 @@ export default function TasksPage() {
                                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                               />
                             </div>
+
+                            {/* ✅ NEW repeat reminder UI */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>{t("repeat.label", "Repeat:")}</span>
+                              <select
+                                value={repeat}
+                                onFocus={() => requireAuth()}
+                                onChange={(e) => {
+                                  if (!requireAuth()) return;
+                                  const v = e.target.value as RepeatType;
+
+                                  if (v === "none") {
+                                    handleRepeatPatch({
+                                      reminder_repeat: "none",
+                                      reminder_time: null,
+                                      reminder_weekdays: null,
+                                      reminder_month_day: null,
+                                    });
+                                    return;
+                                  }
+
+                                  // set sensible defaults
+                                  if (v === "daily") {
+                                    handleRepeatPatch({
+                                      reminder_repeat: "daily",
+                                      reminder_time: task.reminder_time ?? fromLocalTimeInputToDb("09:00"),
+                                      reminder_weekdays: null,
+                                      reminder_month_day: null,
+                                    });
+                                  } else if (v === "weekly") {
+                                    const currentDow = new Date().getDay();
+                                    handleRepeatPatch({
+                                      reminder_repeat: "weekly",
+                                      reminder_time: task.reminder_time ?? fromLocalTimeInputToDb("09:00"),
+                                      reminder_weekdays: selectedWeekdays?.length ? selectedWeekdays : [currentDow],
+                                      reminder_month_day: null,
+                                    });
+                                  } else {
+                                    // monthly
+                                    handleRepeatPatch({
+                                      reminder_repeat: "monthly",
+                                      reminder_time: task.reminder_time ?? fromLocalTimeInputToDb("09:00"),
+                                      reminder_weekdays: null,
+                                      reminder_month_day: task.reminder_month_day ?? 1,
+                                    });
+                                  }
+                                }}
+                                className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
+                              >
+                                <option value="none">{t("repeat.none", "None")}</option>
+                                <option value="daily">{t("repeat.daily", "Daily")}</option>
+                                <option value="weekly">{t("repeat.weekly", "Weekly")}</option>
+                                <option value="monthly">{t("repeat.monthly", "Monthly")}</option>
+                              </select>
+
+                              <input
+                                type="time"
+                                value={repeatTimeLocal || "09:00"}
+                                readOnly={!user || repeat === "none"}
+                                onFocus={() => requireAuth()}
+                                onChange={(e) => {
+                                  if (!requireAuth()) return;
+                                  if (repeat === "none") return;
+                                  handleRepeatPatch({ reminder_time: fromLocalTimeInputToDb(e.target.value) });
+                                }}
+                                className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
+                                aria-label={t("repeat.timeLabel", "Reminder time")}
+                              />
+                            </div>
+
+                            {repeat === "weekly" && (
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-[10px]">{t("repeat.weekly.on", "On:")}</span>
+                                {WEEKDAYS.map((d) => {
+                                  const active = selectedWeekdays.includes(d.v);
+                                  return (
+                                    <button
+                                      key={d.v}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!requireAuth()) return;
+                                        const next = active
+                                          ? selectedWeekdays.filter((x) => x !== d.v)
+                                          : [...selectedWeekdays, d.v];
+
+                                        // do not allow empty
+                                        const finalNext = next.length ? next : selectedWeekdays;
+
+                                        handleRepeatPatch({ reminder_weekdays: finalNext });
+                                      }}
+                                      className={`px-2 py-1 rounded-lg border text-[10px] ${
+                                        active
+                                          ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
+                                          : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                                      }`}
+                                    >
+                                      {t(d.key, d.fallback)}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {repeat === "monthly" && (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px]">{t("repeat.monthly.onDay", "On day")}</span>
+                                <select
+                                  value={monthDay}
+                                  onFocus={() => requireAuth()}
+                                  onChange={(e) => {
+                                    if (!requireAuth()) return;
+                                    handleRepeatPatch({ reminder_month_day: Number(e.target.value) });
+                                  }}
+                                  className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
+                                >
+                                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                                    <option key={d} value={d}>
+                                      {d}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex flex-col items-end gap-1 text-[10px]">

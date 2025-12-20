@@ -1,7 +1,6 @@
-// app/dashboard/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
@@ -25,68 +24,6 @@ function getTodayString() {
 type DailyScoreRow = {
   score_date: string;
   score: number;
-};
-
-function getStreakConfig(streak: number) {
-  if (streak >= 30) {
-    return {
-      emoji: "🏆",
-      title: "Legendary streak!",
-      subtitle: "You’ve been consistently productive for 30+ days. That’s huge.",
-      gradient: "from-amber-400 via-pink-500 to-indigo-600",
-    };
-  }
-  if (streak >= 14) {
-    return {
-      emoji: "⚡",
-      title: "Impressive streak!",
-      subtitle: "14+ days in a row using AI to move things forward.",
-      gradient: "from-purple-500 to-pink-500",
-    };
-  }
-  if (streak >= 7) {
-    return {
-      emoji: "🔥",
-      title: "Strong streak!",
-      subtitle: "A full week of momentum. Keep riding it.",
-      gradient: "from-emerald-500 to-teal-500",
-    };
-  }
-
-  return {
-    emoji: "🎉",
-    title: "Nice streak!",
-    subtitle: "You’re building a habit. A few more days and it becomes automatic.",
-    gradient: "from-indigo-600 to-purple-600",
-  };
-}
-
-const MONTHLY_PRICE_BY_CURRENCY: Record<"eur" | "usd" | "gbp", string> = {
-  eur: "€8.49",
-  usd: "$8.99",
-  gbp: "£7.99",
-};
-
-const PRICE_LABELS = {
-  pro: {
-    monthly: {
-      eur: "€8.49",
-      usd: "$8.99",
-      gbp: "£7.99",
-    },
-    yearly: {
-      eur: "€74.00",
-      usd: "$79.00",
-      gbp: "£69.00",
-    },
-  },
-  founder: {
-    monthly: {
-      eur: "€5.49",
-      usd: "$5.99",
-      gbp: "£4.99",
-    },
-  },
 };
 
 export default function DashboardPage() {
@@ -136,20 +73,69 @@ export default function DashboardPage() {
   const [weeklyGoalSaving, setWeeklyGoalSaving] = useState(false);
   const [weeklyGoalMarking, setWeeklyGoalMarking] = useState(false);
 
+  // ✅ Action Hub: quick capture + micro-toast
+  const [quickText, setQuickText] = useState("");
+  const [quickSaving, setQuickSaving] = useState<"note" | "task" | null>(null);
+  const [toast, setToast] = useState<string>("");
+
   const { track } = useAnalytics();
-  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
 
   const isPro = plan === "pro" || plan === "founder";
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const remaining = Math.max(dailyLimit - aiCountToday, 0);
+
   const showBanner = streak >= 1;
-  const streakCfg = getStreakConfig(streak);
 
   const planLabelUpper = plan === "founder" ? "FOUNDER" : plan === "pro" ? "PRO" : "FREE";
   const planLabelNice = plan === "founder" ? "Founder" : plan === "pro" ? "Pro" : "Free";
 
-  const [currency, setCurrency] = useState<"eur" | "usd" | "gbp">("eur");
-  const monthlyPriceLabel = MONTHLY_PRICE_BY_CURRENCY[currency];
+  // ✅ Dashboard teaser only (pricing page owns real currency selection)
+  const monthlyPriceLabel = "€8.49";
+
+  const streakCfg = useMemo(() => {
+    if (streak >= 30) {
+      return {
+        emoji: "🏆",
+        title: t("dashboard.streak.legendary.title", "Legendary streak!"),
+        subtitle: t(
+          "dashboard.streak.legendary.subtitle",
+          "You’ve been consistently productive for 30+ days. That’s huge."
+        ),
+        gradient: "from-amber-400 via-pink-500 to-indigo-600",
+      };
+    }
+    if (streak >= 14) {
+      return {
+        emoji: "⚡",
+        title: t("dashboard.streak.impressive.title", "Impressive streak!"),
+        subtitle: t("dashboard.streak.impressive.subtitle", "14+ days in a row using AI to move things forward."),
+        gradient: "from-purple-500 to-pink-500",
+      };
+    }
+    if (streak >= 7) {
+      return {
+        emoji: "🔥",
+        title: t("dashboard.streak.strong.title", "Strong streak!"),
+        subtitle: t("dashboard.streak.strong.subtitle", "A full week of momentum. Keep riding it."),
+        gradient: "from-emerald-500 to-teal-500",
+      };
+    }
+    return {
+      emoji: "🎉",
+      title: t("dashboard.streak.nice.title", "Nice streak!"),
+      subtitle: t("dashboard.streak.nice.subtitle", "You’re building a habit. A few more days and it becomes automatic."),
+      gradient: "from-indigo-600 to-purple-600",
+    };
+  }, [streak, t]);
+
+  const lastNote = recentNotes?.[0] ?? null;
+  const lastTask = recentTasks?.[0] ?? null;
+
+  function showToast(msg: string) {
+    setToast(msg);
+    window.clearTimeout((showToast as any)._t);
+    (showToast as any)._t = window.setTimeout(() => setToast(""), 2200);
+  }
 
   async function startCheckout(
     selectedCurrency: "eur" | "usd" | "gbp",
@@ -196,6 +182,70 @@ export default function DashboardPage() {
       setError(t("dashboard.checkout.networkError", "Network error while starting checkout."));
     } finally {
       setBillingLoading(false);
+    }
+  }
+
+  // ✅ Action Hub: quick capture actions
+  async function quickSave(mode: "note" | "task") {
+    setError("");
+
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("dashboard.actionHub.auth.title", "Log in to save."),
+        subtitle: t("dashboard.actionHub.auth.subtitle", "Create an account to save notes and tasks."),
+      })
+    ) {
+      return;
+    }
+    if (!user) return;
+
+    const text = quickText.trim();
+    if (!text) {
+      showToast(t("dashboard.actionHub.toast.empty", "Write something first."));
+      return;
+    }
+
+    setQuickSaving(mode);
+
+    try {
+      if (mode === "note") {
+        const { data, error } = await supabase
+          .from("notes")
+          .insert([{ user_id: user.id, content: text }])
+          .select("id, content, created_at")
+          .single();
+
+        if (error) throw error;
+
+        setRecentNotes((prev) => [data, ...prev].slice(0, 5));
+        setQuickText("");
+        showToast(t("dashboard.actionHub.toast.noteSaved", "Saved to Notes ✅"));
+
+        try {
+          track("quick_capture_saved", { type: "note" });
+        } catch {}
+      } else {
+        const { data, error } = await supabase
+          .from("tasks")
+          .insert([{ user_id: user.id, title: text, completed: false }])
+          .select("id, title, completed, created_at")
+          .single();
+
+        if (error) throw error;
+
+        setRecentTasks((prev) => [data, ...prev].slice(0, 5));
+        setQuickText("");
+        showToast(t("dashboard.actionHub.toast.taskSaved", "Saved to Tasks ✅"));
+
+        try {
+          track("quick_capture_saved", { type: "task" });
+        } catch {}
+      }
+    } catch (e) {
+      console.error("[dashboard/actionHub] quick save error", e);
+      showToast(t("dashboard.actionHub.toast.saveFailed", "Could not save. Try again."));
+    } finally {
+      setQuickSaving(null);
     }
   }
 
@@ -289,9 +339,7 @@ export default function DashboardPage() {
 
   // Ensure profile exists & load plan + AI usage + streak + recent activity + weekly goal
   useEffect(() => {
-    // ✅ depend only on stable primitive
     if (!user?.id) {
-      // ✅ only update state if it actually changes (prevents loops in weird cases)
       setPlan((p) => (p === "free" ? p : "free"));
       setAiCountToday((v) => (v === 0 ? v : 0));
       setStreak((v) => (v === 0 ? v : 0));
@@ -489,7 +537,6 @@ export default function DashboardPage() {
   async function saveWeeklyGoal(refineWithAI: boolean) {
     setError("");
 
-    // ✅ Gate (even though Pro-only, still require login for the modal flow)
     if (
       !gate.requireAuth(undefined, {
         title: t("dashboard.auth.weekGoal.title", "Log in to save your weekly goal."),
@@ -618,9 +665,7 @@ export default function DashboardPage() {
       if (!res.ok || !data.summary) {
         console.error("AI summary error payload:", data);
         if (res.status === 429) {
-          setSummaryError(
-            data.error || t("dashboard.aiSummary.planLimit", "You’ve reached today’s AI limit for your plan.")
-          );
+          setSummaryError(data.error || t("dashboard.aiSummary.planLimit", "You’ve reached today’s AI limit for your plan."));
         } else {
           setSummaryError(data.error || t("dashboard.aiSummary.failed", "Failed to generate summary."));
         }
@@ -668,6 +713,15 @@ export default function DashboardPage() {
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
+          {/* ✅ Action Hub toast */}
+          {toast ? (
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100]">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95 backdrop-blur px-4 py-2 text-xs shadow-lg">
+                {toast}
+              </div>
+            </div>
+          ) : null}
+
           {/* Guest inline banner (full page always) */}
           {!user && (
             <div className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
@@ -695,15 +749,181 @@ export default function DashboardPage() {
 
           {user && <SetupBanner userId={user.id} />}
 
+          {/* ✅ ACTION HUB (top-of-dashboard) */}
+          <section className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">{t("dashboard.actionHub.kicker", "ACTION HUB")}</p>
+                <h2 className="text-sm md:text-base font-semibold">{t("dashboard.actionHub.title", "What should you do right now?")}</h2>
+                <p className="text-[12px] text-[var(--text-muted)] mt-1 max-w-2xl">
+                  {t("dashboard.actionHub.subtitle", "Capture something quickly, continue where you left off, or set a simple focus for today.")}
+                </p>
+              </div>
+
+              {!user ? (
+                <button
+                  type="button"
+                  onClick={() => gate.openGate({ title: t("dashboard.actionHub.guestCtaTitle", "Log in to use Action Hub.") })}
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
+                >
+                  {t("dashboard.actionHub.guestCta", "Log in")}
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 grid md:grid-cols-3 gap-4">
+              {/* Today focus */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">{t("dashboard.actionHub.focus.title", "TODAY’S FOCUS")}</p>
+
+                {user ? (
+                  weeklyGoalText?.trim() ? (
+                    <>
+                      <p className="text-sm font-semibold mb-1">
+                        {weeklyGoalCompleted ? "✅ " : "🎯 "}
+                        {weeklyGoalText}
+                      </p>
+                      <p className="text-[11px] text-[var(--text-muted)]">{t("dashboard.actionHub.focus.hintWeekly", "Your weekly goal is your best daily focus.")}</p>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link
+                          href="/daily-success?mode=morning"
+                          className="px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-xs text-[var(--accent-contrast)]"
+                        >
+                          {t("dashboard.actionHub.dailySuccess.morning", "Start morning plan")}
+                        </Link>
+                        <Link
+                          href="/daily-success?mode=evening"
+                          className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--accent-soft)] text-xs"
+                        >
+                          {t("dashboard.actionHub.dailySuccess.evening", "Do evening reflection")}
+                        </Link>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[12px] text-[var(--text-muted)] mb-2">{t("dashboard.actionHub.focus.empty", "No weekly goal saved yet. Set one to stay focused.")}</p>
+                      <Link
+                        href="#week-goal"
+                        className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
+                      >
+                        {t("dashboard.actionHub.focus.ctaSetGoal", "Set a weekly goal")}
+                      </Link>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link
+                          href="/daily-success?mode=morning"
+                          className="px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-xs text-[var(--accent-contrast)]"
+                        >
+                          {t("dashboard.actionHub.dailySuccess.morning", "Start morning plan")}
+                        </Link>
+                        <Link
+                          href="/daily-success?mode=evening"
+                          className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--accent-soft)] text-xs"
+                        >
+                          {t("dashboard.actionHub.dailySuccess.evening", "Do evening reflection")}
+                        </Link>
+                      </div>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <p className="text-[12px] text-[var(--text-muted)]">{t("dashboard.actionHub.focus.guest", "Log in to see your goal and daily focus.")}</p>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => gate.openGate({ title: t("dashboard.actionHub.auth.dailySuccess.title", "Log in to use the Daily Success System.") })}
+                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-xs text-[var(--accent-contrast)]"
+                      >
+                        {t("dashboard.actionHub.dailySuccess.morning", "Start morning plan")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => gate.openGate({ title: t("dashboard.actionHub.auth.dailySuccess.title", "Log in to use the Daily Success System.") })}
+                        className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--accent-soft)] text-xs"
+                      >
+                        {t("dashboard.actionHub.dailySuccess.evening", "Do evening reflection")}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Quick capture */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">{t("dashboard.actionHub.capture.title", "QUICK CAPTURE")}</p>
+
+                <input
+                  value={quickText}
+                  onChange={(e) => setQuickText(e.target.value)}
+                  placeholder={t("dashboard.actionHub.capture.placeholder", "Type a quick note or task…")}
+                  className="w-full rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] px-3 py-2 text-sm"
+                  disabled={!user || !!quickSaving}
+                />
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => quickSave("note")}
+                    disabled={!user || !!quickSaving}
+                    className="px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs text-[var(--accent-contrast)]"
+                  >
+                    {quickSaving === "note" ? t("dashboard.actionHub.capture.saving", "Saving…") : t("dashboard.actionHub.capture.saveNote", "Save as Note")}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => quickSave("task")}
+                    disabled={!user || !!quickSaving}
+                    className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--accent-soft)] disabled:opacity-60 text-xs"
+                  >
+                    {quickSaving === "task" ? t("dashboard.actionHub.capture.saving", "Saving…") : t("dashboard.actionHub.capture.saveTask", "Save as Task")}
+                  </button>
+                </div>
+
+                {!user ? (
+                  <p className="mt-2 text-[11px] text-[var(--text-muted)]">{t("dashboard.actionHub.capture.guestHint", "Log in to save quick captures to your account.")}</p>
+                ) : (
+                  <p className="mt-2 text-[11px] text-[var(--text-muted)]">{t("dashboard.actionHub.capture.hint", "This saves instantly — no extra screens.")}</p>
+                )}
+              </div>
+
+              {/* Continue */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">{t("dashboard.actionHub.continue.title", "CONTINUE")}</p>
+
+                {user ? (
+                  <div className="space-y-2">
+                    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
+                      <p className="text-[11px] text-[var(--text-muted)] mb-1">{t("dashboard.actionHub.continue.lastNote", "Last note")}</p>
+                      <p className="text-[12px] line-clamp-2">{lastNote?.content?.slice(0, 120) || t("dashboard.actionHub.continue.noneNote", "No notes yet.")}</p>
+                      <Link href="/notes" className="inline-block mt-2 text-[11px] text-[var(--accent)] hover:opacity-90">
+                        {t("dashboard.actionHub.continue.openNotes", "Continue in Notes →")}
+                      </Link>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
+                      <p className="text-[11px] text-[var(--text-muted)] mb-1">{t("dashboard.actionHub.continue.lastTask", "Last task")}</p>
+                      <p className="text-[12px] line-clamp-2">{lastTask?.title?.slice(0, 120) || t("dashboard.actionHub.continue.noneTask", "No tasks yet.")}</p>
+                      <Link href="/tasks" className="inline-block mt-2 text-[11px] text-[var(--accent)] hover:opacity-90">
+                        {t("dashboard.actionHub.continue.openTasks", "Continue in Tasks →")}
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-[var(--text-muted)]">{t("dashboard.actionHub.continue.guest", "Log in to continue where you left off.")}</p>
+                )}
+              </div>
+            </div>
+          </section>
+
           {user && showBanner && (
-            <div
-              className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${streakCfg.gradient} text-white shadow-md`}
-            >
+            <div className={`mb-6 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r ${streakCfg.gradient} text-white shadow-md`}>
               <div>
                 <p className="font-semibold text-sm md:text-base">
                   {streakCfg.emoji} {streakCfg.title} {t("dashboard.streakBannerMain", "You’re on a")}{" "}
-                  <span className="font-bold">{streak}-day</span>{" "}
-                  {t("dashboard.streakBannerTail", "productivity streak.")}
+                  <span className="font-bold">{streak}-day</span> {t("dashboard.streakBannerTail", "productivity streak.")}
                 </p>
                 <p className="text-xs opacity-90">{streakCfg.subtitle}</p>
               </div>
@@ -713,15 +933,12 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">{t("dashboard.title", "Dashboard")}</h1>
-              <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                {t("dashboard.subtitle", "Quick overview of your plan, AI usage, and activity.")}
-              </p>
+              <p className="text-xs md:text-sm text-[var(--text-muted)]">{t("dashboard.subtitle", "Quick overview of your plan, AI usage, and activity.")}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
               <span className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-                {t("dashboard.plan.label", "Plan:")}{" "}
-                <span className="font-semibold">{user ? planLabelUpper : "—"}</span>
+                {t("dashboard.plan.label", "Plan:")} <span className="font-semibold">{user ? planLabelUpper : "—"}</span>
               </span>
 
               <span className="px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
@@ -730,8 +947,7 @@ export default function DashboardPage() {
                   {user ? (
                     isPro ? (
                       <>
-                        {aiCountToday}{" "}
-                        {t("dashboard.aiToday.unlimitedSuffix", "used (unlimited for normal use)")}
+                        {aiCountToday} {t("dashboard.aiToday.unlimitedSuffix", "used (unlimited for normal use)")}
                       </>
                     ) : (
                       <>
@@ -776,32 +992,21 @@ export default function DashboardPage() {
                     <div className="mb-6 rounded-2xl border border-[var(--accent)]/60 bg-[var(--accent-soft)]/50 p-4">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div>
-                          <p className="text-xs font-semibold text-[var(--accent)] mb-1">
-                            {t("dashboard.upgradeTeaser.badge", "UPGRADE")}
-                          </p>
-                          <p className="text-sm font-semibold">
-                            {t("dashboard.upgradeTeaser.title", "Unlock Pro features")}
-                          </p>
+                          <p className="text-xs font-semibold text-[var(--accent)] mb-1">{t("dashboard.upgradeTeaser.badge", "UPGRADE")}</p>
+                          <p className="text-sm font-semibold">{t("dashboard.upgradeTeaser.title", "Unlock Pro features")}</p>
                           <p className="text-[12px] text-[var(--text-muted)] mt-1 max-w-xl">
-                            {t(
-                              "dashboard.upgradeTeaser.subtitle",
-                              "Get weekly AI reports and more powerful planning workflows. Cancel anytime."
-                            )}
+                            {t("dashboard.upgradeTeaser.subtitle", "Get weekly AI reports and more powerful planning workflows. Cancel anytime.")}
                           </p>
                         </div>
 
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Link
-                            href="/pricing"
-                            className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
-                          >
+                          <Link href="/pricing" className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]">
                             {t("dashboard.upgradeTeaser.cta", "See pricing")}
                           </Link>
 
                           <span className="text-[11px] text-[var(--text-muted)]">
                             {t("dashboard.upgradeTeaser.from", "From")}{" "}
-                            <span className="font-semibold text-[var(--text-main)]">{monthlyPriceLabel}</span>
-                            /{t("dashboard.upgradeTeaser.mo", "mo")}
+                            <span className="font-semibold text-[var(--text-main)]">{monthlyPriceLabel}</span>/{t("dashboard.upgradeTeaser.mo", "mo")}
                           </span>
                         </div>
                       </div>
@@ -814,9 +1019,7 @@ export default function DashboardPage() {
                     <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                       <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">{t("dashboard.section.account", "ACCOUNT")}</p>
                       <p className="mb-1 text-sm break-all">{user.email}</p>
-                      <p className="text-[11px] text-[var(--text-muted)]">
-                        {t("dashboard.account.emailHelp", "This is the account you use to log in.")}
-                      </p>
+                      <p className="text-[11px] text-[var(--text-muted)]">{t("dashboard.account.emailHelp", "This is the account you use to log in.")}</p>
                     </div>
 
                     {/* Plan card */}
@@ -836,24 +1039,16 @@ export default function DashboardPage() {
                       <p className="text-[11px] text-[var(--text-muted)]">
                         {t("dashboard.plan.dailyLimitLabel", "Daily AI limit:")}{" "}
                         <span className="font-semibold">
-                          {isPro
-                            ? t("dashboard.plan.dailyLimitUnlimited", "Unlimited for normal use")
-                            : `${dailyLimit} ${t("dashboard.callsPerDay", "calls/day")}`}
+                          {isPro ? t("dashboard.plan.dailyLimitUnlimited", "Unlimited for normal use") : `${dailyLimit} ${t("dashboard.callsPerDay", "calls/day")}`}
                         </span>
                       </p>
 
                       {isPro ? (
-                        <Link
-                          href="/weekly-reports"
-                          className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90"
-                        >
+                        <Link href="/weekly-reports" className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90">
                           {t("dashboard.link.weeklyReports", "📅 View Weekly Reports →")}
                         </Link>
                       ) : (
-                        <Link
-                          href="/pricing"
-                          className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90"
-                        >
+                        <Link href="/pricing" className="inline-block mt-3 text-[11px] text-[var(--accent)] hover:opacity-90">
                           {t("dashboard.unlockReports", "🔒 Unlock Weekly Reports with Pro →")}
                         </Link>
                       )}
@@ -867,9 +1062,7 @@ export default function DashboardPage() {
                         {isPro ? (
                           <>
                             {aiCountToday}{" "}
-                            <span className="text-[11px] text-[var(--text-muted)]">
-                              {t("dashboard.aiToday.unlimitedSuffix", "used (unlimited for normal use)")}
-                            </span>
+                            <span className="text-[11px] text-[var(--text-muted)]">{t("dashboard.aiToday.unlimitedSuffix", "used (unlimited for normal use)")}</span>
                           </>
                         ) : (
                           <>
@@ -911,12 +1104,22 @@ export default function DashboardPage() {
                               </span>
                             </p>
 
-                            <Link
-                              href="/daily-success"
-                              className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
-                            >
-                              {t("tools.dailySuccess.cta", "Update Daily Success")}
-                            </Link>
+                            {/* ✅ Deep-link into Daily Success modes */}
+                            <div className="flex flex-wrap gap-2">
+                              <Link
+                                href="/daily-success?mode=morning"
+                                className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
+                              >
+                                {t("dashboard.productivity.ctaMorning", "Morning plan")}
+                              </Link>
+
+                              <Link
+                                href="/daily-success?mode=evening"
+                                className="inline-block text-xs px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
+                              >
+                                {t("dashboard.productivity.ctaEvening", "Evening reflection")}
+                              </Link>
+                            </div>
                           </>
                         )}
                       </div>
@@ -946,8 +1149,7 @@ export default function DashboardPage() {
                         <span className="font-semibold">
                           {streak} {t("dashboard.usage.streakSuffix", "days in a row")}
                         </span>{" "}
-                        • {t("dashboard.usage.activeDaysLabel", "Active days (last 30):")}{" "}
-                        <span className="font-semibold">{activeDays}</span>
+                        • {t("dashboard.usage.activeDaysLabel", "Active days (last 30):")} <span className="font-semibold">{activeDays}</span>
                       </p>
                     </div>
 
@@ -959,10 +1161,7 @@ export default function DashboardPage() {
                         <div className="text-[12px] whitespace-pre-wrap mb-2">{summary}</div>
                       ) : (
                         <p className="text-[12px] text-[var(--text-muted)] mb-2">
-                          {t(
-                            "dashboard.aiSummary.description",
-                            "Let AI scan your recent notes and tasks and give you a short overview plus suggestions."
-                          )}
+                          {t("dashboard.aiSummary.description", "Let AI scan your recent notes and tasks and give you a short overview plus suggestions.")}
                         </p>
                       )}
 
@@ -980,9 +1179,7 @@ export default function DashboardPage() {
                           : t("dashboard.aiSummary.button", "Generate summary")}
                       </button>
 
-                      <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                        {t("dashboard.aiSummary.usageNote", "Uses your daily AI limit (shared with notes, assistant, planner).")}
-                      </p>
+                      <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t("dashboard.aiSummary.usageNote", "Uses your daily AI limit (shared with notes, assistant, planner).")}</p>
                     </div>
                   </div>
 
@@ -1021,7 +1218,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Goal of the Week */}
-                  <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-8 text-sm">
+                  <div id="week-goal" className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-8 text-sm">
                     <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">{t("dashboard.section.weekGoal", "GOAL OF THE WEEK")}</p>
 
                     {!isPro ? (
@@ -1034,7 +1231,6 @@ export default function DashboardPage() {
                           )}
                         </p>
 
-                        {/* ✅ Keep existing fast upgrade button (but route users to /pricing) */}
                         <Link
                           href="/pricing"
                           className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
@@ -1087,14 +1283,10 @@ export default function DashboardPage() {
                                   : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
                               }`}
                             >
-                              {weeklyGoalCompleted
-                                ? t("dashboard.weekGoal.markedDone", "✅ Marked as done")
-                                : t("dashboard.weekGoal.markAsDone", "Mark this goal as done")}
+                              {weeklyGoalCompleted ? t("dashboard.weekGoal.markedDone", "✅ Marked as done") : t("dashboard.weekGoal.markAsDone", "Mark this goal as done")}
                             </button>
 
-                            <span className="text-[11px] text-[var(--text-muted)]">
-                              {t("dashboard.weekGoal.singleFocus", "This is your single focus target for this week.")}
-                            </span>
+                            <span className="text-[11px] text-[var(--text-muted)]">{t("dashboard.weekGoal.singleFocus", "This is your single focus target for this week.")}</span>
                           </div>
                         )}
                       </>
@@ -1107,9 +1299,7 @@ export default function DashboardPage() {
                       <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">{t("dashboard.section.recentNotes", "RECENT NOTES")}</p>
 
                       {recentNotes.length === 0 ? (
-                        <p className="text-[12px] text-[var(--text-muted)]">
-                          {t("dashboard.recentNotes.empty", "No notes yet. Create your first note from the Notes page.")}
-                        </p>
+                        <p className="text-[12px] text-[var(--text-muted)]">{t("dashboard.recentNotes.empty", "No notes yet. Create your first note from the Notes page.")}</p>
                       ) : (
                         <ul className="space-y-2">
                           {recentNotes.map((n) => (
@@ -1129,9 +1319,7 @@ export default function DashboardPage() {
                       <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">{t("dashboard.section.recentTasks", "RECENT TASKS")}</p>
 
                       {recentTasks.length === 0 ? (
-                        <p className="text-[12px] text-[var(--text-muted)]">
-                          {t("dashboard.recentTasks.empty", "No tasks yet. Start by adding a few tasks you want to track.")}
-                        </p>
+                        <p className="text-[12px] text-[var(--text-muted)]">{t("dashboard.recentTasks.empty", "No tasks yet. Start by adding a few tasks you want to track.")}</p>
                       ) : (
                         <ul className="space-y-2">
                           {recentTasks.map((tTask) => (
@@ -1159,46 +1347,27 @@ export default function DashboardPage() {
 
               {/* Quick actions (always visible) */}
               <div className="flex flex-wrap gap-3 mb-4">
-                <Link
-                  href="/notes"
-                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
-                >
+                <Link href="/notes" className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]">
                   {t("dashboard.quickLinks.goToNotes", "Go to Notes")}
                 </Link>
 
-                <Link
-                  href="/tasks"
-                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
-                >
+                <Link href="/tasks" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
                   {t("dashboard.quickLinks.goToTasks", "Go to Tasks")}
                 </Link>
 
-                <Link
-                  href="/templates"
-                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
-                >
+                <Link href="/templates" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
                   {t("dashboard.quickLinks.templates", "🧠 AI Templates")}
                 </Link>
 
-                <Link
-                  href="/planner"
-                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
-                >
+                <Link href="/planner" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
                   {t("dashboard.quickLinks.dailyPlanner", "🗓 Daily Planner")}
                 </Link>
 
-                <Link
-                  href="/weekly-reports"
-                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
-                >
+                <Link href="/weekly-reports" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
                   {t("dashboard.quickLinks.weeklyReports", "📅 Weekly Reports")}
                 </Link>
 
-                {/* ✅ Pricing shortcut */}
-                <Link
-                  href="/pricing"
-                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
-                >
+                <Link href="/pricing" className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm">
                   {t("dashboard.quickLinks.pricing", "💳 Pricing")}
                 </Link>
               </div>
@@ -1207,9 +1376,7 @@ export default function DashboardPage() {
               <section className="mt-10 mb-8">
                 <div className="max-w-md mx-auto">
                   <h2 className="text-sm font-semibold mb-1 text-center">{t("feedback.quick.title", "Send quick feedback")}</h2>
-                  <p className="text-[11px] text-[var(--text-main)]/70 mb-3 text-center">
-                    {t("feedback.quick.subtitle", "Tell me what’s working, what’s confusing, or what you’d love to see next.")}
-                  </p>
+                  <p className="text-[11px] text-[var(--text-main)]/70 mb-3 text-center">{t("feedback.quick.subtitle", "Tell me what’s working, what’s confusing, or what you’d love to see next.")}</p>
                   <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                     {user ? (
                       <FeedbackForm user={user} />
