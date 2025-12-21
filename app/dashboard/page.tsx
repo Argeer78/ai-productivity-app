@@ -14,7 +14,7 @@ import { useT } from "@/lib/useT";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 
-const FREE_DAILY_LIMIT = 20;
+const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
 
 function getTodayString() {

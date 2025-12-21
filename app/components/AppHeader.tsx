@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import InstallAppButton from "@/app/components/InstallAppButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import AiUsageBadge from "@/app/components/AiUsageBadge";
 import { useUiStrings } from "@/app/components/UiStringsProvider";
 import {
   StickyNote,
@@ -94,13 +95,11 @@ export default function AppHeader({ active }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
 
-  // Close menus on route change
   useEffect(() => {
     setMobileOpen(false);
     setAppsOpen(false);
   }, [pathname]);
 
-  // Load user
   useEffect(() => {
     let cancelled = false;
     async function loadUser() {
@@ -121,7 +120,6 @@ export default function AppHeader({ active }: HeaderProps) {
 
   const isAdmin = userEmail === ADMIN_EMAIL;
 
-  // Desktop outside-click + ESC close for Apps dropdown
   useEffect(() => {
     if (!appsOpen) return;
 
@@ -217,6 +215,10 @@ export default function AppHeader({ active }: HeaderProps) {
 
   return (
     <header className="relative z-50 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/80 backdrop-blur">
+      {/* =======================
+          MAIN HEADER ROW
+          (Settings + Language are here)
+      ======================= */}
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">
           <Image
@@ -248,7 +250,7 @@ export default function AppHeader({ active }: HeaderProps) {
             {navLabel("pricing", "Pricing")}
           </Link>
 
-          {/* Apps dropdown (wrapped) */}
+          {/* Apps dropdown */}
           <div ref={appsWrapRef} className="relative">
             <button
               ref={appsButtonRef}
@@ -288,27 +290,8 @@ export default function AppHeader({ active }: HeaderProps) {
           </div>
         </nav>
 
-        {/* Mobile button */}
-        <button
-          type="button"
-          onClick={() => {
-            setMobileOpen((v) => !v);
-            setAppsOpen(false);
-          }}
-          className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[var(--text-main)] text-xs ml-auto"
-        >
-          {mobileOpen ? "✕" : "☰"}
-        </button>
-
-        <div className="md:hidden text-[10px] text-[var(--text-muted)] truncate max-w-[90px]">
-          {!loadingUser && userEmail}
-        </div>
-
-        {/* Desktop right side */}
-        <div className="hidden md:flex items-center gap-2 text-[var(--text-main)]">
-          <TranslateWithAIButton />
-          <InstallAppButton />
-
+        {/* RIGHT SIDE (desktop): language + settings */}
+        <div className="hidden md:flex items-center gap-2 ml-auto">
           {currentLangLabel && (
             <span className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)]">
               {currentLangLabel}
@@ -321,55 +304,75 @@ export default function AppHeader({ active }: HeaderProps) {
           >
             {navLabel("settings", "Settings")}
           </Link>
-
-          {userEmail ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
-            >
-              {loggingOut ? "…" : authLabel("logout", "Log out")}
-            </button>
-          ) : (
-            <Link
-              href="/auth"
-              className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
-            >
-              {authLabel("login", "Log in")}
-            </Link>
-          )}
         </div>
-      </div>
 
-      {/* Mobile top row */}
-      <div className="md:hidden border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95">
-        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2 overflow-x-auto">
-          <TranslateWithAIButton />
-          <InstallAppButton />
+        {/* Mobile button */}
+        <button
+          type="button"
+          onClick={() => {
+            setMobileOpen((v) => !v);
+            setAppsOpen(false);
+          }}
+          className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[var(--text-main)] text-xs ml-auto"
+        >
+          {mobileOpen ? "✕" : "☰"}
+        </button>
 
+        {/* Mobile: language + settings compact */}
+        <div className="md:hidden flex items-center gap-2">
+          {currentLangLabel && (
+            <span className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)] whitespace-nowrap">
+              {currentLangLabel}
+            </span>
+          )}
           <Link
             href="/settings"
-            className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
+            className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px] whitespace-nowrap"
           >
             {navLabel("settings", "Settings")}
           </Link>
+        </div>
+      </div>
 
-          {userEmail ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
-            >
-              {loggingOut ? "…" : authLabel("logout", "Log out")}
-            </button>
-          ) : (
-            <Link
-              href="/auth"
-              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
-            >
-              {authLabel("login", "Log in")}
-            </Link>
-          )}
+      {/* =======================
+          SUBHEADER (UTILITY BAR)
+          (Keep mobile light)
+      ======================= */}
+      <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/75">
+        {/* Desktop utility row */}
+        <div className="hidden md:flex max-w-5xl mx-auto px-4 py-2 items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <AiUsageBadge />
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <TranslateWithAIButton />
+            <InstallAppButton />
+
+            {userEmail ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
+              >
+                {loggingOut ? "…" : authLabel("logout", "Log out")}
+              </button>
+            ) : (
+              <Link
+                href="/auth"
+                className="px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
+              >
+                {authLabel("login", "Log in")}
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile utility row: ONLY badge + translate + install */}
+        <div className="md:hidden max-w-5xl mx-auto px-4 py-2 flex items-center gap-2 overflow-x-auto">
+          <AiUsageBadge />
+          <TranslateWithAIButton />
+          <InstallAppButton />
         </div>
       </div>
 
@@ -377,6 +380,17 @@ export default function AppHeader({ active }: HeaderProps) {
       {mobileOpen && (
         <div className="md:hidden border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95">
           <div className="px-4 py-3 flex flex-col gap-2 text-sm text-[var(--text-main)]">
+            {/* user display */}
+            <div className="text-[11px] text-[var(--text-muted)]">
+              {!loadingUser && userEmail ? (
+                <>
+                  Logged in as <span className="font-mono">{userEmail}</span>
+                </>
+              ) : (
+                "Not logged in"
+              )}
+            </div>
+
             {mobileRoutes.map((route) => {
               if (route.adminOnly && !isAdmin) return null;
               const isActive = active === route.key;
@@ -390,6 +404,26 @@ export default function AppHeader({ active }: HeaderProps) {
                 </Link>
               );
             })}
+
+            {/* Auth action moved into menu for mobile (keeps top clean) */}
+            <div className="pt-2 border-t border-[var(--border-subtle)]">
+              {userEmail ? (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px] text-left"
+                >
+                  {loggingOut ? "…" : authLabel("logout", "Log out")}
+                </button>
+              ) : (
+                <Link
+                  href="/auth"
+                  className="block w-full px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
+                >
+                  {authLabel("login", "Log in")}
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       )}

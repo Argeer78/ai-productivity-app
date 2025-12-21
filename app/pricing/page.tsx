@@ -167,7 +167,7 @@ export default function PricingPage() {
                 <li>• {t("pricing.free.f1", "Notes + Tasks")}</li>
                 <li>• {t("pricing.free.f2", "Daily Success Score")}</li>
                 <li>• {t("pricing.free.f3", "Basic reminders")}</li>
-                <li>• {t("pricing.free.f4", "20 AI calls/day")}</li>
+                <li>• {t("pricing.free.f4", "10 AI calls/day")}</li>
               </ul>
             </div>
 

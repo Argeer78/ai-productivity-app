@@ -526,7 +526,7 @@ export default function HomePage() {
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
                   <p className="font-semibold">{t("home.pricing.teaser.freeTitle", "Free plan")}</p>
                   <p className="text-[var(--text-muted)] mt-1">
-                    {t("home.pricing.teaser.freeDesc", "Notes + Tasks + reminders basics + 20 AI calls/day.")}
+                    {t("home.pricing.teaser.freeDesc", "Notes + Tasks + reminders basics + 10 AI calls/day.")}
                   </p>
                 </div>
 

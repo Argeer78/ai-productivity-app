@@ -11,7 +11,7 @@ import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import { useT } from "@/lib/useT";
 import { useLanguage } from "@/app/components/LanguageProvider";
 
-const FREE_DAILY_LIMIT = 20;
+const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
 
 function getTodayString() {

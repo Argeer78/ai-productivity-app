@@ -28,7 +28,7 @@ type ChatMessage = {
 const CATEGORIES = ["General", "Planning", "Work", "Study", "Mindset", "Health", "Ideas"] as const;
 
 // ✅ Same limits as dashboard
-const FREE_DAILY_LIMIT = 20;
+const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
 
 function getTodayString() {
