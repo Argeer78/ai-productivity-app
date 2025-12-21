@@ -4,6 +4,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { UI_STRINGS, type UiTranslationKey } from "@/lib/uiStrings";
 import OpenAI from "openai";
 
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 // Server-side admin key (DO NOT expose this one to client)
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
@@ -210,7 +213,7 @@ export async function POST(req: NextRequest) {
     const { error: upsertError } = await supabaseAdmin
       .from("ui_translations")
       .upsert(rows, {
-        onConflict: "language_code,key",
+        onConflict: "key,language_code",
       });
 
     if (upsertError) {
