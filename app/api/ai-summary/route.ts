@@ -7,7 +7,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const FREE_DAILY_LIMIT = 20;
+const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
 
 function getTodayString() {

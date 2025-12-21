@@ -7,6 +7,7 @@ import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import { useT } from "@/lib/useT";
 
 type ThreadRow = {
   id: string;
@@ -27,49 +28,26 @@ type MsgRow = {
 const CATEGORIES = ["General", "Mindset", "Stress", "Relationships", "Work", "Reflection"] as const;
 type Category = (typeof CATEGORIES)[number];
 
-const STARTER_PROMPTS: { label: string; text: string }[] = [
-  { label: "How can you help me today?", text: "How can you help me today?" },
-  { label: "How do you feel today?", text: "How do you feel today?" },
-  { label: "I feel overwhelmed.", text: "I feel overwhelmed and I don’t know why." },
-  { label: "Help me calm down.", text: "Help me calm down and feel grounded." },
-  { label: "I'm anxious.", text: "I’m anxious about something coming up." },
-  { label: "Understand feelings.", text: "I want to understand my feelings better." },
-  { label: "Ask questions.", text: "Ask me a few questions to help me reflect." },
-  { label: "Write a journal entry.", text: "Help me write a journal entry about today." },
+const STARTER_PROMPTS_KEYS: { key: string; fallbackLabel: string; fallbackText: string }[] = [
+  { key: "helpToday", fallbackLabel: "How can you help me today?", fallbackText: "How can you help me today?" },
+  { key: "howFeel", fallbackLabel: "How do you feel today?", fallbackText: "How do you feel today?" },
+  { key: "overwhelmed", fallbackLabel: "I feel overwhelmed.", fallbackText: "I feel overwhelmed and I don’t know why." },
+  { key: "calmDown", fallbackLabel: "Help me calm down.", fallbackText: "Help me calm down and feel grounded." },
+  { key: "anxious", fallbackLabel: "I'm anxious.", fallbackText: "I’m anxious about something coming up." },
+  { key: "understandFeelings", fallbackLabel: "Understand feelings.", fallbackText: "I want to understand my feelings better." },
+  { key: "askQuestions", fallbackLabel: "Ask questions.", fallbackText: "Ask me a few questions to help me reflect." },
+  { key: "journalEntry", fallbackLabel: "Write a journal entry.", fallbackText: "Help me write a journal entry about today." },
 ];
-
-function makeWelcomeMessage(category: string) {
-  const base =
-    "Hi — I’m here with you. 💛\n\n" +
-    "Before we begin:\n" +
-    "• I’m not a therapist and I can’t diagnose.\n" +
-    "• I *can* help you reflect, feel grounded, and take small next steps.\n\n";
-
-  const questions =
-    "A few gentle questions to start:\n" +
-    "• How are you feeling right now — in your body and in your mind?\n" +
-    "• What’s been taking up most of your energy lately?\n" +
-    "• If today had a theme, what would it be?\n\n" +
-    "You can type, or use the mic. What would you like to explore?";
-
-  if (category === "Work") {
-    return base + "We can talk about work stress, boundaries, focus, or confidence.\n\n" + questions;
-  }
-  if (category === "Relationships") {
-    return base + "We can explore communication, conflict, closeness, or loneliness.\n\n" + questions;
-  }
-  if (category === "Stress") {
-    return base + "We can slow down together and reduce the pressure a bit.\n\n" + questions;
-  }
-
-  return base + questions;
-}
 
 function safeTrim(s: any) {
   return typeof s === "string" ? s.trim() : "";
 }
 
 export default function AiCompanionPage() {
+  // ✅ translations: aiCompanionPage.*
+  const { t: rawT } = useT("");
+  const t = (key: string, fallback: string) => rawT(`aiCompanionPage.${key}`, fallback);
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
@@ -99,8 +77,60 @@ export default function AiCompanionPage() {
   const [showMobileThreads, setShowMobileThreads] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const welcomeMessage = useMemo(() => makeWelcomeMessage(category), [category]);
-  const activeThread = useMemo(() => threads.find((t) => t.id === activeThreadId) || null, [threads, activeThreadId]);
+  const categoryLabel = useMemo(() => {
+    const map: Record<Category, string> = {
+      General: t("category.general", "General"),
+      Mindset: t("category.mindset", "Mindset"),
+      Stress: t("category.stress", "Stress"),
+      Relationships: t("category.relationships", "Relationships"),
+      Work: t("category.work", "Work"),
+      Reflection: t("category.reflection", "Reflection"),
+    };
+    return map[category];
+  }, [category, rawT]);
+
+  function makeWelcomeMessage(cat: Category) {
+    const base =
+      t("welcome.base", "Hi — I’m here with you. 💛") +
+      "\n\n" +
+      t("welcome.beforeBegin", "Before we begin:") +
+      "\n" +
+      `• ${t("welcome.rule1", "I’m not a therapist and I can’t diagnose.")}\n` +
+      `• ${t("welcome.rule2", "I *can* help you reflect, feel grounded, and take small next steps.")}\n\n`;
+
+    const questions =
+      t("welcome.questionsTitle", "A few gentle questions to start:") +
+      "\n" +
+      `• ${t("welcome.q1", "How are you feeling right now — in your body and in your mind?")}\n` +
+      `• ${t("welcome.q2", "What’s been taking up most of your energy lately?")}\n` +
+      `• ${t("welcome.q3", "If today had a theme, what would it be?")}\n\n` +
+      t("welcome.cta", "You can type, or use the mic. What would you like to explore?");
+
+    if (cat === "Work") {
+      return (
+        base +
+        t("welcome.workIntro", "We can talk about work stress, boundaries, focus, or confidence.") +
+        "\n\n" +
+        questions
+      );
+    }
+    if (cat === "Relationships") {
+      return (
+        base +
+        t("welcome.relationshipsIntro", "We can explore communication, conflict, closeness, or loneliness.") +
+        "\n\n" +
+        questions
+      );
+    }
+    if (cat === "Stress") {
+      return base + t("welcome.stressIntro", "We can slow down together and reduce the pressure a bit.") + "\n\n" + questions;
+    }
+
+    return base + questions;
+  }
+
+  const welcomeMessage = useMemo(() => makeWelcomeMessage(category), [category, rawT]);
+  const activeThread = useMemo(() => threads.find((th) => th.id === activeThreadId) || null, [threads, activeThreadId]);
 
   // Load user
   useEffect(() => {
@@ -136,7 +166,7 @@ export default function AiCompanionPage() {
 
         if (error) {
           console.error("[ai-companion] loadThreads error", error);
-          setError("Failed to load conversations.");
+          setError(t("errors.loadConversations", "Failed to load conversations."));
           setThreads([]);
           return;
         }
@@ -152,7 +182,7 @@ export default function AiCompanionPage() {
         }
       } catch (e) {
         console.error("[ai-companion] loadThreads exception", e);
-        setError("Failed to load conversations.");
+        setError(t("errors.loadConversations", "Failed to load conversations."));
       } finally {
         setLoadingThreads(false);
       }
@@ -183,7 +213,7 @@ export default function AiCompanionPage() {
 
         if (error) {
           console.error("[ai-companion] loadMessages error", error);
-          setError("Failed to load messages.");
+          setError(t("errors.loadMessages", "Failed to load messages."));
           setMessages([]);
           return;
         }
@@ -191,7 +221,7 @@ export default function AiCompanionPage() {
         setMessages((data || []) as MsgRow[]);
       } catch (e) {
         console.error("[ai-companion] loadMessages exception", e);
-        setError("Failed to load messages.");
+        setError(t("errors.loadMessages", "Failed to load messages."));
       } finally {
         setLoadingMessages(false);
       }
@@ -218,7 +248,7 @@ export default function AiCompanionPage() {
     if (!user) throw new Error("Not logged in");
     if (activeThreadId) return activeThreadId;
 
-    const title = firstUserText.split("\n")[0].slice(0, 60).trim() || "New reflection";
+    const title = firstUserText.split("\n")[0].slice(0, 60).trim() || t("thread.newReflection", "New reflection");
 
     const { data, error } = await supabase
       .from("ai_companion_threads")
@@ -244,7 +274,12 @@ export default function AiCompanionPage() {
     if (e) e.preventDefault();
 
     // ✅ Gate send for guests
-    if (!gate.requireAuth(undefined, { title: "Log in to chat", subtitle: "Create a free account to save your reflections." })) {
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("gate.loginToChat.title", "Log in to chat"),
+        subtitle: t("gate.loginToChat.subtitle", "Create a free account to save your reflections."),
+      })
+    ) {
       return;
     }
     if (!user) return;
@@ -286,7 +321,8 @@ export default function AiCompanionPage() {
       const data = await res.json().catch(() => ({} as any));
       if (!res.ok || !data?.ok) throw new Error(data?.error || "AI error");
 
-      const assistantText = safeTrim(data.message) || "I’m here with you. Want to try again?";
+      const assistantText =
+        safeTrim(data.message) || t("assistant.fallback", "I’m here with you. Want to try again?");
 
       const chatSummary =
         typeof data.chat_summary === "string" && data.chat_summary.trim() ? data.chat_summary.trim() : null;
@@ -319,7 +355,7 @@ export default function AiCompanionPage() {
       if (updErr) console.error("[ai-companion] update thread error", updErr);
 
       setThreads((prev) => {
-        const existing = prev.find((t) => t.id === threadId);
+        const existing = prev.find((th) => th.id === threadId);
         if (!existing) return prev;
 
         const updated: ThreadRow = {
@@ -329,17 +365,20 @@ export default function AiCompanionPage() {
           ...(chatSummary ? { summary: chatSummary } : {}),
         };
 
-        return [updated, ...prev.filter((t) => t.id !== threadId)];
+        return [updated, ...prev.filter((th) => th.id !== threadId)];
       });
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || "Something went wrong.");
+      setError(err?.message || t("errors.generic", "Something went wrong."));
       setMessages((prev) => [
         ...prev,
         {
           id: `local-err-${Date.now()}`,
           role: "assistant",
-          content: "I’m sorry — something went wrong on my side. Can you try again in a moment?",
+          content: t(
+            "assistant.errorFallback",
+            "I’m sorry — something went wrong on my side. Can you try again in a moment?"
+          ),
         },
       ]);
     } finally {
@@ -349,7 +388,12 @@ export default function AiCompanionPage() {
 
   function handleVoiceResult(payload: { rawText: string | null }) {
     // ✅ Gate mic for guests (don’t call VoiceCaptureButton without a userId)
-    if (!gate.requireAuth(undefined, { title: "Log in to use voice", subtitle: "Voice capture saves your chats to your account." })) {
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("gate.loginToVoice.title", "Log in to use voice"),
+        subtitle: t("gate.loginToVoice.subtitle", "Voice capture saves your chats to your account."),
+      })
+    ) {
       return;
     }
     const txt = safeTrim(payload.rawText);
@@ -357,11 +401,11 @@ export default function AiCompanionPage() {
   }
 
   async function handleRenameThread(thread: ThreadRow) {
-    if (!gate.requireAuth(undefined, { title: "Log in to manage chats" })) return;
+    if (!gate.requireAuth(undefined, { title: t("gate.manageChats.title", "Log in to manage chats") })) return;
     if (!user) return;
 
-    const currentTitle = thread.title || "Untitled";
-    const newTitle = window.prompt("New title for this conversation:", currentTitle);
+    const currentTitle = thread.title || t("thread.untitled", "Untitled");
+    const newTitle = window.prompt(t("thread.renamePrompt", "New title for this conversation:"), currentTitle);
     if (!newTitle || newTitle.trim() === currentTitle.trim()) return;
 
     setThreadActionId(thread.id);
@@ -378,19 +422,19 @@ export default function AiCompanionPage() {
       if (error || !data) throw error || new Error("Rename failed");
 
       const updated = data as ThreadRow;
-      setThreads((prev) => prev.map((t) => (t.id === thread.id ? updated : t)));
+      setThreads((prev) => prev.map((th) => (th.id === thread.id ? updated : th)));
     } catch (e) {
       console.error(e);
-      alert("Failed to rename conversation.");
+      alert(t("errors.renameFailed", "Failed to rename conversation."));
     } finally {
       setThreadActionId(null);
     }
   }
 
   async function handleDeleteThread(threadId: string) {
-    if (!gate.requireAuth(undefined, { title: "Log in to manage chats" })) return;
+    if (!gate.requireAuth(undefined, { title: t("gate.manageChats.title", "Log in to manage chats") })) return;
     if (!user) return;
-    if (!window.confirm("Delete this conversation? This cannot be undone.")) return;
+    if (!window.confirm(t("thread.deleteConfirm", "Delete this conversation? This cannot be undone."))) return;
 
     setThreadActionId(threadId);
     setError("");
@@ -402,44 +446,46 @@ export default function AiCompanionPage() {
         .eq("user_id", user.id);
       if (msgErr) console.error("[ai-companion] delete messages error", msgErr);
 
-      const { error: thErr } = await supabase
-        .from("ai_companion_threads")
-        .delete()
-        .eq("id", threadId)
-        .eq("user_id", user.id);
+      const { error: thErr } = await supabase.from("ai_companion_threads").delete().eq("id", threadId).eq("user_id", user.id);
 
       if (thErr) throw thErr;
 
-      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      setThreads((prev) => prev.filter((th) => th.id !== threadId));
       if (activeThreadId === threadId) {
         setActiveThreadId(null);
         setMessages([]);
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to delete conversation.");
+      alert(t("errors.deleteFailed", "Failed to delete conversation."));
     } finally {
       setThreadActionId(null);
     }
   }
 
   async function saveAsJournalEntry() {
-    if (!gate.requireAuth(undefined, { title: "Log in to save notes", subtitle: "Save this conversation into your Notes." })) return;
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("gate.saveNotes.title", "Log in to save notes"),
+        subtitle: t("gate.saveNotes.subtitle", "Save this conversation into your Notes."),
+      })
+    )
+      return;
     if (!user) return;
     if (messages.length === 0) return;
 
-    const active = threads.find((t) => t.id === activeThreadId);
-    const title = (active?.title || "Journal entry").slice(0, 80);
+    const active = threads.find((th) => th.id === activeThreadId);
+    const title = (active?.title || t("journal.titleFallback", "Journal entry")).slice(0, 80);
 
     const lines: string[] = [];
-    lines.push(`Category: ${active?.category || category}`);
-    lines.push(`Date: ${new Date().toLocaleString()}`);
+    lines.push(`${t("journal.category", "Category")}: ${active?.category || categoryLabel}`);
+    lines.push(`${t("journal.date", "Date")}: ${new Date().toLocaleString()}`);
     lines.push("");
     lines.push("—");
     lines.push("");
 
     for (const m of messages) {
-      const who = m.role === "user" ? "Me" : "Companion";
+      const who = m.role === "user" ? t("journal.me", "Me") : t("journal.companion", "Companion");
       lines.push(`${who}:`);
       lines.push(m.content);
       lines.push("");
@@ -458,17 +504,17 @@ export default function AiCompanionPage() {
           user_id: user.id,
           title,
           content,
-          category: "Journal",
+          category: t("journal.notesCategory", "Journal"),
           created_at: new Date().toISOString(),
         },
       ]);
 
       if (error) throw error;
 
-      setToast("Saved as journal entry ✅");
+      setToast(t("toast.savedJournal", "Saved as journal entry ✅"));
     } catch (e) {
       console.error(e);
-      setError("Couldn’t save journal entry. Please try again.");
+      setError(t("errors.saveJournalFailed", "Couldn’t save journal entry. Please try again."));
     } finally {
       setSavingJournal(false);
     }
@@ -477,7 +523,10 @@ export default function AiCompanionPage() {
   function openThread(thread: ThreadRow) {
     // If guest: clicking history should open auth gate
     if (!user) {
-      gate.openGate({ title: "Log in to view history", subtitle: "Your conversations are saved to your account." });
+      gate.openGate({
+        title: t("gate.viewHistory.title", "Log in to view history"),
+        subtitle: t("gate.viewHistory.subtitle", "Your conversations are saved to your account."),
+      });
       return;
     }
 
@@ -493,7 +542,7 @@ export default function AiCompanionPage() {
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
-        <p className="text-sm text-[var(--text-muted)]">Checking your session…</p>
+        <p className="text-sm text-[var(--text-muted)]">{t("checkingSession", "Checking your session…")}</p>
       </main>
     );
   }
@@ -510,8 +559,10 @@ export default function AiCompanionPage() {
         <aside className="hidden md:flex flex-col w-72 shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-elevated)]/70 min-w-0">
           <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-semibold">Conversations</p>
-              <p className="text-[10px] text-[var(--text-muted)]">A private space to reflect and revisit.</p>
+              <p className="text-xs font-semibold">{t("sidebar.title", "Conversations")}</p>
+              <p className="text-[10px] text-[var(--text-muted)]">
+                {t("sidebar.subtitle", "A private space to reflect and revisit.")}
+              </p>
             </div>
 
             <button
@@ -519,12 +570,12 @@ export default function AiCompanionPage() {
               onClick={startNewChat}
               className="text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
             >
-              + New
+              + {t("sidebar.new", "New")}
             </button>
           </div>
 
           <div className="p-3 border-b border-[var(--border-subtle)]">
-            <p className="text-[10px] text-[var(--text-muted)] mb-1">Category (for new messages)</p>
+            <p className="text-[10px] text-[var(--text-muted)] mb-1">{t("sidebar.categoryHint", "Category (for new messages)")}</p>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Category)}
@@ -532,73 +583,94 @@ export default function AiCompanionPage() {
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {c === "General"
+                    ? t("category.general", "General")
+                    : c === "Mindset"
+                    ? t("category.mindset", "Mindset")
+                    : c === "Stress"
+                    ? t("category.stress", "Stress")
+                    : c === "Relationships"
+                    ? t("category.relationships", "Relationships")
+                    : c === "Work"
+                    ? t("category.work", "Work")
+                    : t("category.reflection", "Reflection")}
                 </option>
               ))}
             </select>
 
             {!user && (
-              <p className="mt-2 text-[10px] text-[var(--text-muted)]">
-                Log in to save conversations and view history.
-              </p>
+              <p className="mt-2 text-[10px] text-[var(--text-muted)]">{t("sidebar.loginHint", "Log in to save conversations and view history.")}</p>
             )}
           </div>
 
           <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
             {loadingThreads ? (
-              <p className="p-3 text-[var(--text-muted)] text-[11px]">Loading conversations…</p>
+              <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("sidebar.loading", "Loading conversations…")}</p>
             ) : !user ? (
               <div className="p-3 text-[11px] text-[var(--text-muted)]">
-                <p className="mb-2">Your history will appear here after login.</p>
+                <p className="mb-2">{t("sidebar.guestHint", "Your history will appear here after login.")}</p>
                 <button
                   type="button"
-                  onClick={() => gate.openGate({ title: "Log in to unlock history" })}
+                  onClick={() => gate.openGate({ title: t("gate.unlockHistory.title", "Log in to unlock history") })}
                   className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
                 >
-                  Log in / Sign up
+                  {t("sidebar.loginCta", "Log in / Sign up")}
                 </button>
               </div>
             ) : threads.length === 0 ? (
               <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                No conversations yet. Start a new chat and talk it out.
+                {t("sidebar.empty", "No conversations yet. Start a new chat and talk it out.")}
               </p>
             ) : (
-              threads.map((t) => {
-                const isActive = activeThreadId === t.id;
-                const isBusy = threadActionId === t.id;
+              threads.map((th) => {
+                const isActive = activeThreadId === th.id;
+                const isBusy = threadActionId === th.id;
+
+                const categoryText =
+                  (th.category as Category) === "General"
+                    ? t("category.general", "General")
+                    : (th.category as Category) === "Mindset"
+                    ? t("category.mindset", "Mindset")
+                    : (th.category as Category) === "Stress"
+                    ? t("category.stress", "Stress")
+                    : (th.category as Category) === "Relationships"
+                    ? t("category.relationships", "Relationships")
+                    : (th.category as Category) === "Work"
+                    ? t("category.work", "Work")
+                    : (th.category as Category) === "Reflection"
+                    ? t("category.reflection", "Reflection")
+                    : t("category.general", "General");
 
                 return (
                   <div
-                    key={t.id}
+                    key={th.id}
                     className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer min-w-0 ${
                       isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
                     }`}
-                    onClick={() => openThread(t)}
+                    onClick={() => openThread(th)}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate font-medium text-[12px]">{t.title || "New reflection"}</p>
-                      <p className="text-[10px] text-[var(--text-muted)] truncate">{t.category || "General"}</p>
-                      {t.summary ? (
-                        <p className="text-[10px] text-[var(--text-muted)] truncate opacity-80">{t.summary}</p>
-                      ) : null}
+                      <p className="truncate font-medium text-[12px]">{th.title || t("thread.newReflection", "New reflection")}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] truncate">{th.category ? categoryText : t("category.general", "General")}</p>
+                      {th.summary ? <p className="text-[10px] text-[var(--text-muted)] truncate opacity-80">{th.summary}</p> : null}
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        onClick={() => handleRenameThread(t)}
+                        onClick={() => handleRenameThread(th)}
                         disabled={isBusy}
                         className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[11px]"
-                        title="Rename"
+                        title={t("thread.rename", "Rename")}
                       >
                         ✏️
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteThread(t.id)}
+                        onClick={() => handleDeleteThread(th.id)}
                         disabled={isBusy}
                         className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[11px] text-red-400"
-                        title="Delete"
+                        title={t("thread.delete", "Delete")}
                       >
                         🗑
                       </button>
@@ -614,22 +686,38 @@ export default function AiCompanionPage() {
         <section className="flex-1 flex flex-col relative min-w-0 w-full">
           <div className="px-3 sm:px-4 py-3 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
             <div className="min-w-0">
-              <h1 className="text-base md:text-lg font-semibold">AI Companion</h1>
+              <h1 className="text-base md:text-lg font-semibold">{t("title", "AI Companion")}</h1>
               <p className="text-[11px] text-[var(--text-muted)]">
-                A gentle space to reflect, feel grounded, and write it out.
+                {t("subtitle", "A gentle space to reflect, feel grounded, and write it out.")}
               </p>
               <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                Not a therapist. No diagnosis. If you’re in danger or crisis, contact local emergency services.
+                {t(
+                  "safety",
+                  "Not a therapist. No diagnosis. If you’re in danger or crisis, contact local emergency services."
+                )}
               </p>
 
               {activeThread?.title && (
                 <p className="mt-2 text-[11px] text-[var(--text-muted)] min-w-0">
                   <span className="truncate inline-block max-w-full align-bottom">
-                    Conversation: <span className="text-[var(--text-main)] font-semibold">{activeThread.title}</span>
+                    {t("conversationPrefix", "Conversation:")}{" "}
+                    <span className="text-[var(--text-main)] font-semibold">{activeThread.title}</span>
                   </span>
                   {activeThread.category ? (
                     <span className="ml-2 inline-flex items-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px]">
-                      {activeThread.category}
+                      {activeThread.category === "General"
+                        ? t("category.general", "General")
+                        : activeThread.category === "Mindset"
+                        ? t("category.mindset", "Mindset")
+                        : activeThread.category === "Stress"
+                        ? t("category.stress", "Stress")
+                        : activeThread.category === "Relationships"
+                        ? t("category.relationships", "Relationships")
+                        : activeThread.category === "Work"
+                        ? t("category.work", "Work")
+                        : activeThread.category === "Reflection"
+                        ? t("category.reflection", "Reflection")
+                        : activeThread.category}
                     </span>
                   ) : null}
                 </p>
@@ -642,7 +730,7 @@ export default function AiCompanionPage() {
                 onClick={() => setShowMobileThreads(true)}
                 className="md:hidden text-[11px] px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
               >
-                History
+                {t("buttons.history", "History")}
               </button>
 
               <button
@@ -651,7 +739,7 @@ export default function AiCompanionPage() {
                 disabled={savingJournal || messages.length === 0}
                 className="text-[11px] px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-60"
               >
-                {savingJournal ? "Saving…" : "Save as journal"}
+                {savingJournal ? t("buttons.saving", "Saving…") : t("buttons.saveAsJournal", "Save as journal")}
               </button>
 
               <button
@@ -659,7 +747,7 @@ export default function AiCompanionPage() {
                 onClick={startNewChat}
                 className="text-[11px] px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
               >
-                + New chat
+                + {t("buttons.newChat", "New chat")}
               </button>
             </div>
           </div>
@@ -675,14 +763,14 @@ export default function AiCompanionPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {STARTER_PROMPTS.map((p) => (
+                  {STARTER_PROMPTS_KEYS.map((p) => (
                     <button
-                      key={p.label}
+                      key={p.key}
                       type="button"
-                      onClick={() => handleSend(undefined, p.text)}
+                      onClick={() => handleSend(undefined, t(`starter.${p.key}.text`, p.fallbackText))}
                       className="text-[11px] px-3 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
                     >
-                      {p.label}
+                      {t(`starter.${p.key}.label`, p.fallbackLabel)}
                     </button>
                   ))}
                 </div>
@@ -690,7 +778,7 @@ export default function AiCompanionPage() {
             )}
 
             {loadingMessages && messages.length === 0 ? (
-              <p className="text-[12px] text-[var(--text-muted)]">Loading conversation…</p>
+              <p className="text-[12px] text-[var(--text-muted)]">{t("loadingConversation", "Loading conversation…")}</p>
             ) : (
               messages.map((m) => (
                 <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} min-w-0`}>
@@ -710,7 +798,7 @@ export default function AiCompanionPage() {
             {sending && (
               <div className="flex justify-start min-w-0">
                 <div className="w-fit max-w-[92%] sm:max-w-[70%] rounded-2xl px-3 py-2 text-[13px] bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
-                  Thinking…
+                  {t("thinking", "Thinking…")}
                 </div>
               </div>
             )}
@@ -719,12 +807,9 @@ export default function AiCompanionPage() {
           </div>
 
           {/* Composer */}
-          <form
-            onSubmit={(e) => handleSend(e)}
-            className="border-t border-[var(--border-subtle)] px-3 sm:px-4 py-2 flex flex-col gap-2 min-w-0"
-          >
+          <form onSubmit={(e) => handleSend(e)} className="border-t border-[var(--border-subtle)] px-3 sm:px-4 py-2 flex flex-col gap-2 min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)] min-w-0">
-              <span className="hidden md:inline">Category:</span>
+              <span className="hidden md:inline">{t("composer.category", "Category:")}</span>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as Category)}
@@ -732,30 +817,38 @@ export default function AiCompanionPage() {
               >
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
-                    {c}
+                    {c === "General"
+                      ? t("category.general", "General")
+                      : c === "Mindset"
+                      ? t("category.mindset", "Mindset")
+                      : c === "Stress"
+                      ? t("category.stress", "Stress")
+                      : c === "Relationships"
+                      ? t("category.relationships", "Relationships")
+                      : c === "Work"
+                      ? t("category.work", "Work")
+                      : t("category.reflection", "Reflection")}
                   </option>
                 ))}
               </select>
-              <span className="text-[10px] text-[var(--text-muted)]">Helps the companion adapt tone & questions.</span>
+              <span className="text-[10px] text-[var(--text-muted)]">{t("composer.hint", "Helps the companion adapt tone & questions.")}</span>
             </div>
 
             <div className="flex items-end gap-2 min-w-0">
               <div className="shrink-0">
                 {user ? (
-                  // ✅ Only render real mic button when authed (needs userId)
                   <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} variant="compact" />
                 ) : (
-                  // ✅ Guest: show same spot, but gate on click
                   <button
                     type="button"
                     onClick={() =>
                       gate.openGate({
-                        title: "Log in to use voice",
-                        subtitle: "Voice capture saves your chats to your account.",
+                        title: t("gate.loginToVoice.title", "Log in to use voice"),
+                        subtitle: t("gate.loginToVoice.subtitle", "Voice capture saves your chats to your account."),
                       })
                     }
                     className="h-10 px-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[12px]"
-                    title="Voice"
+                    title={t("composer.voice", "Voice")}
                   >
                     🎤
                   </button>
@@ -765,7 +858,7 @@ export default function AiCompanionPage() {
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type here… or use the mic."
+                placeholder={t("composer.placeholder", "Type here… or use the mic.")}
                 className="flex-1 min-w-0 w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
               />
 
@@ -774,7 +867,7 @@ export default function AiCompanionPage() {
                 disabled={sending || !input.trim()}
                 className="shrink-0 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
               >
-                Send
+                {t("buttons.send", "Send")}
               </button>
             </div>
           </form>
@@ -785,18 +878,18 @@ export default function AiCompanionPage() {
               <div className="absolute inset-0 bg-black/60" onClick={() => setShowMobileThreads(false)} />
               <div className="absolute inset-y-0 left-0 w-[90%] max-w-xs bg-[var(--bg-body)] border-r border-[var(--border-subtle)] flex flex-col">
                 <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold">Conversation history</p>
+                  <p className="text-xs font-semibold">{t("mobileHistory.title", "Conversation history")}</p>
                   <button
                     type="button"
                     onClick={() => setShowMobileThreads(false)}
                     className="text-[11px] px-2 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
                   >
-                    ✕ Close
+                    ✕ {t("mobileHistory.close", "Close")}
                   </button>
                 </div>
 
                 <div className="p-3 border-b border-[var(--border-subtle)]">
-                  <p className="text-[10px] text-[var(--text-muted)] mb-1">Category (for new messages)</p>
+                  <p className="text-[10px] text-[var(--text-muted)] mb-1">{t("sidebar.categoryHint", "Category (for new messages)")}</p>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as Category)}
@@ -804,7 +897,17 @@ export default function AiCompanionPage() {
                   >
                     {CATEGORIES.map((c) => (
                       <option key={c} value={c}>
-                        {c}
+                        {c === "General"
+                          ? t("category.general", "General")
+                          : c === "Mindset"
+                          ? t("category.mindset", "Mindset")
+                          : c === "Stress"
+                          ? t("category.stress", "Stress")
+                          : c === "Relationships"
+                          ? t("category.relationships", "Relationships")
+                          : c === "Work"
+                          ? t("category.work", "Work")
+                          : t("category.reflection", "Reflection")}
                       </option>
                     ))}
                   </select>
@@ -813,10 +916,10 @@ export default function AiCompanionPage() {
                     <div className="mt-3">
                       <button
                         type="button"
-                        onClick={() => gate.openGate({ title: "Log in to view history" })}
+                        onClick={() => gate.openGate({ title: t("gate.viewHistory.title", "Log in to view history") })}
                         className="w-full text-[11px] px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
                       >
-                        Log in / Sign up
+                        {t("sidebar.loginCta", "Log in / Sign up")}
                       </button>
                     </div>
                   )}
@@ -824,50 +927,63 @@ export default function AiCompanionPage() {
 
                 <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
                   {loadingThreads ? (
-                    <p className="p-3 text-[var(--text-muted)] text-[11px]">Loading conversations…</p>
+                    <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("sidebar.loading", "Loading conversations…")}</p>
                   ) : !user ? (
                     <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                      Your conversations will appear here after you log in.
+                      {t("mobileHistory.guestHint", "Your conversations will appear here after you log in.")}
                     </p>
                   ) : threads.length === 0 ? (
-                    <p className="p-3 text-[var(--text-muted)] text-[11px]">No conversations yet. Start a new chat.</p>
+                    <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("mobileHistory.empty", "No conversations yet. Start a new chat.")}</p>
                   ) : (
-                    threads.map((t) => {
-                      const isActive = activeThreadId === t.id;
-                      const isBusy = threadActionId === t.id;
+                    threads.map((th) => {
+                      const isActive = activeThreadId === th.id;
+                      const isBusy = threadActionId === th.id;
+
+                      const categoryText =
+                        (th.category as Category) === "General"
+                          ? t("category.general", "General")
+                          : (th.category as Category) === "Mindset"
+                          ? t("category.mindset", "Mindset")
+                          : (th.category as Category) === "Stress"
+                          ? t("category.stress", "Stress")
+                          : (th.category as Category) === "Relationships"
+                          ? t("category.relationships", "Relationships")
+                          : (th.category as Category) === "Work"
+                          ? t("category.work", "Work")
+                          : (th.category as Category) === "Reflection"
+                          ? t("category.reflection", "Reflection")
+                          : t("category.general", "General");
 
                       return (
                         <div
-                          key={t.id}
+                          key={th.id}
                           className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer ${
                             isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
                           }`}
-                          onClick={() => openThread(t)}
+                          onClick={() => openThread(th)}
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="truncate font-medium text-[12px]">{t.title || "New reflection"}</p>
-                            <p className="text-[10px] text-[var(--text-muted)] truncate">{t.category || "General"}</p>
-                            {t.summary ? (
-                              <p className="text-[10px] text-[var(--text-muted)] truncate opacity-80">{t.summary}</p>
-                            ) : null}
+                            <p className="truncate font-medium text-[12px]">{th.title || t("thread.newReflection", "New reflection")}</p>
+                            <p className="text-[10px] text-[var(--text-muted)] truncate">{th.category ? categoryText : t("category.general", "General")}</p>
+                            {th.summary ? <p className="text-[10px] text-[var(--text-muted)] truncate opacity-80">{th.summary}</p> : null}
                           </div>
 
                           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              onClick={() => handleRenameThread(t)}
+                              onClick={() => handleRenameThread(th)}
                               disabled={isBusy}
                               className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[11px]"
-                              title="Rename"
+                              title={t("thread.rename", "Rename")}
                             >
                               ✏️
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteThread(t.id)}
+                              onClick={() => handleDeleteThread(th.id)}
                               disabled={isBusy}
                               className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[11px] text-red-400"
-                              title="Delete"
+                              title={t("thread.delete", "Delete")}
                             >
                               🗑
                             </button>
@@ -887,7 +1003,7 @@ export default function AiCompanionPage() {
                     }}
                     className="w-full text-[11px] px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
                   >
-                    + New chat
+                    + {t("buttons.newChat", "New chat")}
                   </button>
                 </div>
               </div>
