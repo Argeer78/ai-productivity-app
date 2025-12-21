@@ -40,10 +40,11 @@ type TaskRow = {
   time_from: string | null;
   time_to: string | null;
 
+  // legacy one-time reminder
   reminder_enabled: boolean | null;
   reminder_at: string | null; // ISO
 
-  // ✅ NEW repeat fields
+  // repeat reminder fields
   reminder_repeat: RepeatType | null; // none/daily/weekly/monthly
   reminder_time: string | null; // "HH:MM:SS" (local wall time)
   reminder_weekdays: number[] | null; // for weekly: 0..6
@@ -99,7 +100,6 @@ function fromLocalInputToIso(local: string): string | null {
  */
 function toLocalTimeInput(dbTime: string | null): string {
   if (!dbTime) return "";
-  // "HH:MM:SS" -> "HH:MM"
   return dbTime.slice(0, 5);
 }
 function fromLocalTimeInputToDb(localHHMM: string): string | null {
@@ -344,7 +344,6 @@ function resolveNaturalDue(label: string): string | null {
 }
 
 const TIME_OPTIONS = Array.from({ length: 24 }, (_, h) => `${pad(h)}:00`);
-
 const TASK_CATEGORIES = ["Work", "Personal", "Health", "Study", "Errands", "Home", "Travel", "Other"] as const;
 
 const taskCategoryStyles: Record<string, string> = {
@@ -491,11 +490,11 @@ export default function TasksPage() {
   const [newTimeFrom, setNewTimeFrom] = useState<string>("");
   const [newTimeTo, setNewTimeTo] = useState<string>("");
 
-  // reminder fields for new task (legacy one-time)
+  // legacy one-time reminder for new task
   const [newReminderEnabled, setNewReminderEnabled] = useState(false);
   const [newReminderAtLocal, setNewReminderAtLocal] = useState<string>("");
 
-  // ✅ NEW repeat reminder fields for new task
+  // repeat reminder fields for new task
   const [newReminderRepeat, setNewReminderRepeat] = useState<RepeatType>("none");
   const [newReminderTimeLocal, setNewReminderTimeLocal] = useState<string>("09:00");
   const [newReminderWeekdays, setNewReminderWeekdays] = useState<number[]>([]);
@@ -522,7 +521,7 @@ export default function TasksPage() {
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
   const shareMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // bulk selection
+  // bulk selection + bulk actions
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -531,6 +530,17 @@ export default function TasksPage() {
 
   const todayYmd = new Date().toISOString().slice(0, 10);
   const categoryLabel = (cat: string) => t(`category.${cat}`, cat);
+
+  // ✅ IMPORTANT: keep selection clean when filters/data changes
+  useEffect(() => {
+    const idSet = new Set(tasks.map((x) => x.id));
+    setSelectedTaskIds((prev) => prev.filter((id) => idSet.has(id)));
+  }, [tasks]);
+
+  function toggleSelected(taskId: string) {
+    if (!requireAuth()) return;
+    setSelectedTaskIds((prev) => (prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]));
+  }
 
   function handleVoiceResult(payload: { rawText: string | null; structured: VoiceStructured | null }) {
     if (!requireAuth()) return;
@@ -680,11 +690,12 @@ export default function TasksPage() {
         reminderAtIso = fromLocalInputToIso(newReminderAtLocal);
       }
 
-      // ✅ NEW repeat reminder fields
+      // repeat reminder fields
       const repeat = newReminderRepeat;
       const repeatEnabled = repeat !== "none";
       const reminder_time = repeatEnabled ? fromLocalTimeInputToDb(newReminderTimeLocal) : null;
-      const reminder_weekdays = repeat === "weekly" ? (newReminderWeekdays.length ? newReminderWeekdays : [new Date().getDay()]) : null;
+      const reminder_weekdays =
+        repeat === "weekly" ? (newReminderWeekdays.length ? newReminderWeekdays : [new Date().getDay()]) : null;
       const reminder_month_day = repeat === "monthly" ? newReminderMonthDay : null;
 
       const { data, error } = await supabase
@@ -705,7 +716,7 @@ export default function TasksPage() {
             reminder_enabled: !!reminderAtIso,
             reminder_at: reminderAtIso,
 
-            // new repeat
+            // repeat
             reminder_repeat: repeat,
             reminder_time,
             reminder_weekdays,
@@ -793,12 +804,11 @@ export default function TasksPage() {
         time_from: null,
         time_to: null,
         due_date: tt.dueIso,
+
         reminder_enabled: !!tt.dueIso,
         reminder_at: tt.dueIso,
-        reminder_sent_at: null,
 
-        // ✅ repeat defaults
-        reminder_repeat: "none",
+        reminder_repeat: "none" as RepeatType,
         reminder_time: null,
         reminder_weekdays: null,
         reminder_month_day: null,
@@ -908,73 +918,61 @@ export default function TasksPage() {
   }
 
   async function handleBulkDelete(mode: "selected" | "today") {
-  if (!requireAuth()) return;
+    if (!requireAuth()) return;
 
-  let idsToDelete: string[] = [];
+    let idsToDelete: string[] = [];
 
-  if (mode === "selected") {
-    idsToDelete = [...selectedTaskIds];
-  } else {
-    const todayList = tasks.filter((tRow) => {
-      const created = tRow.created_at?.slice(0, 10) === todayYmd;
-      const due = tRow.due_date && tRow.due_date.slice(0, 10) === todayYmd;
-      return created || due;
-    });
-    idsToDelete = todayList.map((x) => x.id);
-  }
+    if (mode === "selected") {
+      idsToDelete = [...selectedTaskIds];
+    } else {
+      const todayList = tasks.filter((tRow) => {
+        const created = tRow.created_at?.slice(0, 10) === todayYmd;
+        const due = tRow.due_date && tRow.due_date.slice(0, 10) === todayYmd;
+        return created || due;
+      });
+      idsToDelete = todayList.map((x) => x.id);
+    }
 
-  // Never allow demo deletes (visitor mode)
-  if (!user) {
-    setAuthModalOpen(true);
-    return;
-  }
+    idsToDelete = idsToDelete.filter((id) => !id.startsWith("demo-"));
 
-  // Filter out demo tasks just in case
-  idsToDelete = idsToDelete.filter((id) => !id.startsWith("demo-"));
-
-  if (idsToDelete.length === 0) {
-    alert(
-      mode === "selected"
-        ? t("bulkDelete.noneSelected", "No tasks selected to delete.")
-        : t("bulkDelete.noneToday", "No tasks for today to delete.")
-    );
-    return;
-  }
-
-  const confirmText =
-    mode === "selected"
-      ? t("bulkDelete.confirmSelected", "Delete selected tasks? ({N})").replace("{N}", String(idsToDelete.length))
-      : t("bulkDelete.confirmToday", "Delete today’s tasks? ({N})").replace("{N}", String(idsToDelete.length));
-
-  if (!window.confirm(confirmText)) return;
-
-  setBulkDeleting(true);
-  setError("");
-
-  try {
-    const { error } = await supabase
-      .from("tasks")
-      .delete()
-      .eq("user_id", user.id)
-      .in("id", idsToDelete);
-
-    if (error) {
-      console.error("[tasks] bulk delete error", error);
-      setError(t("deleteError", "Could not delete task."));
+    if (idsToDelete.length === 0) {
+      alert(
+        mode === "selected"
+          ? t("bulkDelete.noneSelected", "No tasks selected to delete.")
+          : t("bulkDelete.noneToday", "No tasks for today to delete.")
+      );
       return;
     }
 
-    // Update local UI
-    setTasks((prev) => prev.filter((tRow) => !idsToDelete.includes(tRow.id)));
-    setSelectedTaskIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
-    setOpenTaskIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
-  } catch (err) {
-    console.error("[tasks] bulk delete exception", err);
-    setError(t("deleteError", "Could not delete task."));
-  } finally {
-    setBulkDeleting(false);
+    const confirmText =
+      mode === "selected"
+        ? t("bulkDelete.confirmSelected", "Delete selected tasks? ({N})").replace("{N}", String(idsToDelete.length))
+        : t("bulkDelete.confirmToday", "Delete today’s tasks? ({N})").replace("{N}", String(idsToDelete.length));
+
+    if (!window.confirm(confirmText)) return;
+
+    setBulkDeleting(true);
+    setError("");
+
+    try {
+      const { error } = await supabase.from("tasks").delete().eq("user_id", user.id).in("id", idsToDelete);
+
+      if (error) {
+        console.error("[tasks] bulk delete error", error);
+        setError(t("deleteError", "Could not delete task."));
+        return;
+      }
+
+      setTasks((prev) => prev.filter((tRow) => !idsToDelete.includes(tRow.id)));
+      setSelectedTaskIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+      setOpenTaskIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+    } catch (err) {
+      console.error("[tasks] bulk delete exception", err);
+      setError(t("deleteError", "Could not delete task."));
+    } finally {
+      setBulkDeleting(false);
+    }
   }
-}
 
   async function handleDeleteTask(task: TaskRow) {
     if (!requireAuth()) return;
@@ -1086,8 +1084,33 @@ export default function TasksPage() {
         : `${t("share.selectedHeader", "Selected tasks")} (${list.length})`;
 
     const text = [header, "", ...list.map((x, i) => `${i + 1}. ${x.title || "(untitled task)"}`)].join("\n");
-
     navigator.clipboard?.writeText?.(text).then(() => alert(t("share.copied", "Copied to clipboard.")));
+  }
+
+  // ✅ Filtered tasks is memoized (less re-renders, safer for bulk helpers)
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const done = !!task.completed;
+      const passesView = viewMode === "active" ? !done : viewMode === "completed" ? done : true;
+      const passesCategory = categoryFilter === "all" ? true : (task.category || "") === categoryFilter;
+      return passesView && passesCategory;
+    });
+  }, [tasks, viewMode, categoryFilter]);
+
+  // ✅ Bulk helpers (no hooks here => no “Rendered more hooks…”)
+  const viewIdSet = useMemo(() => new Set(filteredTasks.map((tRow) => tRow.id)), [filteredTasks]);
+  const selectedInViewCount = useMemo(() => selectedTaskIds.filter((id) => viewIdSet.has(id)).length, [selectedTaskIds, viewIdSet]);
+  const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === filteredTasks.length;
+
+  function selectAllInView() {
+    if (!requireAuth()) return;
+    const ids = filteredTasks.map((tRow) => tRow.id).filter((id) => !id.startsWith("demo-"));
+    setSelectedTaskIds(ids);
+  }
+
+  function clearSelection() {
+    if (!requireAuth()) return;
+    setSelectedTaskIds([]);
   }
 
   if (checkingUser) {
@@ -1097,34 +1120,6 @@ export default function TasksPage() {
       </main>
     );
   }
-
-  const filteredTasks = tasks.filter((task) => {
-    const done = !!task.completed;
-    const passesView = viewMode === "active" ? !done : viewMode === "completed" ? done : true;
-    const passesCategory = categoryFilter === "all" ? true : (task.category || "") === categoryFilter;
-    return passesView && passesCategory;
-  });
-
-// ✅ Bulk selection helpers MUST be after filteredTasks exists
-function selectAllInView() {
-  if (!requireAuth()) return;
-
-  const ids = filteredTasks
-    .map((tRow) => tRow.id)
-    .filter((id) => !id.startsWith("demo-"));
-
-  setSelectedTaskIds(ids);
-}
-
-function clearSelection() {
-  if (!requireAuth()) return;
-  setSelectedTaskIds([]);
-}
-
-const viewIdSet = new Set(filteredTasks.map((tRow) => tRow.id));
-const selectedInViewCount = selectedTaskIds.filter((id) => viewIdSet.has(id)).length;
-
-const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === filteredTasks.length;
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
@@ -1187,7 +1182,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
               </Link>
             </div>
 
-            {/* 🎤 Voice capture */}
+            {/* Voice capture */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 {user ? (
@@ -1204,13 +1199,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                     type="button"
                     onClick={() => setAuthModalOpen(true)}
                     aria-label={t("voice.loginToUse", "Log in to use voice")}
-                    className="
-                      h-10 w-10 rounded-full
-                      flex items-center justify-center
-                      bg-[var(--accent)]
-                      text-[var(--bg-body)]
-                      hover:opacity-90
-                    "
+                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
                   >
                     🎤
                   </button>
@@ -1225,13 +1214,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                       setVoiceTasksMessage("");
                       setVoiceResetKey((k) => k + 1);
                     }}
-                    className="
-                      px-3 py-1.5 rounded-full
-                      border border-[var(--border-subtle)]
-                      bg-[var(--bg-elevated)]
-                      text-[11px]
-                      hover:bg-[var(--bg-card)]
-                    "
+                    className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px] hover:bg-[var(--bg-card)]"
                   >
                     {t("voice.clear", "Clear voice")}
                   </button>
@@ -1336,7 +1319,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                 </select>
               </div>
 
-              {/* ✅ Existing one-time reminder */}
+              {/* One-time reminder */}
               <div className="flex flex-col gap-1 text-xs text-[var(--text-main)]">
                 <label
                   className="flex items-center gap-2"
@@ -1370,7 +1353,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                 )}
               </div>
 
-              {/* ✅ NEW repeat reminders */}
+              {/* Repeat reminder */}
               <div className="flex flex-col gap-1 text-xs text-[var(--text-main)]">
                 <span className="text-[11px] text-[var(--text-muted)]">{t("repeat.label", "Repeat reminder")}</span>
 
@@ -1382,13 +1365,9 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                       if (!requireAuth()) return;
                       const v = e.target.value as RepeatType;
                       setNewReminderRepeat(v);
-                      if (v === "none") {
-                        setNewReminderWeekdays([]);
-                      } else if (v === "weekly" && newReminderWeekdays.length === 0) {
-                        setNewReminderWeekdays([new Date().getDay()]);
-                      } else if (v === "monthly" && (!newReminderMonthDay || newReminderMonthDay < 1)) {
-                        setNewReminderMonthDay(1);
-                      }
+                      if (v === "none") setNewReminderWeekdays([]);
+                      if (v === "weekly" && newReminderWeekdays.length === 0) setNewReminderWeekdays([new Date().getDay()]);
+                      if (v === "monthly" && (!newReminderMonthDay || newReminderMonthDay < 1)) setNewReminderMonthDay(1);
                     }}
                     className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                   >
@@ -1461,10 +1440,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                 )}
 
                 <p className="text-[10px] text-[var(--text-muted)]">
-                  {t(
-                    "repeat.note",
-                    "Repeat reminders are stored on the task. Delivery (push/email) is handled by your reminder worker."
-                  )}
+                  {t("repeat.note", "Tip: use repeat for habits. One-time reminders are best for deadlines.")}
                 </p>
               </div>
 
@@ -1505,7 +1481,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
             </div>
           )}
 
-          {/* Filters */}
+          {/* Filters + bulk actions */}
           <div className="flex flex-wrap items-center gap-2 mb-4 text-[11px]">
             <div className="flex rounded-xl border border-[var(--border-subtle)] overflow-hidden">
               {(["active", "completed", "all"] as const).map((mode) => (
@@ -1538,47 +1514,52 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                 </option>
               ))}
             </select>
-            <button
-  type="button"
-  onClick={selectAllInView}
-  disabled={!user || filteredTasks.length === 0 || allInViewSelected}
-  className="ml-auto px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-50 text-[11px]"
->
-  {t("bulkSelect.selectAll", "Select all")}
-</button>
 
-<button
-  type="button"
-  onClick={clearSelection}
-  disabled={!user || selectedTaskIds.length === 0}
-  className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-50 text-[11px]"
->
-  {t("bulkSelect.clear", "Clear")}
-</button>
+            <button
+              type="button"
+              onClick={selectAllInView}
+              disabled={!user || filteredTasks.length === 0 || allInViewSelected}
+              className="ml-auto px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-50 text-[11px]"
+              title={t("bulkSelect.selectAllTitle", "Select all tasks currently in view")}
+            >
+              {t("bulkSelect.selectAll", "Select all")}
+            </button>
+
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={!user || selectedTaskIds.length === 0}
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-50 text-[11px]"
+              title={t("bulkSelect.clearTitle", "Clear selection")}
+            >
+              {t("bulkSelect.clear", "Clear")}
+            </button>
+
             <button
               type="button"
               onClick={() => handleBulkCopy("today")}
-              className="ml-auto px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px]"
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px]"
             >
               {t("share.copyToday", "Copy today's")}
             </button>
+
             <button
               type="button"
               onClick={() => handleBulkCopy("selected")}
-              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px]"
+              disabled={!user || selectedTaskIds.length === 0}
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-50 text-[11px]"
             >
               {t("share.copySelected", "Copy selected")}
             </button>
+
             <button
-  type="button"
-  onClick={() => handleBulkDelete("selected")}
-  disabled={bulkDeleting || selectedTaskIds.length === 0}
-  className="px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/15 disabled:opacity-50 text-[11px] text-red-300"
->
-  {bulkDeleting
-    ? t("bulkDelete.deleting", "Deleting…")
-    : t("bulkDelete.deleteSelected", "Delete selected")}
-</button>
+              type="button"
+              onClick={() => handleBulkDelete("selected")}
+              disabled={!user || bulkDeleting || selectedTaskIds.length === 0}
+              className="px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/15 disabled:opacity-50 text-[11px] text-red-300"
+            >
+              {bulkDeleting ? t("bulkDelete.deleting", "Deleting…") : t("bulkDelete.deleteSelected", "Delete selected")}
+            </button>
           </div>
 
           {/* Tasks list */}
@@ -1603,7 +1584,9 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                 const isSelected = selectedTaskIds.includes(task.id);
                 const isOpen = openTaskIds.includes(task.id);
                 const toggleOpen = () => {
-                  setOpenTaskIds((prev) => (prev.includes(task.id) ? prev.filter((id) => id !== task.id) : [...prev, task.id]));
+                  setOpenTaskIds((prev) =>
+                    prev.includes(task.id) ? prev.filter((id) => id !== task.id) : [...prev, task.id]
+                  );
                 };
 
                 const reminderLocal = toLocalDateTimeInput(task.reminder_at);
@@ -1639,14 +1622,13 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
 
                     setTasks((prev) => prev.map((tRow) => (tRow.id === task.id ? ((data as TaskRow) || tRow) : tRow)));
                   } catch (err) {
-                    console.error("[tasks] reminder update exception]", err);
+                    console.error("[tasks] reminder update exception", err);
                     setError(t("reminderUpdateError", "Could not update reminder."));
                   } finally {
                     setSavingTaskId(null);
                   }
                 }
 
-                // ✅ NEW: repeat reminder handler (stored on task)
                 async function handleRepeatPatch(patch: Partial<TaskRow>) {
                   if (!requireAuth()) return;
 
@@ -1688,7 +1670,6 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
 
                 const repeat: RepeatType = (task.reminder_repeat || "none") as RepeatType;
                 const repeatTimeLocal = toLocalTimeInput(task.reminder_time);
-
                 const selectedWeekdays = Array.isArray(task.reminder_weekdays) ? task.reminder_weekdays : [];
                 const monthDay = task.reminder_month_day ?? 1;
 
@@ -1834,7 +1815,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                               </select>
                             </div>
 
-                            {/* Existing one-time reminder */}
+                            {/* One-time reminder */}
                             <div className="flex items-center gap-2 flex-wrap">
                               <span>{t("item.reminderLabel", "Reminder:")}</span>
                               <label
@@ -1859,7 +1840,7 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                               />
                             </div>
 
-                            {/* ✅ NEW repeat reminder UI */}
+                            {/* Repeat reminder */}
                             <div className="flex items-center gap-2 flex-wrap">
                               <span>{t("repeat.label", "Repeat:")}</span>
                               <select
@@ -1879,7 +1860,6 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                                     return;
                                   }
 
-                                  // set sensible defaults
                                   if (v === "daily") {
                                     handleRepeatPatch({
                                       reminder_repeat: "daily",
@@ -1896,7 +1876,6 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                                       reminder_month_day: null,
                                     });
                                   } else {
-                                    // monthly
                                     handleRepeatPatch({
                                       reminder_repeat: "monthly",
                                       reminder_time: task.reminder_time ?? fromLocalTimeInputToDb("09:00"),
@@ -1939,13 +1918,8 @@ const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === fi
                                       type="button"
                                       onClick={() => {
                                         if (!requireAuth()) return;
-                                        const next = active
-                                          ? selectedWeekdays.filter((x) => x !== d.v)
-                                          : [...selectedWeekdays, d.v];
-
-                                        // do not allow empty
-                                        const finalNext = next.length ? next : selectedWeekdays;
-
+                                        const next = active ? selectedWeekdays.filter((x) => x !== d.v) : [...selectedWeekdays, d.v];
+                                        const finalNext = next.length ? next : selectedWeekdays; // don't allow empty
                                         handleRepeatPatch({ reminder_weekdays: finalNext });
                                       }}
                                       className={`px-2 py-1 rounded-lg border text-[10px] ${
