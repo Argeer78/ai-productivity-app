@@ -1193,6 +1193,7 @@ export default function TasksPage() {
                     onResult={handleVoiceResult}
                     variant="icon"
                     size="md"
+                    interaction="toggle"
                   />
                 ) : (
                   <button

@@ -1052,6 +1052,7 @@ export default function NotesPage() {
       onResult={handleVoiceResult}
       variant="icon"              // ✅ NEW
       size="md"
+      interaction="toggle"
     />
   ) : (
     <button

@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/useT";
 import { useLanguage } from "@/app/components/LanguageProvider";
+
+/* ================= TYPES ================= */
 
 type StructuredResult = {
   note?: string;
@@ -21,7 +23,7 @@ type StructuredResult = {
   };
   summary?: string;
 
-  // optional fields (harmless if backend doesn't send them)
+  // optional fields
   reflection?: string | null;
   note_title?: string | null;
 };
@@ -35,27 +37,24 @@ type Props = {
     structured: StructuredResult | null;
   }) => void;
 
-  /**
-   * Variants:
-   * - "default": full card UI (original)
-   * - "compact": small mic button + tiny status (used in composers)
-   * - "icon": alias of compact (for pages that pass variant="icon")
-   */
   variant?: "default" | "compact" | "icon";
-
-  /**
-   * Optional sizing for compact/icon button
-   */
   size?: "sm" | "md";
 
   /**
-   * Optional className for wrapper
+   * "hold": press-and-hold
+   * "toggle": click once to record, click again to stop (tasks/notes)
    */
+  interaction?: "hold" | "toggle";
+
   className?: string;
 };
 
-// Safety: auto-stop after N seconds (prevents stuck recording)
 const MAX_RECORDING_MS = 90_000;
+
+// Emit chunks periodically to avoid "no data" issues on some browsers
+const TIMESLICE_MS = 1000;
+
+/* ================= COMPONENT ================= */
 
 export default function VoiceCaptureButton({
   userId,
@@ -64,57 +63,65 @@ export default function VoiceCaptureButton({
   onResult,
   variant = "default",
   size = "md",
+  interaction,
   className,
 }: Props) {
   const { t: rawT } = useT("");
-  const t = (key: string, fallback: string) => rawT(key, fallback);
+  const t = (k: string, f: string) => rawT(k, f);
 
-  const { lang: appLang } = useLanguage();
-  const intlLocale = appLang || "en";
+  const { lang } = useLanguage();
+  const intlLocale = lang || "en";
 
-  function formatDateTime(input: string | number | Date) {
-    try {
-      const d = input instanceof Date ? input : new Date(input);
-      if (Number.isNaN(d.getTime())) return "";
-      return new Intl.DateTimeFormat(intlLocale, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(d);
-    } catch {
-      return "";
-    }
-  }
+  /* ================= STATE ================= */
 
   const [recording, setRecording] = useState(false);
+  const recordingRef = useRef(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // (not shown in icon UI, but used by parent via onResult)
   const [rawText, setRawText] = useState<string | null>(null);
   const [structured, setStructured] = useState<StructuredResult | null>(null);
   const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
-  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
 
-  // 🔊 device selection
-  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
-  const [devicesLoaded, setDevicesLoaded] = useState(false);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | "auto">(
-    "auto"
-  );
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const audioPreviewUrlRef = useRef<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
-  const mimeTypeRef = useRef<string>("");
   const stopTimerRef = useRef<number | null>(null);
-  const audioPreviewUrlRef = useRef<string | null>(null); // avoid stale closures
-  const onResultRef = useRef<Props["onResult"]>(onResult);
+  const mimeTypeRef = useRef<string>("");
 
+  const onResultRef = useRef(onResult);
   useEffect(() => {
     onResultRef.current = onResult;
   }, [onResult]);
 
-  // Keep ref synced
+  // Keep preview ref synced + cleanup old URL
   useEffect(() => {
+    if (audioPreviewUrlRef.current && audioPreviewUrlRef.current !== audioPreviewUrl) {
+      try {
+        URL.revokeObjectURL(audioPreviewUrlRef.current);
+      } catch {}
+    }
     audioPreviewUrlRef.current = audioPreviewUrl;
   }, [audioPreviewUrl]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
+      } catch {}
+      try {
+        mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
+      } catch {}
+      try {
+        if (audioPreviewUrlRef.current) URL.revokeObjectURL(audioPreviewUrlRef.current);
+      } catch {}
+    };
+  }, []);
 
   function clearStopTimer() {
     if (stopTimerRef.current) {
@@ -125,644 +132,301 @@ export default function VoiceCaptureButton({
 
   function softHaptic(ms = 12) {
     try {
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-        (navigator as any).vibrate(ms);
-      }
-    } catch {
-      // ignore
-    }
+      (navigator as any).vibrate?.(ms);
+    } catch {}
   }
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      clearStopTimer();
-      if (mediaRecorderRef.current) {
-        try {
-          mediaRecorderRef.current.stream
-            .getTracks()
-            .forEach((trk) => trk.stop());
-        } catch {}
-      }
-      if (audioPreviewUrlRef.current) {
-        try {
-          URL.revokeObjectURL(audioPreviewUrlRef.current);
-        } catch {}
-      }
-    };
-  }, []);
-
-  // Reset when parent changes resetKey (e.g. after note save)
-  useEffect(() => {
-    if (resetKey === undefined) return;
-
-    setRawText(null);
-    setStructured(null);
-    setSavedNoteId(null);
-    setError(null);
-
-    if (audioPreviewUrlRef.current) {
-      try {
-        URL.revokeObjectURL(audioPreviewUrlRef.current);
-      } catch {}
-      audioPreviewUrlRef.current = null;
-      setAudioPreviewUrl(null);
-    }
-  }, [resetKey]);
-
-  function getSupportError(): string | null {
-    if (typeof window === "undefined") {
-      return t("notes.voice.errors.notBrowser", "Not in a browser environment.");
-    }
-
-    if (!("mediaDevices" in navigator) || !navigator.mediaDevices.getUserMedia) {
-      return t(
-        "notes.voice.errors.noGetUserMedia",
-        "Your browser does not support microphone recording. Try updating your browser."
-      );
-    }
-
-    const hasMediaRecorder = typeof (window as any).MediaRecorder !== "undefined";
-    if (!hasMediaRecorder) {
-      return t(
-        "notes.voice.errors.noMediaRecorder",
-        "This browser does not support audio recording. On mobile, try the latest Chrome or Safari."
-      );
-    }
-
-    return null;
-  }
-
-  function chooseMimeType(): string | "" {
+  function chooseMimeType(): string {
     if (typeof window === "undefined") return "";
-
     const MR = (window as any).MediaRecorder;
-    if (!MR || typeof MR.isTypeSupported !== "function") return "";
-
+    if (!MR?.isTypeSupported) return "";
     if (MR.isTypeSupported("audio/webm")) return "audio/webm";
     if (MR.isTypeSupported("audio/mp4")) return "audio/mp4";
     return "";
   }
 
-  function getClientTimeZone(): string {
+  function getTimeZone() {
     try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Athens";
+      return Intl.DateTimeFormat(intlLocale).resolvedOptions().timeZone || "Europe/Athens";
     } catch {
       return "Europe/Athens";
     }
   }
 
-  // 🔍 Load available audio inputs after permission is granted
-  async function loadAudioInputs() {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
-
-    try {
-      const tmpStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioIns = devices.filter((d) => d.kind === "audioinput");
-
-      setAudioInputs(audioIns);
-      setDevicesLoaded(true);
-
-      tmpStream.getTracks().forEach((trk) => trk.stop());
-
-      if (selectedDeviceId === "auto" && audioIns.length > 0) {
-        const preferred =
-          audioIns.find((d) => /built-in|microphone|mic|phone/i.test(d.label)) ||
-          audioIns[0];
-        setSelectedDeviceId(preferred.deviceId);
-      }
-    } catch (err) {
-      console.error("[VoiceCapture] loadAudioInputs error:", err);
-    }
-  }
-
-  // Preload device list once (nice UX)
-  useEffect(() => {
-    if (getSupportError() !== null) return;
-    loadAudioInputs().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function stopRecordingSafe() {
-    clearStopTimer();
-
-    if (!mediaRecorderRef.current) return;
-
-    try {
-      if ((mediaRecorderRef.current as any).state === "recording") {
-        mediaRecorderRef.current.stop();
-      }
-      mediaRecorderRef.current.stream.getTracks().forEach((trk) => trk.stop());
-    } catch (err) {
-      console.warn("[VoiceCapture] stopRecordingSafe error", err);
-    } finally {
-      softHaptic(8);
-      setRecording(false);
-    }
-  }
-
-  // Stop if tab goes hidden
-  useEffect(() => {
-    function onVis() {
-      if (document.visibilityState === "hidden" && recording) stopRecordingSafe();
-    }
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording]);
-
-  // ESC to stop (desktop)
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && recording) stopRecordingSafe();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording]);
+  /* ================= RECORDING ================= */
 
   async function startRecording() {
+    if (recordingRef.current || loading) return;
+
     setError(null);
     setRawText(null);
     setStructured(null);
     setSavedNoteId(null);
 
-    const supportError = getSupportError();
-    if (supportError) {
-      setError(supportError);
-      console.warn(
-        "[VoiceCapture] Support error:",
-        supportError,
-        typeof navigator !== "undefined" ? navigator.userAgent : ""
-      );
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setError(t("notes.voice.errors.noGetUserMedia", "Your browser does not support microphone recording."));
+      return;
+    }
+    if (typeof (window as any).MediaRecorder === "undefined") {
+      setError(t("notes.voice.errors.noMediaRecorder", "This browser does not support audio recording."));
       return;
     }
 
-    if (!devicesLoaded) {
-      await loadAudioInputs();
-    }
-
     try {
-      const audioConstraints: MediaTrackConstraints = {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        channelCount: 1,
-      };
-
-      if (selectedDeviceId && selectedDeviceId !== "auto") {
-        (audioConstraints as any).deviceId = selectedDeviceId;
-      }
-
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        } as MediaTrackConstraints,
       });
 
       const mimeType = chooseMimeType();
-      mimeTypeRef.current = mimeType;
+      mimeTypeRef.current = mimeType || "audio/webm";
 
-      const MR = (window as any).MediaRecorder as typeof MediaRecorder | undefined;
-      if (!MR) {
-        setError(
-          t(
-            "notes.voice.errors.noMediaRecorder",
-            "MediaRecorder is not available in this browser. Try the latest Chrome or Safari."
-          )
-        );
-        return;
-      }
-
-      const recorder =
-        mimeType && MR ? new MR(stream, { mimeType }) : new MR(stream);
+      const MR = (window as any).MediaRecorder as typeof MediaRecorder;
+      const recorder = mimeType ? new MR(stream, { mimeType }) : new MR(stream);
 
       chunksRef.current = [];
 
-      recorder.ondataavailable = (event: BlobEvent) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
+      recorder.ondataavailable = (e: BlobEvent) => {
+        if (e.data?.size) chunksRef.current.push(e.data);
       };
 
       recorder.onstop = async () => {
         clearStopTimer();
+        setRecording(false);
+        recordingRef.current = false;
 
-        const type = mimeTypeRef.current || "audio/webm";
-        const blob = new Blob(chunksRef.current, { type });
+        const finalType = mimeTypeRef.current || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: finalType });
 
-        if (audioPreviewUrlRef.current) {
-          try {
-            URL.revokeObjectURL(audioPreviewUrlRef.current);
-          } catch {}
-        }
-        const previewUrl = URL.createObjectURL(blob);
-        audioPreviewUrlRef.current = previewUrl;
-        setAudioPreviewUrl(previewUrl);
+        // stop tracks
+        try {
+          recorder.stream.getTracks().forEach((t) => t.stop());
+        } catch {}
 
         if (blob.size < 2000) {
-          setError(
-            t(
-              "notes.voice.errors.tooShort",
-              "We barely captured any audio. Try speaking closer to the mic, or pick a different microphone source."
-            )
-          );
-          setLoading(false);
+          setError(t("notes.voice.errors.tooShort", "We barely captured any audio. Try again."));
           return;
         }
 
+        // preview (optional)
+        try {
+          const url = URL.createObjectURL(blob);
+          setAudioPreviewUrl(url);
+        } catch {}
+
         setLoading(true);
-        setSavedNoteId(null);
 
         try {
-          const formData = new FormData();
-          const ext = type.includes("mp4") ? "mp4" : "webm";
+          const fd = new FormData();
 
-          formData.append("file", blob, `voice-note.${ext}`);
-          formData.append("userId", userId);
-          formData.append("mode", mode);
-          formData.append("tz", getClientTimeZone());
+          // ✅ IMPORTANT: filename + extension
+          const ext = finalType.includes("mp4") ? "mp4" : "webm";
+          fd.append("file", blob, `voice-note.${ext}`);
 
-          const res = await fetch("/api/voice/capture", {
-            method: "POST",
-            body: formData,
-          });
-          const json = await res.json();
+          fd.append("userId", userId);
+          fd.append("mode", mode);
+          fd.append("tz", getTimeZone());
 
-          if (!res.ok || !json.ok) {
-            console.error("[VoiceCapture] server error:", json);
-            setError(
-              json.error ||
-                t(
-                  "notes.voice.errors.server",
-                  "Server error while processing audio."
-                )
-            );
-          } else {
-            const rt = json.rawText || null;
-            const st = (json.structured || null) as StructuredResult | null;
+          const res = await fetch("/api/voice/capture", { method: "POST", body: fd });
 
-            setRawText(rt);
-            setStructured(st);
-
-            if (json.noteId) setSavedNoteId(json.noteId as string);
-
-            onResultRef.current?.({ rawText: rt, structured: st });
+          let json: any = null;
+          try {
+            json = await res.json();
+          } catch {
+            json = null;
           }
-        } catch (err) {
-          console.error("[VoiceCapture] fetch error:", err);
-          setError(
-            t("notes.voice.errors.sendFailed", "Failed to send audio to server.")
-          );
+
+          if (!res.ok || !json?.ok) {
+            setError(json?.error || "Server error");
+            return;
+          }
+
+          const rt = json.rawText || null;
+          const st = (json.structured || null) as StructuredResult | null;
+
+          // ✅ If server returned "ok" but no payload, show an error so it doesn't look like "nothing happened"
+          if (!rt && !st) {
+            setError(t("notes.voice.errors.emptyResult", "No transcript returned. Try again."));
+            return;
+          }
+
+          setRawText(rt);
+          setStructured(st);
+          setSavedNoteId(json.noteId || null);
+
+          onResultRef.current?.({ rawText: rt, structured: st });
+        } catch (e: any) {
+          setError(e?.message || "Failed to send audio.");
         } finally {
           setLoading(false);
         }
       };
 
-      recorder.start();
+      // ✅ Start with timeslice to ensure chunks are emitted reliably
+      recorder.start(TIMESLICE_MS);
+
       mediaRecorderRef.current = recorder;
-
-      // Start safety timer
-      clearStopTimer();
-      stopTimerRef.current = window.setTimeout(() => {
-        if (recording) stopRecordingSafe();
-      }, MAX_RECORDING_MS);
-
-      softHaptic(12);
+      recordingRef.current = true;
       setRecording(true);
-    } catch (err: any) {
-      console.error("[VoiceCapture] getUserMedia error:", err);
+      softHaptic();
 
+      clearStopTimer();
+      stopTimerRef.current = window.setTimeout(() => stopRecording(), MAX_RECORDING_MS);
+    } catch (err: any) {
       const name = err?.name || "UnknownError";
 
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-        setError(
-          t(
-            "notes.voice.errors.permissionBlocked",
-            "Microphone permission was blocked. Please enable it in your browser/site settings."
-          )
-        );
+        setError(t("notes.voice.errors.permissionBlocked", "Microphone permission was blocked. Enable it in site settings."));
       } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
         setError(t("notes.voice.errors.noMicFound", "No microphone was found on this device."));
       } else if (name === "NotReadableError") {
         setError(t("notes.voice.errors.micInUse", "Your microphone is already in use by another app."));
       } else {
-        setError(
-          t(
-            "notes.voice.errors.couldNotAccess",
-            `Could not access microphone (${name}). Check permissions and try again.`
-          )
-        );
+        setError(t("notes.voice.errors.couldNotAccess", "Microphone access failed."));
       }
     }
   }
 
-  const showMicSelector = audioInputs.length > 1;
+  function stopRecording() {
+    if (!recordingRef.current) return;
 
-  const modeLabel =
-    mode === "autosave"
-      ? t("notes.voice.mode.autosave", "Auto-save note")
-      : mode === "psych"
-      ? t("notes.voice.mode.psych", "Reflection companion")
-      : t("notes.voice.mode.review", "Review first");
+    clearStopTimer();
 
-  // =========================
-  // COMPACT / ICON VARIANT
-  // =========================
+    try {
+      // ✅ Flush final chunk if supported
+      const mr: any = mediaRecorderRef.current;
+      if (mr?.requestData) {
+        try {
+          mr.requestData();
+        } catch {}
+      }
+
+      // stop triggers onstop (upload)
+      mediaRecorderRef.current?.stop();
+    } catch {
+      // Force reset if stop throws
+      setRecording(false);
+      recordingRef.current = false;
+      try {
+        mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
+      } catch {}
+    }
+  }
+
+  function toggleRecording() {
+    if (recordingRef.current) stopRecording();
+    else startRecording();
+  }
+
+  /* ================= RESET ================= */
+
+  useEffect(() => {
+    if (resetKey === undefined) return;
+
+    stopRecording();
+
+    setRawText(null);
+    setStructured(null);
+    setSavedNoteId(null);
+    setError(null);
+  }, [resetKey]);
+
+  /* ================= VARIANT BEHAVIOR ================= */
+
+  const effectiveInteraction: "hold" | "toggle" =
+    interaction || (variant === "default" ? "hold" : "hold"); // compact/icon hold unless explicitly set to toggle
+
+  /* ================= COMPACT / ICON ================= */
+
   if (variant === "compact" || variant === "icon") {
-    const label = recording
-      ? t("notes.voice.button.holdRecording", "Recording… release to send")
-      : t("notes.voice.button.holdToTalk", "Hold to talk");
-
-    const a11yLabel = loading
-      ? t("notes.voice.status.processing", "Processing your audio with AI…")
-      : label;
-
-    const btnSize =
-      size === "sm" ? "h-9 w-9" : "h-10 w-10";
-    const iconSize =
-      size === "sm" ? "text-[16px]" : "text-[18px]";
-
-    // Make "icon" look like a simple mic icon button (round, minimal)
-    const shapeClass =
-      variant === "icon" ? "rounded-full" : "rounded-xl";
+    const btnSize = size === "sm" ? "h-9 w-9" : "h-10 w-10";
+    const iconSize = size === "sm" ? "text-[16px]" : "text-[18px]";
+    const isToggle = effectiveInteraction === "toggle";
 
     return (
       <div className={className}>
         <button
           type="button"
           disabled={loading}
-          aria-label={a11yLabel}
-          title={label}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            if (recording || loading) return;
-            (e.currentTarget as any).setPointerCapture?.(e.pointerId);
-            startRecording();
-          }}
-          onPointerUp={(e) => {
-            e.preventDefault();
-            if (!recording) return;
-            stopRecordingSafe();
-          }}
-          onPointerLeave={() => {
-            if (!recording) return;
-            stopRecordingSafe();
-          }}
-          onPointerCancel={() => {
-            if (!recording) return;
-            stopRecordingSafe();
-          }}
-          className={`${btnSize} ${shapeClass} flex items-center justify-center select-none touch-none border border-[var(--border-subtle)] ${
-            recording
-              ? "bg-red-500/90 text-white"
-              : "bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
-          } disabled:opacity-60`}
+          aria-label={recording ? "Stop recording" : "Start recording"}
+          title={
+            loading
+              ? t("notes.voice.status.processing", "Processing…")
+              : isToggle
+              ? recording
+                ? t("notes.voice.button.stop", "Stop")
+                : t("notes.voice.button.start", "Record")
+              : recording
+              ? t("notes.voice.button.holdRecording", "Recording… release to send")
+              : t("notes.voice.button.holdToTalk", "Hold to talk")
+          }
+          onClick={isToggle ? toggleRecording : undefined}
+          onPointerDown={
+            !isToggle
+              ? (e) => {
+                  e.preventDefault();
+                  if (recording || loading) return;
+                  (e.currentTarget as any).setPointerCapture?.(e.pointerId);
+                  startRecording();
+                }
+              : undefined
+          }
+          onPointerUp={
+            !isToggle
+              ? (e) => {
+                  e.preventDefault();
+                  if (!recording) return;
+                  stopRecording();
+                }
+              : undefined
+          }
+          onPointerLeave={!isToggle ? () => (recording ? stopRecording() : null) : undefined}
+          onPointerCancel={!isToggle ? () => (recording ? stopRecording() : null) : undefined}
+          className={`${btnSize} rounded-full flex items-center justify-center border border-[var(--border-subtle)]
+            ${recording ? "bg-red-500 text-white" : "bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"}
+            disabled:opacity-60`}
         >
-          <span className={`${iconSize} leading-none`}>
-            {recording ? "⏺" : "🎙️"}
-          </span>
+          <span className={iconSize}>{recording ? "⏹" : "🎤"}</span>
         </button>
 
-        {/* minimal, non-intrusive status under button */}
-        {error ? (
-          <p className="mt-1 text-[10px] text-red-400 max-w-[160px]">
-            {error}
-          </p>
-        ) : null}
-
-        {loading ? (
-          <p className="mt-1 text-[10px] text-[var(--text-muted)] max-w-[160px]">
+        {error && <p className="mt-1 text-[10px] text-red-400">{error}</p>}
+        {loading && (
+          <p className="mt-1 text-[10px] text-[var(--text-muted)]">
             {t("notes.voice.status.processing", "Processing…")}
           </p>
-        ) : null}
+        )}
       </div>
     );
   }
 
-  // =========================
-  // DEFAULT VARIANT (full card)
-  // =========================
+  /* ================= DEFAULT (HOLD) ================= */
+
   return (
-    <div
-      className={`border border-slate-800 rounded-2xl p-4 bg-slate-900/60 text-slate-100 space-y-3 ${
-        className || ""
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold">
-            {t("notes.voice.button.label", "Voice capture")}
-          </h3>
+    <div className={`rounded-2xl border p-4 ${className || ""}`}>
+      <button
+        type="button"
+        disabled={loading}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          startRecording();
+        }}
+        onPointerUp={(e) => {
+          e.preventDefault();
+          stopRecording();
+        }}
+        onPointerLeave={() => stopRecording()}
+        onPointerCancel={() => stopRecording()}
+        className={`px-4 py-2 rounded-full ${recording ? "bg-red-500" : "bg-indigo-500"} text-white disabled:opacity-60`}
+      >
+        {recording ? t("notes.voice.button.holdRecording", "Recording… release") : t("notes.voice.button.holdToTalk", "Hold to talk")}
+      </button>
 
-          <p className="text-xs text-slate-400">
-            {t(
-              "notes.voice.button.helpText",
-              "Hold, speak your messy thoughts, and let AIProd clean it up."
-            )}
-          </p>
-
-          <p className="text-[10px] text-slate-500 mt-1">
-            {t("notes.voice.modeLabel", "Mode:")} {modeLabel}
-          </p>
-
-          {showMicSelector && (
-            <div className="mt-2 flex items-center gap-2 min-w-0">
-              <span className="text-[10px] text-slate-400">
-                {t("notes.voice.mic.label", "Mic:")}
-              </span>
-
-              <select
-                className="text-[10px] bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 min-w-0 max-w-full"
-                value={selectedDeviceId === "auto" ? "" : selectedDeviceId}
-                onChange={(e) => setSelectedDeviceId(e.target.value || "auto")}
-              >
-                <option value="">
-                  {t("notes.voice.mic.auto", "Auto (browser default)")}
-                </option>
-                {audioInputs.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || d.deviceId}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        <button
-          type="button"
-          disabled={loading}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            if (recording || loading) return;
-            (e.currentTarget as any).setPointerCapture?.(e.pointerId);
-            startRecording();
-          }}
-          onPointerUp={(e) => {
-            e.preventDefault();
-            if (!recording) return;
-            stopRecordingSafe();
-          }}
-          onPointerLeave={() => {
-            if (!recording) return;
-            stopRecordingSafe();
-          }}
-          onPointerCancel={() => {
-            if (!recording) return;
-            stopRecordingSafe();
-          }}
-          className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 select-none touch-none shrink-0 ${
-            recording ? "bg-red-500/90" : "bg-indigo-500/90 hover:bg-indigo-500"
-          } disabled:opacity-60`}
-        >
-          <span>
-            {recording
-              ? t("notes.voice.button.holdRecording", "Recording… release to send")
-              : t("notes.voice.button.holdToTalk", "Hold to talk")}
-          </span>
-        </button>
-      </div>
-
-      {recording && (
-        <p className="mt-1 text-[10px] text-red-300">
-          {t(
-            "notes.voice.status.recordingHint",
-            "Recording… release the button to send. (Esc to cancel)"
-          )}
-        </p>
-      )}
-
-      {savedNoteId && (
-        <p className="text-[10px] text-emerald-400">
-          {t(
-            "notes.voice.status.saved",
-            "Voice note saved as a note in your workspace."
-          )}
-        </p>
-      )}
-
-      {loading && (
-        <p className="text-xs text-slate-400">
-          {t("notes.voice.status.processing", "Processing your audio with AI…")}
-        </p>
-      )}
-
-      {error && <p className="text-xs text-red-400">{error}</p>}
-
-      {audioPreviewUrl && (
-        <div className="mt-2">
-          <p className="text-[10px] text-slate-400">
-            {t(
-              "notes.voice.preview.label",
-              "Preview your last recording (tap ▶):"
-            )}
-          </p>
-          <audio controls src={audioPreviewUrl} className="mt-1 w-full" />
-        </div>
-      )}
-
-      {rawText && (
-        <div className="mt-2 space-y-2 text-xs">
-          <div>
-            <p className="text-slate-400 font-semibold">
-              {t("notes.voice.output.rawTranscript", "Raw transcript:")}
-            </p>
-            <p className="text-slate-200 mt-1 whitespace-pre-wrap">{rawText}</p>
-          </div>
-
-          {structured && (
-            <>
-              {structured.note && (
-                <div>
-                  <p className="text-slate-400 font-semibold">
-                    {t("notes.voice.output.cleanNote", "Clean note:")}
-                  </p>
-                  <p className="text-slate-200 mt-1 whitespace-pre-wrap">
-                    {structured.note}
-                  </p>
-                </div>
-              )}
-
-              {structured.actions && structured.actions.length > 0 && (
-                <div>
-                  <p className="text-slate-400 font-semibold">
-                    {t("notes.voice.output.actions", "Actions:")}
-                  </p>
-                  <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                    {structured.actions.map((a, i) => (
-                      <li key={i}>{a}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {structured.tasks && structured.tasks.length > 0 && (
-                <div>
-                  <p className="text-slate-400 font-semibold">
-                    {t("notes.voice.output.suggestedTasks", "Suggested tasks:")}
-                  </p>
-                  <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                    {structured.tasks.map((task, i) => {
-                      const dueLabel =
-                        task.due_natural ||
-                        (task.due_iso ? formatDateTime(task.due_iso) : null);
-                      return (
-                        <li key={i}>
-                          {task.title}
-                          {dueLabel
-                            ? ` (${t("notes.voice.output.duePrefix", "due")}: ${dueLabel})`
-                            : ""}
-                          {task.priority && (
-                            <span className="ml-1 uppercase text-[9px] text-slate-400">
-                              [{task.priority}]
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-
-              {structured.reminder &&
-                (structured.reminder.time_natural ||
-                  structured.reminder.time_iso ||
-                  structured.reminder.reason) && (
-                  <div>
-                    <p className="text-slate-400 font-semibold">
-                      {t(
-                        "notes.voice.output.reminderSuggestion",
-                        "Reminder suggestion:"
-                      )}
-                    </p>
-
-                    <p className="text-slate-200 mt-1">
-                      {structured.reminder.time_natural
-                        ? `${t("notes.voice.output.timePrefix", "Time")}: ${structured.reminder.time_natural}`
-                        : structured.reminder.time_iso
-                        ? `${t("notes.voice.output.timePrefix", "Time")}: ${formatDateTime(structured.reminder.time_iso)}`
-                        : null}
-                      {structured.reminder.reason
-                        ? ` — ${t(
-                            "notes.voice.output.reasonPrefix",
-                            "Reason"
-                          )}: ${structured.reminder.reason}`
-                        : null}
-                    </p>
-                  </div>
-                )}
-
-              {structured.summary && (
-                <div>
-                  <p className="text-slate-400 font-semibold">
-                    {t("notes.voice.output.summary", "Summary:")}
-                  </p>
-                  <p className="text-slate-200 mt-1">{structured.summary}</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
+      {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+      {loading && <p className="text-xs text-[var(--text-muted)] mt-2">{t("notes.voice.status.processing", "Processing…")}</p>}
     </div>
   );
 }
