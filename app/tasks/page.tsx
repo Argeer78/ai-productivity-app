@@ -524,6 +524,7 @@ export default function TasksPage() {
 
   // bulk selection
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // which tasks are open (show details form)
   const [openTaskIds, setOpenTaskIds] = useState<string[]>([]);
@@ -906,6 +907,75 @@ export default function TasksPage() {
     }
   }
 
+  async function handleBulkDelete(mode: "selected" | "today") {
+  if (!requireAuth()) return;
+
+  let idsToDelete: string[] = [];
+
+  if (mode === "selected") {
+    idsToDelete = [...selectedTaskIds];
+  } else {
+    const todayList = tasks.filter((tRow) => {
+      const created = tRow.created_at?.slice(0, 10) === todayYmd;
+      const due = tRow.due_date && tRow.due_date.slice(0, 10) === todayYmd;
+      return created || due;
+    });
+    idsToDelete = todayList.map((x) => x.id);
+  }
+
+  // Never allow demo deletes (visitor mode)
+  if (!user) {
+    setAuthModalOpen(true);
+    return;
+  }
+
+  // Filter out demo tasks just in case
+  idsToDelete = idsToDelete.filter((id) => !id.startsWith("demo-"));
+
+  if (idsToDelete.length === 0) {
+    alert(
+      mode === "selected"
+        ? t("bulkDelete.noneSelected", "No tasks selected to delete.")
+        : t("bulkDelete.noneToday", "No tasks for today to delete.")
+    );
+    return;
+  }
+
+  const confirmText =
+    mode === "selected"
+      ? t("bulkDelete.confirmSelected", "Delete selected tasks? ({N})").replace("{N}", String(idsToDelete.length))
+      : t("bulkDelete.confirmToday", "Delete today’s tasks? ({N})").replace("{N}", String(idsToDelete.length));
+
+  if (!window.confirm(confirmText)) return;
+
+  setBulkDeleting(true);
+  setError("");
+
+  try {
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("user_id", user.id)
+      .in("id", idsToDelete);
+
+    if (error) {
+      console.error("[tasks] bulk delete error", error);
+      setError(t("deleteError", "Could not delete task."));
+      return;
+    }
+
+    // Update local UI
+    setTasks((prev) => prev.filter((tRow) => !idsToDelete.includes(tRow.id)));
+    setSelectedTaskIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+    setOpenTaskIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+  } catch (err) {
+    console.error("[tasks] bulk delete exception", err);
+    setError(t("deleteError", "Could not delete task."));
+  } finally {
+    setBulkDeleting(false);
+  }
+}
+
   async function handleDeleteTask(task: TaskRow) {
     if (!requireAuth()) return;
     if (!window.confirm(t("confirmDelete", "Delete this task?"))) return;
@@ -931,11 +1001,6 @@ export default function TasksPage() {
     } finally {
       setDeletingTaskId(null);
     }
-  }
-
-  function toggleSelected(taskId: string) {
-    if (!requireAuth()) return;
-    setSelectedTaskIds((prev) => (prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]));
   }
 
   function getTaskShareText(task: TaskRow) {
@@ -1039,6 +1104,27 @@ export default function TasksPage() {
     const passesCategory = categoryFilter === "all" ? true : (task.category || "") === categoryFilter;
     return passesView && passesCategory;
   });
+
+// ✅ Bulk selection helpers MUST be after filteredTasks exists
+function selectAllInView() {
+  if (!requireAuth()) return;
+
+  const ids = filteredTasks
+    .map((tRow) => tRow.id)
+    .filter((id) => !id.startsWith("demo-"));
+
+  setSelectedTaskIds(ids);
+}
+
+function clearSelection() {
+  if (!requireAuth()) return;
+  setSelectedTaskIds([]);
+}
+
+const viewIdSet = new Set(filteredTasks.map((tRow) => tRow.id));
+const selectedInViewCount = selectedTaskIds.filter((id) => viewIdSet.has(id)).length;
+
+const allInViewSelected = filteredTasks.length > 0 && selectedInViewCount === filteredTasks.length;
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
@@ -1452,7 +1538,23 @@ export default function TasksPage() {
                 </option>
               ))}
             </select>
+            <button
+  type="button"
+  onClick={selectAllInView}
+  disabled={!user || filteredTasks.length === 0 || allInViewSelected}
+  className="ml-auto px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-50 text-[11px]"
+>
+  {t("bulkSelect.selectAll", "Select all")}
+</button>
 
+<button
+  type="button"
+  onClick={clearSelection}
+  disabled={!user || selectedTaskIds.length === 0}
+  className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-50 text-[11px]"
+>
+  {t("bulkSelect.clear", "Clear")}
+</button>
             <button
               type="button"
               onClick={() => handleBulkCopy("today")}
@@ -1467,6 +1569,16 @@ export default function TasksPage() {
             >
               {t("share.copySelected", "Copy selected")}
             </button>
+            <button
+  type="button"
+  onClick={() => handleBulkDelete("selected")}
+  disabled={bulkDeleting || selectedTaskIds.length === 0}
+  className="px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/15 disabled:opacity-50 text-[11px] text-red-300"
+>
+  {bulkDeleting
+    ? t("bulkDelete.deleting", "Deleting…")
+    : t("bulkDelete.deleteSelected", "Delete selected")}
+</button>
           </div>
 
           {/* Tasks list */}
