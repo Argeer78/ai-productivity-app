@@ -7,6 +7,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const FREE_DAILY_LIMIT = 10;
+const PRO_DAILY_LIMIT = 2000;
+
 type IncomingMsg = {
   role: "user" | "assistant" | "system";
   content: unknown;
@@ -95,6 +98,74 @@ function sanitizeMessages(
   return out;
 }
 
+function getTodayString() {
+  return new Date().toISOString().split("T")[0];
+}
+
+async function checkAndIncrementAiUsage(userId: string) {
+  const today = getTodayString();
+
+  const { data: profile, error: profErr } = await supabaseAdmin
+    .from("profiles")
+    .select("plan")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profErr) console.error("[assistant] profile load error", profErr);
+
+  const plan = (profile?.plan as "free" | "pro" | "founder") || "free";
+  const isPro = plan === "pro" || plan === "founder";
+  const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+
+  const { data: usage, error: usageErr } = await supabaseAdmin
+    .from("ai_usage")
+    .select("id, count")
+    .eq("user_id", userId)
+    .eq("usage_date", today)
+    .maybeSingle();
+
+  if (usageErr && (usageErr as any).code !== "PGRST116") {
+    console.error("[assistant] ai_usage select error", usageErr);
+    throw new Error("Could not check AI usage.");
+  }
+
+  const current = usage?.count || 0;
+
+  if (!isPro && current >= dailyLimit) {
+    return {
+      ok: false as const,
+      status: 429 as const,
+      plan,
+      dailyLimit,
+      usedToday: current,
+    };
+  }
+
+  if (!usage) {
+    const { error: insErr } = await supabaseAdmin
+      .from("ai_usage")
+      .insert([{ user_id: userId, usage_date: today, count: 1 }]);
+    if (insErr) {
+      console.error("[assistant] ai_usage insert error", insErr);
+      throw new Error("Failed to update AI usage.");
+    }
+    return { ok: true as const, plan, dailyLimit, usedToday: 1 };
+  }
+
+  const next = current + 1;
+  const { error: updErr } = await supabaseAdmin
+    .from("ai_usage")
+    .update({ count: next })
+    .eq("id", usage.id);
+
+  if (updErr) {
+    console.error("[assistant] ai_usage update error", updErr);
+    throw new Error("Failed to update AI usage.");
+  }
+
+  return { ok: true as const, plan, dailyLimit, usedToday: next };
+}
+
 export async function POST(req: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -113,39 +184,23 @@ export async function POST(req: Request) {
     const langName = languageNameForPrompt(uiLang);
 
     const messages = sanitizeMessages(rawMessages);
-
     if (!messages.length) {
       return NextResponse.json({ error: "Missing messages." }, { status: 400 });
     }
 
-    // Usage tick (best effort)
+    // ✅ Enforce + increment usage (counts assistant calls)
     if (userId) {
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        const { data, error } = await supabaseAdmin
-          .from("ai_usage")
-          .select("id, count")
-          .eq("user_id", userId)
-          .eq("usage_date", today)
-          .maybeSingle();
-
-        if (error && (error as any).code !== "PGRST116") {
-          console.error("Assistant: ai_usage select error", error);
-        } else if (!data) {
-          const { error: insErr } = await supabaseAdmin
-            .from("ai_usage")
-            .insert([{ user_id: userId, usage_date: today, count: 1 }]);
-          if (insErr) console.error("Assistant: ai_usage insert error", insErr);
-        } else {
-          const newCount = (data.count || 0) + 1;
-          const { error: updErr } = await supabaseAdmin
-            .from("ai_usage")
-            .update({ count: newCount })
-            .eq("id", data.id);
-          if (updErr) console.error("Assistant: ai_usage update error", updErr);
-        }
-      } catch (err) {
-        console.error("Assistant: ai_usage wrapper error", err);
+      const usage = await checkAndIncrementAiUsage(userId);
+      if (!usage.ok) {
+        return NextResponse.json(
+          {
+            error: "Daily AI limit reached.",
+            plan: usage.plan,
+            dailyLimit: usage.dailyLimit,
+            usedToday: usage.usedToday,
+          },
+          { status: usage.status }
+        );
       }
     }
 

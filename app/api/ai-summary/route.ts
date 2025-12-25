@@ -3,6 +3,9 @@ import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { aiLanguageInstruction } from "@/lib/aiLanguage";
 
+export const runtime = "nodejs";
+export const maxDuration = 30;
+
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -10,8 +13,19 @@ const client = new OpenAI({
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
 
-function getTodayString() {
-  return new Date().toISOString().split("T")[0];
+// ✅ Athens-consistent YYYY-MM-DD
+function getTodayAthensYmd() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Athens",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const yyyy = parts.find((p) => p.type === "year")?.value || "0000";
+  const mm = parts.find((p) => p.type === "month")?.value || "01";
+  const dd = parts.find((p) => p.type === "day")?.value || "01";
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function buildToneDescription(aiTone?: string | null) {
@@ -34,25 +48,25 @@ export async function POST(req: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: "OpenAI API key is not configured on the server." },
+        { ok: false, error: "OpenAI API key is not configured on the server." },
         { status: 500 }
       );
     }
 
-    const body = await req.json();
-    const { userId } = body as { userId?: string | null };
+    const body = (await req.json().catch(() => ({}))) as { userId?: string | null };
+    const userId = body.userId || null;
 
     if (!userId) {
       return NextResponse.json(
-        { error: "You must be logged in to use AI summary." },
+        { ok: false, error: "You must be logged in to use AI summary." },
         { status: 401 }
       );
     }
 
-    const today = getTodayString();
+    // ✅ Athens date (matches your badge logic)
+    const today = getTodayAthensYmd();
 
-    // ✅ Make sure the column name matches your DB:
-    // If your profiles column is `language`, change this select accordingly.
+    // Load profile
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("plan, ai_tone, focus_area, ui_language")
@@ -60,11 +74,13 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (profileError) {
-      console.error("AI summary: profile error", profileError);
+      console.error("[ai-summary] profile error", profileError);
+      // continue with defaults
     }
 
-    const plan = (profile?.plan as "free" | "pro") || "free";
-    const dailyLimit = plan === "pro" ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+    const planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
+    const isPro = planRaw === "pro" || planRaw === "founder";
+    const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
     const toneDescription = buildToneDescription(profile?.ai_tone);
     const focusArea = profile?.focus_area || null;
@@ -72,7 +88,7 @@ export async function POST(req: Request) {
     const languageCode = profile?.ui_language || "en";
     const languageInstruction = aiLanguageInstruction(languageCode);
 
-    // Usage
+    // Usage row
     const { data: usage, error: usageError } = await supabaseAdmin
       .from("ai_usage")
       .select("id, count")
@@ -80,19 +96,22 @@ export async function POST(req: Request) {
       .eq("usage_date", today)
       .maybeSingle();
 
-    if (usageError && usageError.code !== "PGRST116") {
+    if (usageError && (usageError as any).code !== "PGRST116") {
+      console.error("[ai-summary] usage select error", usageError);
       return NextResponse.json(
-        { error: "Could not check your AI usage." },
+        { ok: false, error: "Could not check your AI usage." },
         { status: 500 }
       );
     }
 
     const currentCount = usage?.count || 0;
-    if (currentCount >= dailyLimit) {
+
+    if (!isPro && currentCount >= dailyLimit) {
       return NextResponse.json(
         {
+          ok: false,
           error: "You’ve reached today’s AI limit. Try again tomorrow or upgrade.",
-          plan,
+          plan: planRaw,
           dailyLimit,
         },
         { status: 429 }
@@ -100,19 +119,23 @@ export async function POST(req: Request) {
     }
 
     // Notes + tasks
-    const { data: notes } = await supabaseAdmin
+    const { data: notes, error: notesErr } = await supabaseAdmin
       .from("notes")
       .select("content")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(20);
 
-    const { data: tasks } = await supabaseAdmin
+    if (notesErr) console.error("[ai-summary] notes load error", notesErr);
+
+    const { data: tasks, error: tasksErr } = await supabaseAdmin
       .from("tasks")
       .select("title, description")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(20);
+
+    if (tasksErr) console.error("[ai-summary] tasks load error", tasksErr);
 
     const notesText = (notes || []).map((n: any) => `- ${n.content}`).join("\n");
     const tasksText = (tasks || [])
@@ -151,37 +174,46 @@ Output format:
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: contextText },
-        { role: "system", content: languageInstruction }, // ✅ reinforcement
       ],
       max_tokens: 350,
       temperature: 0.7,
     });
 
     const summary =
-      completion.choices[0]?.message?.content ||
+      completion.choices[0]?.message?.content?.trim() ||
       "Not enough data yet, but keep going!";
 
-    // Update usage
-    if (!usage) {
-      await supabaseAdmin.from("ai_usage").insert([
-        { user_id: userId, usage_date: today, count: 1 },
-      ]);
-    } else {
-      await supabaseAdmin
-        .from("ai_usage")
-        .update({ count: currentCount + 1 })
-        .eq("id", usage.id);
+    // ✅ Update usage (same table used by badge)
+    try {
+      if (!usage) {
+        const { error: insErr } = await supabaseAdmin.from("ai_usage").insert([
+          { user_id: userId, usage_date: today, count: 1 },
+        ]);
+        if (insErr) console.error("[ai-summary] usage insert error", insErr);
+      } else {
+        const { error: updErr } = await supabaseAdmin
+          .from("ai_usage")
+          .update({ count: currentCount + 1 })
+          .eq("id", usage.id);
+        if (updErr) console.error("[ai-summary] usage update error", updErr);
+      }
+    } catch (e) {
+      console.error("[ai-summary] usage write exception", e);
+      // don't fail the request if usage write fails
     }
 
     return NextResponse.json({
+      ok: true,
       summary,
-      plan,
+      plan: planRaw,
       dailyLimit,
-      usedToday: currentCount + 1,
+      usedToday: isPro ? currentCount + 1 : currentCount + 1,
+      usageDate: today,
     });
   } catch (err: any) {
+    console.error("[ai-summary] fatal", err);
     return NextResponse.json(
-      { error: err?.message || "AI summary failed." },
+      { ok: false, error: err?.message || "AI summary failed." },
       { status: 500 }
     );
   }

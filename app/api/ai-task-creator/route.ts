@@ -1,7 +1,29 @@
 // app/api/ai-task-creator/route.ts
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+export const runtime = "nodejs";
+export const maxDuration = 20;
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+const FREE_DAILY_LIMIT = 10;
+const PRO_DAILY_LIMIT = 2000;
+
+function getTodayAthensYmd() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Athens",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const yyyy = parts.find((p) => p.type === "year")?.value || "0000";
+  const mm = parts.find((p) => p.type === "month")?.value || "01";
+  const dd = parts.find((p) => p.type === "day")?.value || "01";
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export async function POST(req: Request) {
   try {
@@ -13,8 +35,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json().catch(() => null);
-
+    const body = (await req.json().catch(() => null)) as any;
     if (!body) {
       return NextResponse.json(
         { ok: false, error: "Missing request body." },
@@ -22,6 +43,66 @@ export async function POST(req: Request) {
       );
     }
 
+    // ✅ Require userId so we can count usage consistently
+    const userId = typeof body.userId === "string" ? body.userId : null;
+    if (!userId) {
+      return NextResponse.json(
+        { ok: false, error: "You must be logged in to use AI." },
+        { status: 401 }
+      );
+    }
+
+    // ✅ Load plan for limits
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from("profiles")
+      .select("plan")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profileErr) {
+      console.error("[ai-task-creator] profile load error", profileErr);
+      return NextResponse.json(
+        { ok: false, error: "Failed to load user plan." },
+        { status: 500 }
+      );
+    }
+
+    const planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
+    const isPro = planRaw === "pro" || planRaw === "founder";
+    const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+
+    const today = getTodayAthensYmd();
+
+    // ✅ Check usage (same table header reads)
+    const { data: usage, error: usageErr } = await supabaseAdmin
+      .from("ai_usage")
+      .select("id, count")
+      .eq("user_id", userId)
+      .eq("usage_date", today)
+      .maybeSingle();
+
+    if (usageErr && (usageErr as any).code !== "PGRST116") {
+      console.error("[ai-task-creator] usage select error", usageErr);
+      return NextResponse.json(
+        { ok: false, error: "Could not check AI usage." },
+        { status: 500 }
+      );
+    }
+
+    const currentCount = usage?.count || 0;
+    if (!isPro && currentCount >= dailyLimit) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "You’ve reached today’s AI limit. Try again tomorrow or upgrade.",
+          plan: planRaw,
+          dailyLimit,
+        },
+        { status: 429 }
+      );
+    }
+
+    // --- Existing fields ---
     const {
       gender,
       ageRange,
@@ -66,7 +147,6 @@ Today's context:
 - Intensity preference: ${intensity || "balanced"}
 
 Instructions:
-
 1. Propose a realistic list of TASKS for TODAY only.
 2. Mix work/study tasks with at most 1–2 life/health/rest tasks.
 3. Break bigger goals into small, actionable tasks (20–40 min each).
@@ -91,41 +171,22 @@ Return ONLY valid JSON with this shape, nothing else:
 }
 `.trim();
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a helpful productivity coach that outputs STRICT JSON only.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.6,
-      }),
+    const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+    const completion = await client.chat.completions.create({
+      model: "gpt-4.1-mini",
+      temperature: 0.6,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful productivity coach that outputs STRICT JSON only.",
+        },
+        { role: "user", content: prompt },
+      ],
     });
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      console.error("[ai-task-creator] OpenAI error:", response.status, text);
-      return NextResponse.json(
-        { ok: false, error: "AI failed to generate tasks." },
-        { status: 500 }
-      );
-    }
-
-    const json = (await response.json()) as any;
-    const content =
-      json?.choices?.[0]?.message?.content?.trim() || '{"tasks":[]}';
+    const content = completion.choices?.[0]?.message?.content?.trim() || '{"tasks":[]}';
 
     let parsed: any;
     try {
@@ -133,27 +194,49 @@ Return ONLY valid JSON with this shape, nothing else:
     } catch (err) {
       console.error("[ai-task-creator] JSON parse error:", err, content);
       return NextResponse.json(
-        {
-          ok: false,
-          error: "AI returned an invalid response. Try again.",
-        },
+        { ok: false, error: "AI returned an invalid response. Try again." },
         { status: 500 }
       );
     }
 
     const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
-
-    // Normalize tasks a bit
     const normalized = tasks
       .map((t: any) => ({
         title: typeof t.title === "string" ? t.title.trim() : "",
-        category:
-          typeof t.category === "string" ? t.category.trim() : undefined,
+        category: typeof t.category === "string" ? t.category.trim() : undefined,
         size: typeof t.size === "string" ? t.size.trim() : undefined,
       }))
       .filter((t: any) => t.title.length > 0);
 
-    return NextResponse.json({ ok: true, tasks: normalized }, { status: 200 });
+    // ✅ Increment ai_usage AFTER success
+    try {
+      if (!usage) {
+        const { error: insErr } = await supabaseAdmin
+          .from("ai_usage")
+          .insert([{ user_id: userId, usage_date: today, count: 1 }]);
+        if (insErr) console.error("[ai-task-creator] usage insert error", insErr);
+      } else {
+        const { error: updErr } = await supabaseAdmin
+          .from("ai_usage")
+          .update({ count: currentCount + 1 })
+          .eq("id", usage.id);
+        if (updErr) console.error("[ai-task-creator] usage update error", updErr);
+      }
+    } catch (e) {
+      console.error("[ai-task-creator] usage write exception", e);
+    }
+
+    return NextResponse.json(
+      {
+        ok: true,
+        tasks: normalized,
+        plan: planRaw,
+        dailyLimit,
+        usedToday: currentCount + 1,
+        usageDate: today,
+      },
+      { status: 200 }
+    );
   } catch (err: any) {
     console.error("[ai-task-creator] Unexpected error", err);
     return NextResponse.json(

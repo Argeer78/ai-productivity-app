@@ -3,6 +3,81 @@ import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { aiLanguageInstruction } from "@/lib/aiLanguage";
 
+const FREE_DAILY_LIMIT = 10;
+const PRO_DAILY_LIMIT = 2000;
+
+function getTodayString() {
+  return new Date().toISOString().split("T")[0];
+}
+
+async function checkAndIncrementAiUsage(userId: string) {
+  const today = getTodayString();
+
+  // plan
+  const { data: profile, error: profileErr } = await supabaseAdmin
+    .from("profiles")
+    .select("plan")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileErr) {
+    console.error("[ai-travel-plan] profile plan error", profileErr);
+  }
+
+  const plan = (profile?.plan as "free" | "pro" | "founder") || "free";
+  const isPro = plan === "pro" || plan === "founder";
+  const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+
+  // usage row
+  const { data: usage, error: usageError } = await supabaseAdmin
+    .from("ai_usage")
+    .select("id, count")
+    .eq("user_id", userId)
+    .eq("usage_date", today)
+    .maybeSingle();
+
+  if (usageError && (usageError as any).code !== "PGRST116") {
+    console.error("[ai-travel-plan] usage select error", usageError);
+    throw new Error("Could not check AI usage.");
+  }
+
+  const current = usage?.count || 0;
+
+  if (!isPro && current >= dailyLimit) {
+    const err = new Error("Daily AI limit reached.");
+    (err as any).status = 429;
+    (err as any).plan = plan;
+    (err as any).dailyLimit = dailyLimit;
+    (err as any).usedToday = current;
+    throw err;
+  }
+
+  // increment
+  if (!usage) {
+    const { error: insErr } = await supabaseAdmin
+      .from("ai_usage")
+      .insert([{ user_id: userId, usage_date: today, count: 1 }]);
+
+    if (insErr) {
+      console.error("[ai-travel-plan] usage insert error", insErr);
+      throw new Error("Failed to update AI usage.");
+    }
+    return { plan, dailyLimit, usedToday: 1 };
+  } else {
+    const next = current + 1;
+    const { error: updErr } = await supabaseAdmin
+      .from("ai_usage")
+      .update({ count: next })
+      .eq("id", usage.id);
+
+    if (updErr) {
+      console.error("[ai-travel-plan] usage update error", updErr);
+      throw new Error("Failed to update AI usage.");
+    }
+    return { plan, dailyLimit, usedToday: next };
+  }
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
 });
@@ -19,7 +94,7 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const {
-      userId, // ✅ NEW (send from client)
+      userId, // ✅ REQUIRED (send from client)
       destination,
       checkin,
       checkout,
@@ -52,10 +127,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Fetch user language
+    // ✅ Fetch user language (and only what we need)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("ui_language") // ⚠️ change if your column is named differently
+      .select("ui_language")
       .eq("id", userId)
       .maybeSingle();
 
@@ -65,6 +140,14 @@ export async function POST(req: Request) {
 
     const languageCode = profile?.ui_language || "en";
     const languageInstruction = aiLanguageInstruction(languageCode);
+
+    // ✅ Count AI call ONLY if we're going to call OpenAI
+    // (we call it right before the OpenAI request)
+    let usageMeta:
+      | { plan: string; dailyLimit: number; usedToday: number }
+      | null = null;
+
+    usageMeta = await checkAndIncrementAiUsage(userId);
 
     const datesText = `${checkin} → ${checkout}`;
     const peopleText = `${adults || 1} adult(s)${
@@ -121,8 +204,32 @@ Budget: ${budgetText}
       );
     }
 
-    return NextResponse.json({ ok: true, plan: content });
-  } catch (err) {
+    // ✅ Return plan, plus optional metadata (handy for debugging / UI)
+    return NextResponse.json({
+      ok: true,
+      plan: content,
+      ...(usageMeta
+        ? {
+            planTier: usageMeta.plan,
+            dailyLimit: usageMeta.dailyLimit,
+            usedToday: usageMeta.usedToday,
+          }
+        : {}),
+    });
+  } catch (err: any) {
+    // ✅ surface limit errors cleanly
+    if (err?.status === 429) {
+      return NextResponse.json(
+        {
+          error: err.message || "Daily AI limit reached.",
+          planTier: err.plan,
+          dailyLimit: err.dailyLimit,
+          usedToday: err.usedToday,
+        },
+        { status: 429 }
+      );
+    }
+
     console.error("[ai-travel-plan] error:", err);
     return NextResponse.json({ error: "Unexpected error." }, { status: 500 });
   }

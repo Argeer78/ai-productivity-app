@@ -387,13 +387,24 @@ export default function TravelPage() {
       return;
     }
 
+    // ✅ AI call: require auth so we can count usage
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("auth.aiTitle", "Log in to generate an AI trip plan"),
+        subtitle: t("auth.aiSubtitle", "AI trip planning uses your daily AI limit and is linked to your account."),
+      })
+    ) {
+      return;
+    }
+    if (!user?.id) return;
+
     setPlanning(true);
     try {
       const res = await fetch("/api/ai-travel-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user?.id || null, // ✅ allow guests
+          userId: user.id, // ✅ must be present for counting
           destination,
           checkin,
           checkout,

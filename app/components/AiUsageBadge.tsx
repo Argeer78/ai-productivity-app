@@ -7,33 +7,27 @@ import { useT } from "@/lib/useT";
 
 type PlanType = "free" | "pro" | "founder";
 
-type FeatureCount = {
-  feature: string;
-  count: number;
-};
-
 function safeVibrate(ms = 10) {
   try {
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      (navigator as any).vibrate(ms);
-    }
+    navigator.vibrate?.(ms);
   } catch {}
 }
 
-function todayYmdLocal() {
-  // Your app timezone is Europe/Athens, but we keep "local" here for simplicity.
-  // If you log usage by Athens date, ensure the backend writes usage_date consistently.
-  return new Date().toISOString().slice(0, 10);
+// ✅ Athens-consistent YYYY-MM-DD
+function todayYmdAthens() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Athens",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const yyyy = parts.find((p) => p.type === "year")?.value || "0000";
+  const mm = parts.find((p) => p.type === "month")?.value || "01";
+  const dd = parts.find((p) => p.type === "day")?.value || "01";
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-/**
- * AiUsageBadge
- * - Shows plan + daily usage (Free: X/limit, Pro/Founder: Unlimited)
- * - Soft warning when low remaining (toast)
- * - Blocked state (limit reached) + Upgrade button
- * - Tooltip breakdown per feature (best-effort)
- * - Real-time updates via Supabase Realtime (ai_usage_logs changes)
- */
 export default function AiUsageBadge({
   className,
   showUpgradeButton = true,
@@ -50,19 +44,18 @@ export default function AiUsageBadge({
     Number(process.env.NEXT_PUBLIC_FREE_AI_DAILY_LIMIT || "") || 10;
 
   const [loading, setLoading] = useState(true);
-
   const [userId, setUserId] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanType>("free");
 
   const [usedToday, setUsedToday] = useState<number>(0);
-  const [featureCounts, setFeatureCounts] = useState<FeatureCount[]>([]);
-
   const [tooltipOpen, setTooltipOpen] = useState(false);
 
   // toast
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const lastRemainingRef = useRef<number | null>(null);
+
+  const todayRef = useRef<string>(todayYmdAthens());
 
   function clearToastTimer() {
     if (toastTimerRef.current) {
@@ -74,10 +67,10 @@ export default function AiUsageBadge({
   function showToast(msg: string) {
     clearToastTimer();
     setToast(msg);
-    toastTimerRef.current = window.setTimeout(() => setToast(null), 2500);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 2200);
   }
 
-  // 1) Load user + plan
+  // ---------- Load user + plan ----------
   useEffect(() => {
     let mounted = true;
 
@@ -89,14 +82,15 @@ export default function AiUsageBadge({
         if (!mounted) return;
 
         if (!user) {
-          setLoading(false);
           setUserId(null);
+          setPlan("free");
+          setUsedToday(0);
+          setLoading(false);
           return;
         }
 
         setUserId(user.id);
 
-        // plan from profiles.plan (free/pro/founder)
         const { data: profile } = await supabase
           .from("profiles")
           .select("plan")
@@ -116,70 +110,73 @@ export default function AiUsageBadge({
     }
 
     loadUserAndPlan();
-
     return () => {
       mounted = false;
     };
   }, []);
 
-  // 2) Load usage totals + breakdown (best-effort)
+  // ---------- Refresh usage (reads ai_usage) ----------
   async function refreshUsage(uid: string) {
-    try {
-      const today = todayYmdLocal();
+    const today = todayYmdAthens();
+    todayRef.current = today;
 
-      // Total count (fast)
-      const { count: totalCount } = await supabase
-        .from("ai_usage_logs")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", uid)
-        .eq("usage_date", today);
+    const { data, error } = await supabase
+      .from("ai_usage")
+      .select("count")
+      .eq("user_id", uid)
+      .eq("usage_date", today)
+      .maybeSingle();
 
-      const total = totalCount || 0;
-      setUsedToday(total);
-
-      // Breakdown (best-effort):
-      // We fetch only the columns we might have; if "feature" doesn't exist,
-      // this query may error. We'll catch and simply not show breakdown.
-      const { data: rows, error } = await supabase
-        .from("ai_usage_logs")
-        .select("feature")
-        .eq("user_id", uid)
-        .eq("usage_date", today)
-        .limit(500);
-
-      if (error) {
-        // likely "feature column not found" or permission issue
-        setFeatureCounts([]);
-        return;
-      }
-
-      const map = new Map<string, number>();
-      for (const r of rows || []) {
-        const feat = (r as any)?.feature;
-        const key =
-          typeof feat === "string" && feat.trim()
-            ? feat.trim()
-            : t("ai.usage.feature.unknown", "Other");
-        map.set(key, (map.get(key) || 0) + 1);
-      }
-
-      const list: FeatureCount[] = Array.from(map.entries())
-        .map(([feature, count]) => ({ feature, count }))
-        .sort((a, b) => b.count - a.count);
-
-      setFeatureCounts(list);
-    } catch {
-      // fail silently
+    if (error && (error as any).code !== "PGRST116") {
+      // fail silently; badge should never break UI
+      return;
     }
+
+    setUsedToday(data?.count || 0);
   }
 
+  // Initial load
   useEffect(() => {
     if (!userId) return;
-    refreshUsage(userId).finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    refreshUsage(userId);
   }, [userId]);
 
-  // 3) Real-time updates (ai_usage_logs changes)
+  // ---------- “Refresh nicely” hooks ----------
+  // ✅ Refresh when tab becomes visible / app returns to foreground
+  useEffect(() => {
+    if (!userId) return;
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        // also handle “date rolled over” while app was sleeping
+        const nowToday = todayYmdAthens();
+        if (nowToday !== todayRef.current) {
+          setUsedToday(0);
+          lastRemainingRef.current = null; // reset toast thresholds
+        }
+        refreshUsage(userId);
+      }
+    };
+
+    const onFocus = () => {
+      const nowToday = todayYmdAthens();
+      if (nowToday !== todayRef.current) {
+        setUsedToday(0);
+        lastRemainingRef.current = null;
+      }
+      refreshUsage(userId);
+    };
+
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [userId]);
+
+  // ✅ Realtime updates for ai_usage row
   useEffect(() => {
     if (!userId) return;
 
@@ -190,11 +187,12 @@ export default function AiUsageBadge({
         {
           event: "*",
           schema: "public",
-          table: "ai_usage_logs",
+          table: "ai_usage",
           filter: `user_id=eq.${userId}`,
         },
-        () => {
-          // Any change: refresh current day
+        (payload) => {
+          // If this update/insert is for "today", refresh.
+          // (We refresh anyway—cheap single-row query)
           refreshUsage(userId);
         }
       )
@@ -203,24 +201,28 @@ export default function AiUsageBadge({
     return () => {
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  // Derived
+  // ---------- Derived ----------
+  const isUnlimited = plan === "pro" || plan === "founder";
   const limit = FREE_DAILY_LIMIT;
-  const remaining = useMemo(() => {
-    if (plan === "pro" || plan === "founder") return Number.POSITIVE_INFINITY;
-    return Math.max(0, limit - usedToday);
-  }, [plan, usedToday, limit]);
 
-  // 4) Soft warning toast when low remaining (free only)
+  const remaining = useMemo(() => {
+    if (isUnlimited) return Number.POSITIVE_INFINITY;
+    return Math.max(0, limit - usedToday);
+  }, [isUnlimited, limit, usedToday]);
+
+  const isBlocked = !isUnlimited && remaining <= 0;
+  const isLow = !isUnlimited && remaining > 0 && remaining <= 2;
+  const isWarn = !isUnlimited && remaining > 2 && remaining <= 5;
+
+  // Toast thresholds (free only)
   useEffect(() => {
-    if (plan !== "free") return;
+    if (isUnlimited) return;
 
     const prev = lastRemainingRef.current;
     lastRemainingRef.current = remaining;
 
-    // Only fire when crossing into low territory (prevents spam)
     if (prev === null) return;
 
     if (remaining === 2 && prev > 2) {
@@ -233,25 +235,16 @@ export default function AiUsageBadge({
       safeVibrate(15);
       showToast(t("ai.usage.toast.none", "⛔ Daily AI limit reached."));
     }
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remaining, plan]);
+  }, [remaining, isUnlimited]);
 
-  // Initialize lastRemaining once we have data
   useEffect(() => {
-    if (plan !== "free") return;
-    if (lastRemainingRef.current === null && !loading) {
+    if (!isUnlimited && lastRemainingRef.current === null && !loading) {
       lastRemainingRef.current = remaining;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, plan]);
+  }, [loading, remaining, isUnlimited]);
 
   if (loading || !userId) return null;
-
-  const isUnlimited = plan === "pro" || plan === "founder";
-  const isBlocked = !isUnlimited && remaining <= 0;
-  const isLow = !isUnlimited && remaining > 0 && remaining <= 2;
-  const isWarn = !isUnlimited && remaining > 2 && remaining <= 5;
 
   const badgeBase =
     "inline-flex items-center gap-2 text-[11px] px-3 py-1 rounded-full border transition-colors";
@@ -265,13 +258,7 @@ export default function AiUsageBadge({
     ? "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-amber-300"
     : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-muted)]";
 
-  const label = isUnlimited
-    ? t("ai.usage.unlimitedLabel", "Unlimited")
-    : `${usedToday}/${limit}`;
-
-  const pillText = isUnlimited
-    ? t("ai.usage.today", "AI today") + ": " + label
-    : `${t("ai.usage.today", "AI today")}: ${label} ${t("ai.usage.freeTag", "(free)")}`;
+  const label = isUnlimited ? t("ai.usage.unlimitedLabel", "Unlimited") : `${usedToday}/${limit}`;
 
   return (
     <div className={`relative ${className || ""}`}>
@@ -284,7 +271,6 @@ export default function AiUsageBadge({
         </div>
       )}
 
-      {/* Badge + optional Upgrade */}
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -293,21 +279,19 @@ export default function AiUsageBadge({
           onFocus={() => setTooltipOpen(true)}
           onBlur={() => setTooltipOpen(false)}
           className={`${badgeBase} ${badgeStyle}`}
-          aria-label={pillText}
-          title={pillText}
+          title={
+            isUnlimited
+              ? `${t("ai.usage.today", "AI today")}: ${label} (${plan})`
+              : `${t("ai.usage.today", "AI today")}: ${label} ${t("ai.usage.freeTag", "(free)")}`
+          }
         >
           <span className={isLow ? "animate-pulse" : ""}>🤖</span>
-
+          <span>{t("ai.usage.today", "AI today")}:</span>
+          <span className="font-semibold">{label}</span>
           {isUnlimited ? (
-            <>
-              <span>{t("ai.usage.today", "AI today")}:</span>
-              <span className="font-semibold">{label}</span>
-              <span className="opacity-70">({plan})</span>
-            </>
+            <span className="opacity-70">({plan})</span>
           ) : (
             <>
-              <span>{t("ai.usage.today", "AI today")}:</span>
-              <span className="font-semibold">{usedToday}/{limit}</span>
               <span className="opacity-70">{t("ai.usage.freeTag", "(free)")}</span>
               {isBlocked ? (
                 <span className="ml-1 text-[10px] opacity-90">
@@ -315,8 +299,7 @@ export default function AiUsageBadge({
                 </span>
               ) : isLow ? (
                 <span className="ml-1 text-[10px] opacity-90">
-                  {t("ai.usage.lowLeft", "{N} left")
-                    .replace("{N}", String(remaining))}
+                  {t("ai.usage.lowLeft", "{N} left").replace("{N}", String(remaining))}
                 </span>
               ) : null}
             </>
@@ -337,17 +320,14 @@ export default function AiUsageBadge({
         )}
       </div>
 
-      {/* Tooltip breakdown */}
+      {/* Tooltip */}
       {tooltipOpen && (
-        <div className="absolute right-0 mt-2 z-50 w-[280px] rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xl p-3 text-[11px] text-[var(--text-main)]">
+        <div className="absolute right-0 mt-2 z-50 w-[260px] rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-xl p-3 text-[11px] text-[var(--text-main)]">
           <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold">
-              {t("ai.usage.tooltip.title", "AI usage today")}
-            </p>
+            <p className="font-semibold">{t("ai.usage.tooltip.title", "AI usage today")}</p>
             {!isUnlimited && (
               <p className="text-[10px] text-[var(--text-muted)]">
-                {t("ai.usage.tooltip.remaining", "{N} remaining")
-                  .replace("{N}", String(remaining))}
+                {t("ai.usage.tooltip.remaining", "{N} remaining").replace("{N}", String(remaining))}
               </p>
             )}
           </div>
@@ -357,7 +337,7 @@ export default function AiUsageBadge({
               <span className="text-[10px] text-[var(--text-muted)]">
                 {t("ai.usage.tooltip.plan", "Plan")}
               </span>
-              <span className="font-semibold">{isUnlimited ? plan : "free"}</span>
+              <span className="font-semibold">{plan}</span>
             </div>
 
             <div className="flex items-center justify-between mt-1">
@@ -365,52 +345,16 @@ export default function AiUsageBadge({
                 {t("ai.usage.tooltip.total", "Total")}
               </span>
               <span className="font-semibold">
-                {isUnlimited
-                  ? t("ai.usage.unlimitedLabel", "Unlimited")
-                  : `${usedToday}/${limit}`}
+                {isUnlimited ? t("ai.usage.unlimitedLabel", "Unlimited") : `${usedToday}/${limit}`}
               </span>
             </div>
           </div>
 
-          <div className="mt-2">
-            <p className="text-[10px] text-[var(--text-muted)] mb-1">
-              {t("ai.usage.tooltip.breakdown", "Breakdown")}
-            </p>
-
-            {featureCounts.length === 0 ? (
-              <p className="text-[10px] text-[var(--text-muted)]">
-                {t(
-                  "ai.usage.tooltip.noBreakdown",
-                  "No feature breakdown available."
-                )}
-              </p>
-            ) : (
-              <ul className="space-y-1">
-                {featureCounts.slice(0, 8).map((fc) => (
-                  <li
-                    key={fc.feature}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="truncate max-w-[200px]">
-                      {fc.feature}
-                    </span>
-                    <span className="font-semibold">{fc.count}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
           {!isUnlimited && isBlocked && (
             <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 p-2 text-red-200">
-              <p className="font-semibold">
-                {t("ai.usage.tooltip.blockedTitle", "Daily limit reached")}
-              </p>
+              <p className="font-semibold">{t("ai.usage.tooltip.blockedTitle", "Daily limit reached")}</p>
               <p className="text-[10px] opacity-90 mt-0.5">
-                {t(
-                  "ai.usage.tooltip.blockedBody",
-                  "Upgrade to keep using AI without daily limits."
-                )}
+                {t("ai.usage.tooltip.blockedBody", "Upgrade to keep using AI without daily limits.")}
               </p>
             </div>
           )}

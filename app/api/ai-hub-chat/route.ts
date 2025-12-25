@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { bumpAiUsage } from "@/lib/aiUsageServer";
 
 // Use Node runtime for maximum compatibility
 export const runtime = "nodejs";
@@ -8,9 +9,7 @@ export const maxDuration = 20; // seconds (hint for Vercel)
 const apiKey = process.env.OPENAI_API_KEY;
 
 // Initialise client (will throw if key is missing, so we guard above)
-const client = apiKey
-  ? new OpenAI({ apiKey })
-  : null;
+const client = apiKey ? new OpenAI({ apiKey }) : null;
 
 type HistoryItem = {
   role: "user" | "assistant";
@@ -20,7 +19,6 @@ type HistoryItem = {
 export async function POST(req: NextRequest) {
   try {
     if (!apiKey || !client) {
-      // This will show up in the Network → Response and in your console error message
       return NextResponse.json(
         {
           ok: false,
@@ -32,22 +30,23 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
+      userId?: string; // ✅ needed to count usage
       userMessage?: string;
       category?: string;
       history?: HistoryItem[];
     };
 
+    const userId = body.userId ?? "";
     const userMessage = body.userMessage ?? "";
     const category = body.category ?? "General";
-    const history: HistoryItem[] = Array.isArray(body.history)
-      ? body.history
-      : [];
+    const history: HistoryItem[] = Array.isArray(body.history) ? body.history : [];
+
+    if (!userId || typeof userId !== "string") {
+      return NextResponse.json({ ok: false, error: "Missing userId in request body." }, { status: 400 });
+    }
 
     if (!userMessage || typeof userMessage !== "string") {
-      return NextResponse.json(
-        { ok: false, error: "Missing userMessage in request body." },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "Missing userMessage in request body." }, { status: 400 });
     }
 
     // Build chat history for the model
@@ -80,6 +79,9 @@ export async function POST(req: NextRequest) {
 
     const title = userMessage.split("\n")[0].slice(0, 80).trim();
 
+    // ✅ Count 1 AI call (only after success)
+    await bumpAiUsage(userId, 1);
+
     return NextResponse.json({
       ok: true,
       assistantMessage,
@@ -91,9 +93,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        error:
-          err?.message ||
-          "The AI assistant had a problem responding. Please try again.",
+        error: err?.message || "The AI assistant had a problem responding. Please try again.",
       },
       { status: 500 }
     );

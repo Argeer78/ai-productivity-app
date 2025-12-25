@@ -2,6 +2,87 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+export const runtime = "nodejs";
+
+const FREE_DAILY_LIMIT = 10;
+const PRO_DAILY_LIMIT = 2000;
+
+function getTodayString() {
+  return new Date().toISOString().split("T")[0];
+}
+
+async function checkAndIncrementAiUsage(userId: string) {
+  const today = getTodayString();
+
+  // plan
+  const { data: profile, error: profileErr } = await supabaseAdmin
+    .from("profiles")
+    .select("plan")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileErr) {
+    console.error("[ai-translate] profile load error", profileErr);
+    // default to free if profile fails
+  }
+
+  const plan = (profile?.plan as "free" | "pro" | "founder") || "free";
+  const isPro = plan === "pro" || plan === "founder";
+  const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+
+  // usage row
+  const { data: usage, error: usageError } = await supabaseAdmin
+    .from("ai_usage")
+    .select("id, count")
+    .eq("user_id", userId)
+    .eq("usage_date", today)
+    .maybeSingle();
+
+  if (usageError && (usageError as any).code !== "PGRST116") {
+    console.error("[ai-translate] usage check error", usageError);
+    throw new Error("Could not check AI usage.");
+  }
+
+  const current = usage?.count || 0;
+
+  if (!isPro && current >= dailyLimit) {
+    const err = new Error("Daily AI limit reached.");
+    (err as any).status = 429;
+    (err as any).plan = plan;
+    (err as any).dailyLimit = dailyLimit;
+    (err as any).usedToday = current;
+    throw err;
+  }
+
+  // increment
+  if (!usage) {
+    const { error: insErr } = await supabaseAdmin
+      .from("ai_usage")
+      .insert([{ user_id: userId, usage_date: today, count: 1 }]);
+
+    if (insErr) {
+      console.error("[ai-translate] usage insert error", insErr);
+      throw new Error("Failed to update AI usage.");
+    }
+
+    return { plan, dailyLimit, usedToday: 1 };
+  } else {
+    const next = current + 1;
+    const { error: updErr } = await supabaseAdmin
+      .from("ai_usage")
+      .update({ count: next })
+      .eq("id", usage.id);
+
+    if (updErr) {
+      console.error("[ai-translate] usage update error", updErr);
+      throw new Error("Failed to update AI usage.");
+    }
+
+    return { plan, dailyLimit, usedToday: next };
+  }
+}
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -15,6 +96,7 @@ const supabase = createClient(
 type Body = {
   text: string | string[];
   targetLang: string;
+  userId?: string | null;
 };
 
 // table: page_translations
@@ -43,15 +125,14 @@ export async function POST(req: Request) {
     }
 
     const isArrayInput = Array.isArray(text);
-    const textsRaw: string[] = isArrayInput ? (text as string[]) : [String(text)];
+    const textsRaw: string[] = isArrayInput
+      ? (text as string[])
+      : [String(text)];
     const texts: string[] = textsRaw.map((t) => String(t));
 
     const totalChars = texts.reduce((sum, t) => sum + (t?.length || 0), 0);
     if (totalChars > 50000) {
-      return NextResponse.json(
-        { error: "Payload too large" },
-        { status: 413 }
-      );
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
     }
 
     const langCode = targetLang.toLowerCase();
@@ -67,9 +148,7 @@ export async function POST(req: Request) {
     const textsNorm = texts.map((t) => normalizeForCache(t || ""));
 
     // 1) Look up cached translations
-    const uniqueTexts = Array.from(
-      new Set(textsNorm.filter(Boolean))
-    );
+    const uniqueTexts = Array.from(new Set(textsNorm.filter(Boolean)));
 
     const cachedMap = new Map<string, string>();
 
@@ -113,8 +192,12 @@ export async function POST(req: Request) {
 
     // 2) Call OpenAI only for missing snippets
     if (toTranslate.length > 0) {
-      const originals = toTranslate.map((x) => x.originalNorm);
+      // ✅ Count an AI call only when we actually call OpenAI (cache miss)
+      if (body?.userId) {
+        await checkAndIncrementAiUsage(body.userId);
+      }
 
+      const originals = toTranslate.map((x) => x.originalNorm);
       const translated = await translateWithOpenAI(originals, langCode);
 
       const rowsToInsert: TranslationRow[] = [];
@@ -136,8 +219,7 @@ export async function POST(req: Request) {
       if (rowsToInsert.length > 0) {
         const { error: insertErr } = await supabase
           .from("page_translations")
-          // 👇 simple insert – no onConflict, so it won't fail if you don't
-          // have a composite unique index yet.
+          // simple insert – no onConflict required
           .insert(rowsToInsert);
 
         if (insertErr) {
@@ -151,8 +233,18 @@ export async function POST(req: Request) {
     return NextResponse.json({
       translation: isArrayInput ? final : final[0],
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("[ai-translate] fatal error", err);
+
+    const status = err?.status === 429 ? 429 : 500;
+
+    if (status === 429) {
+      return NextResponse.json(
+        { error: err?.message || "Daily AI limit reached." },
+        { status: 429 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal error while translating." },
       { status: 500 }

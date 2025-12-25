@@ -142,45 +142,6 @@ export default function AIChatPage() {
     loadAiUsage();
   }, [user]);
 
-  // Helper: increment ai_usage count
-  async function incrementAiUsage() {
-    if (!user) return;
-
-    const today = getTodayString();
-
-    try {
-      const { data, error } = await supabase.from("ai_usage").select("id, count").eq("user_id", user.id).eq("usage_date", today).maybeSingle();
-
-      if (error && (error as any).code !== "PGRST116") {
-        console.error("[ai-chat] incrementAiUsage select error", error);
-        return;
-      }
-
-      if (!data) {
-        const { error: insertError } = await supabase.from("ai_usage").insert([{ user_id: user.id, usage_date: today, count: 1 }]);
-
-        if (insertError) {
-          console.error("[ai-chat] incrementAiUsage insert error", insertError);
-          return;
-        }
-
-        setAiCountToday(1);
-      } else {
-        const newCount = (data.count || 0) + 1;
-        const { error: updateError } = await supabase.from("ai_usage").update({ count: newCount }).eq("id", data.id);
-
-        if (updateError) {
-          console.error("[ai-chat] incrementAiUsage update error", updateError);
-          return;
-        }
-
-        setAiCountToday(newCount);
-      }
-    } catch (err) {
-      console.error("[ai-chat] incrementAiUsage exception", err);
-    }
-  }
-
   // 3) Load threads
   useEffect(() => {
     if (!user) return;
@@ -222,42 +183,43 @@ export default function AIChatPage() {
   }, [user]);
 
   // 4) Load messages for active thread
-  useEffect(() => {
-    if (!user || !activeThreadId) {
-      setMessages([]);
-      return;
-    }
+ useEffect(() => {
+  if (!user || !activeThreadId) {
+    setMessages([]);
+    return;
+  }
 
-    async function loadMessages() {
-      setLoadingMessages(true);
-      setError("");
+  async function loadMessages() {
+    setLoadingMessages(true);
+    setError("");
 
-      try {
-        const { data, error } = await supabase
-          .from("ai_chat_messages")
-          .select("id, role, content, created_at")
-          .eq("thread_id", activeThreadId)
-          .order("created_at", { ascending: true })
-          .limit(100);
+    try {
+      const { data, error } = await supabase
+        .from("ai_chat_messages")
+        .select("id, role, content, created_at")
+        .eq("thread_id", activeThreadId)
+        .order("created_at", { ascending: true })
+        .limit(100);
 
-        if (error) {
-          console.error("[ai-chat] loadMessages error", error);
-          setError(t("errors.loadMessages", "Failed to load messages."));
-          setMessages([]);
-          return;
-        }
-
-        setMessages((data || []) as ChatMessage[]);
-      } catch (err) {
-        console.error("[ai-chat] loadMessages exception", err);
+      if (error) {
+        console.error("[ai-chat] loadMessages error", error);
         setError(t("errors.loadMessages", "Failed to load messages."));
-      } finally {
-        setLoadingMessages(false);
+        setMessages([]);
+        return;
       }
-    }
 
-    loadMessages();
-  }, [user, activeThreadId]);
+      setMessages((data || []) as ChatMessage[]);
+    } catch (err) {
+      console.error("[ai-chat] loadMessages exception", err);
+      setError(t("errors.loadMessages", "Failed to load messages."));
+    } finally {
+      setLoadingMessages(false);
+    }
+  }
+
+  loadMessages();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [user, activeThreadId]);
 
   function startNewChat() {
     setActiveThreadId(null);
@@ -279,6 +241,8 @@ export default function AIChatPage() {
       return;
     }
 
+    if (!user) return;
+
     const text = input.trim();
     if (!text) return;
 
@@ -296,7 +260,12 @@ export default function AIChatPage() {
       const res = await fetch("/api/ai-hub-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage: text, category, history: historyForModel }),
+        body: JSON.stringify({
+          userId: user.id, // ✅ IMPORTANT: server increments ai_usage
+          userMessage: text,
+          category,
+          history: historyForModel,
+        }),
       });
 
       const data = await res.json().catch(() => ({} as any));
@@ -308,8 +277,13 @@ export default function AIChatPage() {
         return;
       }
 
-      const assistantMessage = data.assistantMessage as string;
+      const assistantMessage = String(data.assistantMessage || "");
       const titleFromServer = (data.title as string | null) || null;
+
+      // ✅ Update today's count immediately from server response (no client-side increment)
+      if (typeof data.aiCountToday === "number") {
+        setAiCountToday(data.aiCountToday);
+      }
 
       const nowIso = new Date().toISOString();
 
@@ -378,14 +352,14 @@ export default function AIChatPage() {
         if (threadErr) console.error("[ai-chat] update thread timestamp error", threadErr);
 
         setThreads((prev) => {
-          const updated = prev.find((tRow) => tRow.id === threadId);
-          if (!updated) return prev;
+          const existing = prev.find((tRow) => tRow.id === threadId);
+          if (!existing) return prev;
+
+          const updated: ThreadRow = { ...existing, updated_at: new Date().toISOString() };
           const rest = prev.filter((tRow) => tRow.id !== threadId);
           return [updated, ...rest];
         });
       }
-
-      await incrementAiUsage();
     } catch (err) {
       console.error("[ai-chat] send exception", err);
       setError(t("errors.networkSend", "Network error while sending message."));
@@ -491,8 +465,6 @@ export default function AIChatPage() {
     );
   }
 
-  // ✅ IMPORTANT: no "return login page" — visitors can view the full UI
-
   const canInteract = !!user;
 
   return (
@@ -595,20 +567,14 @@ export default function AIChatPage() {
 
             <div className="flex flex-col items-end gap-1">
               {canInteract ? (
-                isPro ? (
-                  <span className="text-[10px] text-[var(--text-muted)]">
-                    {t("aiRepliesToday", "AI replies today:")} <span className="font-semibold">{aiCountToday} {t("unlimitedNote", "(unlimited)")}</span> ({plan})
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-[var(--text-muted)]">
-                    {t("aiRepliesToday", "AI replies today:")} <span className="font-semibold">{aiCountToday}/{FREE_DAILY_LIMIT}</span> {t("usage.freeSuffix", "(free)")}
-                  </span>
-                )
-              ) : (
-                <span className="text-[10px] text-[var(--text-muted)]">
-                  {t("visitor.usageHint", "Log in to start chatting and save your conversations.")}
-                </span>
-              )}
+  <span className="text-[10px] text-[var(--text-muted)]">
+    {t("usage.hintHeaderOnly", "AI usage is shown in the header.")}
+  </span>
+) : (
+  <span className="text-[10px] text-[var(--text-muted)]">
+    {t("visitor.usageHint", "Log in to start chatting and save your conversations.")}
+  </span>
+)}
 
               <div className="flex items-center gap-2">
                 <button
@@ -687,10 +653,7 @@ export default function AIChatPage() {
               <span className="hidden md:inline">{t("categoryLabel", "Category:")}</span>
               <select
                 value={category}
-                onChange={(e) => {
-                  // allow changing category even in preview
-                  setCategory(e.target.value);
-                }}
+                onChange={(e) => setCategory(e.target.value)}
                 className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px]"
               >
                 {CATEGORIES.map((c) => (
@@ -723,7 +686,6 @@ export default function AIChatPage() {
               <button
                 type="submit"
                 onClick={(e) => {
-                  // ensure clicking the button in preview opens the modal (even if textarea never focused)
                   if (!canInteract) {
                     e.preventDefault();
                     requireAuth(undefined, {

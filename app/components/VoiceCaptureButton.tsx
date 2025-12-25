@@ -100,7 +100,10 @@ export default function VoiceCaptureButton({
 
   // Keep preview ref synced + cleanup old URL
   useEffect(() => {
-    if (audioPreviewUrlRef.current && audioPreviewUrlRef.current !== audioPreviewUrl) {
+    if (
+      audioPreviewUrlRef.current &&
+      audioPreviewUrlRef.current !== audioPreviewUrl
+    ) {
       try {
         URL.revokeObjectURL(audioPreviewUrlRef.current);
       } catch {}
@@ -118,7 +121,8 @@ export default function VoiceCaptureButton({
         mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
       } catch {}
       try {
-        if (audioPreviewUrlRef.current) URL.revokeObjectURL(audioPreviewUrlRef.current);
+        if (audioPreviewUrlRef.current)
+          URL.revokeObjectURL(audioPreviewUrlRef.current);
       } catch {}
     };
   }, []);
@@ -147,7 +151,10 @@ export default function VoiceCaptureButton({
 
   function getTimeZone() {
     try {
-      return Intl.DateTimeFormat(intlLocale).resolvedOptions().timeZone || "Europe/Athens";
+      return (
+        Intl.DateTimeFormat(intlLocale).resolvedOptions().timeZone ||
+        "Europe/Athens"
+      );
     } catch {
       return "Europe/Athens";
     }
@@ -163,12 +170,25 @@ export default function VoiceCaptureButton({
     setStructured(null);
     setSavedNoteId(null);
 
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setError(t("notes.voice.errors.noGetUserMedia", "Your browser does not support microphone recording."));
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      setError(
+        t(
+          "notes.voice.errors.noGetUserMedia",
+          "Your browser does not support microphone recording."
+        )
+      );
       return;
     }
     if (typeof (window as any).MediaRecorder === "undefined") {
-      setError(t("notes.voice.errors.noMediaRecorder", "This browser does not support audio recording."));
+      setError(
+        t(
+          "notes.voice.errors.noMediaRecorder",
+          "This browser does not support audio recording."
+        )
+      );
       return;
     }
 
@@ -208,7 +228,9 @@ export default function VoiceCaptureButton({
         } catch {}
 
         if (blob.size < 2000) {
-          setError(t("notes.voice.errors.tooShort", "We barely captured any audio. Try again."));
+          setError(
+            t("notes.voice.errors.tooShort", "We barely captured any audio. Try again.")
+          );
           return;
         }
 
@@ -231,7 +253,10 @@ export default function VoiceCaptureButton({
           fd.append("mode", mode);
           fd.append("tz", getTimeZone());
 
-          const res = await fetch("/api/voice/capture", { method: "POST", body: fd });
+          const res = await fetch("/api/voice/capture", {
+            method: "POST",
+            body: fd,
+          });
 
           let json: any = null;
           try {
@@ -250,7 +275,9 @@ export default function VoiceCaptureButton({
 
           // ✅ If server returned "ok" but no payload, show an error so it doesn't look like "nothing happened"
           if (!rt && !st) {
-            setError(t("notes.voice.errors.emptyResult", "No transcript returned. Try again."));
+            setError(
+              t("notes.voice.errors.emptyResult", "No transcript returned. Try again.")
+            );
             return;
           }
 
@@ -275,16 +302,31 @@ export default function VoiceCaptureButton({
       softHaptic();
 
       clearStopTimer();
-      stopTimerRef.current = window.setTimeout(() => stopRecording(), MAX_RECORDING_MS);
+      stopTimerRef.current = window.setTimeout(
+        () => stopRecording(),
+        MAX_RECORDING_MS
+      );
     } catch (err: any) {
       const name = err?.name || "UnknownError";
 
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-        setError(t("notes.voice.errors.permissionBlocked", "Microphone permission was blocked. Enable it in site settings."));
+        setError(
+          t(
+            "notes.voice.errors.permissionBlocked",
+            "Microphone permission was blocked. Enable it in site settings."
+          )
+        );
       } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-        setError(t("notes.voice.errors.noMicFound", "No microphone was found on this device."));
+        setError(
+          t("notes.voice.errors.noMicFound", "No microphone was found on this device.")
+        );
       } else if (name === "NotReadableError") {
-        setError(t("notes.voice.errors.micInUse", "Your microphone is already in use by another app."));
+        setError(
+          t(
+            "notes.voice.errors.micInUse",
+            "Your microphone is already in use by another app."
+          )
+        );
       } else {
         setError(t("notes.voice.errors.couldNotAccess", "Microphone access failed."));
       }
@@ -422,11 +464,17 @@ export default function VoiceCaptureButton({
         onPointerCancel={() => stopRecording()}
         className={`px-4 py-2 rounded-full ${recording ? "bg-red-500" : "bg-indigo-500"} text-white disabled:opacity-60`}
       >
-        {recording ? t("notes.voice.button.holdRecording", "Recording… release") : t("notes.voice.button.holdToTalk", "Hold to talk")}
+        {recording
+          ? t("notes.voice.button.holdRecording", "Recording… release")
+          : t("notes.voice.button.holdToTalk", "Hold to talk")}
       </button>
 
       {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
-      {loading && <p className="text-xs text-[var(--text-muted)] mt-2">{t("notes.voice.status.processing", "Processing…")}</p>}
+      {loading && (
+        <p className="text-xs text-[var(--text-muted)] mt-2">
+          {t("notes.voice.status.processing", "Processing…")}
+        </p>
+      )}
     </div>
   );
 }

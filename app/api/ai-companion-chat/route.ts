@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { bumpAiUsage } from "@/lib/aiUsageServer";
 
 export const runtime = "nodejs";
 
@@ -9,7 +10,15 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { message, history, category } = await req.json();
+    const { message, history, category, userId } = await req.json();
+
+    // ✅ Require userId so we can count usage per user
+    if (!userId || typeof userId !== "string") {
+      return NextResponse.json(
+        { ok: false, error: "Missing userId" },
+        { status: 400 }
+      );
+    }
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -97,6 +106,9 @@ RULES:
         { status: 500 }
       );
     }
+
+    // ✅ Count this as 1 AI call ONLY after success
+    await bumpAiUsage(userId, 1);
 
     return NextResponse.json({
       ok: true,

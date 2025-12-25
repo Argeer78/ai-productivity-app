@@ -7,6 +7,77 @@ export const runtime = "nodejs";
 
 const DEFAULT_TZ = "Europe/Athens";
 
+const FREE_DAILY_LIMIT = 10;
+const PRO_DAILY_LIMIT = 2000;
+
+function getTodayString() {
+  return new Date().toISOString().split("T")[0];
+}
+
+async function checkAndIncrementAiUsage(userId: string) {
+  const today = getTodayString();
+
+  const { data: profile, error: profErr } = await supabaseAdmin
+    .from("profiles")
+    .select("plan")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profErr) console.error("[voice-capture] profile load error", profErr);
+
+  const plan = (profile?.plan as "free" | "pro" | "founder") || "free";
+  const isPro = plan === "pro" || plan === "founder";
+  const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
+
+  const { data: usage, error: usageErr } = await supabaseAdmin
+    .from("ai_usage")
+    .select("id, count")
+    .eq("user_id", userId)
+    .eq("usage_date", today)
+    .maybeSingle();
+
+  if (usageErr && (usageErr as any).code !== "PGRST116") {
+    console.error("[voice-capture] ai_usage select error", usageErr);
+    throw new Error("Could not check AI usage.");
+  }
+
+  const current = usage?.count || 0;
+
+  if (!isPro && current >= dailyLimit) {
+    return {
+      ok: false as const,
+      status: 429 as const,
+      plan,
+      dailyLimit,
+      usedToday: current,
+    };
+  }
+
+  if (!usage) {
+    const { error: insErr } = await supabaseAdmin
+      .from("ai_usage")
+      .insert([{ user_id: userId, usage_date: today, count: 1 }]);
+    if (insErr) {
+      console.error("[voice-capture] ai_usage insert error", insErr);
+      throw new Error("Failed to update AI usage.");
+    }
+    return { ok: true as const, plan, dailyLimit, usedToday: 1 };
+  }
+
+  const next = current + 1;
+  const { error: updErr } = await supabaseAdmin
+    .from("ai_usage")
+    .update({ count: next })
+    .eq("id", usage.id);
+
+  if (updErr) {
+    console.error("[voice-capture] ai_usage update error", updErr);
+    throw new Error("Failed to update AI usage.");
+  }
+
+  return { ok: true as const, plan, dailyLimit, usedToday: next };
+}
+
 function getNowContext(timeZone: string) {
   const now = new Date();
 
@@ -50,7 +121,6 @@ function jsonError(message: string, status = 500, detail?: any) {
 
 export async function POST(req: Request) {
   try {
-    // ✅ Fail fast if env missing (common cause of "mysterious" 500)
     if (!process.env.OPENAI_API_KEY) {
       return jsonError("OPENAI_API_KEY is missing on the server.", 500);
     }
@@ -81,7 +151,12 @@ export async function POST(req: Request) {
       return jsonError("Missing userId.", 400);
     }
 
-    // Helpful debug (check server logs)
+    // ✅ Count 1 AI usage per capture (includes Whisper + Chat)
+    const usage = await checkAndIncrementAiUsage(userId);
+    if (!usage.ok) {
+      return jsonError("Daily AI limit reached.", 429, JSON.stringify(usage));
+    }
+
     console.log("[voice-capture] upload", {
       userId,
       mode,
@@ -91,12 +166,12 @@ export async function POST(req: Request) {
       fileSize: file.size,
     });
 
-    // ✅ Convert the Web File -> OpenAI-friendly upload
     const arrayBuffer = await file.arrayBuffer();
     const buf = Buffer.from(arrayBuffer);
 
     const safeType = file.type || "audio/webm";
-    const safeName = file.name || (safeType.includes("mp4") ? "voice-note.mp4" : "voice-note.webm");
+    const safeName =
+      file.name || (safeType.includes("mp4") ? "voice-note.mp4" : "voice-note.webm");
 
     const openaiFile = await toFile(buf, safeName, { type: safeType });
 
@@ -235,9 +310,15 @@ Return ONLY JSON:
 
           return {
             title,
-            due_natural: typeof dueNatural === "string" && dueNatural.trim() ? dueNatural.trim() : null,
+            due_natural:
+              typeof dueNatural === "string" && dueNatural.trim()
+                ? dueNatural.trim()
+                : null,
             due_iso: typeof dueIso === "string" && dueIso.trim() ? dueIso : null,
-            priority: t.priority === "low" || t.priority === "medium" || t.priority === "high" ? t.priority : null,
+            priority:
+              t.priority === "low" || t.priority === "medium" || t.priority === "high"
+                ? t.priority
+                : null,
           };
         })
       : [];
@@ -254,25 +335,45 @@ Return ONLY JSON:
     }
 
     const reminder = {
-      time_natural: typeof timeNatural === "string" && timeNatural.trim() ? timeNatural.trim() : null,
+      time_natural:
+        typeof timeNatural === "string" && timeNatural.trim() ? timeNatural.trim() : null,
       time_iso: typeof timeIso === "string" && timeIso.trim() ? timeIso : null,
-      reason: typeof reminderRaw.reason === "string" && reminderRaw.reason.trim() ? reminderRaw.reason.trim() : null,
+      reason:
+        typeof reminderRaw.reason === "string" && reminderRaw.reason.trim()
+          ? reminderRaw.reason.trim()
+          : null,
     };
 
     const structured: any = {
       note: typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : null,
-      note_category: typeof parsed.note_category === "string" && parsed.note_category.trim() ? parsed.note_category.trim() : null,
+      note_category:
+        typeof parsed.note_category === "string" && parsed.note_category.trim()
+          ? parsed.note_category.trim()
+          : null,
       actions: Array.isArray(parsed.actions)
-        ? parsed.actions.filter((a: any) => typeof a === "string" && a.trim()).map((a: string) => a.trim())
+        ? parsed.actions
+            .filter((a: any) => typeof a === "string" && a.trim())
+            .map((a: string) => a.trim())
         : [],
       tasks,
       reminder,
-      summary: typeof parsed.summary === "string" && parsed.summary.trim() ? parsed.summary.trim() : null,
+      summary:
+        typeof parsed.summary === "string" && parsed.summary.trim()
+          ? parsed.summary.trim()
+          : null,
 
-      reflection: typeof parsed.reflection === "string" && parsed.reflection.trim() ? parsed.reflection.trim() : null,
+      reflection:
+        typeof parsed.reflection === "string" && parsed.reflection.trim()
+          ? parsed.reflection.trim()
+          : null,
       emotional_state:
-        typeof parsed.emotional_state === "string" && parsed.emotional_state.trim() ? parsed.emotional_state.trim() : null,
-      grounding: typeof parsed.grounding === "string" && parsed.grounding.trim() ? parsed.grounding.trim() : null,
+        typeof parsed.emotional_state === "string" && parsed.emotional_state.trim()
+          ? parsed.emotional_state.trim()
+          : null,
+      grounding:
+        typeof parsed.grounding === "string" && parsed.grounding.trim()
+          ? parsed.grounding.trim()
+          : null,
     };
 
     let noteId: string | null = null;
@@ -307,7 +408,6 @@ Return ONLY JSON:
     });
   } catch (err: any) {
     console.error("[voice-capture] Unexpected error:", err?.stack || err);
-    // Return message to the client so you can see what actually failed
     return NextResponse.json(
       { ok: false, error: "Unexpected server error", detail: String(err?.message || err) },
       { status: 500 }

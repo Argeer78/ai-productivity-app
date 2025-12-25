@@ -13,6 +13,7 @@ import {
 } from "@/lib/translateLanguages";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useT } from "@/lib/useT";
+import { supabase } from "@/lib/supabaseClient";
 
 type TranslationResponse = {
   translation?: string | string[];
@@ -46,6 +47,9 @@ export default function TranslateWithAIButton() {
   const [translatedText, setTranslatedText] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // ✅ user id (to count AI usage on server when OpenAI is called)
+  const [userId, setUserId] = useState<string | null>(null);
 
   // modal measuring + drag
   const modalRef = useRef<HTMLDivElement | null>(null);
@@ -86,6 +90,27 @@ export default function TranslateWithAIButton() {
       left: clamp(left, minLeft, maxLeft),
     };
   }
+
+  // ✅ Load user id once (used only to count usage if translation is a cache miss)
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUser() {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (cancelled) return;
+        setUserId(data?.user?.id ?? null);
+      } catch (err) {
+        console.error("[translate] load user error", err);
+        if (!cancelled) setUserId(null);
+      }
+    }
+
+    loadUser();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // initial language: LS_PREF_LANG → UI language → browser language
   useEffect(() => {
@@ -224,6 +249,8 @@ export default function TranslateWithAIButton() {
         body: JSON.stringify({
           text: normalized,
           targetLang: selectedLang.code,
+          // ✅ send userId so server can count AI usage on cache-miss
+          userId,
         }),
       });
 

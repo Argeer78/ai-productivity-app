@@ -311,11 +311,12 @@ export default function AiCompanionPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: text,
-          category,
-          history: historyForModel,
-          threadId,
-        }),
+  message: text,
+  category,
+  history: historyForModel,
+  threadId,
+  userId: user.id,
+}),
       });
 
       const data = await res.json().catch(() => ({} as any));
