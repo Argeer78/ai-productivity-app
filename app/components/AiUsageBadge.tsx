@@ -134,38 +134,26 @@ export default function AiUsageBadge({
 
   // ---------- “Refresh nicely” hooks ----------
   useEffect(() => {
-    if (!userId) return;
+  if (!userId) return;
 
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        // handle “date rolled over” while app was sleeping
-        const nowToday = todayYmdUtc();
-        if (nowToday !== todayRef.current) {
-          setUsedToday(0);
-          lastRemainingRef.current = null;
-        }
-        refreshUsage(userId);
-      }
-    };
+  let channel: any;
 
-    const onFocus = () => {
-      const nowToday = todayYmdUtc();
-      if (nowToday !== todayRef.current) {
-        setUsedToday(0);
-        lastRemainingRef.current = null;
-      }
-      refreshUsage(userId);
-    };
+  (async () => {
+    await supabase.auth.getSession();
 
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", onFocus);
+    const name = `ai-usage-${userId}-${crypto.randomUUID()}`;
+    channel = supabase
+      .channel(name)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ai_usage", filter: `user_id=eq.${userId}` },
+        () => refreshUsage(userId)
+      )
+      .subscribe((status, err) => console.log("[ai_usage] channel status:", status, err || ""));
+  })();
 
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", onFocus);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  return () => channel?.unsubscribe?.();
+}, [userId]);
 
   // ✅ Realtime updates for ai_usage row (instant UI update)
   useEffect(() => {

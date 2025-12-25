@@ -12,7 +12,7 @@
   "dependencies": {
     "@googleapis/playintegrity": "^23.0.1",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
-    "@supabase/supabase-js": "^2.87.1",
+    "@supabase/supabase-js": "^2.89.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "google-auth-library": "^10.5.0",
