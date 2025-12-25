@@ -1,8 +1,10 @@
+// app/components/AIAssistant.tsx (or wherever this lives)
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
 import type React from "react";
 import { usePathname } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useT } from "@/lib/useT";
 
@@ -31,6 +33,37 @@ export default function AIAssistant() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ✅ restore userId so assistant calls count
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadUser() {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!mounted) return;
+        setUserId(data?.user?.id ?? null);
+      } catch (err) {
+        console.error("Assistant: getUser error", err);
+        if (!mounted) return;
+        setUserId(null);
+      }
+    }
+
+    loadUser();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setUserId(session?.user?.id ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      sub?.subscription?.unsubscribe();
+    };
+  }, []);
 
   // Handle "Use with Assistant" template events
   useEffect(() => {
@@ -78,8 +111,8 @@ export default function AIAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: newMessages,
-          // ✅ IMPORTANT: Do NOT send userId here so this assistant DOES NOT count as an AI call
-          uiLang: uiLangBase, // tell server what language to respond in
+          userId, // ✅ send userId so server can count
+          uiLang: uiLangBase,
         }),
       });
 
@@ -109,7 +142,7 @@ export default function AIAssistant() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages, uiLangBase, t]);
+  }, [input, loading, messages, userId, uiLangBase, t]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -147,10 +180,7 @@ export default function AIAssistant() {
           <div className="h-44 overflow-y-auto border border-[var(--border-subtle)] rounded-xl p-2 mb-2 bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] space-y-2">
             {messages.length === 0 ? (
               <p className="text-[11px] text-[var(--text-muted)]">
-                {t(
-                  "empty",
-                  'Ask anything about your notes, tasks, or use a template via “Use with Assistant”.'
-                )}
+                {t("empty", 'Ask anything about your notes, tasks, or use a template via “Use with Assistant”.')}
               </p>
             ) : (
               messages.map((m, i) => (

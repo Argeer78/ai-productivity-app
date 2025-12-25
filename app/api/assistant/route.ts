@@ -75,9 +75,7 @@ function fallbackAnswerForLang(code: string): string {
   return map[code] || map.en;
 }
 
-function sanitizeMessages(
-  raw: unknown
-): { role: "user" | "assistant"; content: string }[] {
+function sanitizeMessages(raw: unknown): { role: "user" | "assistant"; content: string }[] {
   if (!Array.isArray(raw)) return [];
   const out: { role: "user" | "assistant"; content: string }[] = [];
 
@@ -98,12 +96,23 @@ function sanitizeMessages(
   return out;
 }
 
-function getTodayString() {
-  return new Date().toISOString().split("T")[0];
+// ✅ Athens-consistent YYYY-MM-DD
+function getTodayAthensYmd() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Athens",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const yyyy = parts.find((p) => p.type === "year")?.value || "0000";
+  const mm = parts.find((p) => p.type === "month")?.value || "01";
+  const dd = parts.find((p) => p.type === "day")?.value || "01";
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 async function checkAndIncrementAiUsage(userId: string) {
-  const today = getTodayString();
+  const today = getTodayAthensYmd();
 
   const { data: profile, error: profErr } = await supabaseAdmin
     .from("profiles")
@@ -170,10 +179,7 @@ export async function POST(req: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
       console.error("Assistant: OPENAI_API_KEY missing");
-      return NextResponse.json(
-        { error: "AI is not configured on this server." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "AI is not configured on this server." }, { status: 500 });
     }
 
     const body = await req.json().catch(() => ({}));
@@ -219,16 +225,11 @@ export async function POST(req: Request) {
       temperature: 0.4,
     });
 
-    const answer =
-      completion.choices?.[0]?.message?.content ||
-      fallbackAnswerForLang(uiLang);
+    const answer = completion.choices?.[0]?.message?.content || fallbackAnswerForLang(uiLang);
 
     return NextResponse.json({ answer }, { status: 200 });
   } catch (err: any) {
     console.error("Assistant API error:", err?.message || err);
-    return NextResponse.json(
-      { error: "AI error on the server." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "AI error on the server." }, { status: 500 });
   }
 }
