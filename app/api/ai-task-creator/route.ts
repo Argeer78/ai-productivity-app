@@ -11,18 +11,9 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
 
-function getTodayAthensYmd() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Athens",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const yyyy = parts.find((p) => p.type === "year")?.value || "0000";
-  const mm = parts.find((p) => p.type === "month")?.value || "01";
-  const dd = parts.find((p) => p.type === "day")?.value || "01";
-  return `${yyyy}-${mm}-${dd}`;
+// ✅ Match the rest of the codebase (assistant/daily-plan/etc.)
+function getTodayString() {
+  return new Date().toISOString().split("T")[0];
 }
 
 export async function POST(req: Request) {
@@ -67,13 +58,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
+    const planRaw =
+      (profile?.plan as "free" | "pro" | "founder" | null) || "free";
     const isPro = planRaw === "pro" || planRaw === "founder";
     const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
-    const today = getTodayAthensYmd();
+    const today = getTodayString();
 
-    // ✅ Check usage (same table header reads)
+    // ✅ Check usage
     const { data: usage, error: usageErr } = await supabaseAdmin
       .from("ai_usage")
       .select("id, count")
@@ -143,7 +135,9 @@ Today's context:
 - Plan / events: ${todayPlan || "not specified"}
 - Main goal today: ${mainGoal || "not specified"}
 - Hours available: ${hoursAvailable || "not specified"}
-- Energy level (1–10): ${typeof energyLevel === "number" ? energyLevel : "not specified"}
+- Energy level (1–10): ${
+      typeof energyLevel === "number" ? energyLevel : "not specified"
+    }
 - Intensity preference: ${intensity || "balanced"}
 
 Instructions:
@@ -186,7 +180,8 @@ Return ONLY valid JSON with this shape, nothing else:
       ],
     });
 
-    const content = completion.choices?.[0]?.message?.content?.trim() || '{"tasks":[]}';
+    const content =
+      completion.choices?.[0]?.message?.content?.trim() || '{"tasks":[]}';
 
     let parsed: any;
     try {
@@ -208,7 +203,7 @@ Return ONLY valid JSON with this shape, nothing else:
       }))
       .filter((t: any) => t.title.length > 0);
 
-    // ✅ Increment ai_usage AFTER success
+    // ✅ Increment ai_usage AFTER success (kept same behavior)
     try {
       if (!usage) {
         const { error: insErr } = await supabaseAdmin
