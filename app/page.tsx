@@ -396,7 +396,7 @@ export default function HomePage() {
               <div className="flex flex-wrap items-center gap-3 mb-3">
                 <Link
                   href={primaryCtaHref}
-                  className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)]"
+                  className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] active:scale-95 transition-transform"
                 >
                   {primaryCtaLabel}
                 </Link>
@@ -482,7 +482,7 @@ export default function HomePage() {
                 <div className="flex flex-wrap gap-2">
                   <Link
                     href="/pricing"
-                    className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)]"
+                    className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] active:scale-95 transition-transform"
                   >
                     {t("home.pricing.cta", "View pricing")}
                   </Link>

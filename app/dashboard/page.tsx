@@ -13,6 +13,8 @@ import { useT } from "@/lib/useT";
 // ✅ Auth gate (full page always)
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import BadgeTrophyCase from "@/app/components/BadgeTrophyCase";
+import DashboardGlance from "@/app/components/DashboardGlance";
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -196,6 +198,10 @@ export default function DashboardPage() {
   const [weeklyGoalCompleted, setWeeklyGoalCompleted] = useState<boolean>(false);
   const [weeklyGoalSaving, setWeeklyGoalSaving] = useState(false);
   const [weeklyGoalMarking, setWeeklyGoalMarking] = useState(false);
+
+  // ✅ Gamification Data
+  const [recentScores, setRecentScores] = useState<number[]>([]);
+  const [recentPlans, setRecentPlans] = useState<string[]>([]);
 
   // ✅ Action Hub: quick capture + micro-toast
   const [quickText, setQuickText] = useState("");
@@ -438,6 +444,7 @@ export default function DashboardPage() {
         }
 
         const list = (data || []) as DailyScoreRow[];
+        setRecentScores(list.map(r => r.score));
 
         const todayRow = list.find((r) => r.score_date === todayStr);
         setTodayScore(todayRow ? todayRow.score : null);
@@ -663,6 +670,21 @@ export default function DashboardPage() {
           setWeeklyGoalText("");
           setWeeklyGoalCompleted(false);
         }
+
+        // 9) Daily Plans (for Early Bird badge)
+        const { data: planRows, error: planError } = await supabase
+          .from("daily_plans")
+          .select("created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(30);
+
+        if (planError && (planError as any).code !== "PGRST116") {
+          console.error("Dashboard: plans error", planError);
+        } else {
+          setRecentPlans((planRows || []).map(r => r.created_at));
+        }
+
       } catch (err: any) {
         console.error(err);
         setError(t("dashboard.loadError", "Failed to load dashboard data."));
@@ -947,7 +969,17 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-4 grid md:grid-cols-3 gap-4">
-              {/* Today focus */}
+              {/* ✅ GLANCE WIDGET */}
+              <DashboardGlance todayScore={todayScore} />
+
+              {/* ✅ TROPHY CASE */}
+              <BadgeTrophyCase
+                streak={streak}
+                scores={recentScores}
+                morningPlans={recentPlans}
+              />
+
+              {/* Weekly Goal */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
                 <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">{t("dashboard.actionHub.focus.title", "TODAY’S FOCUS")}</p>
 
@@ -1392,6 +1424,66 @@ export default function DashboardPage() {
 
                   {/* ✅ Everything below stays as you already had it (AI wins, weekly goal, recent, quick links, feedback...) */}
                   {/* --- keep your remaining sections unchanged --- */}
+
+                  {/* ✅ Weekly Goal Section (Restored) */}
+                  <div id="week-goal" className="mb-8 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-5 scroll-mt-24">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-semibold">{t("dashboard.weekGoal.title", "🎯 Weekly Goal")}</h2>
+                      {!weeklyGoalText && (
+                        <span className="text-[11px] text-[var(--accent)] px-2 py-0.5 rounded-full bg-[var(--accent-soft)]">
+                          {t("dashboard.weekGoal.badge", "Focus")}
+                        </span>
+                      )}
+                    </div>
+
+                    {!weeklyGoalId ? (
+                      <div className="flex gap-2">
+                        <input
+                          value={weeklyGoalText}
+                          onChange={(e) => setWeeklyGoalText(e.target.value)}
+                          placeholder={t("dashboard.weekGoal.placeholder", "What is your main focus this week?")}
+                          className="flex-1 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] px-4 py-2 text-sm focus:border-[var(--accent)] outline-none"
+                          onKeyDown={(e) => e.key === "Enter" && saveWeeklyGoal(false)}
+                        />
+                        <button
+                          onClick={() => saveWeeklyGoal(false)}
+                          disabled={weeklyGoalSaving || !weeklyGoalText.trim()}
+                          className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-50 text-sm text-[var(--accent-contrast)]"
+                        >
+                          {weeklyGoalSaving ? t("dashboard.weekGoal.saving", "Saving…") : t("dashboard.weekGoal.save", "Set Goal")}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={toggleWeeklyGoalCompleted}
+                          disabled={weeklyGoalMarking}
+                          className={`mt-0.5 w-6 h-6 shrink-0 rounded-full border flex items-center justify-center transition-all ${weeklyGoalCompleted
+                            ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-contrast)]"
+                            : "border-[var(--border-subtle)] hover:border-[var(--accent)]"
+                            }`}
+                        >
+                          {weeklyGoalCompleted && <span>✓</span>}
+                        </button>
+                        <div className="flex-1">
+                          <p className={`text-lg font-medium ${weeklyGoalCompleted ? "line-through text-[var(--text-muted)]" : ""}`}>
+                            {weeklyGoalText}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (confirm(t("dashboard.weekGoal.changeConfirm", "Change your weekly goal?"))) {
+                              setWeeklyGoalId(null);
+                              setWeeklyGoalCompleted(false);
+                            }
+                          }}
+                          className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                        >
+                          {t("dashboard.weekGoal.change", "Change")}
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   {/* AI Wins This Week */}
                   <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4 mb-8 text-sm">

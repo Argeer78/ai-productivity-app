@@ -20,6 +20,8 @@ function stripBullet(line: string) {
     return line.replace(/^[-•\u2022]\s+/, "").trim();
 }
 
+import MagicLoader from "@/app/components/MagicLoader";
+
 export default function AiResultCard({
     title,
     text,
@@ -80,7 +82,7 @@ export default function AiResultCard({
                     <button
                         type="button"
                         onClick={onUseWithAssistant}
-                        className="shrink-0 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px]"
+                        className="shrink-0 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[11px] active:scale-95 transition-transform"
                         title={assistantHint || "Open in assistant"}
                     >
                         Use with Assistant
@@ -89,8 +91,11 @@ export default function AiResultCard({
             </div>
 
             {loading && (
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-[11px] text-[var(--text-muted)]">
-                    Generating…
+                <div className="mt-2">
+                    <MagicLoader lines={4} />
+                    <p className="text-center text-[10px] text-[var(--text-muted)] mt-2 animate-pulse">
+                        Thinking...
+                    </p>
                 </div>
             )}
 

@@ -142,6 +142,12 @@ export default function AITaskCreatorPage() {
         }),
       });
 
+      // ✅ Save Energy for Dashboard Glance
+      if (typeof window !== "undefined") {
+        const today = new Date().toISOString().split("T")[0];
+        localStorage.setItem(`energy_${today}`, String(energyLevel));
+      }
+
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.ok) {
@@ -401,18 +407,46 @@ export default function AITaskCreatorPage() {
                   <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                     {translate("form.energy.label", "Energy level right now")}
                   </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={1}
-                      max={10}
-                      value={energyLevel}
-                      onChange={(e) => setEnergyLevel(Number(e.target.value))}
-                      className="flex-1"
-                    />
-                    <span className="text-xs w-6 text-right">{energyLevel}</span>
+
+                  <div className="flex items-center gap-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3 rounded-xl">
+                    {/* Dynamic Battery Icon */}
+                    <div className="shrink-0 w-10 h-14 relative transition-all duration-300">
+                      <img
+                        src={
+                          energyLevel <= 3
+                            ? "/images/energy-low.png"
+                            : energyLevel >= 8
+                              ? "/images/energy-high.png"
+                              : "/images/energy-medium.png"
+                        }
+                        alt="Energy"
+                        className="w-full h-full object-contain drop-shadow-sm transition-opacity duration-300"
+                      />
+                    </div>
+
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-xs font-medium ${energyLevel <= 3 ? "text-red-400" :
+                          energyLevel >= 8 ? "text-emerald-400" : "text-yellow-400"
+                          }`}>
+                          {energyLevel <= 3 ? translate("energy.low", "Low Battery") :
+                            energyLevel >= 8 ? translate("energy.high", "Full Power!") :
+                              translate("energy.medium", "Balanced")}
+                        </span>
+                        <span className="text-xs font-semibold">{energyLevel}/10</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={10}
+                        value={energyLevel}
+                        onChange={(e) => setEnergyLevel(Number(e.target.value))}
+                        className="w-full h-2 bg-[var(--bg-card)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)]"
+                      />
+                    </div>
                   </div>
-                  <p className="text-[10px] text-[var(--text-muted)] mt-1">
+
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1 px-1">
                     {translate("form.energy.help", "1 = exhausted, 10 = full of energy.")}
                   </p>
                 </div>
@@ -426,8 +460,8 @@ export default function AITaskCreatorPage() {
                       type="button"
                       onClick={() => setIntensity("light")}
                       className={`px-3 py-1.5 rounded-xl border ${intensity === "light"
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                         }`}
                     >
                       {translate("form.intensity.light", "Light")}
@@ -436,8 +470,8 @@ export default function AITaskCreatorPage() {
                       type="button"
                       onClick={() => setIntensity("balanced")}
                       className={`px-3 py-1.5 rounded-xl border ${intensity === "balanced"
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                         }`}
                     >
                       {translate("form.intensity.balanced", "Balanced")}
@@ -446,8 +480,8 @@ export default function AITaskCreatorPage() {
                       type="button"
                       onClick={() => setIntensity("aggressive")}
                       className={`px-3 py-1.5 rounded-xl border ${intensity === "aggressive"
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                         }`}
                     >
                       {translate("form.intensity.aggressive", "Deep push")}

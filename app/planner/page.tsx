@@ -11,6 +11,7 @@ import { useT } from "@/lib/useT";
 // ✅ Auth gate
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import MagicLoader from "@/app/components/MagicLoader";
 
 /* ---------------- UI helpers ---------------- */
 
@@ -370,7 +371,14 @@ export default function PlannerPage() {
             ) : null}
           </div>
 
-          {planText ? (
+          {loading ? (
+            <div className="mt-4">
+              <MagicLoader lines={6} />
+              <p className="text-center text-[11px] text-[var(--text-muted)] mt-3 animate-pulse">
+                {t("generatingMessage", "Analyzing your tasks & designing your day...")}
+              </p>
+            </div>
+          ) : planText ? (
             <div className="space-y-2">
               {blocks.map((b, idx) => {
                 if (b.type === "spacer") return <div key={idx} className="h-2" />;

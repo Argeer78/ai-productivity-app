@@ -228,7 +228,7 @@ export default function TemplatesPage() {
 
             <div className="w-32 h-32 relative z-10 flex-shrink-0">
               <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl" />
-              <img src="/images/ai-creator-empty.png?v=1" alt="Templates" className="relative z-10 w-full h-full object-contain" />
+              <img src="/images/templates-hero.png" alt="Templates" className="relative z-10 w-full h-full object-contain" />
             </div>
 
             <Link

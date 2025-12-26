@@ -8,6 +8,9 @@ import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import AnimatedNumber from "@/app/components/AnimatedNumber";
+import Confetti from "@/app/components/Confetti";
+import { useSound } from "@/lib/sound";
 
 type PlanType = "free" | "pro" | "founder";
 
@@ -84,6 +87,7 @@ export default function DailySuccessPage() {
 
   // ✅ IMPORTANT: use full keys like "dailySuccessSystem.title"
   const { t } = useT();
+  const { play } = useSound();
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -121,6 +125,9 @@ export default function DailySuccessPage() {
   const [eveningLoading, setEveningLoading] = useState(false);
   const [eveningResult, setEveningResult] = useState<string | null>(null);
   const [eveningResultError, setEveningResultError] = useState<string | null>(null);
+
+  // ✅ Confetti state (top level)
+  const [showConfetti, setShowConfetti] = useState(false);
 
   // ✅ Mode / scroll + focus
   const mode = useMemo<Mode>(() => {
@@ -228,6 +235,7 @@ export default function DailySuccessPage() {
   // ✅ NEW: Morning planning handler (loads answer like daily planner does)
   async function handleMorningPlan(e: React.FormEvent) {
     e.preventDefault();
+    play("pop"); // Added play('pop')
     setError("");
     setStatusMessage("");
     setMorningPlanError(null);
@@ -321,6 +329,7 @@ export default function DailySuccessPage() {
   // ✅ NEW: Evening reflection handler (loads answer from route, NOT assistant chat)
   async function handleEveningReflection(e: React.FormEvent) {
     e.preventDefault();
+    play("pop"); // Added play('pop')
     setError("");
     setStatusMessage("");
     setEveningResultError(null);
@@ -522,6 +531,10 @@ export default function DailySuccessPage() {
       }
 
       setScoreMessage(t("dailySuccessSystem.score.savedMessage", "Saved! Your streak and averages are updated."));
+      if (score >= 60) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+      }
     } catch (err) {
       console.error(err);
       setError(t("dailySuccessSystem.score.saveError", "Failed to save your daily score."));
@@ -532,6 +545,7 @@ export default function DailySuccessPage() {
 
   // 7) Ask AI to suggest today's score
   async function handleSuggestScore() {
+    play("pop"); // Added play('pop')
     // ✅ Gate
     if (
       !gate.requireAuth(undefined, {
@@ -601,8 +615,11 @@ export default function DailySuccessPage() {
     return t("dailySuccessSystem.morning.priority3", "Priority #3");
   };
 
+
+
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+      {showConfetti && <Confetti />}
       <AppHeader active="daily-success" />
 
       {/* ✅ Auth modal */}
@@ -617,11 +634,11 @@ export default function DailySuccessPage() {
         <div className="max-w-4xl mx-auto px-4 py-8 md:py-10 text-sm">
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">
+            <div className="flex-1">
+              <h1 className="text-2xl md:text-3xl font-bold mb-2">
                 {t("dailySuccessSystem.title", "AI Daily Success System")}
               </h1>
-              <p className="text-xs md:text-sm text-[var(--text-muted)]">
+              <p className="text-sm text-[var(--text-muted)] max-w-lg leading-relaxed mb-4">
                 {t(
                   "dailySuccessSystem.subtitle",
                   "Start your day with a focused plan, end it with a clear reflection, and track your progress with a simple score."
@@ -629,11 +646,13 @@ export default function DailySuccessPage() {
               </p>
 
               {!user && (
-                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                  {t(
-                    "dailySuccessSystem.auth.inline",
-                    "You're viewing as a guest. Log in to generate plans, reflect with AI, and save your score."
-                  )}{" "}
+                <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
+                  <span>
+                    {t(
+                      "dailySuccessSystem.auth.inline",
+                      "You're viewing as a guest. Log in to save your history."
+                    )}
+                  </span>
                   <button
                     type="button"
                     onClick={() =>
@@ -641,35 +660,43 @@ export default function DailySuccessPage() {
                         title: t("dailySuccessSystem.auth.title", "Log in to use the Daily Success System."),
                       })
                     }
-                    className="underline underline-offset-2 text-[var(--accent)] hover:opacity-90"
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 active:scale-95 transition-transform font-medium"
                   >
                     {t("dailySuccessSystem.auth.cta", "Go to login / signup")}
                   </button>
-                </p>
+                </div>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <Link
-                href="/daily-success?mode=morning"
-                className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
-              >
-                {t("dailySuccessSystem.quick.morning", "Morning")}
-              </Link>
-              <Link
-                href="/daily-success?mode=evening"
-                className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
-              >
-                {t("dailySuccessSystem.quick.evening", "Evening")}
-              </Link>
-              <Link
-                href="/dashboard"
-                className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
-              >
-                {t("dailySuccessSystem.backToDashboard", "← Back to dashboard")}
-              </Link>
+            {/* Hero Image */}
+            <div className="hidden md:block w-32 h-32 relative z-10 flex-shrink-0">
+              <div className="absolute inset-0 bg-yellow-500/20 rounded-full blur-2xl" />
+              <img src="/images/success-hero.png" alt="Daily Success" className="relative z-10 w-full h-full object-contain" />
             </div>
           </div>
+
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/daily-success?mode=morning"
+              className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
+            >
+              {t("dailySuccessSystem.quick.morning", "Morning")}
+            </Link>
+            <Link
+              href="/daily-success?mode=evening"
+              className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
+            >
+              {t("dailySuccessSystem.quick.evening", "Evening")}
+            </Link>
+            <Link
+              href="/dashboard"
+              className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
+            >
+              {t("dailySuccessSystem.backToDashboard", "← Back to dashboard")}
+            </Link>
+          </div>
+
 
           {!isProUser && (
             <div className="mb-5 rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-3 text-[11px] text-[var(--text-main)]">
@@ -685,7 +712,7 @@ export default function DailySuccessPage() {
               <button
                 type="button"
                 onClick={() => router.push("/pricing")}
-                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
+                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px] active:scale-95 transition-transform"
               >
                 {t("dailySuccessSystem.freePlan.viewPro", "View Pro options")}
               </button>
@@ -702,7 +729,7 @@ export default function DailySuccessPage() {
                 {t("dailySuccessSystem.todaysScore.heading", "Today's score")}
               </p>
               <p className="text-xl font-semibold">
-                {score}
+                <AnimatedNumber value={score} />
                 <span className="text-[11px] text-[var(--text-muted)] ml-1">/100</span>
               </p>
               <p className="text-[var(--text-muted)] mt-1">
@@ -717,7 +744,16 @@ export default function DailySuccessPage() {
               <p className="text-[var(--text-muted)] mb-1">
                 {t("dailySuccessSystem.avg7d.label", "Avg last 7 days")}
               </p>
-              <p className="text-xl font-semibold">{avgLast7 !== null ? `${avgLast7}/100` : "—"}</p>
+              <p className="text-xl font-semibold">
+                {avgLast7 !== null ? (
+                  <>
+                    <AnimatedNumber value={avgLast7} />
+                    <span className="text-sm">/100</span>
+                  </>
+                ) : (
+                  "—"
+                )}
+              </p>
               <p className="text-[var(--text-muted)] mt-1">
                 {t("dailySuccessSystem.avg7d.help", "Aim for consistency, not perfection.")}
               </p>
@@ -728,11 +764,13 @@ export default function DailySuccessPage() {
                 {t("dailySuccessSystem.streak.label", "Success streak (score ≥ 60)")}
               </p>
               <p className="text-xl font-semibold">
-                {scoreStreak}{" "}
-                {t(
-                  scoreStreak === 1 ? "dailySuccessSystem.streak.day" : "dailySuccessSystem.streak.days",
-                  scoreStreak === 1 ? "day" : "days"
-                )}
+                <AnimatedNumber value={scoreStreak} />
+                <span className="ml-1 text-sm">
+                  {t(
+                    scoreStreak === 1 ? "dailySuccessSystem.streak.day" : "dailySuccessSystem.streak.days",
+                    scoreStreak === 1 ? "day" : "days"
+                  )}
+                </span>
               </p>
               <p className="text-[var(--text-muted)] mt-1">
                 {t("dailySuccessSystem.streak.help", "Days in a row you rated your day 60+.")}
@@ -814,7 +852,7 @@ export default function DailySuccessPage() {
                 <button
                   type="submit"
                   disabled={morningLoading}
-                  className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs"
+                  className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs active:scale-95 transition-transform"
                 >
                   {morningLoading
                     ? t("dailySuccessSystem.morning.generating", "Generating…")
@@ -889,7 +927,7 @@ export default function DailySuccessPage() {
                 <button
                   type="submit"
                   disabled={eveningLoading}
-                  className="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-xs"
+                  className="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-xs active:scale-95 transition-transform"
                 >
                   {eveningLoading
                     ? t("dailySuccessSystem.evening.generating", "Generating…")
@@ -940,7 +978,10 @@ export default function DailySuccessPage() {
                     min={0}
                     max={100}
                     value={score}
-                    onChange={(e) => setScore(Number(e.target.value))}
+                    onChange={(e) => {
+                      play("pop"); // Added play('pop')
+                      setScore(Number(e.target.value));
+                    }}
                     className="flex-1"
                   />
                   <span className="text-sm font-semibold w-10 text-right">{score}</span>
@@ -958,7 +999,7 @@ export default function DailySuccessPage() {
                     type="button"
                     onClick={handleSuggestScore}
                     disabled={suggestLoading}
-                    className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[11px]"
+                    className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[11px] active:scale-95 transition-transform"
                   >
                     {suggestLoading
                       ? t("dailySuccessSystem.evening.aiSuggestLoading", "Asking AI…")

@@ -17,6 +17,7 @@ import AuthGateModal from "@/app/components/AuthGateModal";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
 import { useT } from "@/lib/useT";
+import { useSound } from "@/lib/sound";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -59,6 +60,8 @@ export default function SettingsPage() {
 
   const [tone, setTone] = useState<Tone>("balanced");
   const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
+  const sound = useSound();
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [focusArea, setFocusArea] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -129,6 +132,11 @@ export default function SettingsPage() {
       mounted = false;
       if (cleanup) cleanup();
     };
+  }, []);
+
+  // Load sound pref
+  useEffect(() => {
+    setSoundEnabled(sound.isEnabled());
   }, []);
 
   // Check push subscription (only when logged in)
@@ -218,7 +226,7 @@ export default function SettingsPage() {
             if (typeof window !== "undefined") {
               try {
                 window.localStorage.setItem(LS_PREF_LANG, base);
-              } catch {}
+              } catch { }
             }
           }
         }
@@ -280,7 +288,7 @@ export default function SettingsPage() {
       if (typeof window !== "undefined") {
         try {
           window.localStorage.setItem(LS_PREF_LANG, langToSave);
-        } catch {}
+        } catch { }
       }
 
       setSuccess(t("settings.saveSuccess", "Settings saved. Your AI will now use this style and preferences."));
@@ -322,7 +330,7 @@ export default function SettingsPage() {
       } else {
         setPushStatus(
           t("settings.taskReminders.enableError", "❌ Error enabling push notifications.") +
-            (err?.message ? ` ${err.message}` : "")
+          (err?.message ? ` ${err.message}` : "")
         );
       }
       setPushEnabled(false);
@@ -372,7 +380,7 @@ export default function SettingsPage() {
       console.error("handleDisablePush error:", err);
       setPushStatus(
         t("settings.taskReminders.disableError", "❌ Error disabling push notifications.") +
-          (err?.message ? `: ${err.message}` : "")
+        (err?.message ? `: ${err.message}` : "")
       );
     } finally {
       setPushLoading(false);
@@ -490,6 +498,30 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Sound Effects */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold text-[var(--text-main)]">{t("settings.section.sound", "Sound Effects")}</p>
+                    <p className="text-[11px] text-[var(--text-muted)]">{t("settings.sound.description", "Play subtle sounds for actions and celebrations.")}</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={soundEnabled}
+                      onChange={(e) => {
+                        const val = e.target.checked;
+                        setSoundEnabled(val);
+                        sound.toggle(val);
+                        if (val) sound.play("toggle");
+                      }}
+                    />
+                    <div className="w-9 h-5 bg-[var(--bg-card)] border border-[var(--border-subtle)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--text-muted)] after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--accent)] peer-checked:after:bg-white peer-checked:after:border-white"></div>
+                  </label>
+                </div>
+              </div>
+
               {/* AI tone */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4 space-y-3">
                 <div>
@@ -507,11 +539,10 @@ export default function SettingsPage() {
                       key={opt.value}
                       type="button"
                       onClick={() => setTone(opt.value)}
-                      className={`px-3 py-2 rounded-xl border text-sm text-left ${
-                        tone === opt.value
+                      className={`px-3 py-2 rounded-xl border text-sm text-left ${tone === opt.value
                           ? "border-[var(--accent)] bg-[var(--accent-soft)]"
                           : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
-                      }`}
+                        }`}
                     >
                       <span className="mr-2">{opt.icon}</span>
                       {t(opt.key, opt.fallback)}
@@ -638,11 +669,10 @@ export default function SettingsPage() {
                       key={opt.value}
                       type="button"
                       onClick={() => setTheme(opt.value)}
-                      className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
-                        theme === opt.value
+                      className={`px-3 py-1.5 rounded-full border text-[11px] transition ${theme === opt.value
                           ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                           : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
-                      }`}
+                        }`}
                     >
                       {t(opt.key, opt.fallback)}
                     </button>
@@ -717,7 +747,7 @@ export default function SettingsPage() {
                     try {
                       try {
                         track("manage_subscription_opened");
-                      } catch {}
+                      } catch { }
 
                       const res = await fetch("/api/stripe/portal", {
                         method: "POST",
