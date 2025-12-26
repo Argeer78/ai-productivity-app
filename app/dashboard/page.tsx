@@ -673,7 +673,9 @@ export default function DashboardPage() {
           setWeeklyGoalCompleted(false);
         }
 
-        // 9) Daily Plans (for Early Bird badge)
+        // 9) Daily Plans (Skipped: table not active)
+        setRecentPlans([]);
+        /*
         const { data: planRows, error: planError } = await supabase
           .from("daily_plans")
           .select("created_at")
@@ -686,6 +688,7 @@ export default function DashboardPage() {
         } else {
           setRecentPlans((planRows || []).map(r => r.created_at));
         }
+        */
 
       } catch (err: any) {
         console.error(err);
@@ -1301,49 +1304,6 @@ export default function DashboardPage() {
                         />
                       </div>
 
-                      <div className="border border-[var(--border-subtle)] bg-[var(--bg-elevated)] rounded-2xl p-3 mt-3">
-                        <h3 className="text-sm font-semibold mb-2">📈 {t("dashboard.section.productivity", "📈 Productivity Score")}</h3>
-
-                        {scoreLoading ? (
-                          <p className="text-[11px] text-[var(--text-muted)]">{t("dashboard.loading", "Loading...")}</p>
-                        ) : (
-                          <>
-                            <p className="text-[13px] mb-1">
-                              <span className="text-[var(--text-muted)]">{t("dashboard.productivity.todayLabel", "Today:")}</span>{" "}
-                              <span className="font-semibold">{todayScore !== null ? `${todayScore}/100` : "—"}</span>
-                            </p>
-
-                            <p className="text-[13px] mb-1">
-                              <span className="text-[var(--text-muted)]">{t("dashboard.productivity.sevenDayAvgLabel", "7-day avg:")}</span>{" "}
-                              <span className="font-semibold">{avg7 !== null ? `${avg7}` : "—"}</span>
-                            </p>
-
-                            <p className="text-[13px] mb-3">
-                              <span className="text-[var(--text-muted)]">{t("dashboard.productivity.streakLabel", "Score streak (≥60):")}</span>{" "}
-                              <span className="font-semibold">
-                                {scoreStreak} {t("dashboard.productivity.streakDaysSuffix", "days")}
-                              </span>
-                            </p>
-
-                            <div className="flex flex-wrap gap-2">
-                              <Link
-                                href="/daily-success?mode=morning"
-                                className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
-                              >
-                                {t("dashboard.productivity.ctaMorning", "Morning plan")}
-                              </Link>
-
-                              <Link
-                                href="/daily-success?mode=evening"
-                                className="inline-block text-xs px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
-                              >
-                                {t("dashboard.productivity.ctaEvening", "Evening reflection")}
-                              </Link>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
                       <p className="text-[11px] text-[var(--text-muted)] mt-2">
                         {remaining > 0 ? (
                           isPro ? (
@@ -1364,88 +1324,81 @@ export default function DashboardPage() {
                         )}
                       </p>
 
-                      <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                        {t("dashboard.usage.streakLabel", "Usage streak:")}{" "}
-                        <span className="font-semibold">
-                          {streak} {t("dashboard.usage.streakSuffix", "days in a row")}
-                        </span>{" "}
-                        • {t("dashboard.usage.activeDaysLabel", "Active days (last 30):")} <span className="font-semibold">{activeDays}</span>
-                      </p>
+
                     </div>
+                  </div>
 
+                  {/* ✅ Feature Widgets (Glance, Trophy, Focus) */}
+                  <div className="grid md:grid-cols-3 gap-4 mb-6">
+                    <DashboardGlance todayScore={todayScore} />
+                    <BadgeTrophyCase streak={streak} scores={recentScores} morningPlans={recentPlans} />
 
-
-                    {/* ✅ Feature Widgets (Glance, Trophy, Focus) */}
-                    <div className="grid md:grid-cols-3 gap-4 mb-6">
-                      <DashboardGlance todayScore={todayScore} />
-                      <BadgeTrophyCase streak={streak} scores={recentScores} morningPlans={recentPlans} />
-
-                      {/* Focus Mode Card */}
-                      <div
-                        onClick={() => setShowFocus(true)}
-                        className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 flex flex-col justify-center items-center cursor-pointer hover:border-[var(--accent)] hover:shadow-lg transition-all group"
-                        role="button"
-                      >
-                        <div className="h-10 w-10 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center mb-2 text-xl group-hover:scale-110 transition-transform">
-                          🧘
-                        </div>
-                        <p className="font-semibold text-sm mb-0.5">{t("dashboard.focus.title", "Focus Mode")}</p>
-                        <p className="text-[11px] text-[var(--text-muted)] text-center leading-tight">
-                          {t("dashboard.focus.subtitle", "Timer + Ambient Sound")}
-                        </p>
+                    {/* Focus Mode Card */}
+                    <div
+                      onClick={() => setShowFocus(true)}
+                      className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 flex flex-col justify-center items-center cursor-pointer hover:border-[var(--accent)] hover:shadow-lg transition-all group"
+                      role="button"
+                    >
+                      <div className="h-10 w-10 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center mb-2 text-xl group-hover:scale-110 transition-transform">
+                        🧘
                       </div>
-                    </div>
-
-                    {/* ✅ AI SUMMARY card (full-width) */}
-                    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 md:col-span-3">
-                      <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
-                        {t("dashboard.section.aiSummary", "AI SUMMARY (BETA)")}
-                      </p>
-
-                      {!summary ? (
-                        <p className="text-[12px] text-[var(--text-muted)] mb-3">
-                          {t(
-                            "dashboard.aiSummary.description",
-                            "Let AI scan your recent notes and tasks and give you a short overview plus suggestions."
-                          )}
-                        </p>
-                      ) : null}
-
-                      {summary ? <AiSummaryCard text={summary} onSendToAssistant={sendSummaryToAssistant} /> : null}
-
-                      {summaryError && <p className="text-[11px] text-red-400 mt-2">{summaryError}</p>}
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={generateSummary}
-                          disabled={summaryLoading || (!isPro && aiCountToday >= dailyLimit)}
-                          className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm text-[var(--accent-contrast)]"
-                        >
-                          {summaryLoading
-                            ? t("dashboard.aiSummary.generating", "Generating...")
-                            : !isPro && aiCountToday >= dailyLimit
-                              ? t("dashboard.aiSummary.limitButton", "Daily AI limit reached")
-                              : summary
-                                ? t("dashboard.aiSummary.regenerate", "Regenerate summary")
-                                : t("dashboard.aiSummary.button", "Generate summary")}
-                        </button>
-
-                        {summary ? (
-                          <button
-                            type="button"
-                            onClick={() => setSummary("")}
-                            className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
-                          >
-                            {t("dashboard.aiSummary.clear", "Clear")}
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                        {t("dashboard.aiSummary.usageNote", "Uses your daily AI limit (shared with notes, assistant, planner).")}
+                      <p className="font-semibold text-sm mb-0.5">{t("dashboard.focus.title", "Focus Mode")}</p>
+                      <p className="text-[11px] text-[var(--text-muted)] text-center leading-tight">
+                        {t("dashboard.focus.subtitle", "Timer + Ambient Sound")}
                       </p>
                     </div>
                   </div>
+
+                  {/* ✅ AI SUMMARY card (full-width) */}
+                  <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 md:col-span-3">
+                    <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
+                      {t("dashboard.section.aiSummary", "AI SUMMARY (BETA)")}
+                    </p>
+
+                    {!summary ? (
+                      <p className="text-[12px] text-[var(--text-muted)] mb-3">
+                        {t(
+                          "dashboard.aiSummary.description",
+                          "Let AI scan your recent notes and tasks and give you a short overview plus suggestions."
+                        )}
+                      </p>
+                    ) : null}
+
+                    {summary ? <AiSummaryCard text={summary} onSendToAssistant={sendSummaryToAssistant} /> : null}
+
+                    {summaryError && <p className="text-[11px] text-red-400 mt-2">{summaryError}</p>}
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={generateSummary}
+                        disabled={summaryLoading || (!isPro && aiCountToday >= dailyLimit)}
+                        className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm text-[var(--accent-contrast)]"
+                      >
+                        {summaryLoading
+                          ? t("dashboard.aiSummary.generating", "Generating...")
+                          : !isPro && aiCountToday >= dailyLimit
+                            ? t("dashboard.aiSummary.limitButton", "Daily AI limit reached")
+                            : summary
+                              ? t("dashboard.aiSummary.regenerate", "Regenerate summary")
+                              : t("dashboard.aiSummary.button", "Generate summary")}
+                      </button>
+
+                      {summary ? (
+                        <button
+                          type="button"
+                          onClick={() => setSummary("")}
+                          className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
+                        >
+                          {t("dashboard.aiSummary.clear", "Clear")}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                      {t("dashboard.aiSummary.usageNote", "Uses your daily AI limit (shared with notes, assistant, planner).")}
+                    </p>
+                  </div>
+
 
                   {/* ✅ Everything below stays as you already had it (AI wins, weekly goal, recent, quick links, feedback...) */}
                   {/* --- keep your remaining sections unchanged --- */}
