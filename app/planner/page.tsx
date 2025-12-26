@@ -1,7 +1,7 @@
 // app/planner/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
@@ -12,49 +12,92 @@ import { useT } from "@/lib/useT";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 
+/* ---------------- UI helpers ---------------- */
+
+function renderSmartTextBlocks(text: string) {
+  const lines = (text || "").split("\n").map((l) => l.trimEnd());
+
+  const blocks: Array<
+    | { type: "heading"; text: string }
+    | { type: "bullet"; text: string }
+    | { type: "text"; text: string }
+    | { type: "spacer" }
+  > = [];
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) {
+      blocks.push({ type: "spacer" });
+      continue;
+    }
+
+    // Headings like: "Top 3 priorities", "Schedule:", "Suggested order", etc
+    const looksLikeHeading =
+      /^[A-Z][A-Za-z0-9 '’/()&-]{2,}$/.test(line) ||
+      /^[A-Za-z0-9 '’/()&-]{2,}:\s*$/.test(line);
+
+    if (looksLikeHeading) {
+      blocks.push({ type: "heading", text: line.replace(/:\s*$/, "") });
+      continue;
+    }
+
+    // Bullets: "-", "•", "1.", "2)"
+    const bulletMatch = line.match(/^[-•]\s+(.*)$/) || line.match(/^\d+[.)]\s+(.*)$/);
+
+    if (bulletMatch?.[1]) {
+      blocks.push({ type: "bullet", text: bulletMatch[1] });
+      continue;
+    }
+
+    blocks.push({ type: "text", text: line });
+  }
+
+  // compact repeated spacers
+  const compact: typeof blocks = [];
+  for (const b of blocks) {
+    if (b.type === "spacer" && compact[compact.length - 1]?.type === "spacer") continue;
+    compact.push(b);
+  }
+
+  return compact;
+}
+
 export default function PlannerPage() {
   // ✅ Match keys: planner.*
-  const { t: rawT } = useT("");
-  const t = (key: string, fallback: string) => rawT(`planner.${key}`, fallback);
+  const { t: rawT } = useT();
+  const t = useMemo(
+    () => (key: string, fallback: string) => rawT(`planner.${key}`, fallback),
+    [rawT]
+  );
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  // ✅ IMPORTANT: call hook with object (prevents null destructure bugs)
-  const gate = useAuthGate({
-    user,
-    defaultCopy: {
-      title: t("auth.title", "Log in to use Daily Planner."),
-      subtitle: t(
-        "auth.subtitle",
-        "Your planner uses your saved tasks, so it needs an account."
-      ),
-    },
-  });
+  // ✅ Correct hook usage (pass user directly)
+  const gate = useAuthGate(user);
 
   const [planText, setPlanText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ Session bootstrap (same pattern that works elsewhere)
+  // ✅ Session bootstrap (safe + consistent)
   useEffect(() => {
     let mounted = true;
 
     async function init() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) console.error(error);
+        if (!mounted) return;
+        setUser(data?.user ?? null);
+      } finally {
+        if (mounted) setCheckingUser(false);
+      }
 
-      if (!mounted) return;
-      setUser(session?.user ?? null);
-      setCheckingUser(false);
-
-      const { data: sub } = supabase.auth.onAuthStateChange(
-        (_event, session) => {
-          if (!mounted) return;
-          setUser(session?.user ?? null);
-        }
-      );
+      const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!mounted) return;
+        setUser(session?.user ?? null);
+      });
 
       return () => sub.subscription.unsubscribe();
     }
@@ -68,19 +111,31 @@ export default function PlannerPage() {
     };
   }, []);
 
+  function sendToAssistant(content: string, hint: string) {
+    if (typeof window === "undefined") return;
+
+    window.dispatchEvent(
+      new CustomEvent("ai-assistant-context", {
+        detail: { content, hint },
+      })
+    );
+  }
+
   async function generatePlan() {
     setError("");
 
     // ✅ Gate only when action needs auth
-    const ok = gate.requireAuth(undefined, {
-      title: t("auth.title", "Log in to use Daily Planner."),
-      subtitle: t(
-        "auth.subtitle",
-        "Your planner uses your saved tasks, so it needs an account."
-      ),
-    });
-
-    if (!ok) return;
+    if (
+      !gate.requireAuth(undefined, {
+        title: t("auth.title", "Log in to use Daily Planner."),
+        subtitle: t(
+          "auth.subtitle",
+          "Your planner uses your saved tasks, so it needs an account."
+        ),
+      })
+    ) {
+      return;
+    }
     if (!user?.id) return;
 
     setLoading(true);
@@ -107,39 +162,33 @@ export default function PlannerPage() {
       try {
         data = JSON.parse(raw);
       } catch {
-        console.error(
-          `[planner] NON-JSON response (status=${res.status}, reqId=${reqId})`,
-          raw
-        );
+        console.error(`[planner] NON-JSON response (status=${res.status}, reqId=${reqId})`, raw);
         setError(
-          t(
-            "error.invalidResponse",
-            "Server returned an invalid response. Please try again."
-          )
+          t("error.invalidResponse", "Server returned an invalid response. Please try again.")
         );
         return;
       }
 
-      if (!res.ok || !data?.plan) {
-        console.error(
-          `[planner] API error payload (status=${res.status}, reqId=${reqId})`,
-          data
-        );
+      // ✅ Accept new payload { ok, text } and fallback to older { plan }
+      const text =
+        typeof data?.text === "string"
+          ? data.text
+          : typeof data?.plan === "string"
+            ? data.plan
+            : "";
+
+      const okFlag = typeof data?.ok === "boolean" ? data.ok : res.ok;
+
+      if (!res.ok || !okFlag || !text) {
+        console.error(`[planner] API error payload (status=${res.status}, reqId=${reqId})`, data);
 
         if (res.status === 401) {
           gate.openGate({
             title: t("error.unauthorizedTitle", "Session expired."),
-            subtitle: t(
-              "error.unauthorized",
-              "You must be logged in to use the daily planner."
-            ),
+            subtitle: t("error.unauthorized", "You must be logged in to use the daily planner."),
           });
           setError(
-            data?.error ||
-            t(
-              "error.unauthorized",
-              "You must be logged in to use the daily planner."
-            )
+            data?.error || t("error.unauthorized", "You must be logged in to use the daily planner.")
           );
           return;
         }
@@ -159,9 +208,7 @@ export default function PlannerPage() {
         return;
       }
 
-      setPlanText(data.plan);
-      // ✅ We intentionally do NOT show per-page AI usage here.
-      // The header badge is the single source of truth.
+      setPlanText(String(text));
     } catch (err) {
       console.error(`[planner] network/exception (reqId=${reqId})`, err);
       setError(t("error.network", "Network error while generating your plan."));
@@ -169,6 +216,11 @@ export default function PlannerPage() {
       setLoading(false);
     }
   }
+
+  const blocks = useMemo(() => {
+    if (!planText) return [];
+    return renderSmartTextBlocks(planText);
+  }, [planText]);
 
   if (checkingUser) {
     return (
@@ -185,20 +237,13 @@ export default function PlannerPage() {
       <AppHeader active="planner" />
 
       {/* ✅ Always mounted so the button can open it */}
-      <AuthGateModal
-        open={gate.open}
-        onClose={gate.close}
-        copy={gate.copy}
-        authHref={gate.authHref}
-      />
+      <AuthGateModal open={gate.open} onClose={gate.close} copy={gate.copy} authHref={gate.authHref} />
 
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-1">
-              {t("title", "Daily Planner")}
-            </h1>
+            <h1 className="text-2xl md:text-3xl font-bold mb-1">{t("title", "Daily Planner")}</h1>
             <p className="text-xs md:text-sm text-[var(--text-muted)]">
               {t("subtitle", "Let AI turn your tasks into a focused plan for today.")}
             </p>
@@ -207,8 +252,7 @@ export default function PlannerPage() {
           <div className="text-[11px] text-[var(--text-muted)]">
             {user?.email ? (
               <>
-                {t("loggedInAs", "Logged in as")}{" "}
-                <span className="font-semibold">{user.email}</span>
+                {t("loggedInAs", "Logged in as")} <span className="font-semibold">{user.email}</span>
               </>
             ) : (
               <span className="inline-flex items-center gap-2">
@@ -267,21 +311,33 @@ export default function PlannerPage() {
             )}
           </p>
 
-          <button
-            onClick={generatePlan}
-            disabled={loading}
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm"
-          >
-            {loading
-              ? t("generatingButton", "Generating plan...")
-              : t("generateButton", "Generate today’s plan")}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={generatePlan}
+              disabled={loading}
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm"
+            >
+              {loading ? t("generatingButton", "Generating plan...") : t("generateButton", "Generate today’s plan")}
+            </button>
+
+            {planText ? (
+              <button
+                type="button"
+                onClick={() =>
+                  sendToAssistant(
+                    planText,
+                    "Give me a few extra ideas, improvements, and alternatives for this daily plan."
+                  )
+                }
+                className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
+              >
+                {t("sendToAssistant", "Send to AI assistant for more ideas")}
+              </button>
+            ) : null}
+          </div>
 
           <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-            {t(
-              "generateNote",
-              "Uses your daily AI limit (shared with notes, assistant, and dashboard summary)."
-            )}
+            {t("generateNote", "Uses your daily AI limit (shared with notes, assistant, and dashboard summary).")}
           </p>
 
           {error && <div className="mt-3 text-[11px] text-red-400">{error}</div>}
@@ -296,16 +352,53 @@ export default function PlannerPage() {
           </div>
         </div>
 
-        {/* Plan output */}
+        {/* Plan output (clean readable box) */}
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 text-sm min-h-[160px]">
-          <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
-            {t("section.todayPlan", "TODAY'S PLAN")}
-          </p>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+            <p className="text-xs font-semibold text-[var(--text-muted)]">
+              {t("section.todayPlan", "TODAY'S PLAN")}
+            </p>
+
+            {planText ? (
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(planText)}
+                className="text-[11px] text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
+              >
+                {t("copyPlan", "Copy")}
+              </button>
+            ) : null}
+          </div>
 
           {planText ? (
-            <pre className="whitespace-pre-wrap text-[12px] text-[var(--text-main)]">
-              {planText}
-            </pre>
+            <div className="space-y-2">
+              {blocks.map((b, idx) => {
+                if (b.type === "spacer") return <div key={idx} className="h-2" />;
+
+                if (b.type === "heading") {
+                  return (
+                    <h3 key={idx} className="text-[12px] font-semibold text-[var(--text-main)] mt-2">
+                      {b.text}
+                    </h3>
+                  );
+                }
+
+                if (b.type === "bullet") {
+                  return (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-[var(--text-muted)]" />
+                      <p className="text-[12px] text-[var(--text-main)] leading-relaxed">{b.text}</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <p key={idx} className="text-[12px] text-[var(--text-main)] leading-relaxed">
+                    {b.text}
+                  </p>
+                );
+              })}
+            </div>
           ) : (
             <p className="text-[12px] text-[var(--text-muted)]">
               {t(
@@ -318,17 +411,26 @@ export default function PlannerPage() {
 
         {/* Feedback */}
         <section className="mt-8 max-w-md">
-          <h2 className="text-sm font-semibold mb-1">
-            {t("feedback.title", "Send feedback about Daily Planner")}
-          </h2>
+          <h2 className="text-sm font-semibold mb-1">{t("feedback.title", "Send feedback about Daily Planner")}</h2>
           <p className="text-[11px] text-[var(--text-muted)] mb-3">
-            {t(
-              "feedback.subtitle",
-              "Did the plan help? Missing something? Share your thoughts so I can improve it."
-            )}
+            {t("feedback.subtitle", "Did the plan help? Missing something? Share your thoughts so I can improve it.")}
           </p>
+
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
-            <FeedbackForm user={user} />
+            {user ? (
+              <FeedbackForm user={user} />
+            ) : (
+              <div className="text-[12px] text-[var(--text-muted)]">
+                {t("feedback.guest", "Log in to send feedback tied to your account.")}{" "}
+                <button
+                  type="button"
+                  onClick={() => gate.openGate({ title: t("feedback.guestCtaTitle", "Log in to send feedback.") })}
+                  className="underline underline-offset-2 text-[var(--accent)] hover:opacity-90"
+                >
+                  {t("feedback.guestCta", "Log in")}
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </div>

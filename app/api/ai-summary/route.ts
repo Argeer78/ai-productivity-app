@@ -28,6 +28,10 @@ function getTodayAthensYmd() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function normalizeLang(code?: string | null) {
+  return String(code || "en").trim().toLowerCase().split("-")[0] || "en";
+}
+
 function buildToneDescription(aiTone?: string | null) {
   switch (aiTone) {
     case "friendly":
@@ -42,6 +46,13 @@ function buildToneDescription(aiTone?: string | null) {
     default:
       return "Use a balanced, clear, and professional but approachable tone.";
   }
+}
+
+// Prevent prompts becoming huge
+function clip(s: string, max = 280) {
+  const t = (s || "").trim();
+  if (t.length <= max) return t;
+  return t.slice(0, max).trimEnd() + "…";
 }
 
 export async function POST(req: Request) {
@@ -63,10 +74,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Athens date (matches your badge logic)
     const today = getTodayAthensYmd();
 
-    // Load profile
+    // Load profile (plan + tone + focus + language)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("plan, ai_tone, focus_area, ui_language")
@@ -75,7 +85,6 @@ export async function POST(req: Request) {
 
     if (profileError) {
       console.error("[ai-summary] profile error", profileError);
-      // continue with defaults
     }
 
     const planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
@@ -83,12 +92,12 @@ export async function POST(req: Request) {
     const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
     const toneDescription = buildToneDescription(profile?.ai_tone);
-    const focusArea = profile?.focus_area || null;
+    const focusArea = profile?.focus_area ? String(profile.focus_area) : null;
 
-    const languageCode = profile?.ui_language || "en";
+    const languageCode = normalizeLang(profile?.ui_language);
     const languageInstruction = aiLanguageInstruction(languageCode);
 
-    // Usage row
+    // Read usage
     const { data: usage, error: usageError } = await supabaseAdmin
       .from("ai_usage")
       .select("id, count")
@@ -98,10 +107,7 @@ export async function POST(req: Request) {
 
     if (usageError && (usageError as any).code !== "PGRST116") {
       console.error("[ai-summary] usage select error", usageError);
-      return NextResponse.json(
-        { ok: false, error: "Could not check your AI usage." },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: "Could not check your AI usage." }, { status: 500 });
     }
 
     const currentCount = usage?.count || 0;
@@ -118,55 +124,81 @@ export async function POST(req: Request) {
       );
     }
 
-    // Notes + tasks
+    // Notes + tasks (keep prompt small but meaningful)
     const { data: notes, error: notesErr } = await supabaseAdmin
       .from("notes")
-      .select("content")
+      .select("title, content, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(25);
 
     if (notesErr) console.error("[ai-summary] notes load error", notesErr);
 
     const { data: tasks, error: tasksErr } = await supabaseAdmin
       .from("tasks")
-      .select("title, description")
+      .select("title, description, is_done, due_date, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(30);
 
     if (tasksErr) console.error("[ai-summary] tasks load error", tasksErr);
 
-    const notesText = (notes || []).map((n: any) => `- ${n.content}`).join("\n");
-    const tasksText = (tasks || [])
-      .map((t: any) => `- ${t.title}${t.description ? ` – ${t.description}` : ""}`)
-      .join("\n");
+    const notesText =
+      (notes || [])
+        .map((n: any, i: number) => {
+          const title = n?.title ? clip(String(n.title), 80) : "(untitled)";
+          const content = n?.content ? clip(String(n.content), 220) : "(no content)";
+          return `${i + 1}. ${title}: ${content}`;
+        })
+        .join("\n") || "(no recent notes)";
+
+    const tasksText =
+      (tasks || [])
+        .map((t: any, i: number) => {
+          const title = t?.title ? clip(String(t.title), 90) : "(untitled)";
+          const desc = t?.description ? clip(String(t.description), 160) : "";
+          const done = t?.is_done ? "done" : "open";
+          const due = t?.due_date ? ` | due ${t.due_date}` : "";
+          return `${i + 1}. [${done}] ${title}${desc ? ` — ${desc}` : ""}${due}`;
+        })
+        .join("\n") || "(no recent tasks)";
 
     const contextText = `
-Recent notes:
-${notesText || "(no recent notes)"}
+DATE: ${today}
 
-Recent tasks:
-${tasksText || "(no recent tasks)"}
+RECENT NOTES:
+${notesText}
+
+RECENT TASKS:
+${tasksText}
 `.trim();
 
     let systemPrompt = `
 You are an AI summarizer inside a productivity app called "AI Productivity Hub".
 ${languageInstruction}
 ${toneDescription}
+${focusArea ? `The user's main focus area is: "${focusArea}".` : ""}
 
-Create a very concise overview of the user's recent activity.
-`.trim();
+Write a compact summary of the user's recent activity.
 
-    if (focusArea) {
-      systemPrompt += `\nThe user's main focus area is: "${focusArea}". Tailor insights toward it.`;
-    }
+IMPORTANT:
+- Use clear section headings exactly like below.
+- Use short bullets.
+- Be specific and actionable.
+- Keep it under ~220 words.
 
-    systemPrompt += `
-Output format:
-1) Short paragraph summary
-2) 3 bullet points of key patterns
-3) 2 concrete next-step suggestions
+FORMAT (plain text, no markdown):
+SUMMARY:
+<2–4 sentences>
+
+PATTERNS:
+- <bullet>
+- <bullet>
+- <bullet>
+
+NEXT STEPS:
+- <bullet>
+- <bullet>
 `.trim();
 
     const completion = await client.chat.completions.create({
@@ -175,15 +207,17 @@ Output format:
         { role: "system", content: systemPrompt },
         { role: "user", content: contextText },
       ],
-      max_tokens: 350,
-      temperature: 0.7,
+      max_tokens: 420,
+      temperature: 0.5,
     });
 
-    const summary =
-      completion.choices[0]?.message?.content?.trim() ||
-      "Not enough data yet, but keep going!";
+    const text =
+      completion.choices?.[0]?.message?.content?.trim() ||
+      "SUMMARY:\nNot enough data yet.\n\nPATTERNS:\n- Keep writing notes.\n- Keep adding tasks.\n- Review daily.\n\nNEXT STEPS:\n- Add 1 priority for today.\n- Finish 1 open task.";
 
-    // ✅ Update usage (same table used by badge)
+    // ✅ Increment usage after success (don’t fail response if usage write fails)
+    const nextUsed = currentCount + 1;
+
     try {
       if (!usage) {
         const { error: insErr } = await supabaseAdmin.from("ai_usage").insert([
@@ -193,23 +227,28 @@ Output format:
       } else {
         const { error: updErr } = await supabaseAdmin
           .from("ai_usage")
-          .update({ count: currentCount + 1 })
+          .update({ count: nextUsed })
           .eq("id", usage.id);
         if (updErr) console.error("[ai-summary] usage update error", updErr);
       }
     } catch (e) {
       console.error("[ai-summary] usage write exception", e);
-      // don't fail the request if usage write fails
     }
 
-    return NextResponse.json({
-      ok: true,
-      summary,
-      plan: planRaw,
-      dailyLimit,
-      usedToday: isPro ? currentCount + 1 : currentCount + 1,
-      usageDate: today,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        // ✅ preferred field for your readable box UI
+        text,
+        // ✅ keep old field for any existing UI still reading summary
+        summary: text,
+        plan: planRaw,
+        dailyLimit,
+        usedToday: nextUsed,
+        usageDate: today,
+      },
+      { status: 200 }
+    );
   } catch (err: any) {
     console.error("[ai-summary] fatal", err);
     return NextResponse.json(

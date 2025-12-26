@@ -1,24 +1,39 @@
+// app/api/daily-plan/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+export const runtime = "nodejs";
+export const maxDuration = 30;
+
 const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
 
-function getTodayString() {
-  return new Date().toISOString().split("T")[0];
+/* ---------------- DATE (Athens) ---------------- */
+
+function getTodayAthensYmd() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Athens",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const yyyy = parts.find((p) => p.type === "year")?.value || "0000";
+  const mm = parts.find((p) => p.type === "month")?.value || "01";
+  const dd = parts.find((p) => p.type === "day")?.value || "01";
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 /* ---------------- LANGUAGE HELPERS ---------------- */
 
 function normalizeLang(code?: string | null) {
   if (!code) return "en";
-  // handle el-GR, en-US, etc
-  return code.split("-")[0].toLowerCase();
+  return String(code).split("-")[0].toLowerCase();
 }
 
 function getLanguageName(code: string) {
@@ -31,6 +46,10 @@ function getLanguageName(code: string) {
       return "German";
     case "es":
       return "Spanish";
+    case "it":
+      return "Italian";
+    case "pt":
+      return "Portuguese";
     default:
       return "English";
   }
@@ -55,9 +74,7 @@ function buildToneDescription(aiTone?: string | null) {
 
 /* ---------------- AI USAGE (ai_usage table) ---------------- */
 
-async function checkAndIncrementAiUsage(userId: string) {
-  const today = getTodayString();
-
+async function getPlanAndUsage(userId: string, today: string) {
   // plan
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from("profiles")
@@ -74,7 +91,6 @@ async function checkAndIncrementAiUsage(userId: string) {
   const isPro = planRaw === "pro" || planRaw === "founder";
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
-  // usage row
   const { data: usage, error: usageErr } = await supabaseAdmin
     .from("ai_usage")
     .select("id, count")
@@ -83,57 +99,97 @@ async function checkAndIncrementAiUsage(userId: string) {
     .maybeSingle();
 
   if (usageErr && (usageErr as any).code !== "PGRST116") {
-    throw new Error("Could not check AI usage.");
+    throw Object.assign(new Error("Could not check AI usage."), { status: 500 });
   }
 
-  const current = usage?.count || 0;
+  const current = usage?.count ?? 0;
 
-  // block only for free
-  if (!isPro && current >= dailyLimit) {
-    const err = new Error("Daily AI limit reached.");
-    (err as any).status = 429;
-    (err as any).plan = planRaw;
-    (err as any).dailyLimit = dailyLimit;
-    (err as any).usedToday = current;
-    throw err;
-  }
+  return {
+    planAccount: planRaw,
+    isPro,
+    dailyLimit,
+    usageId: usage?.id ?? null,
+    currentCount: current,
+  };
+}
 
-  // increment
-  if (!usage) {
+async function incrementUsage(
+  userId: string,
+  today: string,
+  usageId: string | null,
+  currentCount: number
+) {
+  // NOTE: we never fail the request if this write fails
+  if (!usageId) {
     const { error: insErr } = await supabaseAdmin
       .from("ai_usage")
       .insert([{ user_id: userId, usage_date: today, count: 1 }]);
 
-    if (insErr) throw new Error("Failed to update AI usage.");
-    return { plan: planRaw, dailyLimit, usedToday: 1 };
-  } else {
-    const next = current + 1;
-    const { error: updErr } = await supabaseAdmin
-      .from("ai_usage")
-      .update({ count: next })
-      .eq("id", usage.id);
-
-    if (updErr) throw new Error("Failed to update AI usage.");
-    return { plan: planRaw, dailyLimit, usedToday: next };
+    if (insErr) {
+      console.error("[daily-plan] usage insert error", insErr);
+      return { usedToday: 1, wrote: false as const };
+    }
+    return { usedToday: 1, wrote: true as const };
   }
+
+  const next = currentCount + 1;
+  const { error: updErr } = await supabaseAdmin
+    .from("ai_usage")
+    .update({ count: next })
+    .eq("id", usageId);
+
+  if (updErr) {
+    console.error("[daily-plan] usage update error", updErr);
+    return { usedToday: next, wrote: false as const };
+  }
+
+  return { usedToday: next, wrote: true as const };
 }
 
 /* ---------------- ROUTE ---------------- */
 
+type Body = { userId?: string };
+
 export async function POST(req: Request) {
   try {
-    const { userId } = (await req.json()) as { userId?: string };
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { ok: false, error: "OPENAI_API_KEY is not configured on the server." },
+        { status: 500 }
+      );
+    }
+
+    const body = (await req.json().catch(() => ({}))) as Body;
+    const userId = body?.userId || null;
 
     if (!userId) {
       return NextResponse.json(
-        { error: "You must be logged in to use the daily planner." },
+        { ok: false, error: "You must be logged in to use the daily planner." },
         { status: 401 }
       );
     }
 
-    const today = getTodayString();
+    const today = getTodayAthensYmd();
 
-    /* 1️⃣ PROFILE (tone, focus, language) */
+    // 0) Check usage BEFORE calling OpenAI
+    const usageState = await getPlanAndUsage(userId, today);
+
+    // block only for free
+    if (!usageState.isPro && usageState.currentCount >= usageState.dailyLimit) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "You’ve reached today’s AI limit. Try again tomorrow or upgrade.",
+          planAccount: usageState.planAccount,
+          dailyLimit: usageState.dailyLimit,
+          usedToday: usageState.currentCount,
+          usageDate: today,
+        },
+        { status: 429 }
+      );
+    }
+
+    /* 1) PROFILE (tone, focus, language) */
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("ai_tone, focus_area, ui_language")
@@ -145,12 +201,12 @@ export async function POST(req: Request) {
     }
 
     const toneDescription = buildToneDescription(profile?.ai_tone);
-    const focusArea = profile?.focus_area ?? null;
+    const focusArea = profile?.focus_area ? String(profile.focus_area) : null;
 
     const uiLang = normalizeLang(profile?.ui_language);
     const langName = getLanguageName(uiLang);
 
-    /* 2️⃣ TASKS */
+    /* 2) TASKS */
     const { data: tasks, error: tasksErr } = await supabaseAdmin
       .from("tasks")
       .select("title, description, due_date, completed")
@@ -158,9 +214,7 @@ export async function POST(req: Request) {
       .order("due_date", { ascending: true })
       .limit(30);
 
-    if (tasksErr) {
-      console.error("[daily-plan] tasks load error", tasksErr);
-    }
+    if (tasksErr) console.error("[daily-plan] tasks load error", tasksErr);
 
     const openTasks = (tasks || []).filter((t: any) => !t.completed);
 
@@ -179,13 +233,11 @@ User's open tasks:
 ${tasksText || "(no open tasks)"}
 `.trim();
 
-    /* 3️⃣ SYSTEM PROMPT (STRICT LANGUAGE) */
+    /* 3) SYSTEM PROMPT (STRICT LANGUAGE) */
     let systemPrompt = `
 You are an AI daily planner inside AI Productivity Hub.
 
-Respond ONLY in ${langName}.
-Never use any other language.
-
+Respond ONLY in ${langName}. Never use any other language.
 ${toneDescription}
 `.trim();
 
@@ -194,59 +246,61 @@ ${toneDescription}
     }
 
     systemPrompt += `
-Output format:
-1) One motivating sentence
-2) "Today's Top 3"
-3) Suggested order (morning / afternoon / evening)
-4) 2–3 focus tips
+Output format (no markdown tables):
+- One motivating sentence
+- "Today's Top 3" (bullets)
+- "Suggested order" with morning / afternoon / evening blocks (bullets)
+- 2–3 focus tips (bullets)
 `.trim();
 
-    /* 4️⃣ CALL OPENAI */
+    /* 4) CALL OPENAI */
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
       temperature: 0.6,
-      max_tokens: 350,
+      max_tokens: 420,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: contextText },
-        { role: "system", content: `Respond ONLY in ${langName}.` },
       ],
     });
 
-    const planText = completion.choices[0]?.message?.content?.trim() || null;
-    if (!planText) throw new Error("Empty AI response");
-
-    /* 5️⃣ UPDATE USAGE (counts 1 AI call) */
-    const usageMeta = await checkAndIncrementAiUsage(userId);
-
-    return NextResponse.json({
-      plan: planText,
-      usedToday: usageMeta.usedToday,
-      dailyLimit: usageMeta.dailyLimit,
-      planAccount: usageMeta.plan,
-    });
-  } catch (err: any) {
-    // limit hit
-    if (err?.status === 429) {
-      return NextResponse.json(
-        {
-          error: err?.message || "Daily AI limit reached.",
-          plan: err?.plan || "free",
-          dailyLimit: err?.dailyLimit || FREE_DAILY_LIMIT,
-          usedToday: err?.usedToday || 0,
-        },
-        { status: 429 }
-      );
+    const text = completion.choices?.[0]?.message?.content?.trim();
+    if (!text) {
+      return NextResponse.json({ ok: false, error: "Empty AI response." }, { status: 500 });
     }
 
-    console.error("[daily-plan] error:", err);
+    /* 5) UPDATE USAGE (counts 1 AI call) */
+    const inc = await incrementUsage(userId, today, usageState.usageId, usageState.currentCount);
+
+    // ✅ IMPORTANT:
+    // Return "text" for the plan content.
+    // Return "planAccount" for subscription plan (so the client doesn't accidentally render it as the plan).
     return NextResponse.json(
       {
-        error:
-          err?.message ||
-          "Something went wrong while generating your daily plan.",
+        ok: true,
+        text,
+        usedToday: inc.usedToday,
+        dailyLimit: usageState.dailyLimit,
+        planAccount: usageState.planAccount,
+        usageDate: today,
       },
-      { status: 500 }
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  } catch (err: any) {
+    console.error("[daily-plan] error:", err);
+    const status = typeof err?.status === "number" ? err.status : 500;
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: err?.message || "Something went wrong while generating your daily plan.",
+      },
+      { status }
     );
   }
 }
