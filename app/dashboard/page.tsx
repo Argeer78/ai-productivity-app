@@ -15,7 +15,7 @@ import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import BadgeTrophyCase from "@/app/components/BadgeTrophyCase";
 import DashboardGlance from "@/app/components/DashboardGlance";
-import FocusOverlay from "@/app/components/FocusOverlay";
+import { useFocus } from "@/app/context/FocusContext";
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -208,7 +208,7 @@ export default function DashboardPage() {
   const [quickText, setQuickText] = useState("");
   const [quickSaving, setQuickSaving] = useState<"note" | "task" | null>(null);
   const [toast, setToast] = useState<string>("");
-  const [showFocus, setShowFocus] = useState(false);
+  const { startSession } = useFocus();
 
   const { track } = useAnalytics();
 
@@ -974,16 +974,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-4 grid md:grid-cols-3 gap-4">
-              {/* ✅ GLANCE WIDGET */}
-              <DashboardGlance todayScore={todayScore} />
-
-              {/* ✅ TROPHY CASE */}
-              <BadgeTrophyCase
-                streak={streak}
-                scores={recentScores}
-                morningPlans={recentPlans}
-              />
-
               {/* Weekly Goal */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
                 <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">{t("dashboard.actionHub.focus.title", "TODAY’S FOCUS")}</p>
@@ -1332,10 +1322,8 @@ export default function DashboardPage() {
                   <div className="grid md:grid-cols-3 gap-4 mb-6">
                     <DashboardGlance todayScore={todayScore} />
                     <BadgeTrophyCase streak={streak} scores={recentScores} morningPlans={recentPlans} />
-
-                    {/* Focus Mode Card */}
                     <div
-                      onClick={() => setShowFocus(true)}
+                      onClick={startSession}
                       className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 flex flex-col justify-center items-center cursor-pointer hover:border-[var(--accent)] hover:shadow-lg transition-all group"
                       role="button"
                     >
@@ -1559,7 +1547,6 @@ export default function DashboardPage() {
 
         </div>
       </div >
-      <FocusOverlay isOpen={showFocus} onClose={() => setShowFocus(false)} />
     </main >
   );
 }

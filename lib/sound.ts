@@ -42,72 +42,111 @@ class SoundManager {
 
     private ambientSource: AudioBufferSourceNode | null = null;
     private ambientGain: GainNode | null = null;
+    private ambientLfo: OscillatorNode | null = null;
+    private ambientFilter: BiquadFilterNode | null = null;
     private currentAmbient: "white_noise" | "rain" | null = null;
 
-    public playAmbient(type: "white_noise" | "rain") {
-        if (!this.enabled) return;
-        if (this.currentAmbient === type) return; // Already playing
+    private buffers: Record<string, AudioBuffer> = {};
 
-        this.stopAmbient(); // Stop current if any
+    private async loadBuffer(type: "rain" | "river"): Promise<AudioBuffer | null> {
+        if (this.buffers[type]) return this.buffers[type];
+        if (!this.ctx) return null;
+
+        try {
+            const url = type === "rain" ? "/sounds/rain.ogg" : "/sounds/river.ogg";
+            const res = await fetch(url);
+            const arrayBuffer = await res.arrayBuffer();
+            const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+            this.buffers[type] = audioBuffer;
+            return audioBuffer;
+        } catch (e) {
+            console.error("Failed to load sound", e);
+            return null;
+        }
+    }
+
+    public async playAmbient(type: "white_noise" | "rain" | "river") {
+        if (!this.enabled) return;
+
+        // Map legacy "white_noise" to "river" if passed
+        const actualType = type === "white_noise" ? "river" : type;
+
+        if (this.currentAmbient === actualType) return;
+
+        this.stopAmbient(true);
 
         const ctx = this.getContext();
         if (!ctx) return;
 
-        this.currentAmbient = type;
+        this.currentAmbient = actualType as any;
 
-        // Create Noise Buffer
-        const bufferSize = 2 * ctx.sampleRate; // 2 seconds
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const output = buffer.getChannelData(0);
+        const buffer = await this.loadBuffer(actualType as "rain" | "river");
+        if (!buffer) return;
 
-        for (let i = 0; i < bufferSize; i++) {
-            // White noise: random (-1 to 1)
-            const white = Math.random() * 2 - 1;
-
-            if (type === 'white_noise') {
-                output[i] = white * 0.15; // Lower volume
-            } else if (type === 'rain') {
-                // Brownish noise approximation (simple integration)
-                const prev = i > 0 ? output[i - 1] : 0;
-                output[i] = (prev + (0.02 * white)) / 1.02;
-                output[i] *= 3.5; // Gain compensation
-            }
-        }
+        // Verify we haven't been stopped while loading
+        if (this.currentAmbient !== actualType) return;
 
         this.ambientSource = ctx.createBufferSource();
         this.ambientSource.buffer = buffer;
         this.ambientSource.loop = true;
 
         this.ambientGain = ctx.createGain();
-        this.ambientGain.gain.value = 0; // Start silent for fade in
+        this.ambientGain.gain.value = 0;
 
         this.ambientSource.connect(this.ambientGain);
         this.ambientGain.connect(ctx.destination);
 
         this.ambientSource.start();
 
-        // Fade in
-        this.ambientGain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 1.5);
+        // Gentle fade in
+        this.ambientGain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 2);
     }
 
-    public stopAmbient() {
-        if (!this.ambientSource || !this.ambientGain || !this.ctx) {
+    public stopAmbient(immediate: boolean = false) {
+        if (!this.ctx) {
             this.currentAmbient = null;
             return;
         }
 
-        // Fade out
-        try {
-            this.ambientGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
-            const src = this.ambientSource;
-            setTimeout(() => {
-                try { src.stop(); } catch { }
-            }, 550);
-        } catch { }
+        // Capture current nodes locally to "detach" them from the class
+        // This prevents race conditions where a new play() overwrites them
+        // or this stop() clears the new play()'s nodes.
+        const src = this.ambientSource;
+        const gain = this.ambientGain;
+        const lfo = this.ambientLfo;
+        const ctx = this.ctx;
 
+        // Clear class references immediately so we are "stopped" logically
         this.ambientSource = null;
         this.ambientGain = null;
+        this.ambientLfo = null;
+        this.ambientFilter = null;
         this.currentAmbient = null;
+
+        if (gain) {
+            try {
+                // Cancel scheduled changes
+                gain.gain.cancelScheduledValues(ctx.currentTime);
+                gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+
+                if (immediate) {
+                    gain.gain.value = 0;
+                    src?.stop();
+                    lfo?.stop();
+                    src?.disconnect();
+                    lfo?.disconnect();
+                } else {
+                    // Nice fade out for the detached nodes
+                    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.8);
+                    setTimeout(() => {
+                        try { src?.stop(); src?.disconnect(); } catch { }
+                        try { lfo?.stop(); lfo?.disconnect(); } catch { }
+                    }, 1000);
+                }
+            } catch (e) {
+                // Ignore errors on detached nodes
+            }
+        }
     }
 
     public play(type: "pop" | "success" | "click" | "toggle") {
@@ -188,7 +227,7 @@ export function useSound() {
         play: (type: "pop" | "success" | "click" | "toggle") => soundManager.play(type),
         isEnabled: () => soundManager.isEnabled(),
         toggle: (on: boolean) => soundManager.toggle(on),
-        playAmbient: (type: "white_noise" | "rain") => soundManager.playAmbient(type),
+        playAmbient: (type: "white_noise" | "rain" | "river") => soundManager.playAmbient(type),
         stopAmbient: () => soundManager.stopAmbient(),
     };
 }

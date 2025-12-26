@@ -11,6 +11,8 @@ import TwaInit from "@/app/TwaInit";
 import AppBoot from "@/app/components/AppBoot";
 import FacebookRedirectGuard from "@/app/components/FacebookRedirectGuard";
 import { UiLanguageProvider } from "@/app/components/UiLanguageProvider"; // ✅ NEW
+import { FocusProvider } from "@/app/context/FocusContext";
+import GlobalFocusPlayer from "@/app/components/GlobalFocusPlayer";
 
 const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
@@ -53,26 +55,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         {/* ✅ Make language available everywhere (including /auth) */}
         <UiLanguageProvider>
-          <AppBoot>
-            {/* 🚫 FB / Instagram in-app browser protection */}
-            <FacebookRedirectGuard />
+          <FocusProvider>
+            <AppBoot>
+              {/* 🚫 FB / Instagram in-app browser protection */}
+              <FacebookRedirectGuard />
 
-            {/* 🔗 TWA postMessage init */}
-            <TwaInit />
+              {/* 🔗 TWA postMessage init */}
+              <TwaInit />
 
-            <PlausibleProvider
-              domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
-              trackLocalhost={false}
-            >
-              {/* ✅ RTL manager can now react to chosen language too */}
-              <RtlDirectionManager>
-                <AppShell>{children}</AppShell>
-              </RtlDirectionManager>
-            </PlausibleProvider>
+              <PlausibleProvider
+                domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
+                trackLocalhost={false}
+              >
+                {/* ✅ RTL manager can now react to chosen language too */}
+                <RtlDirectionManager>
+                  <AppShell>
+                    {children}
+                    {/* 🌍 Global Focus Player (Overlay + Floating) */}
+                    <GlobalFocusPlayer />
+                  </AppShell>
+                </RtlDirectionManager>
+              </PlausibleProvider>
 
-            {/* 🧩 Service worker (once) */}
-            <ServiceWorkerRegister />
-          </AppBoot>
+              {/* 🧩 Service worker (once) */}
+              <ServiceWorkerRegister />
+            </AppBoot>
+          </FocusProvider>
         </UiLanguageProvider>
       </body>
     </html>
