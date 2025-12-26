@@ -223,7 +223,7 @@ export default function DashboardPage() {
 
         try {
           track("quick_capture_saved", { type: "note" });
-        } catch {}
+        } catch { }
       } else {
         const { data, error } = await supabase
           .from("tasks")
@@ -239,7 +239,7 @@ export default function DashboardPage() {
 
         try {
           track("quick_capture_saved", { type: "task" });
-        } catch {}
+        } catch { }
       }
     } catch (e) {
       console.error("[dashboard/actionHub] quick save error", e);
@@ -724,26 +724,49 @@ export default function DashboardPage() {
 
           {/* Guest inline banner (full page always) */}
           {!user && (
-            <div className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
-              <p className="text-sm font-semibold">{t("dashboard.guest.title", "Welcome 👋")}</p>
-              <p className="text-[12px] text-[var(--text-muted)] mt-1">
-                {t("dashboard.guest.subtitle", "Log in to see your plan, AI usage, streaks, and your recent notes/tasks.")}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => gate.openGate({ title: t("dashboard.guest.ctaTitle", "Log in to use your Dashboard.") })}
-                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
-                >
-                  {t("dashboard.goToAuth", "Go to login / signup")}
-                </button>
-                <Link
-                  href="/templates"
-                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
-                >
-                  {t("dashboard.guest.browseTemplates", "Browse templates")}
-                </Link>
+            <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
+              <div className="flex-1 relative z-10">
+                <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+                  {t("dashboard.guest.badge", "GET STARTED")}
+                </span>
+                <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">
+                  {t("dashboard.guest.title", "Welcome to your new workspace 👋")}
+                </h2>
+                <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed">
+                  {t("dashboard.guest.subtitle", "Log in to unlock your personal AI dashboard, track your streaks, and turn your chaotic notes into clear tasks.")}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => gate.openGate({ title: t("dashboard.guest.ctaTitle", "Log in to use your Dashboard.") })}
+                    className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg shadow-indigo-500/20"
+                  >
+                    {t("dashboard.goToAuth", "Go to login / signup")}
+                  </button>
+                  <Link
+                    href="/templates"
+                    className="px-5 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm font-medium"
+                  >
+                    {t("dashboard.guest.browseTemplates", "Browse templates")}
+                  </Link>
+                </div>
               </div>
+
+              {/* Graphic */}
+              <div className="w-full max-w-xs md:max-w-sm relative z-10">
+                <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
+                  {/* bg-white ensures transparent pngs look ok if dark mode is odd, 
+                       but ideally the png works on both. keeping clean. */}
+                  <img
+                    src="/images/dashboard-welcome.png?v=1"
+                    alt="Welcome"
+                    className="w-full h-auto object-cover"
+                  />
+                </div>
+              </div>
+
+              {/* Background decoration */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
             </div>
           )}
 
@@ -1030,9 +1053,9 @@ export default function DashboardPage() {
                       <p className="text-[11px] text-[var(--text-muted)] mb-2">
                         {plan === "founder" || plan === "pro"
                           ? t(
-                              "dashboard.plan.founderDescription",
-                              "Unlimited daily AI usage for normal use, plus access to more powerful planning tools."
-                            )
+                            "dashboard.plan.founderDescription",
+                            "Unlimited daily AI usage for normal use, plus access to more powerful planning tools."
+                          )
                           : t("dashboard.plan.freeDescription", "Great for light usage, daily planning and basic AI help.")}
                       </p>
 
@@ -1175,8 +1198,8 @@ export default function DashboardPage() {
                         {summaryLoading
                           ? t("dashboard.aiSummary.generating", "Generating...")
                           : !isPro && aiCountToday >= dailyLimit
-                          ? t("dashboard.aiSummary.limitButton", "Daily AI limit reached")
-                          : t("dashboard.aiSummary.button", "Generate summary")}
+                            ? t("dashboard.aiSummary.limitButton", "Daily AI limit reached")
+                            : t("dashboard.aiSummary.button", "Generate summary")}
                       </button>
 
                       <p className="mt-1 text-[11px] text-[var(--text-muted)]">{t("dashboard.aiSummary.usageNote", "Uses your daily AI limit (shared with notes, assistant, planner).")}</p>
@@ -1277,11 +1300,10 @@ export default function DashboardPage() {
                               type="button"
                               onClick={toggleWeeklyGoalCompleted}
                               disabled={weeklyGoalMarking}
-                              className={`px-3 py-1.5 rounded-xl text-xs border disabled:opacity-60 ${
-                                weeklyGoalCompleted
-                                  ? "border-emerald-500 text-emerald-300 bg-emerald-900/30"
-                                  : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
-                              }`}
+                              className={`px-3 py-1.5 rounded-xl text-xs border disabled:opacity-60 ${weeklyGoalCompleted
+                                ? "border-emerald-500 text-emerald-300 bg-emerald-900/30"
+                                : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)]"
+                                }`}
                             >
                               {weeklyGoalCompleted ? t("dashboard.weekGoal.markedDone", "✅ Marked as done") : t("dashboard.weekGoal.markAsDone", "Mark this goal as done")}
                             </button>

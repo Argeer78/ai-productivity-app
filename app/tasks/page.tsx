@@ -240,11 +240,10 @@ function MiniDatePicker({ value, onChange, t }: MiniDatePickerProps) {
                     key={`${wi}-${di}`}
                     type="button"
                     onClick={() => handleSelectDay(day)}
-                    className={`h-6 rounded-md text-center ${
-                      isSelected
+                    className={`h-6 rounded-md text-center ${isSelected
                         ? "bg-[var(--accent)] text-[var(--bg-body)]"
                         : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
-                    }`}
+                      }`}
                   >
                     {day}
                   </button>
@@ -1406,11 +1405,10 @@ export default function TasksPage() {
                               return next.length ? next : prev; // don’t allow empty
                             });
                           }}
-                          className={`px-2 py-1 rounded-lg border text-[10px] ${
-                            active
+                          className={`px-2 py-1 rounded-lg border text-[10px] ${active
                               ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
                               : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                          }`}
+                            }`}
                         >
                           {t(d.key, d.fallback)}
                         </button>
@@ -1477,8 +1475,40 @@ export default function TasksPage() {
               >
                 {creatingVoiceTasks ? t("voice.creating", "Creating…") : t("voice.createBtn", "Create tasks")}
               </button>
-
+              ```
               {voiceTasksMessage && <p className="mt-2 text-emerald-400">{voiceTasksMessage}</p>}
+            </div>
+          )}
+
+          {/* Guest Banner */}
+          {!user && (
+            <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
+              <div className="flex-1 relative z-10">
+                <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+                  TASKS & TODOS
+                </span>
+                <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">
+                  Get things done ✅
+                </h2>
+                <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed">
+                  Organize your life with clear tasks, due dates, and reminders. Let AI break down big goals into manageable steps.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAuthModalOpen(true)}
+                    className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg shadow-green-500/20"
+                  >
+                    Log in to track tasks
+                  </button>
+                </div>
+              </div>
+              <div className="w-full max-w-xs relative z-10">
+                <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
+                  <img src="/images/tasks-welcome.png?v=1" alt="Tasks" className="w-full h-auto" />
+                </div>
+              </div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
             </div>
           )}
 
@@ -1490,11 +1520,10 @@ export default function TasksPage() {
                   key={mode}
                   type="button"
                   onClick={() => setViewMode(mode)}
-                  className={`px-3 py-1.5 ${
-                    viewMode === mode
+                  className={`px-3 py-1.5 ${viewMode === mode
                       ? "bg-[var(--accent-soft)] text-[var(--accent)]"
                       : "bg-[var(--bg-elevated)] text-[var(--text-muted)]"
-                  }`}
+                    }`}
                 >
                   {mode === "active" && t("filters.active", "Active")}
                   {mode === "completed" && t("filters.completed", "Completed")}
@@ -1690,11 +1719,10 @@ export default function TasksPage() {
                         type="button"
                         onClick={() => toggleDone(task)}
                         disabled={isSaving}
-                        className={`px-2 py-1 rounded-full border text-[11px] ${
-                          task.completed
+                        className={`px-2 py-1 rounded-full border text-[11px] ${task.completed
                             ? "bg-emerald-500/10 border-emerald-400 text-emerald-300"
                             : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                        }`}
+                          }`}
                       >
                         {task.completed ? t("item.done", "✅ Done") : t("item.markDone", "✔ Mark as done")}
                       </button>
@@ -1923,11 +1951,10 @@ export default function TasksPage() {
                                         const finalNext = next.length ? next : selectedWeekdays; // don't allow empty
                                         handleRepeatPatch({ reminder_weekdays: finalNext });
                                       }}
-                                      className={`px-2 py-1 rounded-lg border text-[10px] ${
-                                        active
+                                      className={`px-2 py-1 rounded-lg border text-[10px] ${active
                                           ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
                                           : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                                      }`}
+                                        }`}
                                     >
                                       {t(d.key, d.fallback)}
                                     </button>

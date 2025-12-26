@@ -136,10 +136,10 @@ export default function PlannerPage() {
           });
           setError(
             data?.error ||
-              t(
-                "error.unauthorized",
-                "You must be logged in to use the daily planner."
-              )
+            t(
+              "error.unauthorized",
+              "You must be logged in to use the daily planner."
+            )
           );
           return;
         }
@@ -147,10 +147,10 @@ export default function PlannerPage() {
         if (res.status === 429) {
           setError(
             data?.error ||
-              t(
-                "error.rateLimit",
-                "You’ve reached today’s AI limit for your plan. Try again tomorrow or upgrade to Pro."
-              )
+            t(
+              "error.rateLimit",
+              "You’ve reached today’s AI limit for your plan. Try again tomorrow or upgrade to Pro."
+            )
           );
           return;
         }
@@ -225,6 +225,38 @@ export default function PlannerPage() {
             )}
           </div>
         </div>
+
+        {/* Guest Banner */}
+        {!user && (
+          <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
+            <div className="flex-1 relative z-10">
+              <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+                AI DAILY PLANNER
+              </span>
+              <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">
+                Focus on what matters 🎯
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed">
+                Let AI analyze your tasks and create a realistic, prioritized schedule for your day.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => gate.openGate()}
+                  className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg shadow-indigo-500/20"
+                >
+                  Log in to plan your day
+                </button>
+              </div>
+            </div>
+            <div className="w-full max-w-xs relative z-10">
+              <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
+                <img src="/images/tasks-welcome.png?v=1" alt="Planner" className="w-full h-auto" />
+              </div>
+            </div>
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          </div>
+        )}
 
         {/* Planner controls */}
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 mb-4 text-sm">

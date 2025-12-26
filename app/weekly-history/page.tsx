@@ -120,22 +120,34 @@ export default function WeeklyHistoryPage() {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="settings" />
-        <div className="flex-1 flex flex-col items-center justify-center px-4">
-          <h1 className="text-2xl font-bold mb-3">
-            {t("title", "Weekly AI Reports")}
-          </h1>
-          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
-            {t(
-              "loginPrompt",
-              "Log in or create a free account to see your AI-generated weekly productivity reports."
-            )}
-          </p>
-          <Link
-            href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
-          >
-            {t("goToAuth", "Go to login / signup")}
-          </Link>
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-10">
+
+          <div className="w-full max-w-md bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-3xl p-8 text-center shadow-xl relative overflow-hidden">
+            {/* Background blur */}
+            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-transparent to-indigo-500/5 pointer-events-none" />
+
+            <div className="w-48 h-48 mx-auto mb-6 relative">
+              <div className="absolute inset-4 bg-indigo-500/20 rounded-full blur-2xl" />
+              <img src="/images/history-welcome.png?v=1" alt="Reports" className="relative z-10 w-full h-full object-contain" />
+            </div>
+
+            <h1 className="text-2xl font-bold mb-2 relative z-10">
+              {t("title", "Weekly AI Reports")}
+            </h1>
+            <p className="text-[var(--text-muted)] mb-6 text-sm relative z-10">
+              {t(
+                "loginPrompt",
+                "Log in or create a free account to see your AI-generated weekly productivity reports."
+              )}
+            </p>
+            <Link
+              href="/auth"
+              className="inline-block px-6 py-3 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm font-semibold shadow-lg shadow-indigo-500/20 relative z-10"
+            >
+              {t("goToAuth", "Go to login / signup")}
+            </Link>
+          </div>
+
         </div>
       </main>
     );
@@ -248,20 +260,20 @@ export default function WeeklyHistoryPage() {
               {reports.map((r) => {
                 const dateLabel = r.report_date
                   ? new Date(r.report_date).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
                   : t("unknownDate", "Unknown date");
 
                 const createdLabel = r.created_at
                   ? new Date(r.created_at).toLocaleString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
                   : null;
 
                 const isExpanded = expandedId === r.id;

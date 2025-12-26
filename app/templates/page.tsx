@@ -204,22 +204,41 @@ export default function TemplatesPage() {
       <AppHeader active="templates" />
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">{t("title", "AI Templates")}</h1>
-              <p className="text-xs md:text-sm text-[var(--text-muted)]">
-                {t(
-                  "subtitle",
-                  "Reusable prompts for planning, focus, study, and writing. Use them with the assistant in one click."
-                )}
+          {/* Visual Header */}
+          <div className="relative mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm overflow-hidden">
+
+            <div className="flex-1 relative z-10">
+              <h1 className="text-2xl md:text-3xl font-bold mb-2">{t("title", "AI Templates")}</h1>
+              <p className="text-sm text-[var(--text-muted)] max-w-lg leading-relaxed mb-4">
+                {t("subtitle", "Reusable prompts for planning, study, and work. Click 'Use with Assistant' to instantly start a chat with specialized instructions.")}
               </p>
+
+              <div className="flex flex-wrap gap-2 text-[11px] text-[var(--text-muted)]">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Study
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Work
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Writing
+                </span>
+              </div>
             </div>
+
+            <div className="w-32 h-32 relative z-10 flex-shrink-0">
+              <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl" />
+              <img src="/images/ai-creator-empty.png?v=1" alt="Templates" className="relative z-10 w-full h-full object-contain" />
+            </div>
+
             <Link
               href="/dashboard"
-              className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
+              className="absolute top-6 right-6 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-[10px] z-20"
             >
-              {t("backToDashboard", "← Back to Dashboard")}
+              {t("backToDashboard", "← Back")}
             </Link>
+
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           </div>
 
           {/* How to use templates */}
@@ -326,9 +345,8 @@ export default function TemplatesPage() {
                                 handleUseWithAssistant(tpl);
                               }}
                               disabled={locked}
-                              className={`text-xs px-3 py-1 rounded-lg border border-[var(--border-subtle)] ${
-                                locked ? "opacity-60 cursor-not-allowed" : "hover:bg-[var(--bg-elevated)]"
-                              }`}
+                              className={`text-xs px-3 py-1 rounded-lg border border-[var(--border-subtle)] ${locked ? "opacity-60 cursor-not-allowed" : "hover:bg-[var(--bg-elevated)]"
+                                }`}
                             >
                               {cardT("use", "🤖 Use with Assistant")}
                             </button>
@@ -409,9 +427,8 @@ export default function TemplatesPage() {
                                   handleUseWithAssistant(tpl);
                                 }}
                                 disabled={locked}
-                                className={`px-2 py-1 rounded-lg border border-[var(--border-subtle)] ${
-                                  locked ? "opacity-50 cursor-not-allowed" : "hover:bg-[var(--bg-card)]"
-                                }`}
+                                className={`px-2 py-1 rounded-lg border border-[var(--border-subtle)] ${locked ? "opacity-50 cursor-not-allowed" : "hover:bg-[var(--bg-card)]"
+                                  }`}
                               >
                                 {t("trending.use", "🤖 Use")}
                               </button>

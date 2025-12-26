@@ -97,22 +97,34 @@ export default function MyTripsPage() {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="my-trips" />
-        <div className="flex-1 flex flex-col items-center justify-center p-4 text-sm">
-          <h1 className="text-2xl font-bold mb-3">
-            {t("title", "My Trips")}
-          </h1>
-          <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm">
-            {t(
-              "unauth.message",
-              "Log in or create a free account to save and view your AI travel plans."
-            )}
-          </p>
-          <Link
-            href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
-          >
-            {t("unauth.cta", "Go to login / signup")}
-          </Link>
+        <div className="flex-1 flex flex-col items-center justify-center p-4 text-sm relative overflow-hidden">
+
+          <div className="w-full max-w-md bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-3xl p-8 text-center shadow-xl relative z-10">
+
+            <div className="w-32 h-32 mx-auto mb-6 relative">
+              <div className="rounded-2xl overflow-hidden shadow-lg border border-[var(--border-subtle)] bg-white rotate-3">
+                <img src="/images/hero-3d.png?v=1" alt="Trips" className="w-full h-full object-cover" />
+              </div>
+            </div>
+
+            <h1 className="text-2xl font-bold mb-3">
+              {t("title", "My Trips")}
+            </h1>
+            <p className="text-[var(--text-muted)] mb-6 text-center max-w-sm">
+              {t(
+                "unauth.message",
+                "Log in or create a free account to save and view your AI travel plans."
+              )}
+            </p>
+            <Link
+              href="/auth"
+              className="inline-block px-6 py-3 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm font-semibold shadow-lg shadow-indigo-500/20"
+            >
+              {t("unauth.cta", "Go to login / signup")}
+            </Link>
+          </div>
+
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
         </div>
       </main>
     );
@@ -180,13 +192,13 @@ export default function MyTripsPage() {
                 const nights =
                   trip.checkin_date && trip.checkout_date
                     ? Math.max(
-                        1,
-                        Math.round(
-                          (new Date(trip.checkout_date).getTime() -
-                            new Date(trip.checkin_date).getTime()) /
-                            (1000 * 60 * 60 * 24)
-                        )
+                      1,
+                      Math.round(
+                        (new Date(trip.checkout_date).getTime() -
+                          new Date(trip.checkin_date).getTime()) /
+                        (1000 * 60 * 60 * 24)
                       )
+                    )
                     : null;
 
                 const isExpanded = expandedId === trip.id;
@@ -205,11 +217,11 @@ export default function MyTripsPage() {
                           {checkin} → {checkout}
                           {nights
                             ? ` · ${nights} ${t(
-                                nights > 1
-                                  ? "trip.nightsPlural"
-                                  : "trip.nightsSingular",
-                                nights > 1 ? "nights" : "night"
-                              )}`
+                              nights > 1
+                                ? "trip.nightsPlural"
+                                : "trip.nightsSingular",
+                              nights > 1 ? "nights" : "night"
+                            )}`
                             : ""}
                         </p>
                         <p className="text-[12px] text-[var(--text-muted)] mt-1">

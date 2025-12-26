@@ -363,10 +363,10 @@ export default function TravelPage() {
     const baseStart = checkin
       ? new Date(checkin)
       : (() => {
-          const d = new Date();
-          d.setDate(d.getDate() + 7);
-          return d;
-        })();
+        const d = new Date();
+        d.setDate(d.getDate() + 7);
+        return d;
+      })();
 
     const startStr = baseStart.toISOString().split("T")[0];
     const out = new Date(baseStart);
@@ -503,46 +503,56 @@ export default function TravelPage() {
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
-          {/* Hero / Intro */}
-          <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">{t("title", "Travel Planner (beta)")}</h1>
-              <p className="text-xs md:text-sm text-[var(--text-muted)] max-w-xl">
+          <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
+
+            <div className="flex-1 relative z-10">
+              <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+                BETA FEATURE
+              </span>
+              <h1 className="text-2xl md:text-3xl font-bold mb-2">{t("title", "Travel Planner")}</h1>
+              <p className="text-sm text-[var(--text-muted)] max-w-lg leading-relaxed mb-4">
                 {t(
                   "subtitle",
-                  "Let AI help you plan your trip – then book your stay via Booking.com. Open to everyone, no login needed. Log in if you want to save your trip."
+                  "Let AI design your perfect trip itinerary in seconds. Then easily book your stay and flights."
                 )}
               </p>
+
+              <div className="text-[11px] text-[var(--text-muted)]">
+                {checkingUser ? (
+                  <span>{t("checkingAccount", "Checking account…")}</span>
+                ) : user ? (
+                  <span>
+                    {t("loggedInAs", "Logged in as")}{" "}
+                    <span className="font-semibold text-[var(--text-main)]">{user.email}</span>
+                  </span>
+                ) : (
+                  <span>
+                    {t("guestBrowsing", "You're browsing as guest.")}{" "}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        gate.openGate({
+                          title: t("auth.title", "Create an account to save trips"),
+                          subtitle: t("auth.subtitle", "Saving trips requires an account."),
+                        })
+                      }
+                      className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
+                    >
+                      {t("createAccountLink", "Create a free account")}
+                    </button>{" "}
+                    {t("saveTripsHint", "to save trips.")}
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Auth hint */}
-            <div className="text-[11px] text-[var(--text-muted)]">
-              {checkingUser ? (
-                <span>{t("checkingAccount", "Checking account…")}</span>
-              ) : user ? (
-                <span>
-                  {t("loggedInAs", "Logged in as")}{" "}
-                  <span className="font-semibold text-[var(--text-main)]">{user.email}</span>
-                </span>
-              ) : (
-                <span>
-                  {t("guestBrowsing", "You're browsing as guest.")}{" "}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      gate.openGate({
-                        title: t("auth.title", "Create an account to save trips"),
-                        subtitle: t("auth.subtitle", "Saving trips requires an account."),
-                      })
-                    }
-                    className="text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
-                  >
-                    {t("createAccountLink", "Create a free account")}
-                  </button>{" "}
-                  {t("saveTripsHint", "to save trips.")}
-                </span>
-              )}
+            <div className="w-40 h-40 relative z-10 hidden md:block">
+              <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white rotate-3">
+                <img src="/images/hero-3d.png?v=1" alt="Travel" className="w-full h-full object-cover" />
+              </div>
             </div>
+
+            <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 mb-8">

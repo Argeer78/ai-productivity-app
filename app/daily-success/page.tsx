@@ -211,11 +211,10 @@ User's day description:
 ${trimmed || "(no additional description)"}
 
 Top priorities (if any):
-${
-  priorities.length
-    ? priorities.map((p, i) => `${i + 1}. ${p}`).join("\n")
-    : "(not specified)"
-}
+${priorities.length
+        ? priorities.map((p, i) => `${i + 1}. ${p}`).join("\n")
+        : "(not specified)"
+      }
 
 Please:
 1. Create a realistic schedule from now until bedtime in blocks.
@@ -462,10 +461,10 @@ ${trimmed}
       if (res.status === 429) {
         setSuggestError(
           data?.error ||
-            t(
-              "dailySuccessSystem.suggest.rateLimit",
-              "You’ve reached today’s AI limit. Try again tomorrow or upgrade to Pro."
-            )
+          t(
+            "dailySuccessSystem.suggest.rateLimit",
+            "You’ve reached today’s AI limit. Try again tomorrow or upgrade to Pro."
+          )
         );
         return;
       }
@@ -473,10 +472,10 @@ ${trimmed}
       if (!res.ok || !data?.ok) {
         setSuggestError(
           data?.error ||
-            t(
-              "dailySuccessSystem.suggest.errorGeneric",
-              "Could not get an AI suggestion."
-            )
+          t(
+            "dailySuccessSystem.suggest.errorGeneric",
+            "Could not get an AI suggestion."
+          )
         );
         return;
       }
@@ -596,6 +595,38 @@ ${trimmed}
               </Link>
             </div>
           </div>
+
+          {/* Guest Banner */}
+          {!user && (
+            <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
+              <div className="flex-1 relative z-10">
+                <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+                  AI SUCCESS SYSTEM
+                </span>
+                <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">
+                  Achieve more, stress less 🚀
+                </h2>
+                <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed">
+                  Start your day with intention and end with reflection. Track your daily success score and build a winning streak.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => gate.openGate()}
+                    className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg shadow-green-500/20"
+                  >
+                    Start your streak
+                  </button>
+                </div>
+              </div>
+              <div className="w-full max-w-xs relative z-10">
+                <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
+                  <img src="/images/history-welcome.png?v=1" alt="Success" className="w-full h-auto" />
+                </div>
+              </div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+            </div>
+          )}
 
           {!isProUser && (
             <div className="mb-5 rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-3 text-[11px] text-[var(--text-main)]">
@@ -884,13 +915,13 @@ ${trimmed}
                   >
                     {suggestLoading
                       ? t(
-                          "dailySuccessSystem.evening.aiSuggestLoading",
-                          "Asking AI…"
-                        )
+                        "dailySuccessSystem.evening.aiSuggestLoading",
+                        "Asking AI…"
+                      )
                       : t(
-                          "dailySuccessSystem.evening.aiSuggestLabel",
-                          "Let AI suggest today's score"
-                        )}
+                        "dailySuccessSystem.evening.aiSuggestLabel",
+                        "Let AI suggest today's score"
+                      )}
                   </button>
 
                   <p className="text-[10px] text-[var(--text-muted)]">
@@ -925,13 +956,13 @@ ${trimmed}
                 >
                   {savingScore
                     ? t(
-                        "dailySuccessSystem.evening.saveScoreSaving",
-                        "Saving..."
-                      )
+                      "dailySuccessSystem.evening.saveScoreSaving",
+                      "Saving..."
+                    )
                     : t(
-                        "dailySuccessSystem.evening.saveScoreButton",
-                        "Save today's score"
-                      )}
+                      "dailySuccessSystem.evening.saveScoreButton",
+                      "Save today's score"
+                    )}
                 </button>
               </div>
 
@@ -974,6 +1005,6 @@ ${trimmed}
           </p>
         </div>
       </div>
-    </main>
+    </main >
   );
 }

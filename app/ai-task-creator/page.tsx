@@ -425,33 +425,30 @@ export default function AITaskCreatorPage() {
                     <button
                       type="button"
                       onClick={() => setIntensity("light")}
-                      className={`px-3 py-1.5 rounded-xl border ${
-                        intensity === "light"
+                      className={`px-3 py-1.5 rounded-xl border ${intensity === "light"
                           ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                           : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
-                      }`}
+                        }`}
                     >
                       {translate("form.intensity.light", "Light")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setIntensity("balanced")}
-                      className={`px-3 py-1.5 rounded-xl border ${
-                        intensity === "balanced"
+                      className={`px-3 py-1.5 rounded-xl border ${intensity === "balanced"
                           ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                           : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
-                      }`}
+                        }`}
                     >
                       {translate("form.intensity.balanced", "Balanced")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setIntensity("aggressive")}
-                      className={`px-3 py-1.5 rounded-xl border ${
-                        intensity === "aggressive"
+                      className={`px-3 py-1.5 rounded-xl border ${intensity === "aggressive"
                           ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                           : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
-                      }`}
+                        }`}
                     >
                       {translate("form.intensity.aggressive", "Deep push")}
                     </button>
@@ -531,12 +528,21 @@ export default function AITaskCreatorPage() {
               )}
 
               {!loadingSuggestions && suggestedTasks.length === 0 && (
-                <p className="text-[12px] text-[var(--text-muted)]">
-                  {translate(
-                    "tasksSection.empty",
-                    'No tasks yet. Fill the form on the left and click "AI: Suggest my tasks".'
-                  )}
-                </p>
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="w-40 h-40 mb-4 relative">
+                    <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-xl" />
+                    <img src="/images/ai-creator-empty.png?v=1" alt="AI Brain" className="relative z-10 w-full h-full object-contain drop-shadow-lg" />
+                  </div>
+                  <p className="text-[13px] font-medium text-[var(--text-main)] mb-1">
+                    Ready to plan your day?
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] max-w-xs mx-auto">
+                    {translate(
+                      "tasksSection.empty",
+                      'Fill the form on the left and click "AI: Suggest my tasks".'
+                    )}
+                  </p>
+                </div>
               )}
 
               {suggestedTasks.length > 0 && (

@@ -437,45 +437,19 @@ export default function HomePage() {
             </div>
 
             {/* Preview panel */}
-            <div className="hidden md:block">
-              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-xl">
-                <p className="text-[11px] text-[var(--text-muted)] mb-2">{t("home.today.title", "Today at a glance")}</p>
-
-                <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3 mb-3">
-                  <p className="text-xs text-[var(--text-muted)] mb-1">{t("home.today.productivity", "Productivity score")}</p>
-
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-2xl font-semibold text-[var(--text-main)]">{t("home.today.scoreExample", "78")}</span>
-                    <span className="text-[11px] text-[var(--accent)]">{t("home.today.scoreDelta", "+12 vs yesterday")}</span>
-                  </div>
-
-                  <div className="h-1.5 rounded-full bg-[var(--border-subtle)] overflow-hidden">
-                    <div className="h-full w-[78%] bg-[var(--accent)]" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-3 text-[11px]">
-                  <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
-                    <p className="text-[var(--text-muted)] mb-1">{t("home.today.focusTitle", "Today’s focus")}</p>
-                    <p className="text-[var(--text-main)]">
-                      {t("home.today.focusExample", "Ship landing page, reply to clients, 30min learning.")}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3">
-                    <p className="text-[var(--text-muted)] mb-1">{t("home.today.aiWinsTitle", "AI wins")}</p>
-                    <ul className="text-[var(--text-main)] list-disc list-inside space-y-0.5">
-                      <li>{t("home.today.aiWins1", "Summarized 4 messy notes")}</li>
-                      <li>{t("home.today.aiWins2", "Drafted 2 emails")}</li>
-                      <li>{t("home.today.aiWins3", "Planned tomorrow in 2 minutes")}</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-[var(--text-muted)]">
-                  {t("home.today.previewNote", "This is a preview. Your dashboard updates live as you add content.")}
-                </p>
+            {/* Hero Illustration */}
+            <div className="hidden md:block relative">
+              <div className="relative z-10 rounded-3xl overflow-hidden shadow-2xl shadow-indigo-500/20 border border-[var(--border-subtle)]">
+                <img
+                  src="/images/hero-3d.png?v=1"
+                  alt="AI Productivity Dashboard"
+                  className="w-full h-auto object-cover"
+                />
               </div>
+
+              {/* Decorative elements behind */}
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
+              <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-teal-500/10 rounded-full blur-3xl" />
             </div>
           </section>
 

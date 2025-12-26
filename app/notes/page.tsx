@@ -79,9 +79,9 @@ function resolveNaturalDue(label: string): string | null {
 
 type SupabaseUser =
   | {
-      id: string;
-      email?: string | null;
-    }
+    id: string;
+    email?: string | null;
+  }
   | null;
 
 type Note = {
@@ -843,8 +843,8 @@ export default function NotesPage() {
         console.error("[tasks] insert error:", insertError);
         setError(
           t("errors.createTasksFromVoiceFailed", "Failed to create tasks:") +
-            " " +
-            (insertError.message || insertError.details || "")
+          " " +
+          (insertError.message || insertError.details || "")
         );
         return;
       }
@@ -1021,73 +1021,71 @@ export default function NotesPage() {
                 <button
                   type="button"
                   onClick={() => setVoiceMode("review")}
-                  className={`px-2 py-1 rounded-full border text-[10px] ${
-                    voiceMode === "review"
+                  className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "review"
                       ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
                       : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
-                  }`}
+                    }`}
                 >
                   {t("voice.mode.review", "Review first")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setVoiceMode("autosave")}
-                  className={`px-2 py-1 rounded-full border text-[10px] ${
-                    voiceMode === "autosave"
+                  className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "autosave"
                       ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
                       : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
-                  }`}
+                    }`}
                 >
                   {t("voice.mode.autosave", "Auto-save note")}
                 </button>
               </div>
             </div>
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-          <div className="mt-2 flex items-center gap-2">
-  {user ? (
-    <VoiceCaptureButton
-      userId={user.id as string}
-      mode={voiceMode}
-      resetKey={voiceResetKey}
-      onResult={handleVoiceResult}
-      variant="icon"              // ✅ NEW
-      size="md"
-      interaction="toggle"
-    />
-  ) : (
-    <button
-      type="button"
-      onClick={() => setAuthModalOpen(true)}
-      aria-label={t("voice.loginToUse", "Log in to use voice")}
-      className="
+              <div className="mt-2 flex items-center gap-2">
+                {user ? (
+                  <VoiceCaptureButton
+                    userId={user.id as string}
+                    mode={voiceMode}
+                    resetKey={voiceResetKey}
+                    onResult={handleVoiceResult}
+                    variant="icon"              // ✅ NEW
+                    size="md"
+                    interaction="toggle"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAuthModalOpen(true)}
+                    aria-label={t("voice.loginToUse", "Log in to use voice")}
+                    className="
         h-10 w-10 rounded-full
         flex items-center justify-center
         bg-[var(--accent)]
         text-[var(--bg-body)]
         hover:opacity-90
       "
-    >
-      🎤
-    </button>
-  )}
+                  >
+                    🎤
+                  </button>
+                )}
 
-  {(content || title || voiceSuggestedTasks.length > 0) && (
-    <button
-      type="button"
-      onClick={handleResetVoice}
-      className="
+                {(content || title || voiceSuggestedTasks.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={handleResetVoice}
+                    className="
         px-3 py-1.5 rounded-full
         border border-[var(--border-subtle)]
         bg-[var(--bg-elevated)]
         text-[11px]
         hover:bg-[var(--bg-card)]
       "
-    >
-      {t("voice.resetButton", "Reset voice")}
-    </button>
-  )}
-</div>   
-</div> 
+                  >
+                    {t("voice.resetButton", "Reset voice")}
+                  </button>
+                )}
+              </div>
+            </div>
             {/* Suggested tasks */}
             {voiceSuggestedTasks.length > 0 && (
               <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px]">
@@ -1138,7 +1136,39 @@ export default function NotesPage() {
           )}
         </section>
 
-        {/* NOTES LIST */}
+        {/* Guest Banner */}
+        {!user && (
+          <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
+            <div className="flex-1 relative z-10">
+              <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+                NOTES & THOUGHTS
+              </span>
+              <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">
+                Capture ideas instantly ⚡️
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed">
+                Jot down thoughts, meetings, or journals. Use AI to clean them up, summarize, or extract action items automatically.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAuthModalOpen(true)}
+                  className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg shadow-indigo-500/20"
+                >
+                  Log in to save notes
+                </button>
+              </div>
+            </div>
+            <div className="w-full max-w-xs relative z-10">
+              <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
+                <img src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto" />
+              </div>
+            </div>
+            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          </div>
+        )}
+
+        {/* Notes List */}
         <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">{t("list.title", "Your notes")}</h2>
