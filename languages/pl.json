@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Darmowy)",
+  "ai.usage.today": "AI dzisiaj",
+  "ai.usage.unlimited": "Nieograniczony",
+  "ai.usage.upgrade": "Ulepsz, aby kontynuować",
+  "ai.usage.warning": "Prawie osiągnięto dzisiejszy limit",
   "aiChat.aiRepliesToday": "Odpowiedzi AI dzisiaj:",
   "aiChat.category.general": "Ogólne",
   "aiChat.category.health": "Zdrowie",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "Wszystkie wycieczki zaplanowane w Planerze podróży.",
   "myTrips.title": "Moje podróże",
   "nav.aiCompanion": "Towarzysz AI",
+  "nav.pricing": "Cennik",
   "notes.buttons.askAI": "🤖 Zapytaj AI",
   "notes.buttons.bullets": "📋 Wypunktowania",
   "notes.buttons.delete": "🗑 Usuń",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "Kreator zadań AI jest dla tych momentów, gdy wiesz, co chcesz osiągnąć, ale nie wiesz, jak to rozbić. Wklej swój cel lub notatki, a AI zaproponuje konkretne zadania, które możesz wysłać bezpośrednio do listy Zadań.",
   "tools.aiTaskCreator.howToUse1": "Otwórz Kreatora zadań AI z nawigacji lub ze strony Zadań.",
   "tools.aiTaskCreator.howToUse2": "Opisz swój cel lub wklej nieuporządkowane notatki (np. 'Chcę przeprojektować moją stronę w tym miesiącu').",
-  "tools.aiTaskCreator.howToUse3": "Poproś AI o wygenerowanie listy zadań. Dostosuj tytuły, dodaj lub usuń kroki, aż będzie odpowiednio.",
-  "tools.aiTaskCreator.howToUse4": "Wyślij wybrane zadania bezpośrednio do strony Zadań, z sugerowanymi priorytetami lub szacunkami czasu.",
-  "tools.aiTaskCreator.name": "Kreator zadań AI",
-  "tools.aiTaskCreator.proHint": "W wersji Pro możesz korzystać z Kreatora zadań AI częściej i dla większych projektów bez obaw o limity AI.",
-  "tools.aiTaskCreator.shortTagline": "Zamień niejasne cele w małe, jasne kroki.",
-  "tools.backToHome": "← Powrót do strony głównej",
-  "tools.changelog.cta": "Zobacz Co nowego"
+  "tools.aiTaskCreator.howToUse3": "Poproś AI o wygenerowanie listy zadań. Dostosuj tytuły, dodaj lub usuń kroki, aż będzie odpowiednio."
 }

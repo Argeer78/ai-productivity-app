@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Ingyenes)",
+  "ai.usage.today": "AI ma",
+  "ai.usage.unlimited": "Korlátlan",
+  "ai.usage.upgrade": "Frissítsen a folytatáshoz",
+  "ai.usage.warning": "Majdnem elérte a mai limitet",
   "aiChat.aiRepliesToday": "AI válaszok ma:",
   "aiChat.category.general": "Általános",
   "aiChat.category.health": "Egészség",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "Minden utazás, amit az Utazástervezővel terveztél.",
   "myTrips.title": "Saját Utazások",
   "nav.aiCompanion": "AI társ",
+  "nav.pricing": "Árazás",
   "notes.buttons.askAI": "🤖 Kérdezd az AI-t",
   "notes.buttons.bullets": "📋 Felsorolás",
   "notes.buttons.delete": "🗑 Törlés",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "Az AI Feladatkészítő azoknak való, akik tudják, mit akarnak, de nem tudják, hogyan bontsák le. Illeszd be a célodat vagy az ötletelésed, és az AI konkrét feladatokat javasol, amelyeket közvetlenül a Feladatok listádra küldhetsz.",
   "tools.aiTaskCreator.howToUse1": "Nyisd meg az AI Feladatkészítőt a navigációból vagy a Feladatok oldal linkjéről.",
   "tools.aiTaskCreator.howToUse2": "Írd le a célodat vagy illeszd be a rendezetlen jegyzeteidet (pl. 'Ebben a hónapban újratervezem a weboldalamat').",
-  "tools.aiTaskCreator.howToUse3": "Kérd meg az AI-t, hogy generáljon feladatlistát. Igazítsd a feladatcímeket, adj hozzá vagy távolíts el lépéseket, amíg megfelelőnek nem érzed.",
-  "tools.aiTaskCreator.howToUse4": "Küldd a tetsző feladatokat közvetlenül a Feladatok oldalra, javasolt prioritásokkal vagy időbecslésekkel.",
-  "tools.aiTaskCreator.name": "AI Feladatkészítő",
-  "tools.aiTaskCreator.proHint": "Pro verzióval gyakrabban és nagyobb projektekhez is használhatod az AI Feladatkészítőt AI-korlátok nélkül.",
-  "tools.aiTaskCreator.shortTagline": "Homályos célokat kis, világos lépésekké alakít.",
-  "tools.backToHome": "← Vissza a kezdőlapra",
-  "tools.changelog.cta": "Mi újság megtekintése"
+  "tools.aiTaskCreator.howToUse3": "Kérd meg az AI-t, hogy generáljon feladatlistát. Igazítsd a feladatcímeket, adj hozzá vagy távolíts el lépéseket, amíg megfelelőnek nem érzed."
 }

@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Gratuit)",
+  "ai.usage.today": "AI azi",
+  "ai.usage.unlimited": "Nelimitat",
+  "ai.usage.upgrade": "Fă upgrade pentru a continua",
+  "ai.usage.warning": "Aproape de limita de astăzi",
   "aiChat.aiRepliesToday": "Răspunsuri AI azi:",
   "aiChat.category.general": "General",
   "aiChat.category.health": "Sănătate",
@@ -527,6 +532,7 @@
   "nav.myTrips": "Călătoriile mele",
   "nav.notes": "Note",
   "nav.planner": "Planificator",
+  "nav.pricing": "Prețuri",
   "nav.settings": "Setări",
   "nav.tasks": "Sarcini",
   "nav.templates": "Șabloane",
@@ -992,11 +998,5 @@
   "terms.section4.body": "Păstrați dreptul de proprietate asupra conținutului creat în aplicație (cum ar fi notițe, sarcini și planuri). Ne acordați permisiunea de a procesa acel conținut exclusiv pentru a furniza și îmbunătăți funcțiile aplicației, inclusiv funcțiile bazate pe AI.",
   "terms.section4.title": "4. Conținutul Utilizatorului",
   "terms.section5.body": "Rezultatele generate de AI sunt produse automat și pot fi inexacte sau incomplete. Sunteți responsabil pentru modul în care utilizați aceste rezultate. Aplicația nu înlocuiește sfatul profesional (medical, juridic, financiar sau altul).",
-  "terms.section5.title": "5. Funcții AI",
-  "terms.section6.body": "Putem modifica, suspenda sau întrerupe părți ale aplicației în orice moment. Ne străduim să menținem serviciul disponibil, dar nu garantăm acces neîntrerupt.",
-  "terms.section6.title": "6. Disponibilitatea Serviciului și Modificări",
-  "terms.section7.body": "Puteți înceta utilizarea aplicației în orice moment. Putem suspenda sau încheia accesul dacă încălcați acești Termeni. Puteți solicita ștergerea contului; consultați pagina de ștergere din Politica de Confidențialitate.",
-  "terms.section7.title": "7. Încetarea",
-  "terms.section8.body": "În măsura maximă permisă de lege, AI Productivity Hub și proprietarul său nu vor fi răspunzători pentru daune indirecte, accidentale, speciale, consecințe sau punitive, sau pentru pierderi de date, profituri ori venituri, rezultate din utilizarea aplicației.",
-  "terms.section8.title": "8. Limitarea Răspunderii"
+  "terms.section5.title": "5. Funcții AI"
 }

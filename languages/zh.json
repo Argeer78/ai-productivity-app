@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit}（免费）",
+  "ai.usage.today": "今日AI使用",
+  "ai.usage.unlimited": "无限制",
+  "ai.usage.upgrade": "升级以继续",
+  "ai.usage.warning": "接近今日限制",
   "aiChat.aiRepliesToday": "今日 AI 回复数：",
   "aiChat.category.general": "通用",
   "aiChat.category.health": "健康",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "您用旅行规划器规划的所有行程。",
   "myTrips.title": "我的行程",
   "nav.aiCompanion": "AI伴侣",
+  "nav.pricing": "定价",
   "notes.buttons.askAI": "🤖 询问 AI",
   "notes.buttons.bullets": "📋 项目符号",
   "notes.buttons.delete": "🗑 删除",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "AI 任务创建器适合您知道目标但不知如何拆分时。粘贴目标或头脑风暴内容，AI 会提出具体任务，直接发送到任务列表。",
   "tools.aiTaskCreator.howToUse1": "从导航或任务页面链接打开 AI 任务创建器。",
   "tools.aiTaskCreator.howToUse2": "描述目标或粘贴杂乱笔记（如“我想本月重新设计网站”）。",
-  "tools.aiTaskCreator.howToUse3": "让 AI 生成任务列表。调整任务标题，增删步骤，直到满意。",
-  "tools.aiTaskCreator.howToUse4": "将喜欢的任务直接发送到任务页面，附带建议优先级或时间估计。",
-  "tools.aiTaskCreator.name": "AI 任务创建器",
-  "tools.aiTaskCreator.proHint": "Pro 用户可更频繁使用 AI 任务创建器，处理更大项目，无需担心 AI 限制。",
-  "tools.aiTaskCreator.shortTagline": "将模糊目标拆解为清晰小步骤。",
-  "tools.backToHome": "← 返回首页",
-  "tools.changelog.cta": "查看更新内容"
+  "tools.aiTaskCreator.howToUse3": "让 AI 生成任务列表。调整任务标题，增删步骤，直到满意。"
 }

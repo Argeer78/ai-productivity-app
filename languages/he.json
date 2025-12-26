@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (חינם)",
+  "ai.usage.today": "AI היום",
+  "ai.usage.unlimited": "ללא הגבלה",
+  "ai.usage.upgrade": "שדרג כדי להמשיך",
+  "ai.usage.warning": "כמעט הגענו למגבלת היום",
   "aiChat.aiRepliesToday": "תשובות AI היום:",
   "aiChat.category.general": "כללי",
   "aiChat.category.health": "בריאות",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "כל הנסיעות שתכננת עם מתכנן הנסיעות.",
   "myTrips.title": "הנסיעות שלי",
   "nav.aiCompanion": "חבר AI",
+  "nav.pricing": "תמחור",
   "notes.buttons.askAI": "🤖 שאל את ה-AI",
   "notes.buttons.bullets": "📋 נקודות",
   "notes.buttons.delete": "🗑 מחק",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "יוצר המשימות בינה מלאכותית הוא לרגעים שבהם אתה יודע מה אתה רוצה, אבל לא איך לפרק את זה. הדבק את המטרה או שפיכת המוח שלך, ו-AI יציע משימות קונקרטיות שתוכל לשלוח ישירות לרשימת המשימות שלך.",
   "tools.aiTaskCreator.howToUse1": "פתח את יוצר המשימות בינה מלאכותית מהניווט או מקישור לדף המשימות.",
   "tools.aiTaskCreator.howToUse2": "תאר את המטרה שלך או הדבק את הפתקים המבולגנים שלך (למשל 'אני רוצה לעצב מחדש את האתר שלי החודש').",
-  "tools.aiTaskCreator.howToUse3": "בקש מה-AI ליצור רשימת משימות. התאם כותרות משימות, הוסף/הסר צעדים עד שזה מרגיש נכון.",
-  "tools.aiTaskCreator.howToUse4": "שלח את המשימות שאתה אוהב ישירות לדף המשימות שלך, עם עדיפויות או הערכות זמן מוצעות.",
-  "tools.aiTaskCreator.name": "יוצר משימות בינה מלאכותית",
-  "tools.aiTaskCreator.proHint": "עם פרו, תוכל להשתמש ביוצר המשימות בינה מלאכותית בתדירות גבוהה יותר ולפרויקטים גדולים יותר ללא דאגה מהגבלות AI.",
-  "tools.aiTaskCreator.shortTagline": "הפוך מטרות מעורפלות לצעדים קטנים וברורים.",
-  "tools.backToHome": "← חזרה לדף הבית",
-  "tools.changelog.cta": "צפה במה חדש"
+  "tools.aiTaskCreator.howToUse3": "בקש מה-AI ליצור רשימת משימות. התאם כותרות משימות, הוסף/הסר צעדים עד שזה מרגיש נכון."
 }

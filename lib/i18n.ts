@@ -1,4 +1,5 @@
 // lib/i18n.ts
+// IMPORTANT: This file must be client-safe (no supabaseAdmin, no server-only imports)
 
 export const SUPPORTED_LANGS = [
   { code: "en", label: "English", flag: "🇺🇸", region: "Global", popular: true },
@@ -31,22 +32,34 @@ export const SUPPORTED_LANGS = [
 
 export type Locale = (typeof SUPPORTED_LANGS)[number]["code"];
 export type Lang = Locale;
-export type TranslationKey = string;
 
 export const DEFAULT_LOCALE: Locale = "en";
 
+export function normalizeLang(code?: string | null): Locale {
+  const base = String(code || DEFAULT_LOCALE).toLowerCase().split("-")[0];
+  const exists = SUPPORTED_LANGS.some((l) => l.code === base);
+  return (exists ? base : DEFAULT_LOCALE) as Locale;
+}
+
 export function isRTL(code: string): boolean {
-  const base = (code || "en").toLowerCase().split("-")[0];
+  const base = String(code || "en").toLowerCase().split("-")[0];
   return base === "ar" || base === "he";
 }
 
-// Keep legacy imports working, but don’t require every locale key
-export const MESSAGES: Partial<Record<Locale, Record<string, string>>> = {
-  en: {},
-} as const;
+// This is intentionally runtime-loaded from your API (/api/ui-translations/[lang])
+// Keep an in-memory dictionary that your providers can fill.
+const DICTS: Partial<Record<Locale, Record<string, string>>> = {};
 
-export function translate(lang: Lang, key: TranslationKey, fallback?: string) {
-  const dict = MESSAGES[lang] ?? MESSAGES[DEFAULT_LOCALE] ?? {};
-  if (Object.prototype.hasOwnProperty.call(dict, key)) return dict[key]!;
+export function setDictionary(lang: Locale, dict: Record<string, string>) {
+  DICTS[lang] = dict;
+}
+
+export function getDictionary(lang: Locale): Record<string, string> {
+  return DICTS[lang] || DICTS[DEFAULT_LOCALE] || {};
+}
+
+export function translate(lang: Locale, key: string, fallback?: string) {
+  const dict = getDictionary(lang);
+  if (Object.prototype.hasOwnProperty.call(dict, key)) return dict[key];
   return typeof fallback === "string" ? fallback : key;
 }

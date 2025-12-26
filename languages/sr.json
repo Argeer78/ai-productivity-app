@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Besplatno)",
+  "ai.usage.today": "AI danas",
+  "ai.usage.unlimited": "Neograničeno",
+  "ai.usage.upgrade": "Nadogradite da nastavite",
+  "ai.usage.warning": "Skoro dostignut današnji limit",
   "aiChat.aiRepliesToday": "AI odgovori danas:",
   "aiChat.category.general": "Opšte",
   "aiChat.category.health": "Zdravlje",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "Sva putovanja koja ste planirali sa Planerom putovanja.",
   "myTrips.title": "Moja putovanja",
   "nav.aiCompanion": "AI saputnik",
+  "nav.pricing": "Cene",
   "notes.buttons.askAI": "🤖 Pitaj AI",
   "notes.buttons.bullets": "📋 Nabrajanje",
   "notes.buttons.delete": "🗑 Obriši",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "AI Kreator zadataka je za one trenutke kada znate šta želite, ali ne i kako da to razložite. Zalepite svoj cilj ili misli, a AI će predložiti konkretne zadatke koje možete poslati direktno u listu Zadataka.",
   "tools.aiTaskCreator.howToUse1": "Otvorite AI Kreator zadataka iz navigacije ili sa stranice Zadataka.",
   "tools.aiTaskCreator.howToUse2": "Opišite svoj cilj ili zalepite neuredne beleške (npr. 'Želim da redizajniram svoj sajt ovog meseca').",
-  "tools.aiTaskCreator.howToUse3": "Zatražite od AI da generiše listu zadataka. Prilagodite naslove zadataka, dodajte ili uklonite korake dok ne bude kako želite.",
-  "tools.aiTaskCreator.howToUse4": "Pošaljite zadatke koje volite direktno u stranicu Zadataka, sa predloženim prioritetima ili procenama vremena.",
-  "tools.aiTaskCreator.name": "AI Kreator zadataka",
-  "tools.aiTaskCreator.proHint": "Sa Pro verzijom, možete češće koristiti AI Kreator zadataka i za veće projekte bez brige o ograničenjima AI.",
-  "tools.aiTaskCreator.shortTagline": "Pretvorite nejasne ciljeve u male, jasne korake.",
-  "tools.backToHome": "← Nazad na početnu stranicu",
-  "tools.changelog.cta": "Pogledaj šta je novo"
+  "tools.aiTaskCreator.howToUse3": "Zatražite od AI da generiše listu zadataka. Prilagodite naslove zadataka, dodajte ili uklonite korake dok ne bude kako želite."
 }

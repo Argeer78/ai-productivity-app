@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Ücretsiz)",
+  "ai.usage.today": "Bugünün AI'sı",
+  "ai.usage.unlimited": "Sınırsız",
+  "ai.usage.upgrade": "Devam etmek için yükseltin",
+  "ai.usage.warning": "Bugünün sınırına neredeyse ulaşıldı",
   "aiChat.aiRepliesToday": "Bugün AI yanıtları:",
   "aiChat.category.general": "Genel",
   "aiChat.category.health": "Sağlık",
@@ -527,6 +532,7 @@
   "nav.myTrips": "Gezilerim",
   "nav.notes": "Notlar",
   "nav.planner": "Planlayıcı",
+  "nav.pricing": "Fiyatlandırma",
   "nav.settings": "Ayarlar",
   "nav.tasks": "Görevler",
   "nav.templates": "Şablonlar",
@@ -992,11 +998,5 @@
   "terms.section4.body": "Uygulamada oluşturduğunuz içeriklerin (notlar, görevler, planlar gibi) mülkiyeti sizde kalır. Bu içeriği yalnızca uygulama özelliklerini, AI destekli özellikler dahil olmak üzere, sağlamak ve geliştirmek amacıyla işlememiz için izin verirsiniz.",
   "terms.section4.title": "4. Kullanıcı İçeriği",
   "terms.section5.body": "AI çıktıları otomatik olarak oluşturulur ve hatalı veya eksik olabilir. AI çıktılarının kullanımından siz sorumlusunuz. Uygulama profesyonel tavsiyenin (tıbbi, hukuki, finansal veya diğer) yerine geçmez.",
-  "terms.section5.title": "5. AI Özellikleri",
-  "terms.section6.body": "Uygulamanın bazı bölümlerini herhangi bir zamanda değiştirebilir, askıya alabilir veya sonlandırabiliriz. Hizmetin erişilebilir kalmasını hedefliyoruz ancak kesintisiz erişim garantisi vermiyoruz.",
-  "terms.section6.title": "6. Hizmetin Kullanılabilirliği ve Değişiklikler",
-  "terms.section7.body": "Uygulamayı istediğiniz zaman kullanmayı bırakabilirsiniz. Bu Şartları ihlal ederseniz erişiminizi askıya alabilir veya sonlandırabiliriz. Hesap silme talebinde bulunabilirsiniz; silme sayfası için Gizlilik Politikası'na bakınız.",
-  "terms.section7.title": "7. Fesih",
-  "terms.section8.body": "Kanunen izin verilen en geniş ölçüde, AI Productivity Hub ve sahibi, uygulamanın kullanımından kaynaklanan dolaylı, tesadüfi, özel, sonuçsal veya cezai zararlar ile veri, kâr veya gelir kayıplarından sorumlu olmayacaktır.",
-  "terms.section8.title": "8. Sorumluluğun Sınırlandırılması"
+  "terms.section5.title": "5. AI Özellikleri"
 }

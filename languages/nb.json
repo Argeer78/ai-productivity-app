@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Gratis)",
+  "ai.usage.today": "AI i dag",
+  "ai.usage.unlimited": "Ubegrenset",
+  "ai.usage.upgrade": "Oppgrader for å fortsette",
+  "ai.usage.warning": "Nesten nådd dagens grense",
   "aiChat.aiRepliesToday": "AI-svar i dag:",
   "aiChat.category.general": "Generell",
   "aiChat.category.health": "Helse",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "Alle turene du har planlagt med Reiseplanlegger.",
   "myTrips.title": "Mine turer",
   "nav.aiCompanion": "AI-kompis",
+  "nav.pricing": "Priser",
   "notes.buttons.askAI": "🤖 Spør AI",
   "notes.buttons.bullets": "📋 Punkter",
   "notes.buttons.delete": "🗑 Slett",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "AI Oppgaveoppretter er for de øyeblikkene hvor du vet hva du vil, men ikke hvordan du skal bryte det ned. Lim inn målet ditt eller hjerneutslippet, og AI vil foreslå konkrete oppgaver du kan sende rett inn i Oppgavelisten din.",
   "tools.aiTaskCreator.howToUse1": "Åpne AI Oppgaveoppretter fra navigasjonen eller fra Oppgaver-siden.",
   "tools.aiTaskCreator.howToUse2": "Beskriv målet ditt eller lim inn dine rotete notater (f.eks. 'Jeg vil redesigne nettsiden min denne måneden').",
-  "tools.aiTaskCreator.howToUse3": "Be AI generere en liste med oppgaver. Juster eventuelle oppgavetitler, legg til / fjern steg til det føles riktig.",
-  "tools.aiTaskCreator.howToUse4": "Send oppgavene du liker direkte til Oppgaver-siden, med foreslåtte prioriteringer eller tidsestimater.",
-  "tools.aiTaskCreator.name": "AI Oppgaveoppretter",
-  "tools.aiTaskCreator.proHint": "Med Pro kan du bruke AI Oppgaveoppretter oftere og for større prosjekter uten å bekymre deg for AI-begrensninger.",
-  "tools.aiTaskCreator.shortTagline": "Gjør vage mål om til små, klare steg.",
-  "tools.backToHome": "← Tilbake til startsiden",
-  "tools.changelog.cta": "Se Hva er nytt"
+  "tools.aiTaskCreator.howToUse3": "Be AI generere en liste med oppgaver. Juster eventuelle oppgavetitler, legg til / fjern steg til det føles riktig."
 }

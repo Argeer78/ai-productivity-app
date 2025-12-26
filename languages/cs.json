@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Zdarma)",
+  "ai.usage.today": "AI dnes",
+  "ai.usage.unlimited": "Neomezeně",
+  "ai.usage.upgrade": "Upgradujte pro pokračování",
+  "ai.usage.warning": "Téměř na dnešním limitu",
   "aiChat.aiRepliesToday": "AI odpovědí dnes:",
   "aiChat.category.general": "Obecné",
   "aiChat.category.health": "Zdraví",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "Všechny cesty, které jste naplánovali pomocí Plánovače cest.",
   "myTrips.title": "Moje cesty",
   "nav.aiCompanion": "AI společník",
+  "nav.pricing": "Ceník",
   "notes.buttons.askAI": "🤖 Zeptat se AI",
   "notes.buttons.bullets": "📋 Odrážky",
   "notes.buttons.delete": "🗑 Smazat",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "AI tvůrce úkolů je pro chvíle, kdy víte, co chcete, ale ne jak to rozdělit. Vložte svůj cíl nebo neuspořádané poznámky a AI navrhne konkrétní úkoly, které můžete rovnou poslat do svého seznamu úkolů.",
   "tools.aiTaskCreator.howToUse1": "Otevřete AI tvůrce úkolů z navigace nebo odkazu na stránce Úkoly.",
   "tools.aiTaskCreator.howToUse2": "Popište svůj cíl nebo vložte neuspořádané poznámky (např. 'Chci tento měsíc přepracovat svůj web').",
-  "tools.aiTaskCreator.howToUse3": "Požádejte AI o vytvoření seznamu úkolů. Upravte názvy úkolů, přidejte nebo odeberte kroky, dokud to nebude správné.",
-  "tools.aiTaskCreator.howToUse4": "Pošlete vybrané úkoly přímo do stránky Úkoly s navrženými prioritami nebo odhady času.",
-  "tools.aiTaskCreator.name": "AI tvůrce úkolů",
-  "tools.aiTaskCreator.proHint": "S Pro můžete AI tvůrce úkolů používat častěji a pro větší projekty bez obav z omezení AI.",
-  "tools.aiTaskCreator.shortTagline": "Přeměňte vágní cíle na malé, jasné kroky.",
-  "tools.backToHome": "← Zpět na domovskou stránku",
-  "tools.changelog.cta": "Zobrazit Co je nového"
+  "tools.aiTaskCreator.howToUse3": "Požádejte AI o vytvoření seznamu úkolů. Upravte názvy úkolů, přidejte nebo odeberte kroky, dokud to nebude správné."
 }

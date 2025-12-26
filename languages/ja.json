@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit}（無料）",
+  "ai.usage.today": "今日のAI使用状況",
+  "ai.usage.unlimited": "無制限",
+  "ai.usage.upgrade": "続行するにはアップグレードしてください",
+  "ai.usage.warning": "本日の上限に近づいています",
   "aiChat.aiRepliesToday": "今日のAI返信数：",
   "aiChat.category.general": "一般",
   "aiChat.category.health": "健康",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "旅行プランナーで計画したすべての旅行。",
   "myTrips.title": "マイトリップ",
   "nav.aiCompanion": "AIコンパニオン",
+  "nav.pricing": "料金",
   "notes.buttons.askAI": "🤖 AIに質問",
   "notes.buttons.bullets": "📋 箇条書き",
   "notes.buttons.delete": "🗑 削除",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "AIタスククリエイターは、やりたいことはわかっているが分解方法がわからない時に使います。目標やメモを貼り付けると、具体的なタスクを提案し、直接タスクリストに送れます。",
   "tools.aiTaskCreator.howToUse1": "ナビゲーションまたはタスクページのリンクからAIタスククリエイターを開きます。",
   "tools.aiTaskCreator.howToUse2": "目標を説明するか乱雑なメモを貼り付けます（例：「今月中にウェブサイトをリデザインしたい」）。",
-  "tools.aiTaskCreator.howToUse3": "AIにタスクリストを生成させます。タスクタイトルを調整し、ステップを追加・削除して調整します。",
-  "tools.aiTaskCreator.howToUse4": "気に入ったタスクを優先度や時間見積もり付きで直接タスクページに送ります。",
-  "tools.aiTaskCreator.name": "AIタスククリエイター",
-  "tools.aiTaskCreator.proHint": "ProならAIタスククリエイターをより頻繁に大規模プロジェクトでもAI制限を気にせず使えます。",
-  "tools.aiTaskCreator.shortTagline": "あいまいな目標を小さく明確なステップに変える。",
-  "tools.backToHome": "← ホームページに戻る",
-  "tools.changelog.cta": "新機能を見る"
+  "tools.aiTaskCreator.howToUse3": "AIにタスクリストを生成させます。タスクタイトルを調整し、ステップを追加・削除して調整します。"
 }

@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Gratis)",
+  "ai.usage.today": "AI i dag",
+  "ai.usage.unlimited": "Ubegrænset",
+  "ai.usage.upgrade": "Opgrader for at fortsætte",
+  "ai.usage.warning": "Næsten ved dagens grænse",
   "aiChat.aiRepliesToday": "AI svar i dag:",
   "aiChat.category.general": "Generel",
   "aiChat.category.health": "Sundhed",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "Alle de rejser, du har planlagt med Rejseplanlæggeren.",
   "myTrips.title": "Mine Rejser",
   "nav.aiCompanion": "AI-kompagnon",
+  "nav.pricing": "Priser",
   "notes.buttons.askAI": "🤖 Spørg AI",
   "notes.buttons.bullets": "📋 Punkter",
   "notes.buttons.delete": "🗑 Slet",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "AI Opgave Skaberen er til de øjeblikke, hvor du ved, hvad du vil, men ikke hvordan du bryder det ned. Indsæt dit mål eller hjernedump, og AI vil foreslå konkrete opgaver, som du kan sende direkte til din Opgaveliste.",
   "tools.aiTaskCreator.howToUse1": "Åbn AI Opgave Skaberen fra navigationen eller fra Opgaver-siden.",
   "tools.aiTaskCreator.howToUse2": "Beskriv dit mål eller indsæt dine rodede noter (f.eks. 'Jeg vil redesigne min hjemmeside denne måned').",
-  "tools.aiTaskCreator.howToUse3": "Bed AI om at generere en liste over opgaver. Juster eventuelle opgavetitler, tilføj/fjern trin, indtil det føles rigtigt.",
-  "tools.aiTaskCreator.howToUse4": "Send de opgaver, du kan lide, direkte til din Opgaver-side med foreslåede prioriteter eller tidsestimater.",
-  "tools.aiTaskCreator.name": "AI Opgave Skaber",
-  "tools.aiTaskCreator.proHint": "Med Pro kan du bruge AI Opgave Skaberen oftere og til større projekter uden at bekymre dig om AI-begrænsninger.",
-  "tools.aiTaskCreator.shortTagline": "Omsæt vage mål til små, klare trin.",
-  "tools.backToHome": "← Tilbage til startsiden",
-  "tools.changelog.cta": "Se Hvad er Nyt"
+  "tools.aiTaskCreator.howToUse3": "Bed AI om at generere en liste over opgaver. Juster eventuelle opgavetitler, tilføj/fjern trin, indtil det føles rigtigt."
 }

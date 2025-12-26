@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Gratis)",
+  "ai.usage.today": "AI vandaag",
+  "ai.usage.unlimited": "Onbeperkt",
+  "ai.usage.upgrade": "Upgrade om door te gaan",
+  "ai.usage.warning": "Bijna bij de limiet van vandaag",
   "aiChat.aiRepliesToday": "AI antwoorden vandaag:",
   "aiChat.category.general": "Algemeen",
   "aiChat.category.health": "Gezondheid",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "Alle reizen die je hebt gepland met de Reisplanner.",
   "myTrips.title": "Mijn Reizen",
   "nav.aiCompanion": "AI Metgezel",
+  "nav.pricing": "Prijzen",
   "notes.buttons.askAI": "🤖 Vraag AI",
   "notes.buttons.bullets": "📋 Opsommingstekens",
   "notes.buttons.delete": "🗑 Verwijderen",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "De AI Taakmaker is voor momenten waarop je weet wat je wilt, maar niet hoe je het moet opdelen. Plak je doel of hersenuitstorting en AI stelt concrete taken voor die je direct naar je Takenlijst kunt sturen.",
   "tools.aiTaskCreator.howToUse1": "Open de AI Taakmaker via de navigatie of link op de Taken-pagina.",
   "tools.aiTaskCreator.howToUse2": "Beschrijf je doel of plak je rommelige notities (bijv. 'Ik wil deze maand mijn website herontwerpen').",
-  "tools.aiTaskCreator.howToUse3": "Vraag AI om een takenlijst te genereren. Pas taak titels aan, voeg stappen toe of verwijder ze tot het goed voelt.",
-  "tools.aiTaskCreator.howToUse4": "Stuur de taken die je wilt direct naar je Taken-pagina, met voorgestelde prioriteiten of tijdsinschattingen.",
-  "tools.aiTaskCreator.name": "AI Taakmaker",
-  "tools.aiTaskCreator.proHint": "Met Pro kun je de AI Taakmaker vaker gebruiken en voor grotere projecten zonder AI-limieten.",
-  "tools.aiTaskCreator.shortTagline": "Maak vage doelen klein en duidelijk.",
-  "tools.backToHome": "← Terug naar startpagina",
-  "tools.changelog.cta": "Bekijk Wat is Nieuw"
+  "tools.aiTaskCreator.howToUse3": "Vraag AI om een takenlijst te genereren. Pas taak titels aan, voeg stappen toe of verwijder ze tot het goed voelt."
 }

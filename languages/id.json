@@ -1,4 +1,9 @@
 {
+  "ai.usage.free": "{used}/{limit} (Gratis)",
+  "ai.usage.today": "AI hari ini",
+  "ai.usage.unlimited": "Tak terbatas",
+  "ai.usage.upgrade": "Tingkatkan untuk melanjutkan",
+  "ai.usage.warning": "Hampir mencapai batas hari ini",
   "aiChat.aiRepliesToday": "Balasan AI hari ini:",
   "aiChat.category.general": "Umum",
   "aiChat.category.health": "Kesehatan",
@@ -506,6 +511,7 @@
   "myTrips.subtitle": "Semua perjalanan yang Anda rencanakan dengan Perencana Perjalanan.",
   "myTrips.title": "Perjalanan Saya",
   "nav.aiCompanion": "Teman AI",
+  "nav.pricing": "Harga",
   "notes.buttons.askAI": "🤖 Tanyakan AI",
   "notes.buttons.bullets": "📋 Poin-poin",
   "notes.buttons.delete": "🗑 Hapus",
@@ -992,11 +998,5 @@
   "tools.aiTaskCreator.description": "Pembuat Tugas AI untuk saat Anda tahu apa yang diinginkan, tapi tidak tahu cara memecahnya. Tempelkan tujuan atau curahan pikiran Anda, dan AI akan mengusulkan tugas konkret yang bisa langsung dikirim ke daftar Tugas Anda.",
   "tools.aiTaskCreator.howToUse1": "Buka Pembuat Tugas AI dari navigasi atau tautan halaman Tugas.",
   "tools.aiTaskCreator.howToUse2": "Jelaskan tujuan Anda atau tempel catatan berantakan (misal 'Saya ingin mendesain ulang situs web bulan ini').",
-  "tools.aiTaskCreator.howToUse3": "Minta AI membuat daftar tugas. Sesuaikan judul tugas, tambah / hapus langkah sampai terasa tepat.",
-  "tools.aiTaskCreator.howToUse4": "Kirim tugas yang Anda suka langsung ke halaman Tugas, dengan prioritas atau perkiraan waktu yang disarankan.",
-  "tools.aiTaskCreator.name": "Pembuat Tugas AI",
-  "tools.aiTaskCreator.proHint": "Dengan Pro, Anda bisa menggunakan Pembuat Tugas AI lebih sering dan untuk proyek besar tanpa khawatir batasan AI.",
-  "tools.aiTaskCreator.shortTagline": "Ubah tujuan samar menjadi langkah kecil yang jelas.",
-  "tools.backToHome": "← Kembali ke beranda",
-  "tools.changelog.cta": "Lihat Apa yang Baru"
+  "tools.aiTaskCreator.howToUse3": "Minta AI membuat daftar tugas. Sesuaikan judul tugas, tambah / hapus langkah sampai terasa tepat."
 }

@@ -1,11 +1,11 @@
+// app/api/admin/sync-ui-keys/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SUPPORTED_LANGS } from "@/lib/i18n";
 
-// ✅ Increase function max duration (Vercel/Next App Router)
 export const runtime = "nodejs";
-export const maxDuration = 300; // seconds (adjust if your plan supports it)
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 const ADMIN_KEY = process.env.ADMIN_KEY || process.env.NEXT_PUBLIC_ADMIN_KEY || "";
@@ -19,9 +19,11 @@ type Body = {
   targetLangs?: string[]; // optional
 };
 
-// Keep batches small to reduce model latency + avoid big payloads
-const MAX_BATCH_ITEMS = 20;
 const MODEL = "gpt-4.1-mini";
+const MAX_BATCH_ITEMS = 20;
+
+// IMPORTANT: pagination size for PostgREST
+const PAGE_SIZE = 1000;
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -29,10 +31,60 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+async function fetchAllKeysForLang(lang: string): Promise<Set<string>> {
+  const out = new Set<string>();
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabaseAdmin
+      .from("ui_translations")
+      .select("key")
+      .eq("language_code", lang)
+      .range(from, to);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    for (const r of rows as any[]) {
+      if (r?.key) out.add(String(r.key));
+    }
+
+    if (rows.length < PAGE_SIZE) break;
+  }
+
+  return out;
+}
+
+async function fetchAllSourceMap(lang: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabaseAdmin
+      .from("ui_translations")
+      .select("key, text")
+      .eq("language_code", lang)
+      .range(from, to);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    for (const r of rows as any[]) {
+      if (!r?.key) continue;
+      out.set(String(r.key), typeof r.text === "string" ? r.text : "");
+    }
+
+    if (rows.length < PAGE_SIZE) break;
+  }
+
+  return out;
+}
+
 async function translateBatch(params: { texts: string[]; targetLang: string }): Promise<string[]> {
   const { texts, targetLang } = params;
 
-  // Force 1:1 JSON array output
   const prompt = [
     `Translate each item to ${targetLang}.`,
     `Return STRICT JSON only as: {"translations":["...","..."]}`,
@@ -48,7 +100,6 @@ async function translateBatch(params: { texts: string[]; targetLang: string }): 
       { role: "system", content: "You are a careful translation engine." },
       { role: "user", content: prompt },
     ],
-    // ✅ Helps a lot with reliability
     response_format: { type: "json_object" },
     max_tokens: 1200,
   });
@@ -66,7 +117,7 @@ async function translateBatch(params: { texts: string[]; targetLang: string }): 
     }
     return arr.map((x: any) => String(x ?? ""));
   } catch {
-    // Safe fallback: keep originals if parsing fails
+    // fallback: keep originals if parsing fails
     return texts;
   }
 }
@@ -74,7 +125,7 @@ async function translateBatch(params: { texts: string[]; targetLang: string }): 
 export async function POST(req: Request) {
   try {
     // --- Admin auth ---
-    const headerKey = req.headers.get("X-Admin-Key") || "";
+    const headerKey = req.headers.get("X-Admin-Key") || req.headers.get("x-admin-key") || "";
     if (!ADMIN_KEY || headerKey !== ADMIN_KEY) {
       return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
     }
@@ -84,13 +135,12 @@ export async function POST(req: Request) {
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
-    const sourceLang = (body.sourceLang || "en").toLowerCase();
+    const sourceLang = String(body.sourceLang || "en").toLowerCase();
 
     const allSupported = (SUPPORTED_LANGS || [])
       .map((l: any) => String(l.code || "").toLowerCase())
       .filter(Boolean);
 
-    // Fallback safety if SUPPORTED_LANGS is misconfigured
     const supported = allSupported.length ? allSupported : ["en"];
 
     const targets =
@@ -104,21 +154,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Load all source keys
-    const { data: srcRows, error: srcErr } = await supabaseAdmin
-      .from("ui_translations")
-      .select("key, text")
-      .eq("language_code", sourceLang);
-
-    if (srcErr) {
-      console.error("[sync-ui-keys] source load error", srcErr);
-      return NextResponse.json({ ok: false, error: "Failed to load source keys." }, { status: 500 });
-    }
-
-    const srcMap = new Map<string, string>();
-    for (const r of srcRows || []) {
-      if (r?.key) srcMap.set(r.key, r.text ?? "");
-    }
+    // 1) Load ALL source keys (no 1000-row truncation)
+    const srcMap = await fetchAllSourceMap(sourceLang);
 
     if (srcMap.size === 0) {
       return NextResponse.json(
@@ -127,36 +164,30 @@ export async function POST(req: Request) {
       );
     }
 
+    const srcKeys = Array.from(srcMap.keys());
     const perLang: Record<string, number> = {};
     let insertedTotal = 0;
 
-    // ✅ Process languages sequentially (less rate-limit pain)
+    // 2) Process languages sequentially
     for (const lang of targets) {
-      const start = Date.now();
-      console.log(`Processing language: ${lang}`);
-      
-      // Load existing keys for this language
-      const { data: existingRows, error: exErr } = await supabaseAdmin
-        .from("ui_translations")
-        .select("key")
-        .eq("language_code", lang);
-
-      if (exErr) {
-        console.error(`[sync-ui-keys] existing load error ${lang}`, exErr);
+      // Load ALL existing keys for this language (no 1000-row truncation)
+      let existing: Set<string>;
+      try {
+        existing = await fetchAllKeysForLang(lang);
+      } catch (e: any) {
+        console.error(`[sync-ui-keys] existing load error ${lang}`, e?.message || e);
         perLang[lang] = 0;
         continue;
       }
 
-      const existing = new Set<string>((existingRows || []).map((r: any) => r.key).filter(Boolean));
-
+      // Compute missing
       const missingKeys: string[] = [];
-      for (const k of srcMap.keys()) {
+      for (const k of srcKeys) {
         if (!existing.has(k)) missingKeys.push(k);
       }
 
-      // If no missing keys, skip this language
+      // ✅ FAST PATH: nothing missing → return immediately for this lang
       if (missingKeys.length === 0) {
-        console.log(`No missing keys for ${lang}`);
         perLang[lang] = 0;
         continue;
       }
@@ -164,7 +195,6 @@ export async function POST(req: Request) {
       let insertedForLang = 0;
       const batches = chunk(missingKeys, MAX_BATCH_ITEMS);
 
-      // ✅ Insert per batch so timeouts still leave progress
       for (const b of batches) {
         const sourceTexts = b.map((k) => srcMap.get(k) || "");
         const translated = await translateBatch({ texts: sourceTexts, targetLang: lang });
@@ -175,15 +205,13 @@ export async function POST(req: Request) {
           text: translated[i] ?? "",
         }));
 
-        // ✅ Critical with your unique index:
         const { error: upErr } = await supabaseAdmin
           .from("ui_translations")
           .upsert(rows, { onConflict: "key,language_code", ignoreDuplicates: true });
 
         if (upErr) {
           console.error(`[sync-ui-keys] upsert error ${lang}`, upErr);
-          // keep going best-effort
-          continue;
+          continue; // best-effort
         }
 
         insertedForLang += rows.length;
@@ -191,9 +219,6 @@ export async function POST(req: Request) {
 
       perLang[lang] = insertedForLang;
       insertedTotal += insertedForLang;
-
-      const end = Date.now();
-      console.log(`Processed ${lang} in ${end - start}ms`);
     }
 
     return NextResponse.json(
@@ -202,6 +227,6 @@ export async function POST(req: Request) {
     );
   } catch (err: any) {
     console.error("[sync-ui-keys] fatal error:", err);
-    return NextResponse.json({ ok: false, error: "Failed to sync keys." }, { status: 500 });
+    return NextResponse.json({ ok: false, error: err?.message || "Failed to sync keys." }, { status: 500 });
   }
 }
