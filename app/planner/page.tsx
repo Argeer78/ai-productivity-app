@@ -251,7 +251,7 @@ export default function PlannerPage() {
             </div>
             <div className="w-full max-w-xs relative z-10">
               <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
-                <img src="/images/tasks-welcome.png?v=1" alt="Planner" className="w-full h-auto" />
+                <img src="/images/planner-hero.png" alt="Planner" className="w-full h-auto" />
               </div>
             </div>
             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />

@@ -3,7 +3,7 @@
 // - Offline fallback + push notifications
 // -------------------------------
 
-const CACHE_VERSION = "v3"; // ⬅️ bump this on deploys
+const CACHE_VERSION = "v4"; // ⬅️ bump this on deploys
 const CACHE_NAME = `aiprod-cache-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline.html";
 
@@ -117,6 +117,8 @@ self.addEventListener("push", (event) => {
       badge: "/icons/icon-96.png",
       vibrate: [80, 40, 80],
       data: { url: clickUrl },
+      requireInteraction: true,
+      timestamp: Date.now(),
     })
   );
 });

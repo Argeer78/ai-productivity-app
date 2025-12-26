@@ -103,7 +103,7 @@ export default function MyTripsPage() {
 
             <div className="w-32 h-32 mx-auto mb-6 relative">
               <div className="rounded-2xl overflow-hidden shadow-lg border border-[var(--border-subtle)] bg-white rotate-3">
-                <img src="/images/hero-3d.png?v=1" alt="Trips" className="w-full h-full object-cover" />
+                <img src="/images/trips-hero.png" alt="Trips" className="w-full h-full object-cover" />
               </div>
             </div>
 

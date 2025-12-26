@@ -1,0 +1,6 @@
+{
+  "code": "PGRST204",
+  "details": null,
+  "hint": null,
+  "message": "Could not find the 'is_verified' column of 'ui_translations' in the schema cache"
+}

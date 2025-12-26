@@ -96,11 +96,14 @@ export async function subscribeToPush(userId: string) {
         status: res.status,
         jsonResponse,
       });
-      throw new Error(jsonResponse?.error || "Push subscribe failed");
+      // Try to give a better error message to the UI
+      const msg = jsonResponse?.error || `Server returned ${res.status}`;
+      throw new Error(msg);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error("[pushClient] Error during server subscription:", err);
-    throw new Error("Failed to send subscription to server");
+    // Preserve the original error message if it's already useful
+    throw new Error(err.message || "Failed to send subscription to server");
   }
 
   console.log("[pushClient] Push subscription saved successfully.");
