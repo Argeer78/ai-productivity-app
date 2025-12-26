@@ -438,7 +438,7 @@ export default function HomePage() {
 
             {/* Preview panel */}
             {/* Hero Illustration */}
-            <div className="hidden md:block relative">
+            <div className="relative mt-8 md:mt-0">
               <div className="relative z-10 rounded-3xl overflow-hidden shadow-2xl shadow-indigo-500/20 border border-[var(--border-subtle)]">
                 <img
                   src="/images/hero-3d.png?v=1"

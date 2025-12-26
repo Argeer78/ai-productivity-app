@@ -546,7 +546,7 @@ export default function TravelPage() {
               </div>
             </div>
 
-            <div className="w-40 h-40 relative z-10 hidden md:block">
+            <div className="w-40 h-40 relative z-10 block">
               <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white rotate-3">
                 <img src="/images/hero-3d.png?v=1" alt="Travel" className="w-full h-full object-cover" />
               </div>
