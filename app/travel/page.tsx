@@ -1023,30 +1023,55 @@ export default function TravelPage() {
 
           {/* Bottom CTA for guests */}
           {!user && !checkingUser && (
-            <div className="rounded-2xl border border-[var(--accent)]/60 bg-[var(--accent-soft)]/60 p-4 text-xs max-w-xl">
-              <p className="text-[var(--accent-strong,white)] font-semibold mb-1">
-                {t("guestCta.title", "Want to save your trips and access them later?")}
-              </p>
-              <p className="text-[var(--accent-strong,white)] mb-3">
-                {t(
-                  "guestCta.body",
-                  "Create a free account to save your AI-generated itineraries, sync them with your productivity dashboard, and get weekly summaries."
-                )}
-              </p>
-              <button
-                type="button"
-                onClick={() =>
-                  gate.openGate({
-                    title: t("auth.title", "Create a free account"),
-                    subtitle: t("auth.subtitle", "Log in to save trips and access them later."),
-                  })
-                }
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--bg-body)] font-medium inline-block"
-              >
-                {t("guestCta.button", "Create free account / Log in")}
-              </button>
+            <div className="mt-8 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-5 text-sm">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="max-w-xl">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
+                    {t("guestCta.kicker", "SAVE YOUR TRIPS")}
+                  </p>
+
+                  <h3 className="text-base font-semibold text-[var(--text-main)] mb-1">
+                    {t("guestCta.title", "Want to save your trips and access them later?")}
+                  </h3>
+
+                  <p className="text-[12px] text-[var(--text-muted)] leading-relaxed">
+                    {t(
+                      "guestCta.body",
+                      "Create a free account to save your AI-generated itineraries, sync them with your productivity dashboard, and get weekly summaries."
+                    )}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      gate.openGate({
+                        title: t("auth.title", "Create a free account"),
+                        subtitle: t("auth.subtitle", "Log in to save trips and access them later."),
+                      })
+                    }
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)]"
+                  >
+                    {t("guestCta.button", "Create free account / Log in")}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-[var(--text-muted)]">
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+                  {t("guestCta.perk1", "💾 Save itineraries")}
+                </span>
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+                  {t("guestCta.perk2", "📊 Sync with dashboard")}
+                </span>
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+                  {t("guestCta.perk3", "📩 Weekly summaries")}
+                </span>
+              </div>
             </div>
           )}
+
         </div>
       </div>
     </main>
