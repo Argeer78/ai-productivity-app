@@ -56,13 +56,13 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
 
     // Audio Sync
     useEffect(() => {
-        if (!isActive || ambient === "none") {
+        if (!isActive || isPaused || ambient === "none") {
             sound.stopAmbient();
         } else {
             // @ts-ignore
             sound.playAmbient(ambient);
         }
-    }, [isActive, ambient]);
+    }, [isActive, isPaused, ambient]);
 
     const handleComplete = () => {
         setIsActive(false);
