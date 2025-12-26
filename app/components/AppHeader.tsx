@@ -27,23 +27,23 @@ import {
 
 type HeaderProps = {
   active?:
-    | "dashboard"
-    | "pricing"
-    | "notes"
-    | "tasks"
-    | "planner"
-    | "templates"
-    | "daily-success"
-    | "weekly-reports"
-    | "feedback"
-    | "settings"
-    | "admin"
-    | "explore"
-    | "changelog"
-    | "my-trips"
-    | "travel"
-    | "ai-companion"
-    | "ai-chat";
+  | "dashboard"
+  | "pricing"
+  | "notes"
+  | "tasks"
+  | "planner"
+  | "templates"
+  | "daily-success"
+  | "weekly-reports"
+  | "feedback"
+  | "settings"
+  | "admin"
+  | "explore"
+  | "changelog"
+  | "my-trips"
+  | "travel"
+  | "ai-companion"
+  | "ai-chat";
 };
 
 const APPS: {
@@ -52,18 +52,18 @@ const APPS: {
   fallback: string;
   Icon: React.ComponentType<{ size?: number; className?: string }>;
 }[] = [
-  { href: "/notes", navKey: "notes", fallback: "Notes", Icon: StickyNote },
-  { href: "/tasks", navKey: "tasks", fallback: "Tasks", Icon: CheckSquare },
-  { href: "/planner", navKey: "planner", fallback: "Planner", Icon: Calendar },
-  { href: "/ai-chat", navKey: "aiChat", fallback: "AI Hub Chat", Icon: MessageSquare },
-  { href: "/ai-companion", navKey: "aiCompanion", fallback: "AI Companion", Icon: HeartHandshake },
-  { href: "/templates", navKey: "templates", fallback: "Templates", Icon: FileText },
-  { href: "/daily-success", navKey: "dailySuccess", fallback: "Daily Success", Icon: Sun },
-  { href: "/weekly-reports", navKey: "weeklyReports", fallback: "Weekly Reports", Icon: BarChart3 },
-  { href: "/travel", navKey: "travel", fallback: "Travel", Icon: Plane },
-  { href: "/my-trips", navKey: "myTrips", fallback: "My Trips", Icon: Map },
-  { href: "/changelog", navKey: "changelog", fallback: "What’s new", Icon: Sparkles },
-];
+    { href: "/notes", navKey: "notes", fallback: "Notes", Icon: StickyNote },
+    { href: "/tasks", navKey: "tasks", fallback: "Tasks", Icon: CheckSquare },
+    { href: "/planner", navKey: "planner", fallback: "Planner", Icon: Calendar },
+    { href: "/ai-chat", navKey: "aiChat", fallback: "AI Hub Chat", Icon: MessageSquare },
+    { href: "/ai-companion", navKey: "aiCompanion", fallback: "AI Companion", Icon: HeartHandshake },
+    { href: "/templates", navKey: "templates", fallback: "Templates", Icon: FileText },
+    { href: "/daily-success", navKey: "dailySuccess", fallback: "Daily Success", Icon: Sun },
+    { href: "/weekly-reports", navKey: "weeklyReports", fallback: "Weekly Reports", Icon: BarChart3 },
+    { href: "/travel", navKey: "travel", fallback: "Travel", Icon: Plane },
+    { href: "/my-trips", navKey: "myTrips", fallback: "My Trips", Icon: Map },
+    { href: "/changelog", navKey: "changelog", fallback: "What’s new", Icon: Sparkles },
+  ];
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
@@ -113,8 +113,16 @@ export default function AppHeader({ active }: HeaderProps) {
       }
     }
     loadUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email ?? null);
+      if (!session) {
+        setLoadingUser(false);
+      }
+    });
+
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -158,6 +166,7 @@ export default function AppHeader({ active }: HeaderProps) {
       setLoggingOut(true);
       await supabase.auth.signOut();
       router.push("/");
+      router.refresh();
     } catch (e) {
       console.error("[AppHeader] logout error", e);
     } finally {
@@ -196,22 +205,22 @@ export default function AppHeader({ active }: HeaderProps) {
     href: string;
     adminOnly?: boolean;
   }[] = [
-    { key: "dashboard", label: navLabel("dashboard", "Dashboard"), href: "/dashboard" },
-    { key: "pricing", label: navLabel("pricing", "Pricing"), href: "/pricing" },
-    { key: "notes", label: navLabel("notes", "Notes"), href: "/notes" },
-    { key: "tasks", label: navLabel("tasks", "Tasks"), href: "/tasks" },
-    { key: "planner", label: navLabel("planner", "Planner"), href: "/planner" },
-    { key: "ai-chat", label: navLabel("aiChat", "AI Hub Chat"), href: "/ai-chat" },
-    { key: "ai-companion", label: navLabel("aiCompanion", "AI Companion"), href: "/ai-companion" },
-    { key: "templates", label: navLabel("templates", "Templates"), href: "/templates" },
-    { key: "daily-success", label: navLabel("dailySuccess", "Daily Success"), href: "/daily-success" },
-    { key: "weekly-reports", label: navLabel("weeklyReports", "Weekly Reports"), href: "/weekly-reports" },
-    { key: "travel", label: navLabel("travel", "Travel Planner"), href: "/travel" },
-    { key: "my-trips", label: navLabel("myTrips", "My Trips"), href: "/my-trips" },
-    { key: "changelog", label: navLabel("changelog", "What’s new"), href: "/changelog" },
-    { key: "settings", label: navLabel("settings", "Settings"), href: "/settings" },
-    { key: "admin", label: navLabel("admin", "Admin"), href: "/admin", adminOnly: true },
-  ];
+      { key: "dashboard", label: navLabel("dashboard", "Dashboard"), href: "/dashboard" },
+      { key: "pricing", label: navLabel("pricing", "Pricing"), href: "/pricing" },
+      { key: "notes", label: navLabel("notes", "Notes"), href: "/notes" },
+      { key: "tasks", label: navLabel("tasks", "Tasks"), href: "/tasks" },
+      { key: "planner", label: navLabel("planner", "Planner"), href: "/planner" },
+      { key: "ai-chat", label: navLabel("aiChat", "AI Hub Chat"), href: "/ai-chat" },
+      { key: "ai-companion", label: navLabel("aiCompanion", "AI Companion"), href: "/ai-companion" },
+      { key: "templates", label: navLabel("templates", "Templates"), href: "/templates" },
+      { key: "daily-success", label: navLabel("dailySuccess", "Daily Success"), href: "/daily-success" },
+      { key: "weekly-reports", label: navLabel("weeklyReports", "Weekly Reports"), href: "/weekly-reports" },
+      { key: "travel", label: navLabel("travel", "Travel Planner"), href: "/travel" },
+      { key: "my-trips", label: navLabel("myTrips", "My Trips"), href: "/my-trips" },
+      { key: "changelog", label: navLabel("changelog", "What’s new"), href: "/changelog" },
+      { key: "settings", label: navLabel("settings", "Settings"), href: "/settings" },
+      { key: "admin", label: navLabel("admin", "Admin"), href: "/admin", adminOnly: true },
+    ];
 
   return (
     <header className="relative z-50 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/80 backdrop-blur">
@@ -258,9 +267,8 @@ export default function AppHeader({ active }: HeaderProps) {
               aria-haspopup="menu"
               aria-expanded={appsOpen}
               onClick={() => setAppsOpen((v) => !v)}
-              className={`${navLinkBase} ml-2 flex items-center gap-1 border border-[var(--border-subtle)] bg-[var(--bg-card)] ${
-                appsActive ? "text-[var(--accent)] bg-[var(--accent-soft)]" : ""
-              }`}
+              className={`${navLinkBase} ml-2 flex items-center gap-1 border border-[var(--border-subtle)] bg-[var(--bg-card)] ${appsActive ? "text-[var(--accent)] bg-[var(--accent-soft)]" : ""
+                }`}
             >
               {navLabel("apps", "Apps")}
               <span className="text-[11px] opacity-80">{appsOpen ? "▲" : "▼"}</span>

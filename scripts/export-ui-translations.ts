@@ -62,6 +62,8 @@ const LANGS = [
   "sv",
   "nb",
   "nl",
+  "tr",
+  "ko",
 ];
 
 async function exportLang(lang: string) {

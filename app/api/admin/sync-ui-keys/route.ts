@@ -1,4 +1,3 @@
-// app/api/admin/sync-ui-keys/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -133,6 +132,9 @@ export async function POST(req: Request) {
 
     // ✅ Process languages sequentially (less rate-limit pain)
     for (const lang of targets) {
+      const start = Date.now();
+      console.log(`Processing language: ${lang}`);
+      
       // Load existing keys for this language
       const { data: existingRows, error: exErr } = await supabaseAdmin
         .from("ui_translations")
@@ -152,7 +154,9 @@ export async function POST(req: Request) {
         if (!existing.has(k)) missingKeys.push(k);
       }
 
+      // If no missing keys, skip this language
       if (missingKeys.length === 0) {
+        console.log(`No missing keys for ${lang}`);
         perLang[lang] = 0;
         continue;
       }
@@ -172,7 +176,6 @@ export async function POST(req: Request) {
         }));
 
         // ✅ Critical with your unique index:
-        // - won’t fail if some keys already inserted (partial timeout retry)
         const { error: upErr } = await supabaseAdmin
           .from("ui_translations")
           .upsert(rows, { onConflict: "key,language_code", ignoreDuplicates: true });
@@ -188,6 +191,9 @@ export async function POST(req: Request) {
 
       perLang[lang] = insertedForLang;
       insertedTotal += insertedForLang;
+
+      const end = Date.now();
+      console.log(`Processed ${lang} in ${end - start}ms`);
     }
 
     return NextResponse.json(
