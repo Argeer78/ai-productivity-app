@@ -32,7 +32,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const openai = new OpenAI({ apiKey: openaiKey });
 
 async function fetchAllKeys(lang: string) {
-    let allKeys = new Map<string, string>(); // key -> text
+    const allKeys = new Map<string, string>(); // key -> text
     let from = 0;
     const PAGE = 1000;
 
@@ -79,7 +79,7 @@ Input: ${JSON.stringify(texts)}`;
         return texts;
     } catch (err: any) {
         console.error("❌ OpenAI Error:", err.message);
-        return texts; // Fallback
+        throw err; // Fail, do not fallback to English
     }
 }
 

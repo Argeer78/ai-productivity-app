@@ -129,7 +129,7 @@ export default function AiUsageBadge({
   useEffect(() => {
     if (!userId) return;
     refreshUsage(userId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [userId]);
 
   // ---------- “Refresh nicely” hooks ----------
@@ -195,7 +195,7 @@ export default function AiUsageBadge({
     return () => {
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [userId]);
 
   // ---------- Derived ----------

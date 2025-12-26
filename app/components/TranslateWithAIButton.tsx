@@ -161,7 +161,7 @@ export default function TranslateWithAIButton() {
 
       setPosition(clampToViewport(desiredTop, desiredLeft));
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [open]);
 
   function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
@@ -205,7 +205,7 @@ export default function TranslateWithAIButton() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dragging]);
 
   function handleOpen() {

@@ -40,6 +40,76 @@ class SoundManager {
         }
     }
 
+    private ambientSource: AudioBufferSourceNode | null = null;
+    private ambientGain: GainNode | null = null;
+    private currentAmbient: "white_noise" | "rain" | null = null;
+
+    public playAmbient(type: "white_noise" | "rain") {
+        if (!this.enabled) return;
+        if (this.currentAmbient === type) return; // Already playing
+
+        this.stopAmbient(); // Stop current if any
+
+        const ctx = this.getContext();
+        if (!ctx) return;
+
+        this.currentAmbient = type;
+
+        // Create Noise Buffer
+        const bufferSize = 2 * ctx.sampleRate; // 2 seconds
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+            // White noise: random (-1 to 1)
+            const white = Math.random() * 2 - 1;
+
+            if (type === 'white_noise') {
+                output[i] = white * 0.15; // Lower volume
+            } else if (type === 'rain') {
+                // Brownish noise approximation (simple integration)
+                const prev = i > 0 ? output[i - 1] : 0;
+                output[i] = (prev + (0.02 * white)) / 1.02;
+                output[i] *= 3.5; // Gain compensation
+            }
+        }
+
+        this.ambientSource = ctx.createBufferSource();
+        this.ambientSource.buffer = buffer;
+        this.ambientSource.loop = true;
+
+        this.ambientGain = ctx.createGain();
+        this.ambientGain.gain.value = 0; // Start silent for fade in
+
+        this.ambientSource.connect(this.ambientGain);
+        this.ambientGain.connect(ctx.destination);
+
+        this.ambientSource.start();
+
+        // Fade in
+        this.ambientGain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 1.5);
+    }
+
+    public stopAmbient() {
+        if (!this.ambientSource || !this.ambientGain || !this.ctx) {
+            this.currentAmbient = null;
+            return;
+        }
+
+        // Fade out
+        try {
+            this.ambientGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+            const src = this.ambientSource;
+            setTimeout(() => {
+                try { src.stop(); } catch { }
+            }, 550);
+        } catch { }
+
+        this.ambientSource = null;
+        this.ambientGain = null;
+        this.currentAmbient = null;
+    }
+
     public play(type: "pop" | "success" | "click" | "toggle") {
         if (!this.enabled) return;
         const ctx = this.getContext();
@@ -118,5 +188,7 @@ export function useSound() {
         play: (type: "pop" | "success" | "click" | "toggle") => soundManager.play(type),
         isEnabled: () => soundManager.isEnabled(),
         toggle: (on: boolean) => soundManager.toggle(on),
+        playAmbient: (type: "white_noise" | "rain") => soundManager.playAmbient(type),
+        stopAmbient: () => soundManager.stopAmbient(),
     };
 }

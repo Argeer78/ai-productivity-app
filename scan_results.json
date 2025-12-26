@@ -1,0 +1,152 @@
+[
+  {
+    "lang": "de",
+    "totalCount": 1985,
+    "suspiciousCount": 15,
+    "percent": "0.8"
+  },
+  {
+    "lang": "es",
+    "totalCount": 1985,
+    "suspiciousCount": 11,
+    "percent": "0.6"
+  },
+  {
+    "lang": "fr",
+    "totalCount": 1985,
+    "suspiciousCount": 15,
+    "percent": "0.8"
+  },
+  {
+    "lang": "it",
+    "totalCount": 1985,
+    "suspiciousCount": 16,
+    "percent": "0.8"
+  },
+  {
+    "lang": "pt",
+    "totalCount": 1985,
+    "suspiciousCount": 9,
+    "percent": "0.5"
+  },
+  {
+    "lang": "el",
+    "totalCount": 1970,
+    "suspiciousCount": 6,
+    "percent": "0.3"
+  },
+  {
+    "lang": "tr",
+    "totalCount": 1765,
+    "suspiciousCount": 2,
+    "percent": "0.1"
+  },
+  {
+    "lang": "ru",
+    "totalCount": 1925,
+    "suspiciousCount": 41,
+    "percent": "2.1"
+  },
+  {
+    "lang": "ro",
+    "totalCount": 1985,
+    "suspiciousCount": 18,
+    "percent": "0.9"
+  },
+  {
+    "lang": "ar",
+    "totalCount": 1953,
+    "suspiciousCount": 0,
+    "percent": "0.0"
+  },
+  {
+    "lang": "he",
+    "totalCount": 1953,
+    "suspiciousCount": 1,
+    "percent": "0.1"
+  },
+  {
+    "lang": "zh",
+    "totalCount": 1933,
+    "suspiciousCount": 5,
+    "percent": "0.3"
+  },
+  {
+    "lang": "ja",
+    "totalCount": 1953,
+    "suspiciousCount": 5,
+    "percent": "0.3"
+  },
+  {
+    "lang": "id",
+    "totalCount": 1933,
+    "suspiciousCount": 15,
+    "percent": "0.8"
+  },
+  {
+    "lang": "hi",
+    "totalCount": 1933,
+    "suspiciousCount": 3,
+    "percent": "0.2"
+  },
+  {
+    "lang": "ko",
+    "totalCount": 1953,
+    "suspiciousCount": 23,
+    "percent": "1.2"
+  },
+  {
+    "lang": "sr",
+    "totalCount": 1953,
+    "suspiciousCount": 7,
+    "percent": "0.4"
+  },
+  {
+    "lang": "bg",
+    "totalCount": 1933,
+    "suspiciousCount": 17,
+    "percent": "0.9"
+  },
+  {
+    "lang": "hu",
+    "totalCount": 1873,
+    "suspiciousCount": 24,
+    "percent": "1.3"
+  },
+  {
+    "lang": "pl",
+    "totalCount": 1910,
+    "suspiciousCount": 7,
+    "percent": "0.4"
+  },
+  {
+    "lang": "cs",
+    "totalCount": 1793,
+    "suspiciousCount": 122,
+    "percent": "6.8"
+  },
+  {
+    "lang": "da",
+    "totalCount": 1813,
+    "suspiciousCount": 9,
+    "percent": "0.5"
+  },
+  {
+    "lang": "sv",
+    "totalCount": 1953,
+    "suspiciousCount": 10,
+    "percent": "0.5"
+  },
+  {
+    "lang": "nb",
+    "totalCount": 1953,
+    "suspiciousCount": 8,
+    "percent": "0.4"
+  },
+  {
+    "lang": "nl",
+    "totalCount": 1953,
+    "suspiciousCount": 30,
+    "percent": "1.5"
+  }
+]

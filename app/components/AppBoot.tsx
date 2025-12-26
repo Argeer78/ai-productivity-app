@@ -184,7 +184,7 @@ export default function AppBoot({ children }: { children: React.ReactNode }) {
     setRunningChecks(false);
 
     try {
-      // eslint-disable-next-line no-console
+       
       console.log("[debug report]", rep);
     } catch {}
   }

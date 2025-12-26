@@ -15,6 +15,7 @@ import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import BadgeTrophyCase from "@/app/components/BadgeTrophyCase";
 import DashboardGlance from "@/app/components/DashboardGlance";
+import FocusOverlay from "@/app/components/FocusOverlay";
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -207,6 +208,7 @@ export default function DashboardPage() {
   const [quickText, setQuickText] = useState("");
   const [quickSaving, setQuickSaving] = useState<"note" | "task" | null>(null);
   const [toast, setToast] = useState<string>("");
+  const [showFocus, setShowFocus] = useState(false);
 
   const { track } = useAnalytics();
 
@@ -1371,6 +1373,29 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
+
+
+                    {/* ✅ Feature Widgets (Glance, Trophy, Focus) */}
+                    <div className="grid md:grid-cols-3 gap-4 mb-6">
+                      <DashboardGlance todayScore={todayScore} />
+                      <BadgeTrophyCase streak={streak} scores={recentScores} morningPlans={recentPlans} />
+
+                      {/* Focus Mode Card */}
+                      <div
+                        onClick={() => setShowFocus(true)}
+                        className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 flex flex-col justify-center items-center cursor-pointer hover:border-[var(--accent)] hover:shadow-lg transition-all group"
+                        role="button"
+                      >
+                        <div className="h-10 w-10 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center mb-2 text-xl group-hover:scale-110 transition-transform">
+                          🧘
+                        </div>
+                        <p className="font-semibold text-sm mb-0.5">{t("dashboard.focus.title", "Focus Mode")}</p>
+                        <p className="text-[11px] text-[var(--text-muted)] text-center leading-tight">
+                          {t("dashboard.focus.subtitle", "Timer + Ambient Sound")}
+                        </p>
+                      </div>
+                    </div>
+
                     {/* ✅ AI SUMMARY card (full-width) */}
                     <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 md:col-span-3">
                       <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
@@ -1578,8 +1603,10 @@ export default function DashboardPage() {
               </section>
             </>
           )}
+
         </div>
-      </div>
-    </main>
+      </div >
+      <FocusOverlay isOpen={showFocus} onClose={() => setShowFocus(false)} />
+    </main >
   );
 }

@@ -173,7 +173,7 @@ RECENT TASKS:
 ${tasksText}
 `.trim();
 
-    let systemPrompt = `
+    const systemPrompt = `
 You are an AI summarizer inside a productivity app called "AI Productivity Hub".
 ${languageInstruction}
 ${toneDescription}

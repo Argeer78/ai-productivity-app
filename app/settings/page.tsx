@@ -92,7 +92,7 @@ export default function SettingsPage() {
   // Keep pendingLang in sync if appLang changes externally
   useEffect(() => {
     setPendingLang(normalizeLang(appLang || "en"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [appLang]);
 
   type LanguageOption = { code: Lang; label: string; flag?: string };
