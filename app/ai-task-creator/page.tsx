@@ -142,11 +142,20 @@ export default function AITaskCreatorPage() {
         }),
       });
 
-      // ✅ Save Energy for Dashboard Glance
+      // ✅ Save Energy to DB (Persistence)
+      const today = new Date().toISOString().split("T")[0];
       if (typeof window !== "undefined") {
-        const today = new Date().toISOString().split("T")[0];
         localStorage.setItem(`energy_${today}`, String(energyLevel));
       }
+
+      await supabase.from("daily_scores").upsert(
+        {
+          user_id: user.id,
+          score_date: today,
+          energy_level: energyLevel,
+        },
+        { onConflict: "user_id,score_date" }
+      );
 
       const data = await res.json().catch(() => null);
 

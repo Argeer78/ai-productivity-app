@@ -274,6 +274,11 @@ export default function OnboardingWizard() {
 
       if (error) throw error;
 
+      // ✅ Unified: Also set LS so the modal doesn't pop up
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("aihub_onboarding_done_v1", "1");
+      }
+
       router.replace("/dashboard");
     } catch (e) {
       console.error("[onboarding] skip error", e);

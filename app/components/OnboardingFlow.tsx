@@ -90,17 +90,20 @@ export default function OnboardingFlow() {
         }
 
         // 2) Try to load profile onboarding fields if user exists
+        let dbCompleted = false;
         if (user?.id) {
           const { data: profile, error } = await supabase
             .from("profiles")
             .select(
-              "onboarding_use_case, onboarding_weekly_focus, onboarding_reminder"
+              "onboarding_use_case, onboarding_weekly_focus, onboarding_reminder, onboarding_completed"
             )
             .eq("id", user.id)
             .maybeSingle();
 
           if (!cancelled) {
             if (!error && profile) {
+              if (profile.onboarding_completed) dbCompleted = true; // ✅ Respect DB status
+
               if (profile.onboarding_use_case) {
                 setUseCase(profile.onboarding_use_case);
               }
@@ -122,7 +125,8 @@ export default function OnboardingFlow() {
         }
 
         // 3) LocalStorage gating (only show once per browser)
-        const done = window.localStorage.getItem(LS_ONBOARDING_DONE);
+        const localDone = window.localStorage.getItem(LS_ONBOARDING_DONE);
+        const done = localDone || dbCompleted; // ✅ Unified check
 
         // Also preload local saved answers if any (for anonymous visitors)
         const savedUseCase =

@@ -21,17 +21,20 @@ export default function DashboardGlance() {
                 const savedEnergy = localStorage.getItem(`energy_${today}`);
                 if (savedEnergy) setEnergy(parseInt(savedEnergy, 10));
 
-                // 2. Score from DB
+                // 2. Score & Energy from DB
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
                     const { data } = await supabase
                         .from("daily_scores")
-                        .select("score")
+                        .select("score, energy_level")
                         .eq("user_id", user.id)
                         .eq("score_date", today)
                         .maybeSingle();
 
-                    if (data) setScore(data.score);
+                    if (data) {
+                        if (data.score !== null) setScore(data.score);
+                        if (data.energy_level !== null) setEnergy(data.energy_level);
+                    }
                 }
             } catch (err) {
                 console.error("DashboardGlance error", err);

@@ -7,16 +7,16 @@ import { UiStringsProvider } from "@/app/components/UiStringsProvider";
 import AIAssistant from "@/app/components/AIAssistant";
 import PwaInstallPrompt from "@/app/components/PwaInstallPrompt";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
+import GlobalFocusPlayer from "@/app/components/GlobalFocusPlayer";
+import FocusMate from "@/app/components/FocusMate";
 
-type AppShellProps = {
-  children: ReactNode;
-};
-
-export default function AppShell({ children }: AppShellProps) {
+export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <LanguageProvider>
       <UiStringsProvider>
         <ThemeProvider>
+          <GlobalFocusPlayer />
+          <FocusMate />
           {children}
           <AIAssistant />
           <PwaInstallPrompt />
