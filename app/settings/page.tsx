@@ -75,6 +75,7 @@ export default function SettingsPage() {
   const [onboardingUseCase, setOnboardingUseCase] = useState("");
   const [onboardingWeeklyFocus, setOnboardingWeeklyFocus] = useState("");
   const [onboardingReminder, setOnboardingReminder] = useState<Reminder>("none");
+  const [birthDate, setBirthDate] = useState("");
 
   // Push notifications state
   const [pushStatus, setPushStatus] = useState<string | null>(null);
@@ -242,6 +243,13 @@ export default function SettingsPage() {
     loadProfile();
   }, [user?.id, setAppLang]);
 
+  // Load Birth Date from Metadata
+  useEffect(() => {
+    if (user?.user_metadata?.birth_date) {
+      setBirthDate(user.user_metadata.birth_date);
+    }
+  }, [user]);
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -283,6 +291,12 @@ export default function SettingsPage() {
         setError(t("settings.saveError", "Failed to save settings."));
         return;
       }
+
+      // Save Birth Date to Metadata
+      const { error: metaErr } = await supabase.auth.updateUser({
+        data: { birth_date: birthDate || null }
+      });
+      if (metaErr) console.error("Error saving birth date:", metaErr);
 
       setAppLang(langToSave);
 
@@ -471,6 +485,16 @@ export default function SettingsPage() {
                       onChange={(e) => setOnboardingUseCase(e.target.value)}
                       className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1.5 text-[11px] text-[var(--text-main)] resize-vertical"
                       rows={2}
+                    />
+                  </label>
+
+                  <label className="block text-[11px] text-[var(--text-main)]">
+                    {t("settings.onboarding.birthDate", "Birth Date (For Bio-Rhythm)")}
+                    <input
+                      type="date"
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-body)] px-2 py-1.5 text-[11px] text-[var(--text-main)]"
                     />
                   </label>
 

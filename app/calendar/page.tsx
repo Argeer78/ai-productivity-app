@@ -8,6 +8,7 @@ import AuthGateModal from "@/app/components/AuthGateModal";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import { useT } from "@/lib/useT";
 import { getNamedaysForDate } from "@/lib/namedays";
+import { calculateBioRhythm, getEnergyLevel } from "@/lib/biorhythm";
 
 type CalendarTask = {
     id: string;
@@ -58,12 +59,16 @@ export default function CalendarPage() {
     const [holidays, setHolidays] = useState<Holiday[]>([]);
     const [loading, setLoading] = useState(false);
     const [countryCode, setCountryCode] = useState("GR");
+    const [birthDate, setBirthDate] = useState<Date | null>(null);
 
-    // Load User
+    // Load User & Birth Date
     useEffect(() => {
         async function getUser() {
             const { data } = await supabase.auth.getUser();
             setUser(data?.user ?? null);
+            if (data?.user?.user_metadata?.birth_date) {
+                setBirthDate(new Date(data.user.user_metadata.birth_date));
+            }
             setCheckingUser(false);
         }
         getUser();
@@ -135,10 +140,17 @@ export default function CalendarPage() {
         // Namedays (Local)
         const dayNamedays = getNamedaysForDate(day, countryCode);
 
-        return { dayTasks, dayNotes, dayHolidays, dayNamedays };
+        // BioRhythm
+        let bioEnergy = null;
+        if (birthDate) {
+            const { average } = calculateBioRhythm(day, birthDate);
+            bioEnergy = getEnergyLevel(average);
+        }
+
+        return { dayTasks, dayNotes, dayHolidays, dayNamedays, bioEnergy };
     }
 
-    const selectedItems = selectedDate ? getItemsForDay(selectedDate) : { dayTasks: [], dayNotes: [], dayHolidays: [], dayNamedays: [] };
+    const selectedItems = selectedDate ? getItemsForDay(selectedDate) : { dayTasks: [], dayNotes: [], dayHolidays: [], dayNamedays: [], bioEnergy: null };
 
     if (checkingUser) {
         return <div className="min-h-screen bg-[var(--bg-body)] flex items-center justify-center text-[var(--text-muted)] text-sm">Loading...</div>;
@@ -197,7 +209,7 @@ export default function CalendarPage() {
                     {/* Grid */}
                     <div className="grid grid-cols-7 flex-1 auto-rows-fr min-h-[400px]">
                         {calendarDays.map((day, idx) => {
-                            const { dayTasks, dayNotes, dayHolidays, dayNamedays } = getItemsForDay(day);
+                            const { dayTasks, dayNotes, dayHolidays, dayNamedays, bioEnergy } = getItemsForDay(day);
                             const isSelected = selectedDate && isSameDay(day, selectedDate);
                             const isCurrentMonth = isSameMonth(day, currentMonth);
                             const isHoliday = dayHolidays.length > 0;
@@ -214,7 +226,12 @@ export default function CalendarPage() {
                                 >
                                     <div className={`text-xs font-medium mb-1 flex justify-between items-start`}>
                                         <span className={`${isToday(day) ? "bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 py-0.5 rounded-full" : ""}`}>{format(day, "d")}</span>
+                                        {/* Holiday Icon */}
                                         {isHoliday && <span title={dayHolidays[0].localName} className="text-[10px] select-none">🎉</span>}
+                                        {/* BioRhythm Dot */}
+                                        {bioEnergy && !isHoliday && (
+                                            <div className={`w-2 h-2 rounded-full ${bioEnergy.color.replace('text-', 'bg-')}`} title={`Energy: ${bioEnergy.label}`} />
+                                        )}
                                     </div>
 
                                     <div className="space-y-1 mt-auto">
@@ -257,6 +274,24 @@ export default function CalendarPage() {
                             <p className="text-xs text-[var(--text-muted)]">Select a date to view items.</p>
                         ) : (
                             <>
+                                {/* BioRhythm Section */}
+                                {selectedItems.bioEnergy && (
+                                    <div className="bg-[var(--bg-card)] p-3 rounded-xl border border-[var(--border-subtle)] flex items-center justify-between">
+                                        <div>
+                                            <div className="text-[10px] uppercase text-[var(--text-muted)] font-bold tracking-wider mb-1">Energy Potential</div>
+                                            <div className={`text-sm font-semibold flex items-center gap-1 ${selectedItems.bioEnergy.color}`}>
+                                                {selectedItems.bioEnergy.icon} {selectedItems.bioEnergy.label}
+                                            </div>
+                                        </div>
+                                        <button
+                                            className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-main)] underline"
+                                            onClick={() => {/* Maybe navigate to settings to change birthdate */ }}
+                                        >
+                                            Info
+                                        </button>
+                                    </div>
+                                )}
+
                                 {/* Holidays & Namedays */}
                                 {(selectedItems.dayHolidays.length > 0 || selectedItems.dayNamedays.length > 0) && (
                                     <div>

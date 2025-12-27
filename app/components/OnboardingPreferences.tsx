@@ -7,6 +7,7 @@ type OnboardingFields = {
   onboarding_use_case: string | null;
   onboarding_weekly_focus: string | null;
   onboarding_reminder: "none" | "daily" | "weekly" | null;
+  birth_date: string | null;
 };
 
 export default function OnboardingPreferences() {
@@ -14,6 +15,7 @@ export default function OnboardingPreferences() {
     onboarding_use_case: "",
     onboarding_weekly_focus: "",
     onboarding_reminder: "none",
+    birth_date: "",
   });
 
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,7 @@ export default function OnboardingPreferences() {
         }
 
         const userId = authData.user.id;
+        const metadata = authData.user.user_metadata || {};
 
         const { data: profile, error: profErr } = await supabase
           .from("profiles")
@@ -50,11 +53,12 @@ export default function OnboardingPreferences() {
           return;
         }
 
-        if (!cancelled && profile) {
+        if (!cancelled) {
           setValues({
-            onboarding_use_case: profile.onboarding_use_case ?? "",
-            onboarding_weekly_focus: profile.onboarding_weekly_focus ?? "",
-            onboarding_reminder: profile.onboarding_reminder ?? "none",
+            onboarding_use_case: profile?.onboarding_use_case ?? "",
+            onboarding_weekly_focus: profile?.onboarding_weekly_focus ?? "",
+            onboarding_reminder: profile?.onboarding_reminder ?? "none",
+            birth_date: metadata.birth_date ?? "",
           });
         }
       } catch (err) {
@@ -85,6 +89,7 @@ export default function OnboardingPreferences() {
 
       const userId = authData.user.id;
 
+      // 1. Update Profile (DB)
       const { error: updateErr } = await supabase
         .from("profiles")
         .update({
@@ -94,8 +99,13 @@ export default function OnboardingPreferences() {
         })
         .eq("id", userId);
 
-      if (updateErr) {
-        console.error("[OnboardingPreferences] save error", updateErr);
+      // 2. Update Metadata (Auth) for Birth Date
+      const { error: metaErr } = await supabase.auth.updateUser({
+        data: { birth_date: values.birth_date || null }
+      });
+
+      if (updateErr || metaErr) {
+        console.error("[OnboardingPreferences] save error", updateErr, metaErr);
         setError("Failed to save your preferences.");
         return;
       }
@@ -140,7 +150,20 @@ export default function OnboardingPreferences() {
         </p>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-3">
+        {/* Birth Date (New) */}
+        <label className="block text-[11px] text-[var(--text-main)]">
+          Your Birth Date (for Bio-Rhythms)
+          <input
+            type="date"
+            value={values.birth_date ?? ""}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, birth_date: e.target.value }))
+            }
+            className="mt-1 w-full rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] px-2 py-1.5 text-[11px] text-[var(--text-main)]"
+          />
+        </label>
+
         <label className="block text-[11px] text-[var(--text-main)]">
           Main way you plan to use this app
           <textarea

@@ -15,20 +15,18 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function main() {
-    console.log("Checking profiles...");
-    const { data: profiles, error } = await supabase
+    console.log("Checking profiles schema...");
+    // Try to select date_of_birth or birth_date generic
+    const { data, error } = await supabase
         .from("profiles")
-        .select("id, email, plan");
+        .select("*")
+        .limit(1);
 
     if (error) {
-        console.error("Error fetching profiles:", error);
-        return;
+        console.error("Error:", error);
+    } else {
+        console.log("Profile columns:", data && data.length > 0 ? Object.keys(data[0]) : "No profiles found");
     }
-
-    console.log(`Found ${profiles?.length ?? 0} profiles:`);
-    profiles?.forEach((p) => {
-        console.log(`- ${p.email} (ID: ${p.id}): Plan='${p.plan}'`);
-    });
 }
 
 main();
