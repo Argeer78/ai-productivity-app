@@ -93,7 +93,7 @@ export default function DailySuccessPage() {
   const searchParams = useSearchParams();
 
   // ✅ IMPORTANT: use full keys like "dailySuccessSystem.title"
-  const { t } = useT();
+  const { t, uiLang } = useT();
   const { play } = useSound();
 
   const [user, setUser] = useState<any | null>(null);
@@ -287,6 +287,7 @@ export default function DailySuccessPage() {
           userId: user.id,
           dayDescription: trimmed,
           priorities,
+          lang: uiLang,
         }),
       });
 
@@ -376,6 +377,7 @@ export default function DailySuccessPage() {
         body: JSON.stringify({
           userId: user.id,
           reflection: trimmed,
+          lang: uiLang,
         }),
       });
 
@@ -608,6 +610,76 @@ export default function DailySuccessPage() {
       setSuggestError(t("dailySuccessSystem.suggest.networkError", "Network error while asking AI to suggest your score."));
     } finally {
       setSuggestLoading(false);
+    }
+  }
+
+  // ✅ NEW: Generate tasks from any text (Morning plan or Evening reflection)
+  const [generatingTasksSource, setGeneratingTasksSource] = useState<"morning" | "evening" | null>(null);
+
+  async function handleGenerateTasks(content: string | null, source: "morning" | "evening") {
+    if (!content?.trim()) return;
+    play("pop");
+
+    if (!gate.requireAuth(undefined, {
+      title: t("dailySuccessSystem.auth.tasks.title", "Log in to create tasks."),
+      subtitle: t("dailySuccessSystem.auth.tasks.subtitle", "Turn your plan into actionable to-dos automatically.")
+    })) return;
+
+    if (!user) return;
+
+    setGeneratingTasksSource(source);
+
+    try {
+      const res = await fetch("/api/ai/note-to-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Reuse the same API as Notes page
+        body: JSON.stringify({ content }),
+      });
+
+      // Simple helper to read JSON safely
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        console.error("[generate-tasks] error:", data);
+        alert(data?.error || t("dailySuccessSystem.tasks.error", "Failed to generate tasks."));
+        return;
+      }
+
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      if (tasks.length === 0) {
+        alert(t("dailySuccessSystem.tasks.empty", "AI couldn't find any specific tasks in this text."));
+        return;
+      }
+
+      const rows = tasks.map((tItem: any) => ({
+        user_id: user.id,
+        title: typeof tItem.title === "string" ? tItem.title.trim() : "",
+        completed: false,
+        // Optional: you could try to guess category or leave null
+        category: null
+      })).filter((r: any) => r.title.length > 0);
+
+      const { error: insertError } = await supabase.from("tasks").insert(rows);
+      if (insertError) {
+        console.error("[generate-tasks] insert error:", insertError);
+        alert(t("dailySuccessSystem.tasks.saveError", "Failed to save tasks."));
+        return;
+      }
+
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+
+      // Optional: Redirect to tasks or just show success
+      if (confirm(t("dailySuccessSystem.tasks.success", `Created ${rows.length} tasks! Go to Tasks page?`))) {
+        router.push("/tasks");
+      }
+
+    } catch (err: any) {
+      console.error("[generate-tasks] unexpected:", err);
+      alert(t("dailySuccessSystem.tasks.networkError", "Unexpected error."));
+    } finally {
+      setGeneratingTasksSource(null);
     }
   }
 
@@ -904,6 +976,16 @@ export default function DailySuccessPage() {
                     >
                       {t("dailySuccessSystem.morning.openInAssistant", "Open in Assistant")}
                     </button>
+
+                    {/* ✅ NEW: Create tasks button */}
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateTasks(morningPlan, "morning")}
+                      disabled={generatingTasksSource === "morning"}
+                      className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] disabled:opacity-50"
+                    >
+                      {generatingTasksSource === "morning" ? "Creating tasks..." : "⚡ Create tasks"}
+                    </button>
                   </div>
 
                   {renderLabeledSections(morningPlan) || (
@@ -978,6 +1060,16 @@ export default function DailySuccessPage() {
                       className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)]"
                     >
                       {t("dailySuccessSystem.evening.openInAssistant", "Open in Assistant")}
+                    </button>
+
+                    {/* ✅ NEW: Create tasks button */}
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateTasks(eveningResult, "evening")}
+                      disabled={generatingTasksSource === "evening"}
+                      className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] disabled:opacity-50"
+                    >
+                      {generatingTasksSource === "evening" ? "Creating tasks..." : "⚡ Create tasks"}
                     </button>
                   </div>
 

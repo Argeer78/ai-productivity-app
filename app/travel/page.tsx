@@ -252,8 +252,7 @@ function CalendarInput({
 
 export default function TravelPage() {
   // ✅ Notes-style wiring: fully-qualified keys stored in DB
-  const { t: rawT } = useT("");
-  const t = (key: string, fallback: string) => rawT(`travelPage.${key}`, fallback);
+  const { t } = useT("travelPage");
 
   // Auth (only required for saving trips)
   const [user, setUser] = useState<any | null>(null);

@@ -17,6 +17,8 @@ import BadgeTrophyCase from "@/app/components/BadgeTrophyCase";
 import DashboardGlance from "@/app/components/DashboardGlance";
 import LevelProgress from "@/app/components/LevelProgress";
 import { useFocus } from "@/app/context/FocusContext";
+import Confetti from "@/app/components/Confetti";
+import { useSound } from "@/lib/sound";
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -916,6 +918,71 @@ export default function DashboardPage() {
     }
   }
 
+  // ✅ NEW: Suggest tasks from summary
+  const [generatingTasks, setGeneratingTasks] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const { play } = useSound();
+
+  async function handleGenerateTasks() {
+    if (!summary.trim()) return;
+    play("pop");
+
+    if (!gate.requireAuth(undefined, {
+      title: t("dashboard.auth.tasks.title", "Log in to create tasks."),
+      subtitle: t("dashboard.auth.tasks.subtitle", "Turn your summary into actionable to-dos automatically.")
+    })) return;
+
+    if (!user) return;
+
+    setGeneratingTasks(true);
+
+    try {
+      const res = await fetch("/api/ai/note-to-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: summary }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        console.error("[dashboard] generate-tasks error:", data);
+        alert(data?.error || t("dashboard.tasks.error", "Failed to generate tasks."));
+        return;
+      }
+
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      if (tasks.length === 0) {
+        alert(t("dashboard.tasks.empty", "AI couldn't find any specific tasks in this summary."));
+        return;
+      }
+
+      const rows = tasks.map((tItem: any) => ({
+        user_id: user.id,
+        title: typeof tItem.title === "string" ? tItem.title.trim() : "",
+        completed: false,
+        category: null
+      })).filter((r: any) => r.title.length > 0);
+
+      const { error: insertError } = await supabase.from("tasks").insert(rows);
+      if (insertError) {
+        console.error("[dashboard] tasks insert error:", insertError);
+        alert(t("dashboard.tasks.saveError", "Failed to save tasks."));
+        return;
+      }
+
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+      showToast(t("dashboard.tasks.success", `Created ${rows.length} tasks! ✅`));
+
+    } catch (err) {
+      console.error("[dashboard] unexpected:", err);
+      alert(t("dashboard.tasks.networkError", "Unexpected error."));
+    } finally {
+      setGeneratingTasks(false);
+    }
+  }
+
   // ---------- RENDER STATES ----------
 
   if (checkingUser) {
@@ -932,6 +999,8 @@ export default function DashboardPage() {
 
       {/* ✅ Auth modal */}
       <AuthGateModal open={gate.open} onClose={gate.close} copy={gate.copy} authHref={gate.authHref} />
+
+      {showConfetti && <Confetti />}
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
@@ -1419,13 +1488,24 @@ export default function DashboardPage() {
                       </button>
 
                       {summary ? (
-                        <button
-                          type="button"
-                          onClick={() => setSummary("")}
-                          className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
-                        >
-                          {t("dashboard.aiSummary.clear", "Clear")}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleGenerateTasks}
+                            disabled={generatingTasks}
+                            className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] disabled:opacity-60 text-xs md:text-sm"
+                          >
+                            {generatingTasks ? "Creating tasks..." : "⚡ Create tasks"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSummary("")}
+                            className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
+                          >
+                            {t("dashboard.aiSummary.clear", "Clear")}
+                          </button>
+                        </>
                       ) : null}
                     </div>
 

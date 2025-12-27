@@ -39,6 +39,7 @@ export async function POST(req: Request) {
         const body = await req.json().catch(() => null);
         const userId = body?.userId as string | undefined;
         const reflection = (body?.reflection || "").trim();
+        const lang = (body?.lang || "en") as string;
 
         if (!userId || !reflection) {
             return NextResponse.json(
@@ -102,6 +103,8 @@ ADJUSTMENTS FOR TOMORROW:
 Keep the tone supportive and encouraging.
 Do NOT use markdown, emojis, or long paragraphs.
 Keep it concise and human.
+
+IMPORTANT: Respond in the user's language ("${lang}").
 
 User reflection:
 ${reflection}

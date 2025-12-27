@@ -59,7 +59,8 @@ function getFiles(dir: string): string[] {
 }
 
 /**
- * Use TypeScript AST to find t('key', 'default text') calls
+ * Use TypeScript AST to find t('key', 'default text') or translate('key', 'default') calls
+ * Also detects useT('namespace') to prepend namespace.
  */
 function extractFromAst(filePath: string) {
     const code = fs.readFileSync(filePath, 'utf-8');
@@ -70,16 +71,41 @@ function extractFromAst(filePath: string) {
         true
     );
 
+    let currentNamespace = '';
+
     function visit(node: ts.Node) {
+        // 1. Detect useT("namespace")
         if (ts.isCallExpression(node)) {
-            // Check if function name is 't'
-            if (ts.isIdentifier(node.expression) && node.expression.text === 't') {
+            if (ts.isIdentifier(node.expression) && node.expression.text === 'useT') {
+                if (node.arguments.length > 0) {
+                    const arg0 = node.arguments[0];
+                    if (ts.isStringLiteral(arg0)) {
+                        currentNamespace = arg0.text;
+                    }
+                }
+            }
+        }
+
+        // 2. Detect t(...) or translate(...)
+        if (ts.isCallExpression(node)) {
+            const isT = ts.isIdentifier(node.expression) && node.expression.text === 't';
+            const isTranslate = ts.isIdentifier(node.expression) && node.expression.text === 'translate';
+
+            if (isT || isTranslate) {
                 const args = node.arguments;
                 if (args.length > 0) {
                     // 1st arg: key (must be string literal)
                     const arg0 = args[0];
                     if (ts.isStringLiteral(arg0)) {
-                        const key = arg0.text;
+                        let key = arg0.text;
+
+                        // Prepend namespace if applicable
+                        // Logic: if key doesn't already allow dots or if we enforce namespacing
+                        // Usually useT('foo') -> t('bar') means 'foo.bar'
+                        if (currentNamespace) {
+                            key = `${currentNamespace}.${key}`;
+                        }
+
                         let text = key; // Default fallback
 
                         // 2nd arg: default text (optional, must be string literal)

@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import FeedbackForm from "@/app/components/FeedbackForm";
@@ -12,6 +13,8 @@ import { useT } from "@/lib/useT";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import MagicLoader from "@/app/components/MagicLoader";
+import Confetti from "@/app/components/Confetti";
+import { useSound } from "@/lib/sound";
 
 /* ---------------- UI helpers ---------------- */
 
@@ -218,6 +221,74 @@ export default function PlannerPage() {
     }
   }
 
+  // ✅ NEW: Suggest tasks from plan
+  const [generatingTasks, setGeneratingTasks] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const router = useRouter();
+  const { play } = useSound();
+
+  async function handleGenerateTasks() {
+    if (!planText.trim()) return;
+    play("pop");
+
+    if (!gate.requireAuth(undefined, {
+      title: t("auth.tasks.title", "Log in to create tasks."),
+      subtitle: t("auth.tasks.subtitle", "Turn your plan into actionable to-dos automatically.")
+    })) return;
+
+    if (!user) return;
+
+    setGeneratingTasks(true);
+
+    try {
+      const res = await fetch("/api/ai/note-to-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: planText }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        console.error("[planner] generate-tasks error:", data);
+        alert(data?.error || t("tasks.error", "Failed to generate tasks."));
+        return;
+      }
+
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      if (tasks.length === 0) {
+        alert(t("tasks.empty", "AI couldn't find any specific tasks in this plan."));
+        return;
+      }
+
+      const rows = tasks.map((tItem: any) => ({
+        user_id: user.id,
+        title: typeof tItem.title === "string" ? tItem.title.trim() : "",
+        completed: false,
+        category: null
+      })).filter((r: any) => r.title.length > 0);
+
+      const { error: insertError } = await supabase.from("tasks").insert(rows);
+      if (insertError) {
+        console.error("[planner] tasks insert error:", insertError);
+        alert(t("tasks.saveError", "Failed to save tasks."));
+        return;
+      }
+
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+
+      if (confirm(t("tasks.success", `Created ${rows.length} tasks! Go to Tasks page?`))) {
+        router.push("/tasks");
+      }
+    } catch (err) {
+      console.error("[planner] unexpected:", err);
+      alert(t("tasks.networkError", "Unexpected error."));
+    } finally {
+      setGeneratingTasks(false);
+    }
+  }
+
   const blocks = useMemo(() => {
     if (!planText) return [];
     return renderSmartTextBlocks(planText);
@@ -235,6 +306,7 @@ export default function PlannerPage() {
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)]">
+      {showConfetti && <Confetti />}
       <AppHeader active="planner" />
 
       {/* ✅ Always mounted so the button can open it */}
@@ -361,13 +433,25 @@ export default function PlannerPage() {
             </p>
 
             {planText ? (
-              <button
-                type="button"
-                onClick={() => navigator.clipboard?.writeText(planText)}
-                className="text-[11px] text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
-              >
-                {t("copyPlan", "Copy")}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(planText)}
+                  className="text-[11px] text-[var(--accent)] hover:opacity-90 underline underline-offset-2"
+                >
+                  {t("copyPlan", "Copy")}
+                </button>
+
+                {/* ✅ NEW: Create tasks button */}
+                <button
+                  type="button"
+                  onClick={handleGenerateTasks}
+                  disabled={generatingTasks}
+                  className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] disabled:opacity-50"
+                >
+                  {generatingTasks ? "Creating tasks..." : "⚡ Create tasks"}
+                </button>
+              </div>
             ) : null}
           </div>
 

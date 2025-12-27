@@ -174,6 +174,7 @@ type Body = {
     morningInput?: string;
 
     priorities?: string[];
+    lang?: string;
 };
 
 export async function POST(req: Request) {
@@ -216,7 +217,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const uiLang = normalizeLang(usageInfo.profile?.ui_language);
+        const uiLang = normalizeLang(body?.lang || usageInfo.profile?.ui_language);
         const langName = getLanguageName(uiLang);
         const tone = buildToneDescription(usageInfo.profile?.ai_tone);
         const focusArea = usageInfo.profile?.focus_area ? String(usageInfo.profile.focus_area) : null;
