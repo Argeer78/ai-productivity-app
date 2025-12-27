@@ -10,25 +10,23 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { message, history, category, userId } = await req.json();
+    const body = await req.json();
+    const { message, history, category, userId, lang } = body;
 
     // ✅ Require userId so we can count usage per user
     if (!userId || typeof userId !== "string") {
       return NextResponse.json(
-        { ok: false, error: "Missing userId" },
-        { status: 400 }
+        { ok: false, error: "Unauthorized: userId is required" },
+        { status: 401 }
       );
     }
 
-    if (!message || typeof message !== "string") {
-      return NextResponse.json(
-        { ok: false, error: "Missing message" },
-        { status: 400 }
-      );
-    }
+    const userLang = lang || "en";
 
     const systemPrompt = `
 You are an AI Reflection Companion.
+The user speaks: ${userLang}.
+ALWAYS respond in ${userLang}, even if the user's input is in another language.
 
 ROLE & BOUNDARIES:
 - Be warm, human, grounded, and supportive.
@@ -38,7 +36,7 @@ ROLE & BOUNDARIES:
 
 CRISIS SAFETY:
 - If the user expresses self-harm, suicidal thoughts, or immediate danger:
-  - Respond with empathy.
+  - Respond with empathy in ${userLang}.
   - Encourage reaching out to a trusted person or local emergency services.
   - Do NOT provide instructions or techniques.
   - Keep response calm and brief.
@@ -56,13 +54,13 @@ OUTPUT FORMAT (VERY IMPORTANT):
 Return a SINGLE valid JSON object with these fields:
 
 {
-  "message": string,                // REQUIRED – shown to the user
-  "reflection": string | null,       // Optional emotional reflection
-  "journal_suggestion": string | null, // Optional journal-style paragraph
+  "message": string,                // REQUIRED – shown to the user (in ${userLang})
+  "reflection": string | null,       // Optional emotional reflection (in ${userLang})
+  "journal_suggestion": string | null, // Optional journal-style paragraph (in ${userLang})
   "tasks": [
     { "title": string }
-  ] | null,                          // Optional gentle tasks
-  "chat_summary": string             // REQUIRED – private internal summary
+  ] | null,                          // Optional gentle tasks (in ${userLang})
+  "chat_summary": string             // REQUIRED – private internal summary (in ${userLang})
 }
 
 RULES:

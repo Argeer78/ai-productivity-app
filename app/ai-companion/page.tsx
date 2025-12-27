@@ -45,8 +45,7 @@ function safeTrim(s: any) {
 
 export default function AiCompanionPage() {
   // ✅ translations: aiCompanionPage.*
-  const { t: rawT } = useT("");
-  const t = (key: string, fallback: string) => rawT(`aiCompanionPage.${key}`, fallback);
+  const { t, uiLang } = useT("aiCompanionPage");
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -87,7 +86,7 @@ export default function AiCompanionPage() {
       Reflection: t("category.reflection", "Reflection"),
     };
     return map[category];
-  }, [category, rawT]);
+  }, [category, t]);
 
   function makeWelcomeMessage(cat: Category) {
     const base =
@@ -129,7 +128,7 @@ export default function AiCompanionPage() {
     return base + questions;
   }
 
-  const welcomeMessage = useMemo(() => makeWelcomeMessage(category), [category, rawT]);
+  const welcomeMessage = useMemo(() => makeWelcomeMessage(category), [category, t]);
   const activeThread = useMemo(() => threads.find((th) => th.id === activeThreadId) || null, [threads, activeThreadId]);
 
   // Load user
@@ -311,12 +310,13 @@ export default function AiCompanionPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-  message: text,
-  category,
-  history: historyForModel,
-  threadId,
-  userId: user.id,
-}),
+          message: text,
+          category,
+          history: historyForModel,
+          threadId,
+          userId: user.id,
+          lang: uiLang, // ✅ Pass current language
+        }),
       });
 
       const data = await res.json().catch(() => ({} as any));
@@ -587,14 +587,14 @@ export default function AiCompanionPage() {
                   {c === "General"
                     ? t("category.general", "General")
                     : c === "Mindset"
-                    ? t("category.mindset", "Mindset")
-                    : c === "Stress"
-                    ? t("category.stress", "Stress")
-                    : c === "Relationships"
-                    ? t("category.relationships", "Relationships")
-                    : c === "Work"
-                    ? t("category.work", "Work")
-                    : t("category.reflection", "Reflection")}
+                      ? t("category.mindset", "Mindset")
+                      : c === "Stress"
+                        ? t("category.stress", "Stress")
+                        : c === "Relationships"
+                          ? t("category.relationships", "Relationships")
+                          : c === "Work"
+                            ? t("category.work", "Work")
+                            : t("category.reflection", "Reflection")}
                 </option>
               ))}
             </select>
@@ -631,23 +631,22 @@ export default function AiCompanionPage() {
                   (th.category as Category) === "General"
                     ? t("category.general", "General")
                     : (th.category as Category) === "Mindset"
-                    ? t("category.mindset", "Mindset")
-                    : (th.category as Category) === "Stress"
-                    ? t("category.stress", "Stress")
-                    : (th.category as Category) === "Relationships"
-                    ? t("category.relationships", "Relationships")
-                    : (th.category as Category) === "Work"
-                    ? t("category.work", "Work")
-                    : (th.category as Category) === "Reflection"
-                    ? t("category.reflection", "Reflection")
-                    : t("category.general", "General");
+                      ? t("category.mindset", "Mindset")
+                      : (th.category as Category) === "Stress"
+                        ? t("category.stress", "Stress")
+                        : (th.category as Category) === "Relationships"
+                          ? t("category.relationships", "Relationships")
+                          : (th.category as Category) === "Work"
+                            ? t("category.work", "Work")
+                            : (th.category as Category) === "Reflection"
+                              ? t("category.reflection", "Reflection")
+                              : t("category.general", "General");
 
                 return (
                   <div
                     key={th.id}
-                    className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer min-w-0 ${
-                      isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
-                    }`}
+                    className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer min-w-0 ${isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
+                      }`}
                     onClick={() => openThread(th)}
                   >
                     <div className="flex-1 min-w-0">
@@ -709,16 +708,16 @@ export default function AiCompanionPage() {
                       {activeThread.category === "General"
                         ? t("category.general", "General")
                         : activeThread.category === "Mindset"
-                        ? t("category.mindset", "Mindset")
-                        : activeThread.category === "Stress"
-                        ? t("category.stress", "Stress")
-                        : activeThread.category === "Relationships"
-                        ? t("category.relationships", "Relationships")
-                        : activeThread.category === "Work"
-                        ? t("category.work", "Work")
-                        : activeThread.category === "Reflection"
-                        ? t("category.reflection", "Reflection")
-                        : activeThread.category}
+                          ? t("category.mindset", "Mindset")
+                          : activeThread.category === "Stress"
+                            ? t("category.stress", "Stress")
+                            : activeThread.category === "Relationships"
+                              ? t("category.relationships", "Relationships")
+                              : activeThread.category === "Work"
+                                ? t("category.work", "Work")
+                                : activeThread.category === "Reflection"
+                                  ? t("category.reflection", "Reflection")
+                                  : activeThread.category}
                     </span>
                   ) : null}
                 </p>
@@ -784,11 +783,10 @@ export default function AiCompanionPage() {
               messages.map((m) => (
                 <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} min-w-0`}>
                   <div
-                    className={`w-fit max-w-[92%] sm:max-w-[82%] rounded-2xl px-3 py-2 text-[13px] whitespace-pre-wrap break-words ${
-                      m.role === "user"
-                        ? "bg-[var(--accent)] text-[var(--bg-body)] rounded-br-sm"
-                        : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
-                    }`}
+                    className={`w-fit max-w-[92%] sm:max-w-[82%] rounded-2xl px-3 py-2 text-[13px] whitespace-pre-wrap break-words ${m.role === "user"
+                      ? "bg-[var(--accent)] text-[var(--bg-body)] rounded-br-sm"
+                      : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
+                      }`}
                   >
                     {m.content}
                   </div>
@@ -821,14 +819,14 @@ export default function AiCompanionPage() {
                     {c === "General"
                       ? t("category.general", "General")
                       : c === "Mindset"
-                      ? t("category.mindset", "Mindset")
-                      : c === "Stress"
-                      ? t("category.stress", "Stress")
-                      : c === "Relationships"
-                      ? t("category.relationships", "Relationships")
-                      : c === "Work"
-                      ? t("category.work", "Work")
-                      : t("category.reflection", "Reflection")}
+                        ? t("category.mindset", "Mindset")
+                        : c === "Stress"
+                          ? t("category.stress", "Stress")
+                          : c === "Relationships"
+                            ? t("category.relationships", "Relationships")
+                            : c === "Work"
+                              ? t("category.work", "Work")
+                              : t("category.reflection", "Reflection")}
                   </option>
                 ))}
               </select>
@@ -901,14 +899,14 @@ export default function AiCompanionPage() {
                         {c === "General"
                           ? t("category.general", "General")
                           : c === "Mindset"
-                          ? t("category.mindset", "Mindset")
-                          : c === "Stress"
-                          ? t("category.stress", "Stress")
-                          : c === "Relationships"
-                          ? t("category.relationships", "Relationships")
-                          : c === "Work"
-                          ? t("category.work", "Work")
-                          : t("category.reflection", "Reflection")}
+                            ? t("category.mindset", "Mindset")
+                            : c === "Stress"
+                              ? t("category.stress", "Stress")
+                              : c === "Relationships"
+                                ? t("category.relationships", "Relationships")
+                                : c === "Work"
+                                  ? t("category.work", "Work")
+                                  : t("category.reflection", "Reflection")}
                       </option>
                     ))}
                   </select>
@@ -944,23 +942,22 @@ export default function AiCompanionPage() {
                         (th.category as Category) === "General"
                           ? t("category.general", "General")
                           : (th.category as Category) === "Mindset"
-                          ? t("category.mindset", "Mindset")
-                          : (th.category as Category) === "Stress"
-                          ? t("category.stress", "Stress")
-                          : (th.category as Category) === "Relationships"
-                          ? t("category.relationships", "Relationships")
-                          : (th.category as Category) === "Work"
-                          ? t("category.work", "Work")
-                          : (th.category as Category) === "Reflection"
-                          ? t("category.reflection", "Reflection")
-                          : t("category.general", "General");
+                            ? t("category.mindset", "Mindset")
+                            : (th.category as Category) === "Stress"
+                              ? t("category.stress", "Stress")
+                              : (th.category as Category) === "Relationships"
+                                ? t("category.relationships", "Relationships")
+                                : (th.category as Category) === "Work"
+                                  ? t("category.work", "Work")
+                                  : (th.category as Category) === "Reflection"
+                                    ? t("category.reflection", "Reflection")
+                                    : t("category.general", "General");
 
                       return (
                         <div
                           key={th.id}
-                          className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer ${
-                            isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
-                          }`}
+                          className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer ${isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
+                            }`}
                           onClick={() => openThread(th)}
                         >
                           <div className="flex-1 min-w-0">

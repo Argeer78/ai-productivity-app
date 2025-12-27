@@ -124,30 +124,36 @@ export default function AuthPage() {
 
         setMessage(t("message.loginSuccess"));
 
-const { data: userData } = await supabase.auth.getUser();
-const user = userData?.user;
+        const { data: userData } = await supabase.auth.getUser();
+        const user = userData?.user;
 
-let target = "/dashboard";
+        let target = "/dashboard";
 
-if (user) {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("onboarding_completed")
-    .eq("id", user.id)
-    .maybeSingle();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("onboarding_completed")
+            .eq("id", user.id)
+            .maybeSingle();
 
-  if (!profile?.onboarding_completed) {
-    target = "/onboarding";
-  }
-}
+          if (!profile?.onboarding_completed) {
+            target = "/onboarding";
+          }
+        }
 
-setTimeout(() => {
-  window.location.href = target;
-}, 500);
+        setTimeout(() => {
+          window.location.href = target;
+        }, 500);
 
       }
-    } catch {
-      setError(t("error.authFailed"));
+    } catch (err: any) {
+      console.error("[auth] error", err);
+      // ✅ Show specific error if user already exists
+      if (err?.message?.includes("already registered") || err?.message?.includes("User already registered")) {
+        setError(t("error.emailTypes", "This email is already registered. Please log in or use 'Forgot Password' to set a password."));
+      } else {
+        setError(err?.message || t("error.authFailed"));
+      }
     } finally {
       setLoading(false);
     }
@@ -195,8 +201,8 @@ setTimeout(() => {
           {mode === "login"
             ? t("login.title")
             : mode === "signup"
-            ? t("signup.title")
-            : t("forgot.title")}
+              ? t("signup.title")
+              : t("forgot.title")}
         </h1>
 
         <div className="flex justify-center gap-3 mb-4 text-sm">
@@ -252,10 +258,10 @@ setTimeout(() => {
             {loading
               ? t("loading.button")
               : mode === "forgot"
-              ? t("forgot.button")
-              : mode === "login"
-              ? t("login.button")
-              : t("signup.button")}
+                ? t("forgot.button")
+                : mode === "login"
+                  ? t("login.button")
+                  : t("signup.button")}
           </button>
         </form>
 

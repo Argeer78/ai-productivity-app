@@ -36,7 +36,10 @@ async function run() {
             console.error("EN Error:", enErr);
         } else {
             console.log(`EN Rows: ${enRows?.length}`);
-            if (enRows && enRows.length < 20) console.log(enRows);
+            if (enRows) {
+                const enFound = enRows.find(r => r.key === "aiCompanionPage.welcome.base");
+                console.log("EN Key Found:", !!enFound);
+            }
         }
 
         // 3. Run the EL query with loop
@@ -48,7 +51,7 @@ async function run() {
             const { data, error } = await admin
                 .from("ui_translations")
                 .select("key, text")
-                .eq("language_code", "el")
+                .eq("language_code", "hu")
                 .range(page * size, (page + 1) * size - 1);
 
             if (error) {
@@ -64,7 +67,7 @@ async function run() {
         }
 
         console.log(`TOTAL EL_COUNT: ${allElRows.length}`);
-        const found = allElRows.find(r => r.key === "home.features.dashboard.title");
+        const found = allElRows.find(r => r.key === "aiCompanionPage.welcome.base");
         console.log(`IS_FOUND: ${!!found}`);
         if (found) console.log("Value:", found.text);
 
