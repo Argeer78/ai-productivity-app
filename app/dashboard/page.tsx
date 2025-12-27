@@ -1320,7 +1320,7 @@ export default function DashboardPage() {
 
                   {/* ✅ Feature Widgets (Glance, Trophy, Focus) */}
                   <div className="grid md:grid-cols-3 gap-4 mb-6">
-                    <DashboardGlance todayScore={todayScore} />
+                    <DashboardGlance />
                     <BadgeTrophyCase streak={streak} scores={recentScores} morningPlans={recentPlans} />
                     <div
                       onClick={startSession}

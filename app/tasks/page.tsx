@@ -8,6 +8,7 @@ import AppHeader from "@/app/components/AppHeader";
 import FeedbackForm from "@/app/components/FeedbackForm";
 import { useT } from "@/lib/useT";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
+import { useSound } from "@/lib/sound";
 
 type VoiceTaskSuggestion = {
   title: string;
@@ -241,8 +242,8 @@ function MiniDatePicker({ value, onChange, t }: MiniDatePickerProps) {
                     type="button"
                     onClick={() => handleSelectDay(day)}
                     className={`h-6 rounded-md text-center ${isSelected
-                        ? "bg-[var(--accent)] text-[var(--bg-body)]"
-                        : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
+                      ? "bg-[var(--accent)] text-[var(--bg-body)]"
+                      : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
                       }`}
                   >
                     {day}
@@ -833,10 +834,13 @@ export default function TasksPage() {
     }
   }
 
+  const { play } = useSound();
+
   async function toggleDone(task: TaskRow) {
     if (!requireAuth()) return;
 
     const newDone = !task.completed;
+    if (newDone) play("success"); // 🎉 Sound Effect
     setSavingTaskId(task.id);
     setError("");
 
@@ -1406,8 +1410,8 @@ export default function TasksPage() {
                             });
                           }}
                           className={`px-2 py-1 rounded-lg border text-[10px] ${active
-                              ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
-                              : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                            ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
+                            : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                             }`}
                         >
                           {t(d.key, d.fallback)}
@@ -1521,8 +1525,8 @@ export default function TasksPage() {
                   type="button"
                   onClick={() => setViewMode(mode)}
                   className={`px-3 py-1.5 ${viewMode === mode
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                      : "bg-[var(--bg-elevated)] text-[var(--text-muted)]"
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "bg-[var(--bg-elevated)] text-[var(--text-muted)]"
                     }`}
                 >
                   {mode === "active" && t("filters.active", "Active")}
@@ -1720,8 +1724,8 @@ export default function TasksPage() {
                         onClick={() => toggleDone(task)}
                         disabled={isSaving}
                         className={`px-2 py-1 rounded-full border text-[11px] ${task.completed
-                            ? "bg-emerald-500/10 border-emerald-400 text-emerald-300"
-                            : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                          ? "bg-emerald-500/10 border-emerald-400 text-emerald-300"
+                          : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                           }`}
                       >
                         {task.completed ? t("item.done", "✅ Done") : t("item.markDone", "✔ Mark as done")}
@@ -1952,8 +1956,8 @@ export default function TasksPage() {
                                         handleRepeatPatch({ reminder_weekdays: finalNext });
                                       }}
                                       className={`px-2 py-1 rounded-lg border text-[10px] ${active
-                                          ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
-                                          : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                                        ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
+                                        : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                                         }`}
                                     >
                                       {t(d.key, d.fallback)}

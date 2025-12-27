@@ -1,3 +1,5 @@
+import SoundToggle from "@/app/components/SoundToggle";
+
 type NavProps = {
   onNext: () => void;
   onBack?: () => void;
@@ -6,7 +8,10 @@ type NavProps = {
 export function WelcomeStep({ onNext }: NavProps) {
   return (
     <>
-      <h1 className="text-xl font-bold mb-2">Welcome 👋</h1>
+      <div className="flex justify-between items-start mb-2">
+        <h1 className="text-xl font-bold">Welcome 👋</h1>
+        <SoundToggle />
+      </div>
       <p className="text-sm text-[var(--text-muted)] mb-6">
         Let’s set up AI Productivity Hub so it fits how you work.
         This takes about 1 minute.

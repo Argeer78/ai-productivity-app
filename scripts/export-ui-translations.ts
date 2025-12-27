@@ -67,16 +67,32 @@ const LANGS = [
 ];
 
 async function exportLang(lang: string) {
-  const { data, error } = await supabase
-    .from("ui_translations")
-    .select("key, text")
-    .eq("language_code", lang)
-    .order("key");
+  let allData: any[] = [];
+  let from = 0;
+  const PAGE_SIZE = 1000;
 
-  if (error) {
-    console.error(`❌ Failed to export ${lang}:`, error.message);
-    return;
+  while (true) {
+    const { data, error } = await supabase
+      .from("ui_translations")
+      .select("key, text")
+      .eq("language_code", lang)
+      .order("key")
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error(`❌ Failed to export ${lang}:`, error.message);
+      return;
+    }
+
+    if (data) {
+      allData = allData.concat(data);
+    }
+
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
   }
+
+  const data = allData;
 
   const map: Record<string, string> = {};
   for (const row of data || []) {

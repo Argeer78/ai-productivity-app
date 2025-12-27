@@ -18,6 +18,7 @@ import { useLanguage } from "@/app/components/LanguageProvider";
 import { SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
 import { useT } from "@/lib/useT";
 import { useSound } from "@/lib/sound";
+import SoundToggle from "@/app/components/SoundToggle";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -92,7 +93,7 @@ export default function SettingsPage() {
   // Keep pendingLang in sync if appLang changes externally
   useEffect(() => {
     setPendingLang(normalizeLang(appLang || "en"));
-     
+
   }, [appLang]);
 
   type LanguageOption = { code: Lang; label: string; flag?: string };
@@ -495,6 +496,11 @@ export default function SettingsPage() {
                       <option value="weekly">{t("settings.reminders.weekly", "Weekly check-in")}</option>
                     </select>
                   </label>
+                  <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <Link href="/onboarding?force=1" className="text-[11px] text-[var(--accent)] hover:underline">
+                      {t("settings.onboarding.openWizard", "Open setup wizard again →")}
+                    </Link>
+                  </div>
                 </div>
               </div>
 
@@ -505,20 +511,7 @@ export default function SettingsPage() {
                     <p className="text-[11px] font-semibold text-[var(--text-main)]">{t("settings.section.sound", "Sound Effects")}</p>
                     <p className="text-[11px] text-[var(--text-muted)]">{t("settings.sound.description", "Play subtle sounds for actions and celebrations.")}</p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={soundEnabled}
-                      onChange={(e) => {
-                        const val = e.target.checked;
-                        setSoundEnabled(val);
-                        sound.toggle(val);
-                        if (val) sound.play("toggle");
-                      }}
-                    />
-                    <div className="w-9 h-5 bg-[var(--bg-card)] border border-[var(--border-subtle)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--text-muted)] after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--accent)] peer-checked:after:bg-white peer-checked:after:border-white"></div>
-                  </label>
+                  <SoundToggle />
                 </div>
               </div>
 
@@ -540,8 +533,8 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => setTone(opt.value)}
                       className={`px-3 py-2 rounded-xl border text-sm text-left ${tone === opt.value
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
                         }`}
                     >
                       <span className="mr-2">{opt.icon}</span>
@@ -670,8 +663,8 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => setTheme(opt.value)}
                       className={`px-3 py-1.5 rounded-full border text-[11px] transition ${theme === opt.value
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
                         }`}
                     >
                       {t(opt.key, opt.fallback)}

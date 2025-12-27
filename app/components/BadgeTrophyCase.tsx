@@ -100,8 +100,8 @@ function BadgeItem({ badge }: { badge: BadgeProps }) {
     return (
         <div
             className={`flex flex-col items-center text-center p-2 rounded-xl transition-all ${badge.unlocked
-                    ? "bg-[var(--bg-elevated)] border border-[var(--border-subtle)] opacity-100"
-                    : "bg-[var(--bg-subtle)] border border-transparent opacity-40 grayscale"
+                ? "bg-[var(--bg-elevated)] border border-[var(--border-subtle)] shadow-sm"
+                : "bg-[var(--bg-subtle)] border border-transparent opacity-60 hover:opacity-100 invert-0"
                 }`}
         >
             <div className="w-12 h-12 mb-2 relative">

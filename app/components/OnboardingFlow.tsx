@@ -8,6 +8,8 @@ import {
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { supabase } from "@/lib/supabaseClient";
 
+import SoundToggle from "@/app/components/SoundToggle";
+
 const LS_ONBOARDING_DONE = "aihub_onboarding_done_v1";
 const LS_ONBOARDING_USE_CASE = "aihub_onboarding_use_case";
 const LS_ONBOARDING_WEEKLY_FOCUS = "aihub_onboarding_weekly_focus";
@@ -29,22 +31,22 @@ const REMINDER_OPTIONS: {
   label: string;
   hint: string;
 }[] = [
-  {
-    id: "daily",
-    label: "Daily nudge",
-    hint: "Best if you want a gentle check-in every day.",
-  },
-  {
-    id: "weekly",
-    label: "Weekly review",
-    hint: "Great if you just want a weekly recap and reset.",
-  },
-  {
-    id: "none",
-    label: "No reminders (for now)",
-    hint: "You can always turn these on later in Settings.",
-  },
-];
+    {
+      id: "daily",
+      label: "Daily nudge",
+      hint: "Best if you want a gentle check-in every day.",
+    },
+    {
+      id: "weekly",
+      label: "Weekly review",
+      hint: "Great if you just want a weekly recap and reset.",
+    },
+    {
+      id: "none",
+      label: "No reminders (for now)",
+      hint: "You can always turn these on later in Settings.",
+    },
+  ];
 
 export default function OnboardingFlow() {
   const [open, setOpen] = useState(false);
@@ -284,7 +286,7 @@ export default function OnboardingFlow() {
           className="cursor-move flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900/80 rounded-t-2xl"
           onMouseDown={startDrag}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1">
             <span className="text-lg">✨</span>
             <div>
               <p className="text-xs font-semibold text-slate-100">
@@ -302,6 +304,9 @@ export default function OnboardingFlow() {
           >
             Skip
           </button>
+          <div className="ml-2 pl-2 border-l border-slate-800">
+            <SoundToggle className="scale-75 origin-right" />
+          </div>
         </div>
 
         {/* Body */}
@@ -313,9 +318,8 @@ export default function OnboardingFlow() {
               {[1, 2, 3].map((s) => (
                 <span
                   key={s}
-                  className={`h-1.5 w-6 rounded-full ${
-                    s <= step ? "bg-indigo-500" : "bg-slate-700"
-                  }`}
+                  className={`h-1.5 w-6 rounded-full ${s <= step ? "bg-indigo-500" : "bg-slate-700"
+                    }`}
                 />
               ))}
             </div>
@@ -337,11 +341,10 @@ export default function OnboardingFlow() {
                       key={opt}
                       type="button"
                       onClick={() => setUseCase(opt)}
-                      className={`w-full text-left px-3 py-2 rounded-xl border text-[11px] ${
-                        selected
-                          ? "border-indigo-500 bg-indigo-500/10 text-indigo-100"
-                          : "border-slate-800 bg-slate-950/80 text-slate-200 hover:bg-slate-900"
-                      }`}
+                      className={`w-full text-left px-3 py-2 rounded-xl border text-[11px] ${selected
+                        ? "border-indigo-500 bg-indigo-500/10 text-indigo-100"
+                        : "border-slate-800 bg-slate-950/80 text-slate-200 hover:bg-slate-900"
+                        }`}
                     >
                       {opt}
                     </button>
@@ -387,11 +390,10 @@ export default function OnboardingFlow() {
                         key={opt.id}
                         type="button"
                         onClick={() => setReminder(opt.id)}
-                        className={`w-full text-left px-3 py-2 rounded-xl border text-[11px] ${
-                          selected
-                            ? "border-emerald-500 bg-emerald-500/10 text-emerald-100"
-                            : "border-slate-800 bg-slate-950/80 text-slate-200 hover:bg-slate-900"
-                        }`}
+                        className={`w-full text-left px-3 py-2 rounded-xl border text-[11px] ${selected
+                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-100"
+                          : "border-slate-800 bg-slate-950/80 text-slate-200 hover:bg-slate-900"
+                          }`}
                       >
                         <span className="block font-medium">{opt.label}</span>
                         <span className="block text-[10px] text-slate-400 mt-0.5">

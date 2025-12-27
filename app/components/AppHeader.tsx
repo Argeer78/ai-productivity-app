@@ -10,6 +10,7 @@ import InstallAppButton from "@/app/components/InstallAppButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import AiUsageBadge from "@/app/components/AiUsageBadge";
 import { useUiStrings } from "@/app/components/UiStringsProvider";
+import { useSound } from "@/lib/sound";
 import {
   StickyNote,
   CheckSquare,
@@ -76,6 +77,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
   const { lang, label: currentLangLabel } = useLanguage();
   const ui = useUiStrings();
+  const { play } = useSound();
 
   const t = useMemo(() => {
     if (typeof (ui as any)?.t === "function") {
@@ -247,6 +249,7 @@ export default function AppHeader({ active }: HeaderProps) {
         <nav className="hidden md:flex items-center gap-1 ml-4 flex-1">
           <Link
             href="/dashboard"
+            onClick={() => play("click")}
             className={`${navLinkBase} ${active === "dashboard" ? navLinkActive : navLinkInactive}`}
           >
             {navLabel("dashboard", "Dashboard")}
@@ -254,6 +257,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
           <Link
             href="/pricing"
+            onClick={() => play("click")}
             className={`${navLinkBase} ${active === "pricing" ? navLinkActive : navLinkInactive}`}
           >
             {navLabel("pricing", "Pricing")}
@@ -266,7 +270,10 @@ export default function AppHeader({ active }: HeaderProps) {
               type="button"
               aria-haspopup="menu"
               aria-expanded={appsOpen}
-              onClick={() => setAppsOpen((v) => !v)}
+              onClick={() => {
+                play("click");
+                setAppsOpen((v) => !v);
+              }}
               className={`${navLinkBase} ml-2 flex items-center gap-1 border border-[var(--border-subtle)] bg-[var(--bg-card)] ${appsActive ? "text-[var(--accent)] bg-[var(--accent-soft)]" : ""
                 }`}
             >

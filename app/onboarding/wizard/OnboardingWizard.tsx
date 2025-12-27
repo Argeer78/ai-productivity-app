@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useTheme, type ThemeId } from "@/app/components/ThemeProvider";
 import { subscribeToPush } from "@/lib/pushClient";
 import { useT } from "@/lib/useT";
+import SoundToggle from "@/app/components/SoundToggle";
 
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
@@ -191,41 +192,41 @@ export default function OnboardingWizard() {
       setSaving(false);
     }
   }
-// Check push notification status on mount
-useEffect(() => {
-  let cancelled = false;
+  // Check push notification status on mount
+  useEffect(() => {
+    let cancelled = false;
 
-  async function checkPushStatus() {
-    try {
-      if (
-        typeof window === "undefined" ||
-        !("serviceWorker" in navigator) ||
-        !("PushManager" in window)
-      ) {
+    async function checkPushStatus() {
+      try {
+        if (
+          typeof window === "undefined" ||
+          !("serviceWorker" in navigator) ||
+          !("PushManager" in window)
+        ) {
+          if (!cancelled) setPushEnabled(false);
+          return;
+        }
+
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+
+        if (!cancelled) {
+          setPushEnabled(!!sub);
+        }
+      } catch (err) {
+        console.error("[onboarding] check push error", err);
         if (!cancelled) setPushEnabled(false);
-        return;
+      } finally {
+        if (!cancelled) setPushChecking(false);
       }
-
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-
-      if (!cancelled) {
-        setPushEnabled(!!sub);
-      }
-    } catch (err) {
-      console.error("[onboarding] check push error", err);
-      if (!cancelled) setPushEnabled(false);
-    } finally {
-      if (!cancelled) setPushChecking(false);
     }
-  }
 
-  checkPushStatus();
+    checkPushStatus();
 
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function next() {
     // Save the important step data on step transitions (fast, reliable)
@@ -317,51 +318,51 @@ useEffect(() => {
   }
 
   async function enablePush() {
-  if (!userId) return;
+    if (!userId) return;
 
-  setPushLoading(true);
-  setPushStatus(null);
-  setPushError(null);
+    setPushLoading(true);
+    setPushStatus(null);
+    setPushError(null);
 
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    const existing = await reg.pushManager.getSubscription();
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
 
-    // ✅ Already enabled → just reflect state
-    if (existing) {
+      // ✅ Already enabled → just reflect state
+      if (existing) {
+        setPushEnabled(true);
+        setPushStatus(
+          t("settings.taskReminders.enabled", "✅ Push notifications enabled for this device.")
+        );
+        return;
+      }
+
+      // ❌ Not enabled → actually subscribe
+      await subscribeToPush(userId);
       setPushEnabled(true);
       setPushStatus(
         t("settings.taskReminders.enabled", "✅ Push notifications enabled for this device.")
       );
-      return;
-    }
+    } catch (err: any) {
+      console.error("[onboarding] enablePush error:", err);
 
-    // ❌ Not enabled → actually subscribe
-    await subscribeToPush(userId);
-    setPushEnabled(true);
-    setPushStatus(
-      t("settings.taskReminders.enabled", "✅ Push notifications enabled for this device.")
-    );
-  } catch (err: any) {
-    console.error("[onboarding] enablePush error:", err);
-
-    if (typeof Notification !== "undefined" && Notification.permission === "denied") {
-      setPushStatus(
-        t(
-          "settings.taskReminders.blocked",
-          "❌ Notifications are blocked in your browser. Please allow notifications in your browser settings."
-        )
-      );
-    } else {
-      setPushStatus(
-        t("settings.taskReminders.enableError", "❌ Error enabling push notifications.") +
+      if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+        setPushStatus(
+          t(
+            "settings.taskReminders.blocked",
+            "❌ Notifications are blocked in your browser. Please allow notifications in your browser settings."
+          )
+        );
+      } else {
+        setPushStatus(
+          t("settings.taskReminders.enableError", "❌ Error enabling push notifications.") +
           (err?.message ? ` ${err.message}` : "")
-      );
+        );
+      }
+    } finally {
+      setPushLoading(false);
     }
-  } finally {
-    setPushLoading(false);
   }
-}
 
   const progressLabel = useMemo(() => {
     return t(
@@ -385,14 +386,16 @@ useEffect(() => {
         <div className="flex items-center justify-between gap-3 mb-4">
           <p className="text-[11px] text-[var(--text-muted)]">{progressLabel}</p>
 
-          <button
-            type="button"
-            onClick={skipForever}
-            disabled={saving}
-            className="text-[11px] text-[var(--text-muted)] hover:text-[var(--accent)]"
-          >
-            {t("onboarding.skip", "Skip setup")}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={skipForever}
+              disabled={saving}
+              className="text-[11px] text-[var(--text-muted)] hover:text-[var(--accent)]"
+            >
+              {t("onboarding.skip", "Skip setup")}
+            </button>
+          </div>
         </div>
 
         {saveError && (
@@ -411,6 +414,14 @@ useEffect(() => {
                 "Let’s personalize the app so the AI, reminders and reports fit how you work. Takes about 1 minute."
               )}
             </p>
+
+            <div className="mb-6 flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🔊</span>
+                <span className="text-sm font-medium">{t("settings.section.sound", "Sound Effects")}</span>
+              </div>
+              <SoundToggle />
+            </div>
 
             <div className="flex justify-end">
               <button
@@ -445,11 +456,10 @@ useEffect(() => {
                     setDraft((d) => ({ ...d, ui_theme: opt.value }));
                     setTheme(opt.value);
                   }}
-                  className={`px-3 py-1.5 rounded-full border text-[11px] transition ${
-                    draft.ui_theme === opt.value
-                      ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
-                  }`}
+                  className={`px-3 py-1.5 rounded-full border text-[11px] transition ${draft.ui_theme === opt.value
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
+                    }`}
                 >
                   {t(opt.labelKey, opt.fallback)}
                 </button>
@@ -603,11 +613,10 @@ useEffect(() => {
                   key={val}
                   type="button"
                   onClick={() => setDraft((d) => ({ ...d, ai_tone: val }))}
-                  className={`px-3 py-2 rounded-xl border text-sm text-left ${
-                    draft.ai_tone === val
-                      ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
-                  }`}
+                  className={`px-3 py-2 rounded-xl border text-sm text-left ${draft.ai_tone === val
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                    : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-elevated)]"
+                    }`}
                 >
                   {label}
                 </button>
@@ -634,49 +643,49 @@ useEffect(() => {
         )}
 
         {step === "push" && (
-  <>
-    <h2 className="text-xl font-semibold mb-2">
-      {t("onboarding.push.title", "Task reminders (push notifications)")}
-    </h2>
+          <>
+            <h2 className="text-xl font-semibold mb-2">
+              {t("onboarding.push.title", "Task reminders (push notifications)")}
+            </h2>
 
-    <p className="text-sm text-[var(--text-muted)] mb-4">
-      {t(
-        "onboarding.push.subtitle",
-        "Enable browser notifications for task reminders on this device."
-      )}
-    </p>
+            <p className="text-sm text-[var(--text-muted)] mb-4">
+              {t(
+                "onboarding.push.subtitle",
+                "Enable browser notifications for task reminders on this device."
+              )}
+            </p>
 
-    {pushChecking ? (
-      <p className="text-[11px] text-[var(--text-muted)]">
-        {t("settings.taskReminders.checking", "Checking notification status…")}
-      </p>
-    ) : pushEnabled ? (
-      <p className="text-sm text-emerald-400">
-        {t(
-          "settings.taskReminders.enabled",
-          "✅ Push notifications are already enabled on this device."
+            {pushChecking ? (
+              <p className="text-[11px] text-[var(--text-muted)]">
+                {t("settings.taskReminders.checking", "Checking notification status…")}
+              </p>
+            ) : pushEnabled ? (
+              <p className="text-sm text-emerald-400">
+                {t(
+                  "settings.taskReminders.enabled",
+                  "✅ Push notifications are already enabled on this device."
+                )}
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={enablePush}
+                disabled={pushLoading}
+                className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm disabled:opacity-60"
+              >
+                {pushLoading
+                  ? t("settings.taskReminders.enabling", "Enabling…")
+                  : t("settings.taskReminders.enable", "Enable task reminders (push)")}
+              </button>
+            )}
+
+            {pushStatus && (
+              <p className="mt-2 text-[11px] text-[var(--text-muted)]">{pushStatus}</p>
+            )}
+
+            <NavRow back={back} next={next} saving={saving} />
+          </>
         )}
-      </p>
-    ) : (
-      <button
-        type="button"
-        onClick={enablePush}
-        disabled={pushLoading}
-        className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm disabled:opacity-60"
-      >
-        {pushLoading
-          ? t("settings.taskReminders.enabling", "Enabling…")
-          : t("settings.taskReminders.enable", "Enable task reminders (push)")}
-      </button>
-    )}
-
-    {pushStatus && (
-      <p className="mt-2 text-[11px] text-[var(--text-muted)]">{pushStatus}</p>
-    )}
-
-    <NavRow back={back} next={next} saving={saving} />
-  </>
-)}
 
         {step === "finish" && (
           <>
