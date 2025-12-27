@@ -32,6 +32,12 @@ export default function FocusMate() {
 
         // Check every minute for a "context check"
         const checkContext = async () => {
+            // 0. Check snooze
+            const snoozeUntil = localStorage.getItem("mate_snooze_until");
+            if (snoozeUntil && parseInt(snoozeUntil, 10) > Date.now()) {
+                return;
+            }
+
             // 1. Get Energy
             const today = new Date().toISOString().split("T")[0];
             let energy = 0;
@@ -84,6 +90,12 @@ export default function FocusMate() {
         }
     }, [visible]);
 
+    function handleDismiss() {
+        setVisible(false);
+        // Snooze for 1 hour
+        localStorage.setItem("mate_snooze_until", (Date.now() + 60 * 60 * 1000).toString());
+    }
+
     if (isHidden || !visible) return null;
 
     return (
@@ -110,10 +122,10 @@ export default function FocusMate() {
                     <div className="pointer-events-auto bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-4 py-3 rounded-2xl rounded-bl-none shadow-xl max-w-xs text-sm font-medium text-[var(--text-main)] backdrop-blur-md">
                         {message}
                         <button
-                            onClick={() => setVisible(false)}
+                            onClick={handleDismiss}
                             className="ml-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--accent)] underline"
                         >
-                            {t("mate.dismiss", "Dismiss")}
+                            {t("mate.dismiss", "Dismiss (1h)")}
                         </button>
                     </div>
                 </motion.div>

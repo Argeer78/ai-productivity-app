@@ -869,9 +869,37 @@ export default function NotesPage() {
 
       <AuthGateModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
-      <div className="max-w-5xl mx-auto mt-6 w-full grid gap-6 grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+      {/* Guest Banner - Full Width */}
+      {!user && (
+        <div className="max-w-5xl mx-auto mt-6 mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
+          <div className="flex-1 relative z-10 min-w-0">
+            <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+              NOTES & THOUGHTS
+            </span>
+            <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">Capture ideas instantly ⚡️</h2>
+            <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed">
+              Jot down thoughts, meetings, or journals. Use AI to clean them up, summarize, or extract action items automatically.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setAuthModalOpen(true)}
+                className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg shadow-indigo-500/20"
+              >
+                Log in to save notes
+              </button>
+            </div>
+          </div>
+          <div className="w-full max-w-xs relative z-10 hidden md:block">
+            <Alive3DImage src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto drop-shadow-2xl" />
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        </div>
+      )}
+
+      <div className="max-w-5xl mx-auto w-full grid gap-6 grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         {/* CREATE NOTE */}
-        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] min-w-0">
+        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] min-w-0 h-fit">
           <div className="flex items-center justify-between mb-3 gap-3">
             <div className="min-w-0">
               <h2 className="text-lg font-semibold break-words">{t("create.heading", "Create a new note")}</h2>
@@ -1104,36 +1132,8 @@ export default function NotesPage() {
           )}
         </section>
 
-        {/* Guest Banner */}
-        {!user && (
-          <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden min-w-0">
-            <div className="flex-1 relative z-10 min-w-0">
-              <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
-                NOTES & THOUGHTS
-              </span>
-              <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2 break-words">Capture ideas instantly ⚡️</h2>
-              <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed break-words">
-                Jot down thoughts, meetings, or journals. Use AI to clean them up, summarize, or extract action items automatically.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => setAuthModalOpen(true)}
-                  className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg shadow-indigo-500/20"
-                >
-                  Log in to save notes
-                </button>
-              </div>
-            </div>
-            <div className="w-full max-w-xs relative z-10">
-              <Alive3DImage src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto drop-shadow-2xl" />
-            </div>
-            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-          </div>
-        )}
-
-        {/* Notes List */}
-        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] min-w-0">
+        {/* Notes List Column */}
+        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] min-w-0 h-fit">
           <div className="flex flex-wrap items-center justify-between mb-3 gap-2 min-w-0">
             <h2 className="text-lg font-semibold break-words">{t("list.title", "Your notes")}</h2>
 
