@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Alive3DImage from "@/app/components/Alive3DImage";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import SocialShareBar from "@/app/components/SocialShareBar";
@@ -388,11 +389,11 @@ export default function HomePage() {
             {/* Preview panel */}
             {/* Hero Illustration */}
             <div className="relative mt-8 md:mt-0">
-              <div className="relative z-10 rounded-3xl overflow-hidden shadow-2xl shadow-indigo-500/20 border border-[var(--border-subtle)] w-full md:w-1/2 mx-auto">
-                <img
+              <div className="relative z-10 w-full max-w-sm lg:max-w-md mx-auto">
+                <Alive3DImage
                   src="/images/hero-3d.png?v=1"
-                  alt="AI Productivity Dashboard"
-                  className="w-full h-auto object-cover"
+                  alt="AI Productivity"
+                  className="w-full h-auto drop-shadow-2xl"
                 />
               </div>
 

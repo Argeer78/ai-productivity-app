@@ -6,6 +6,7 @@ import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
+import Alive3DImage from "@/app/components/Alive3DImage";
 
 type Trip = {
   id: string;
@@ -102,8 +103,9 @@ export default function MyTripsPage() {
           <div className="w-full max-w-md bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-3xl p-8 text-center shadow-xl relative z-10">
 
             <div className="w-32 h-32 mx-auto mb-6 relative">
-              <div className="rounded-2xl overflow-hidden shadow-lg border border-[var(--border-subtle)] bg-white rotate-3">
-                <img src="/images/trips-hero.png" alt="Trips" className="w-full h-full object-cover" />
+              {/* 3D Illustration */}
+              <div className="w-full max-w-[320px] h-[320px] relative pointer-events-none">
+                <Alive3DImage src="/images/trips-hero.png" alt="Trips" className="w-full h-full object-cover" />
               </div>
             </div>
 

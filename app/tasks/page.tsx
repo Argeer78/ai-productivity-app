@@ -9,6 +9,7 @@ import FeedbackForm from "@/app/components/FeedbackForm";
 import { useT } from "@/lib/useT";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import { useSound } from "@/lib/sound";
+import Alive3DImage from "@/app/components/Alive3DImage";
 
 type VoiceTaskSuggestion = {
   title: string;
@@ -1526,9 +1527,7 @@ export default function TasksPage() {
                 </div>
               </div>
               <div className="w-full max-w-xs relative z-10">
-                <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
-                  <img src="/images/tasks-welcome.png?v=1" alt="Tasks" className="w-full h-auto" />
-                </div>
+                <Alive3DImage src="/images/tasks-welcome.png?v=1" alt="Tasks" className="w-full h-auto drop-shadow-2xl" />
               </div>
               <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
             </div>

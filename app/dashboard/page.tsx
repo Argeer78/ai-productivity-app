@@ -155,6 +155,7 @@ function AiSummaryCard(props: {
   );
 }
 /** ---------- end AI Summary parsing + UI ---------- */
+import Alive3DImage from "@/app/components/Alive3DImage";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -1048,8 +1049,8 @@ export default function DashboardPage() {
 
               {/* Graphic */}
               <div className="w-full max-w-xs md:max-w-sm relative z-10">
-                <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
-                  <img src="/images/dashboard-welcome.png?v=1" alt="Welcome" className="w-full h-auto object-cover" />
+                <div className="relative shadow-2xl rounded-2xl overflow-hidden border border-[var(--border-subtle)]">
+                  <Alive3DImage src="/images/dashboard-welcome.png?v=1" alt="Welcome" className="w-full h-auto object-cover" />
                 </div>
               </div>
 

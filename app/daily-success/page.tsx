@@ -10,6 +10,7 @@ import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import AnimatedNumber from "@/app/components/AnimatedNumber";
 import Confetti from "@/app/components/Confetti";
+import Alive3DImage from "@/app/components/Alive3DImage";
 import { useSound } from "@/lib/sound";
 
 type PlanType = "free" | "pro" | "founder";
@@ -752,10 +753,9 @@ export default function DailySuccessPage() {
               )}
             </div>
 
-            {/* Hero Image */}
-            <div className="hidden md:block w-32 h-32 relative z-10 flex-shrink-0">
-              <div className="absolute inset-0 bg-yellow-500/20 rounded-full blur-2xl" />
-              <img src="/images/success-hero.png" alt="Daily Success" className="relative z-10 w-full h-full object-contain" />
+            {/* 3D Illustration */}
+            <div className="w-full max-w-[320px] h-[320px] relative pointer-events-none">
+              <Alive3DImage src="/images/success-hero.png" alt="Daily Success" className="relative z-10 w-full h-full object-contain" />
             </div>
           </div>
 

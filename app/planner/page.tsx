@@ -12,6 +12,8 @@ import { useT } from "@/lib/useT";
 // ✅ Auth gate
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import { useLanguage } from "@/app/components/LanguageProvider";
+import Alive3DImage from "@/app/components/Alive3DImage";
 import MagicLoader from "@/app/components/MagicLoader";
 import Confetti from "@/app/components/Confetti";
 import { useSound } from "@/lib/sound";
@@ -366,9 +368,9 @@ export default function PlannerPage() {
                 </button>
               </div>
             </div>
-            <div className="w-full max-w-xs relative z-10">
+            <div className="w-full max-w-sm relative z-10 mt-8 md:mt-0">
               <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
-                <img src="/images/planner-hero.png" alt="Planner" className="w-full h-auto" />
+                <Alive3DImage src="/images/planner-hero.png" alt="Planner" className="w-full h-auto" />
               </div>
             </div>
             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />

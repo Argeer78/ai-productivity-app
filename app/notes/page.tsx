@@ -10,6 +10,7 @@ import { useAnalytics } from "@/lib/analytics";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import { useT } from "@/lib/useT";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import Alive3DImage from "@/app/components/Alive3DImage";
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -115,11 +116,13 @@ type VoiceStructured = {
     due_iso?: string | null;
     priority?: "low" | "medium" | "high" | null;
   }[];
-  reminder?: {
+  reminder?:
+  | {
     time_natural?: string | null;
     time_iso?: string | null;
     reason?: string | null;
-  } | null;
+  }
+  | null;
   summary?: string | null;
 };
 
@@ -232,14 +235,14 @@ function AuthGateModal({
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
       <div className="relative w-full max-w-sm rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-xl">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold">{title}</p>
-            <p className="text-[11px] text-[var(--text-muted)] mt-1">{subtitle}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold break-words">{title}</p>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1 break-words">{subtitle}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+            className="shrink-0 text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
           >
             ✕
           </button>
@@ -261,9 +264,7 @@ function AuthGateModal({
           </button>
         </div>
 
-        <p className="mt-3 text-[10px] text-[var(--text-muted)]">
-          You can still browse this page as a visitor.
-        </p>
+        <p className="mt-3 text-[10px] text-[var(--text-muted)]">You can still browse this page as a visitor.</p>
       </div>
     </div>
   );
@@ -367,7 +368,6 @@ export default function NotesPage() {
   }
 
   function handleAskAssistantAboutNote(note: Note) {
-    // visitor gating (still show button)
     if (!requireAuth()) return;
     if (!note?.content) return;
 
@@ -384,7 +384,6 @@ export default function NotesPage() {
   }
 
   function handleResetVoice() {
-    // allow reset even for visitors (pure UI)
     setTitle("");
     setContent("");
     setNewCategory("");
@@ -396,13 +395,10 @@ export default function NotesPage() {
   }
 
   function handleVoiceResult(payload: { rawText: string | null; structured: VoiceStructured | null }) {
-    // voice action requires auth (recording + processing)
-    // If VoiceCaptureButton is somehow triggered while visitor, we gate here too.
     if (!requireAuth()) return;
 
     const structured = payload.structured;
 
-    // 1) Note content + smart title
     if (structured && structured.note && typeof structured.note === "string") {
       const noteText = structured.note;
       setContent(noteText);
@@ -416,7 +412,6 @@ export default function NotesPage() {
       setContent(payload.rawText);
     }
 
-    // 2) Category hints
     if (structured && structured.note_category && !newCategory) {
       const cat = structured.note_category;
       const allowedLower = NOTE_CATEGORIES.map((c) => c.toLowerCase());
@@ -433,11 +428,9 @@ export default function NotesPage() {
       if (maybe) setTasksSourceCategory(maybe);
     }
 
-    // 3) Normalize tasks into VoiceTaskSuggestion[]
     if (structured && Array.isArray(structured.tasks)) {
       const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
-        const rawTitle =
-          typeof t.title === "string" && t.title.trim() ? t.title.trim() : "(Untitled task)";
+        const rawTitle = typeof t.title === "string" && t.title.trim() ? t.title.trim() : "(Untitled task)";
 
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
@@ -481,8 +474,6 @@ export default function NotesPage() {
       setVoiceTasksMessage("");
     }
   }
-
-  // 🆕 Generate tasks from a note using backend AI endpoint (creates tasks) — requires auth
   async function handleGenerateTasksFromNote(note: Note) {
     if (!requireAuth()) return;
     if (!note.content?.trim()) return;
@@ -601,7 +592,6 @@ export default function NotesPage() {
       fetchNotes();
       fetchAiUsage();
     } else {
-      // Visitor mode
       setNotes(DEMO_NOTES);
       setOpenNoteIds(DEMO_NOTES.length ? [DEMO_NOTES[0].id] : []);
       setPlan("free");
@@ -684,7 +674,6 @@ export default function NotesPage() {
   }
 
   async function handleAI(noteId: string, noteContent: string | null, mode: AiMode) {
-    // ✅ keep buttons visible but gated
     if (!requireAuth()) return;
     if (!noteContent?.trim()) return;
 
@@ -708,11 +697,7 @@ export default function NotesPage() {
       return;
     }
 
-    const { error: updateError } = await supabase
-      .from("notes")
-      .update({ ai_result: data.result })
-      .eq("id", noteId)
-      .eq("user_id", user!.id);
+    const { error: updateError } = await supabase.from("notes").update({ ai_result: data.result }).eq("id", noteId).eq("user_id", user!.id);
 
     if (updateError) {
       console.error("[notes] AI result update error", updateError);
@@ -771,7 +756,6 @@ export default function NotesPage() {
     setDeletingId(null);
   }
 
-  // ✅ SINGLE creation flow (used for voice suggestions) + auto-open Tasks
   async function handleCreateTasksFromVoice() {
     if (!requireAuth()) return;
     if (voiceSuggestedTasks.length === 0) return;
@@ -842,11 +826,7 @@ export default function NotesPage() {
 
       if (insertError) {
         console.error("[tasks] insert error:", insertError);
-        setError(
-          t("errors.createTasksFromVoiceFailed", "Failed to create tasks:") +
-          " " +
-          (insertError.message || insertError.details || "")
-        );
+        setError(t("errors.createTasksFromVoiceFailed", "Failed to create tasks:") + " " + (insertError.message || insertError.details || ""));
         return;
       }
 
@@ -863,8 +843,6 @@ export default function NotesPage() {
     }
   }
 
-
-
   const filteredNotes = useMemo(() => {
     const res = categoryFilter === "all" ? [...notes] : notes.filter((n) => (n.category || "") === categoryFilter);
 
@@ -879,35 +857,30 @@ export default function NotesPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center w-full overflow-x-hidden">
         <p className="text-[var(--text-muted)]">{t("checkingSession", "Checking session…")}</p>
       </main>
     );
   }
 
-
-
   return (
-    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8 pb-24">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8 pb-24 w-full overflow-x-hidden">
       <AppHeader active="notes" />
 
       <AuthGateModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
-      <div className="max-w-5xl mx-auto mt-6 grid gap-6 md:grid-cols-[1.2fr,1fr]">
+      <div className="max-w-5xl mx-auto mt-6 w-full grid gap-6 grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         {/* CREATE NOTE */}
-        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-lg font-semibold">{t("create.heading", "Create a new note")}</h2>
-              <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                {t(
-                  "create.subheading",
-                  "Use AI to summarize, bullet, or rewrite your notes. Capture ideas with your voice, too."
-                )}
+        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] min-w-0">
+          <div className="flex items-center justify-between mb-3 gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold break-words">{t("create.heading", "Create a new note")}</h2>
+              <p className="text-[11px] text-[var(--text-muted)] mt-1 break-words">
+                {t("create.subheading", "Use AI to summarize, bullet, or rewrite your notes. Capture ideas with your voice, too.")}
               </p>
 
               {!user && (
-                <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                <p className="mt-2 text-[11px] text-[var(--text-muted)] break-words">
                   You’re browsing as a <span className="font-semibold">visitor</span>. Click any action to log in.
                 </p>
               )}
@@ -916,21 +889,21 @@ export default function NotesPage() {
             {user ? (
               <button
                 onClick={() => supabase.auth.signOut()}
-                className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+                className="shrink-0 text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
               >
                 {t("create.logout", "Log out")}
               </button>
             ) : (
               <button
                 onClick={() => setAuthModalOpen(true)}
-                className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+                className="shrink-0 text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
               >
                 Log in
               </button>
             )}
           </div>
 
-          {error && <div className="text-sm text-red-400 mb-3">{error}</div>}
+          {error && <div className="text-sm text-red-400 mb-3 break-words">{error}</div>}
 
           <form
             onSubmit={(e) => {
@@ -946,7 +919,7 @@ export default function NotesPage() {
             <input
               type="text"
               placeholder={"Note title"}
-              className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm focus:outline-none"
+              className="w-full min-w-0 px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm focus:outline-none"
               value={title}
               readOnly={!user}
               onFocus={() => requireAuth()}
@@ -956,9 +929,9 @@ export default function NotesPage() {
               }}
             />
 
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
-              <div className="flex items-center gap-2">
-                <span>{t("form.dateLabel", "Note date:")}</span>
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="break-words">{t("form.dateLabel", "Note date:")}</span>
                 <input
                   type="date"
                   value={noteDate}
@@ -971,8 +944,8 @@ export default function NotesPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2">
-                <span>{t("form.categoryLabel", "Category:")}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="break-words">{t("form.categoryLabel", "Category:")}</span>
                 <select
                   value={newCategory}
                   onFocus={() => requireAuth()}
@@ -981,7 +954,7 @@ export default function NotesPage() {
                     setNewCategory(e.target.value);
                     setTasksSourceCategory(normalizeTaskCategory(e.target.value || null));
                   }}
-                  className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
+                  className="max-w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
                 >
                   <option value="">{t("form.category.none", "None")}</option>
                   {NOTE_CATEGORIES.map((c) => (
@@ -992,18 +965,17 @@ export default function NotesPage() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 min-w-0">
                 <input
                   id="auto-title"
                   type="checkbox"
                   checked={autoTitleEnabled}
                   onChange={(e) => {
-                    // allow toggling in visitor too (harmless)
                     setAutoTitleEnabled(e.target.checked);
                   }}
-                  className="h-3 w-3"
+                  className="h-3 w-3 shrink-0"
                 />
-                <label htmlFor="auto-title" className="cursor-pointer text-[11px]">
+                <label htmlFor="auto-title" className="cursor-pointer text-[11px] break-words">
                   {t("form.smartTitleLabel", "Smart title from content")}
                 </label>
               </div>
@@ -1011,7 +983,7 @@ export default function NotesPage() {
 
             <textarea
               placeholder={"Write your note here..."}
-              className="w-full min-h-[120px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
+              className="w-full min-w-0 min-h-[120px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
               value={content}
               readOnly={!user}
               onFocus={() => requireAuth()}
@@ -1021,23 +993,20 @@ export default function NotesPage() {
               }}
             />
 
-            <div className="flex flex-col gap-2 text-[11px] text-[var(--text-muted)]">
-              <span>
-                {t("plan.label", "Plan")}: <span className="font-semibold">{plan}</span> •{" "}
-                {t("plan.aiTodayLabel", "AI today")}:{" "}
+            <div className="flex flex-col gap-2 text-[11px] text-[var(--text-muted)] min-w-0">
+              <span className="break-words">
+                {t("plan.label", "Plan")}: <span className="font-semibold">{plan}</span> • {t("plan.aiTodayLabel", "AI today")}:{" "}
                 <span className="font-semibold">
                   {aiCountToday}/{dailyLimit}
                 </span>
               </span>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[10px]">{t("voice.modeLabel", "Voice capture mode:")}</span>
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <span className="text-[10px] break-words">{t("voice.modeLabel", "Voice capture mode:")}</span>
                 <button
                   type="button"
                   onClick={() => setVoiceMode("review")}
-                  className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "review"
-                    ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
-                    : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                  className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "review" ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]" : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
                     }`}
                 >
                   {t("voice.mode.review", "Review first")}
@@ -1045,24 +1014,23 @@ export default function NotesPage() {
                 <button
                   type="button"
                   onClick={() => setVoiceMode("autosave")}
-                  className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "autosave"
-                    ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
-                    : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                  className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "autosave" ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]" : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
                     }`}
                 >
                   {t("voice.mode.autosave", "Auto-save note")}
                 </button>
               </div>
             </div>
+
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex items-center gap-2 flex-wrap min-w-0">
                 {user ? (
                   <VoiceCaptureButton
                     userId={user.id as string}
                     mode={voiceMode}
                     resetKey={voiceResetKey}
                     onResult={handleVoiceResult}
-                    variant="icon"              // ✅ NEW
+                    variant="icon"
                     size="md"
                     interaction="toggle"
                   />
@@ -1071,13 +1039,7 @@ export default function NotesPage() {
                     type="button"
                     onClick={() => setAuthModalOpen(true)}
                     aria-label={t("voice.loginToUse", "Log in to use voice")}
-                    className="
-        h-10 w-10 rounded-full
-        flex items-center justify-center
-        bg-[var(--accent)]
-        text-[var(--bg-body)]
-        hover:opacity-90
-      "
+                    className="h-10 w-10 shrink-0 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
                   >
                     🎤
                   </button>
@@ -1087,35 +1049,27 @@ export default function NotesPage() {
                   <button
                     type="button"
                     onClick={handleResetVoice}
-                    className="
-        px-3 py-1.5 rounded-full
-        border border-[var(--border-subtle)]
-        bg-[var(--bg-elevated)]
-        text-[11px]
-        hover:bg-[var(--bg-card)]
-      "
+                    className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[11px] hover:bg-[var(--bg-card)]"
                   >
                     {t("voice.resetButton", "Reset voice")}
                   </button>
                 )}
               </div>
             </div>
-            {/* Suggested tasks */}
+
             {voiceSuggestedTasks.length > 0 && (
-              <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px]">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold">{t("tasks.suggested.title", "Suggested tasks")}</p>
-                  {voiceTasksMessage && <span className="text-[10px] text-emerald-400">{voiceTasksMessage}</span>}
+              <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px] min-w-0">
+                <div className="flex items-center justify-between mb-2 gap-2 min-w-0">
+                  <p className="font-semibold break-words">{t("tasks.suggested.title", "Suggested tasks")}</p>
+                  {voiceTasksMessage && <span className="text-[10px] text-emerald-400 break-words">{voiceTasksMessage}</span>}
                 </div>
 
-                <ul className="list-disc pl-4 space-y-1 mb-2">
+                <ul className="list-disc pl-4 space-y-1 mb-2 min-w-0">
                   {voiceSuggestedTasks.map((tItem, idx) => (
-                    <li key={idx}>
-                      <span className="font-medium">{tItem.title}</span>
-                      {tItem.dueLabel && <span className="text-[var(--text-muted)]"> — {tItem.dueLabel}</span>}
-                      {tItem.priority && (
-                        <span className="ml-1 uppercase text-[9px] text-[var(--text-muted)]">[{tItem.priority}]</span>
-                      )}
+                    <li key={idx} className="break-words">
+                      <span className="font-medium break-words">{tItem.title}</span>
+                      {tItem.dueLabel && <span className="text-[var(--text-muted)] break-words"> — {tItem.dueLabel}</span>}
+                      {tItem.priority && <span className="ml-1 uppercase text-[9px] text-[var(--text-muted)]">[{tItem.priority}]</span>}
                     </li>
                   ))}
                 </ul>
@@ -1141,7 +1095,7 @@ export default function NotesPage() {
           </form>
 
           {plan === "free" && (
-            <div className="mt-3 text-[11px] text-[var(--text-muted)]">
+            <div className="mt-3 text-[11px] text-[var(--text-muted)] break-words">
               {t("buttons.upgradeHint", "AI limit reached often?")}{" "}
               <button disabled={billingLoading} onClick={() => setAuthModalOpen(true)} className="underline text-[var(--accent)]">
                 {t("buttons.upgradeToPro", "Upgrade to Pro")}
@@ -1152,15 +1106,13 @@ export default function NotesPage() {
 
         {/* Guest Banner */}
         {!user && (
-          <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
-            <div className="flex-1 relative z-10">
+          <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden min-w-0">
+            <div className="flex-1 relative z-10 min-w-0">
               <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
                 NOTES & THOUGHTS
               </span>
-              <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">
-                Capture ideas instantly ⚡️
-              </h2>
-              <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed">
+              <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2 break-words">Capture ideas instantly ⚡️</h2>
+              <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed break-words">
                 Jot down thoughts, meetings, or journals. Use AI to clean them up, summarize, or extract action items automatically.
               </p>
               <div className="flex flex-wrap gap-3">
@@ -1174,24 +1126,22 @@ export default function NotesPage() {
               </div>
             </div>
             <div className="w-full max-w-xs relative z-10">
-              <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white">
-                <img src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto" />
-              </div>
+              <Alive3DImage src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto drop-shadow-2xl" />
             </div>
             <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           </div>
         )}
 
         {/* Notes List */}
-        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">{t("list.title", "Your notes")}</h2>
+        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] min-w-0">
+          <div className="flex flex-wrap items-center justify-between mb-3 gap-2 min-w-0">
+            <h2 className="text-lg font-semibold break-words">{t("list.title", "Your notes")}</h2>
 
-            <div className="flex items-center gap-2 text-[11px]">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] min-w-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
+                className="max-w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
               >
                 <option value="created_desc">{t("sort.newest", "Newest")}</option>
                 <option value="created_asc">{t("sort.oldest", "Oldest")}</option>
@@ -1202,7 +1152,7 @@ export default function NotesPage() {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
+                className="max-w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
               >
                 <option value="all">{t("list.filter.allCategories", "All categories")}</option>
                 {NOTE_CATEGORIES.map((c) => (
@@ -1216,7 +1166,6 @@ export default function NotesPage() {
               <button
                 onClick={() => {
                   if (!user) {
-                    // visitor: just reset to demo list
                     setNotes(DEMO_NOTES);
                     return;
                   }
@@ -1229,39 +1178,39 @@ export default function NotesPage() {
             </div>
           </div>
 
-          {filteredNotes.length === 0 && !loadingList && (
-            <p className="text-[var(--text-muted)] text-sm">{t("list.empty", "No notes found.")}</p>
-          )}
+          {filteredNotes.length === 0 && !loadingList && <p className="text-[var(--text-muted)] text-sm break-words">{t("list.empty", "No notes found.")}</p>}
 
-          <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
+          <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto overflow-x-hidden pr-1 min-w-0">
             {filteredNotes.map((note) => {
               const isEditing = editingNoteId === note.id;
               const badge = noteCategoryStyles[note.category || "Other"];
               const isOpen = openNoteIds.includes(note.id);
 
               return (
-                <article key={note.id} className="border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]">
+                <article key={note.id} className="border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)] min-w-0">
                   {!isEditing && (
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-start gap-2 mb-1 min-w-0">
                       <button
                         type="button"
                         onClick={() => toggleNoteOpen(note.id)}
-                        className="h-5 w-5 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[10px] hover:bg-[var(--bg-elevated)]"
+                        className="shrink-0 h-5 w-5 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[10px] hover:bg-[var(--bg-elevated)]"
                         aria-label={isOpen ? t("list.aria.collapse", "Collapse note") : t("list.aria.expand", "Expand note")}
                       >
                         {isOpen ? "▲" : "▼"}
                       </button>
 
-                      <div className="flex-1 flex items-center justify-between gap-2">
-                        <div className="flex flex-col">
-                          <h3 className="font-semibold text-sm line-clamp-1">{note.title || t("list.untitled", "Untitled")}</h3>
-                          <span className="text-[10px] text-[var(--text-muted)]">
+                      <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+                        <div className="flex flex-col min-w-0">
+                          <h3 className="font-semibold text-sm line-clamp-1 break-words">
+                            {note.title || t("list.untitled", "Untitled")}
+                          </h3>
+                          <span className="text-[10px] text-[var(--text-muted)] break-words">
                             {note.created_at ? formatDateTime(note.created_at) : ""}
                           </span>
                         </div>
 
                         {note.category && (
-                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${badge}`}>
+                          <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${badge}`}>
                             {getCategoryLabel(note.category)}
                           </span>
                         )}
@@ -1271,10 +1220,13 @@ export default function NotesPage() {
 
                   {!isEditing && isOpen && (
                     <>
-                      {note.content && <p className="mt-2 text-xs text-[var(--text-main)] whitespace-pre-wrap">{note.content}</p>}
+                      {note.content && (
+                        <p className="mt-2 text-xs text-[var(--text-main)] whitespace-pre-wrap break-words min-w-0">
+                          {note.content}
+                        </p>
+                      )}
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {/* Tasks from note */}
+                      <div className="mt-3 flex flex-wrap gap-2 min-w-0">
                         <button
                           type="button"
                           onClick={() => handleGenerateTasksFromNote(note)}
@@ -1284,12 +1236,10 @@ export default function NotesPage() {
                           {noteTasksLoadingId === note.id || creatingTasks ? "Finding tasks..." : "⚡ Tasks from note"}
                         </button>
 
-                        {/* ✅ Translate with AI (you asked to keep visible; gated on click) */}
                         <button
                           onClick={() => {
-                            // You can wire this to your translate endpoint later; for now it just gates.
                             if (!requireAuth()) return;
-                            setError(""); // or call your translate action here
+                            setError("");
                           }}
                           className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
                         >
@@ -1351,7 +1301,7 @@ export default function NotesPage() {
                       </div>
 
                       {note.ai_result && (
-                        <div className="mt-3 text-xs text-[var(--text-main)] border-t border-[var(--border-subtle)] pt-2 whitespace-pre-wrap">
+                        <div className="mt-3 text-xs text-[var(--text-main)] border-t border-[var(--border-subtle)] pt-2 whitespace-pre-wrap break-words min-w-0">
                           <strong>{t("list.aiResultTitle", "AI Result:")}</strong>
                           <br />
                           {note.ai_result}
@@ -1361,18 +1311,18 @@ export default function NotesPage() {
                   )}
 
                   {isEditing && (
-                    <div className="mt-2 space-y-3">
+                    <div className="mt-2 space-y-3 min-w-0">
                       <input
                         type="text"
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
+                        className="w-full min-w-0 px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
 
                       <select
                         value={editCategory}
                         onChange={(e) => setEditCategory(e.target.value)}
-                        className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
+                        className="max-w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
                       >
                         <option value="">{t("list.filter.noCategory", "No category")}</option>
                         {NOTE_CATEGORIES.map((c) => (
@@ -1385,10 +1335,10 @@ export default function NotesPage() {
                       <textarea
                         value={editContent}
                         onChange={(e) => setEditContent(e.target.value)}
-                        className="w-full min-h-[100px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
+                        className="w-full min-w-0 min-h-[100px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => saveEdit(note.id)}
                           disabled={savingEditId === note.id}
@@ -1410,7 +1360,7 @@ export default function NotesPage() {
             })}
           </div>
 
-          <div className="mt-4 text-[11px] flex gap-3 text-[var(--text-muted)]">
+          <div className="mt-4 text-[11px] flex flex-wrap gap-3 text-[var(--text-muted)]">
             <Link href="/tasks" className="hover:text-[var(--accent)]">
               {t("list.goToTasks", "→ Go to Tasks")}
             </Link>
@@ -1421,7 +1371,6 @@ export default function NotesPage() {
 
           <section className="mt-6">
             <div className="max-w-md mx-auto">
-              {/* Feedback can remain visible; or gate it too if you want */}
               <FeedbackForm user={user} />
             </div>
           </section>

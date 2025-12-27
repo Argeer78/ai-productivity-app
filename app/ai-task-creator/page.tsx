@@ -1,4 +1,3 @@
-// app/ai-task-creator/page.tsx
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
@@ -9,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import Alive3DImage from "@/app/components/Alive3DImage";
 
 type SuggestedTask = {
   title: string;
@@ -145,7 +145,7 @@ export default function AITaskCreatorPage() {
       // ✅ Save Energy to DB (Persistence)
       const today = new Date().toISOString().split("T")[0];
       if (typeof window !== "undefined") {
-        localStorage.setItem(`energy_${today}`, String(energyLevel));
+        localStorage.setItem(`energy_${today} `, String(energyLevel));
       }
 
       await supabase.from("daily_scores").upsert(
@@ -435,9 +435,9 @@ export default function AITaskCreatorPage() {
 
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <span className={`text-xs font-medium ${energyLevel <= 3 ? "text-red-400" :
-                          energyLevel >= 8 ? "text-emerald-400" : "text-yellow-400"
-                          }`}>
+                        <span className={`text - xs font - medium ${energyLevel <= 3 ? "text-red-400" :
+                            energyLevel >= 8 ? "text-emerald-400" : "text-yellow-400"
+                          } `}>
                           {energyLevel <= 3 ? translate("energy.low", "Low Battery") :
                             energyLevel >= 8 ? translate("energy.high", "Full Power!") :
                               translate("energy.medium", "Balanced")}
@@ -468,30 +468,30 @@ export default function AITaskCreatorPage() {
                     <button
                       type="button"
                       onClick={() => setIntensity("light")}
-                      className={`px-3 py-1.5 rounded-xl border ${intensity === "light"
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
-                        }`}
+                      className={`px - 3 py - 1.5 rounded - xl border ${intensity === "light"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        } `}
                     >
                       {translate("form.intensity.light", "Light")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setIntensity("balanced")}
-                      className={`px-3 py-1.5 rounded-xl border ${intensity === "balanced"
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
-                        }`}
+                      className={`px - 3 py - 1.5 rounded - xl border ${intensity === "balanced"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        } `}
                     >
                       {translate("form.intensity.balanced", "Balanced")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setIntensity("aggressive")}
-                      className={`px-3 py-1.5 rounded-xl border ${intensity === "aggressive"
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
-                        }`}
+                      className={`px - 3 py - 1.5 rounded - xl border ${intensity === "aggressive"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        } `}
                     >
                       {translate("form.intensity.aggressive", "Deep push")}
                     </button>
@@ -572,9 +572,8 @@ export default function AITaskCreatorPage() {
 
               {!loadingSuggestions && suggestedTasks.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <div className="w-40 h-40 mb-4 relative">
-                    <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-xl" />
-                    <img src="/images/ai-creator-empty.png?v=1" alt="AI Brain" className="relative z-10 w-full h-full object-contain drop-shadow-lg" />
+                  <div className="w-48 h-48 relative">
+                    <Alive3DImage src="/images/ai-creator-empty.png?v=1" alt="AI Brain" className="relative z-10 w-full h-full object-contain drop-shadow-lg" />
                   </div>
                   <p className="text-[13px] font-medium text-[var(--text-main)] mb-1">
                     Ready to plan your day?

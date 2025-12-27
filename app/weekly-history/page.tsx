@@ -1,4 +1,3 @@
-// app/weekly-history/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,6 +5,7 @@ import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
+import Alive3DImage from "@/app/components/Alive3DImage";
 
 type Plan = "free" | "pro" | "founder";
 
@@ -20,7 +20,7 @@ export default function WeeklyHistoryPage() {
   // ✅ Notes-style, uses weeklyHistory.* keys
   const { t: rawT } = useT("");
   const t = (key: string, fallback: string) =>
-    rawT(`weeklyHistory.${key}`, fallback);
+    rawT(`weeklyHistory.${key} `, fallback);
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -30,7 +30,7 @@ export default function WeeklyHistoryPage() {
 
   // ✅ Use your keys weeklyHistory.plan.free/pro/founder
   const planLabelUpper = t(
-    `plan.${plan}`,
+    `plan.${plan} `,
     plan === "founder" ? "FOUNDER" : plan.toUpperCase()
   );
 
@@ -126,9 +126,8 @@ export default function WeeklyHistoryPage() {
             {/* Background blur */}
             <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-transparent to-indigo-500/5 pointer-events-none" />
 
-            <div className="w-48 h-48 mx-auto mb-6 relative">
-              <div className="absolute inset-4 bg-indigo-500/20 rounded-full blur-2xl" />
-              <img src="/images/history-welcome.png?v=1" alt="Reports" className="relative z-10 w-full h-full object-contain" />
+            <div className="w-full max-w-[280px] h-[280px] relative pointer-events-none">
+              <Alive3DImage src="/images/history-welcome.png?v=1" alt="Reports" className="relative z-10 w-full h-full object-contain" />
             </div>
 
             <h1 className="text-2xl font-bold mb-2 relative z-10">
@@ -336,7 +335,7 @@ export default function WeeklyHistoryPage() {
 
                       {/* optional link to viewer route, if you use it */}
                       <Link
-                        href={`/weekly-reports/${r.id}`}
+                        href={`/ weekly - reports / ${r.id} `}
                         className="text-[var(--accent)] hover:opacity-90"
                       >
                         {t("viewFullReport", "View full report →")}

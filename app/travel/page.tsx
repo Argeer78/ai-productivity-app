@@ -8,7 +8,10 @@ import { useT } from "@/lib/useT";
 
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import { useLanguage } from "@/app/components/LanguageProvider";
+import Alive3DImage from "@/app/components/Alive3DImage";
 
+const SUGGESTED_DESTINATIONS = []; // Assuming this should be an empty array or defined elsewhere
 const BOOKING_AFFILIATE_ID = process.env.NEXT_PUBLIC_BOOKING_AID || "";
 const FLIGHTS_AFFILIATE_ID = process.env.NEXT_PUBLIC_FLIGHTS_AID || "";
 // Kept here if you want later; not directly used in current implementation
@@ -546,8 +549,9 @@ export default function TravelPage() {
             </div>
 
             <div className="w-40 h-40 relative z-10 block">
-              <div className="rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-subtle)] bg-white rotate-3">
-                <img src="/images/travel-hero.png" alt="Travel" className="w-full h-full object-cover" />
+              {/* 3D Illustration */}
+              <div className="w-full max-w-[400px] h-[400px] relative pointer-events-none">
+                <Alive3DImage src="/images/travel-hero.png" alt="Travel" className="w-full h-full object-cover" />
               </div>
             </div>
 

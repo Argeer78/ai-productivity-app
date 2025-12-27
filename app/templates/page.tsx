@@ -6,6 +6,7 @@ import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
+import Alive3DImage from "@/app/components/Alive3DImage";
 
 type Template = {
   id: string;
@@ -175,7 +176,7 @@ export default function TemplatesPage() {
   const filteredTemplates = templates.filter((tpl) => {
     if (search.trim()) {
       const q = search.toLowerCase();
-      const combined = [tpl.title || "", tpl.description || "", tpl.category || "", tpl.ai_prompt || ""].join(" ").toLowerCase();
+      const combined = [tpl.title || "", tpl.description || "", tpl.ai_prompt || ""].join(" ").toLowerCase();
       if (!combined.includes(q)) return false;
     }
 
@@ -226,9 +227,9 @@ export default function TemplatesPage() {
               </div>
             </div>
 
-            <div className="w-32 h-32 relative z-10 flex-shrink-0">
-              <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl" />
-              <img src="/images/templates-hero.png" alt="Templates" className="relative z-10 w-full h-full object-contain" />
+            {/* 3D Illustration */}
+            <div className="w-full max-w-[320px] h-[320px] relative pointer-events-none">
+              <Alive3DImage src="/images/templates-hero.png" alt="Templates" className="relative z-10 w-full h-full object-contain" />
             </div>
 
             <Link

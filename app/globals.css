@@ -6,7 +6,8 @@
 :root {
   color-scheme: dark;
 
-  --bg-body: #020617; /* slate-950-ish */
+  --bg-body: #020617;
+  /* slate-950-ish */
   --bg-elevated: #020617;
   --bg-card: #020617;
   --border-subtle: #1e293b;
@@ -17,7 +18,8 @@
 
   --accent: #6366f1;
   --accent-soft: rgba(99, 102, 241, 0.1);
-  --accent-contrast: #f9fafb; /* light text on accent */
+  --accent-contrast: #f9fafb;
+  /* light text on accent */
 }
 
 /* Light – polished */
@@ -31,12 +33,16 @@
   --border-subtle: #e5e7eb;
   --border-strong: #d1d5db;
 
-  --text-main: #0f172a; /* slate-900 */
-  --text-muted: #64748b; /* slate-500 */
+  --text-main: #0f172a;
+  /* slate-900 */
+  --text-muted: #64748b;
+  /* slate-500 */
 
-  --accent: #4f46e5;           /* indigo-600 */
+  --accent: #4f46e5;
+  /* indigo-600 */
   --accent-soft: rgba(79, 70, 229, 0.1);
-  --accent-contrast: #ffffff;  /* force white text on primary buttons */
+  --accent-contrast: #ffffff;
+  /* force white text on primary buttons */
 }
 
 /* Ocean */
@@ -124,7 +130,8 @@
   --text-main: #fef3c7;
   --text-muted: #fed7aa;
 
-  --accent: #f97316; /* orange */
+  --accent: #f97316;
+  /* orange */
   --accent-soft: rgba(249, 115, 22, 0.18);
   --accent-contrast: #f9fafb;
 }
@@ -142,7 +149,8 @@
   --text-main: #f0fdf4;
   --text-muted: #bbf7d0;
 
-  --accent: #ef4444; /* red */
+  --accent: #ef4444;
+  /* red */
   --accent-soft: rgba(239, 68, 68, 0.18);
   --accent-contrast: #f9fafb;
 }
@@ -151,19 +159,26 @@
 :root[data-theme="easter"] {
   color-scheme: light;
 
-  --bg-body: #fdf4ff;     /* soft lavender */
-  --bg-elevated: #faf5ff; /* lighter lavender */
-  --bg-card: #ffffff;     /* keep white cards */
+  --bg-body: #fdf4ff;
+  /* soft lavender */
+  --bg-elevated: #faf5ff;
+  /* lighter lavender */
+  --bg-card: #ffffff;
+  /* keep white cards */
 
   --border-subtle: #f3d0ff;
   --border-strong: #e58ff9;
 
-  --text-main: #4a044e;    /* deep purple */
-  --text-muted: #8b5cf6;   /* purple-500 */
+  --text-main: #4a044e;
+  /* deep purple */
+  --text-muted: #8b5cf6;
+  /* purple-500 */
 
-  --accent: #ec4899;       /* pink-500 */
+  --accent: #ec4899;
+  /* pink-500 */
   --accent-soft: rgba(236, 72, 153, 0.12);
-  --accent-contrast: #ffffff; /* white on pink */
+  --accent-contrast: #ffffff;
+  /* white on pink */
 }
 
 /* === Base body styles === */
@@ -181,6 +196,7 @@ body {
     opacity: 0;
     transform: translateY(-6px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -195,6 +211,40 @@ body {
   100% {
     transform: translateX(100%);
   }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s ease-in-out infinite;
 }
 
 /* === Theme bridge for existing Tailwind colors === */
@@ -247,11 +297,9 @@ body {
 /* Hover state for those buttons */
 :root[data-theme] body .hover\:bg-indigo-500:hover,
 :root[data-theme] body .hover\:bg-indigo-600:hover {
-  background-color: color-mix(
-    in srgb,
-    var(--accent) 88%,
-    #ffffff 12%
-  ) !important;
+  background-color: color-mix(in srgb,
+      var(--accent) 88%,
+      #ffffff 12%) !important;
 }
 
 /* Soft accent backgrounds / chips */
