@@ -4,23 +4,22 @@ import { useMemo, useEffect } from "react";
 import { useT } from "@/lib/useT";
 import confetti from "canvas-confetti";
 
-const LEVELS = [
-    { max: 500, title: "Novice" },
-    { max: 1500, title: "Apprentice" },
-    { max: 3000, title: "Journeyman" },
-    { max: 5000, title: "Expert" },
-    { max: 5000, title: "Expert" },
-    { max: Infinity, title: "Grandmaster" },
-];
-
-const REWARDS = [
-    { level: 5, label: "🌧️ Rain Sound" },
-    { level: 10, label: "🎨 Gold Theme" },
-    { level: 20, label: "🕶️ Stealth Mode" },
-];
-
 export default function LevelProgress({ totalScore }: { totalScore: number }) {
     const { t } = useT();
+
+    const LEVELS = useMemo(() => [
+        { max: 500, title: t("gamification.level.novice", "Novice") },
+        { max: 1500, title: t("gamification.level.apprentice", "Apprentice") },
+        { max: 3000, title: t("gamification.level.journeyman", "Journeyman") },
+        { max: 5000, title: t("gamification.level.expert", "Expert") },
+        { max: Infinity, title: t("gamification.level.grandmaster", "Grandmaster") },
+    ], [t]);
+
+    const REWARDS = useMemo(() => [
+        { level: 5, label: t("gamification.reward.rain", "🌧️ Rain Sound") },
+        { level: 10, label: t("gamification.reward.gold", "🎨 Gold Theme") },
+        { level: 20, label: t("gamification.reward.stealth", "🕶️ Stealth Mode") },
+    ], [t]);
 
     const { currentLevel, nextLevelXP, progressPercent, title } = useMemo(() => {
         let previousMax = 0;
@@ -50,9 +49,9 @@ export default function LevelProgress({ totalScore }: { totalScore: number }) {
             nextLevelXP: null,
             progressPercent: 100,
         };
-    }, [totalScore]);
+    }, [totalScore, LEVELS]);
 
-    const nextReward = REWARDS.find(r => r.level > currentLevel);
+    const nextReward = useMemo(() => REWARDS.find(r => r.level > currentLevel), [currentLevel, REWARDS]);
 
     // 🎉 Level Up Celebration Logic
     useEffect(() => {

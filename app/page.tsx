@@ -8,140 +8,89 @@ import AppHeader from "@/app/components/AppHeader";
 import SocialShareBar from "@/app/components/SocialShareBar";
 import { useT } from "@/lib/useT";
 
-type FeatureCard = {
-  slug: string;
-  iconKey: string;
-  iconFallback: string;
-  titleKey: string;
-  titleFallback: string;
-  subtitleKey: string;
-  subtitleFallback: string;
-  descriptionKey: string;
-  descriptionFallback: string;
-  bulletKeys: { key: string; fallback: string }[];
-  ctaKey: string;
-  ctaFallback: string;
-};
-
-const FEATURE_CARDS: FeatureCard[] = [
-  {
-    slug: "/dashboard",
-    iconKey: "home.features.dashboard.icon",
-    iconFallback: "📊",
-    titleKey: "home.features.dashboard.title",
-    titleFallback: "Dashboard overview",
-    subtitleKey: "home.features.dashboard.subtitle",
-    subtitleFallback: "See your day, score, and focus in one place.",
-    descriptionKey: "home.features.dashboard.description",
-    descriptionFallback:
-      "Your home base: daily success score, focus for today, quick links to tasks, notes and weekly progress.",
-    bulletKeys: [
-      { key: "home.features.dashboard.bullet1", fallback: "Today at a glance" },
-      { key: "home.features.dashboard.bullet2", fallback: "Daily Success score & trend" },
-      { key: "home.features.dashboard.bullet3", fallback: "Quick access to all tools" },
-    ],
-    ctaKey: "home.features.dashboard.cta",
-    ctaFallback: "Open dashboard",
-  },
-  {
-    slug: "/notes",
-    iconKey: "home.features.notes.icon",
-    iconFallback: "📝",
-    titleKey: "home.features.notes.title",
-    titleFallback: "Notes & AI workspace",
-    subtitleKey: "home.features.notes.subtitle",
-    subtitleFallback: "Capture ideas, drafts and progress logs.",
-    descriptionKey: "home.features.notes.description",
-    descriptionFallback:
-      "Keep everything in one place and let AI summarize, clean up or extract tasks from your notes.",
-    bulletKeys: [
-      { key: "home.features.notes.bullet1", fallback: "Fast note capture" },
-      { key: "home.features.notes.bullet2", fallback: "AI summaries & clean-ups" },
-      { key: "home.features.notes.bullet3", fallback: "Great for journaling & meeting notes" },
-    ],
-    ctaKey: "home.features.notes.cta",
-    ctaFallback: "Go to Notes",
-  },
-  {
-    slug: "/tasks",
-    iconKey: "home.features.tasks.icon",
-    iconFallback: "✅",
-    titleKey: "home.features.tasks.title",
-    titleFallback: "Tasks & reminders",
-    subtitleKey: "home.features.tasks.subtitle",
-    subtitleFallback: "Simple task list with real reminders.",
-    descriptionKey: "home.features.tasks.description",
-    descriptionFallback:
-      "Add tasks with due dates, time windows, categories and per-task reminders that can trigger email + push.",
-    bulletKeys: [
-      { key: "home.features.tasks.bullet1", fallback: "Time-boxed tasks with categories" },
-      { key: "home.features.tasks.bullet2", fallback: "Reminders via email & push" },
-      { key: "home.features.tasks.bullet3", fallback: "Share tasks to WhatsApp, Viber, email" },
-    ],
-    ctaKey: "home.features.tasks.cta",
-    ctaFallback: "Open Tasks",
-  },
-  {
-    slug: "/ai-task-creator",
-    iconKey: "home.features.creator.icon",
-    iconFallback: "🤖",
-    titleKey: "home.features.creator.title",
-    titleFallback: "AI Task Creator",
-    subtitleKey: "home.features.creator.subtitle",
-    subtitleFallback: "Turn vague goals into clear steps.",
-    descriptionKey: "home.features.creator.description",
-    descriptionFallback:
-      "Paste a messy goal and let AI break it into small, prioritized tasks you can send straight into your board.",
-    bulletKeys: [
-      { key: "home.features.creator.bullet1", fallback: "Turns goals into checklists" },
-      { key: "home.features.creator.bullet2", fallback: "Smart priorities & time hints" },
-      { key: "home.features.creator.bullet3", fallback: "Works great with your Tasks page" },
-    ],
-    ctaKey: "home.features.creator.cta",
-    ctaFallback: "Use AI Task Creator",
-  },
-  {
-    slug: "/weekly-history",
-    iconKey: "home.features.weekly.icon",
-    iconFallback: "📬",
-    titleKey: "home.features.weekly.title",
-    titleFallback: "Weekly AI reports",
-    subtitleKey: "home.features.weekly.subtitle",
-    subtitleFallback: "A lightweight review written for you by AI.",
-    descriptionKey: "home.features.weekly.description",
-    descriptionFallback:
-      "See how your week went, what worked, and what to focus on next — powered by your scores, tasks and notes.",
-    bulletKeys: [
-      { key: "home.features.weekly.bullet1", fallback: "Weekly score & streak view" },
-      { key: "home.features.weekly.bullet2", fallback: "Highlights wins & bottlenecks" },
-      { key: "home.features.weekly.bullet3", fallback: "Focus suggestions for next week" },
-    ],
-    ctaKey: "home.features.weekly.cta",
-    ctaFallback: "View weekly history",
-  },
-  {
-    slug: "/settings",
-    iconKey: "home.features.settings.icon",
-    iconFallback: "🎛️",
-    titleKey: "home.features.settings.title",
-    titleFallback: "Notifications & themes",
-    subtitleKey: "home.features.settings.subtitle",
-    subtitleFallback: "Make the app feel like your own.",
-    descriptionKey: "home.features.settings.description",
-    descriptionFallback:
-      "Control email digests, push reminders, timezone and themes — including seasonal looks like Halloween or Christmas.",
-    bulletKeys: [
-      { key: "home.features.settings.bullet1", fallback: "Email & push reminder controls" },
-      { key: "home.features.settings.bullet2", fallback: "Timezone & reminder cadence" },
-      { key: "home.features.settings.bullet3", fallback: "Dark, light & seasonal themes" },
-    ],
-    ctaKey: "home.features.settings.cta",
-    ctaFallback: "Open Settings",
-  },
-];
-
 function ToolsSection() {
   const { t } = useT();
+
+  const featureCards = useMemo(() => [
+    {
+      slug: "/dashboard",
+      icon: t("home.features.dashboard.icon", "📊"),
+      title: t("home.features.dashboard.title", "Dashboard overview"),
+      subtitle: t("home.features.dashboard.subtitle", "See your day, score, and focus in one place."),
+      description: t("home.features.dashboard.description", "Your home base: daily success score, focus for today, quick links to tasks, notes and weekly progress."),
+      bullets: [
+        t("home.features.dashboard.bullet1", "Today at a glance"),
+        t("home.features.dashboard.bullet2", "Daily Success score & trend"),
+        t("home.features.dashboard.bullet3", "Quick access to all tools"),
+      ],
+      cta: t("home.features.dashboard.cta", "Open dashboard"),
+    },
+    {
+      slug: "/notes",
+      icon: t("home.features.notes.icon", "📝"),
+      title: t("home.features.notes.title", "Notes & AI workspace"),
+      subtitle: t("home.features.notes.subtitle", "Capture ideas, drafts and progress logs."),
+      description: t("home.features.notes.description", "Keep everything in one place and let AI summarize, clean up or extract tasks from your notes."),
+      bullets: [
+        t("home.features.notes.bullet1", "Fast note capture"),
+        t("home.features.notes.bullet2", "AI summaries & clean-ups"),
+        t("home.features.notes.bullet3", "Great for journaling & meeting notes"),
+      ],
+      cta: t("home.features.notes.cta", "Go to Notes"),
+    },
+    {
+      slug: "/tasks",
+      icon: t("home.features.tasks.icon", "✅"),
+      title: t("home.features.tasks.title", "Tasks & reminders"),
+      subtitle: t("home.features.tasks.subtitle", "Simple task list with real reminders."),
+      description: t("home.features.tasks.description", "Add tasks with due dates, time windows, categories and per-task reminders that can trigger email + push."),
+      bullets: [
+        t("home.features.tasks.bullet1", "Time-boxed tasks with categories"),
+        t("home.features.tasks.bullet2", "Reminders via email & push"),
+        t("home.features.tasks.bullet3", "Share tasks to WhatsApp, Viber, email"),
+      ],
+      cta: t("home.features.tasks.cta", "Open Tasks"),
+    },
+    {
+      slug: "/ai-task-creator",
+      icon: t("home.features.creator.icon", "🤖"),
+      title: t("home.features.creator.title", "AI Task Creator"),
+      subtitle: t("home.features.creator.subtitle", "Turn vague goals into clear steps."),
+      description: t("home.features.creator.description", "Paste a messy goal and let AI break it into small, prioritized tasks you can send straight into your board."),
+      bullets: [
+        t("home.features.creator.bullet1", "Turns goals into checklists"),
+        t("home.features.creator.bullet2", "Smart priorities & time hints"),
+        t("home.features.creator.bullet3", "Works great with your Tasks page"),
+      ],
+      cta: t("home.features.creator.cta", "Use AI Task Creator"),
+    },
+    {
+      slug: "/weekly-history",
+      icon: t("home.features.weekly.icon", "📬"),
+      title: t("home.features.weekly.title", "Weekly AI reports"),
+      subtitle: t("home.features.weekly.subtitle", "A lightweight review written for you by AI."),
+      description: t("home.features.weekly.description", "See how your week went, what worked, and what to focus on next — powered by your scores, tasks and notes."),
+      bullets: [
+        t("home.features.weekly.bullet1", "Weekly score & streak view"),
+        t("home.features.weekly.bullet2", "Highlights wins & bottlenecks"),
+        t("home.features.weekly.bullet3", "Focus suggestions for next week"),
+      ],
+      cta: t("home.features.weekly.cta", "View weekly history"),
+    },
+    {
+      slug: "/settings",
+      icon: t("home.features.settings.icon", "🎛️"),
+      title: t("home.features.settings.title", "Notifications & themes"),
+      subtitle: t("home.features.settings.subtitle", "Make the app feel like your own."),
+      description: t("home.features.settings.description", "Control email digests, push reminders, timezone and themes — including seasonal looks like Halloween or Christmas."),
+      bullets: [
+        t("home.features.settings.bullet1", "Email & push reminder controls"),
+        t("home.features.settings.bullet2", "Timezone & reminder cadence"),
+        t("home.features.settings.bullet3", "Dark, light & seasonal themes"),
+      ],
+      cta: t("home.features.settings.cta", "Open Settings"),
+    },
+  ], [t]);
 
   return (
     <section className="mb-14" id="tools">
@@ -172,34 +121,34 @@ function ToolsSection() {
       </div>
 
       <div className="grid gap-4 md:gap-5 md:grid-cols-2">
-        {FEATURE_CARDS.map((card) => (
+        {featureCards.map((card) => (
           <article
             key={card.slug}
             className="group relative rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 md:p-5 hover:border-[var(--accent)]/70 hover:shadow-lg hover:shadow-black/10 transition-all"
           >
             <div className="flex items-start gap-3 mb-2">
               <div className="h-9 w-9 flex items-center justify-center rounded-2xl bg-[var(--bg-elevated)] text-lg">
-                <span aria-hidden="true">{t(card.iconKey, card.iconFallback)}</span>
+                <span aria-hidden="true">{card.icon}</span>
               </div>
               <div className="flex-1">
                 <h3 className="text-sm md:text-base font-semibold text-[var(--text-main)]">
-                  {t(card.titleKey, card.titleFallback)}
+                  {card.title}
                 </h3>
                 <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                  {t(card.subtitleKey, card.subtitleFallback)}
+                  {card.subtitle}
                 </p>
               </div>
             </div>
 
             <p className="text-xs md:text-[13px] text-[var(--text-main)] mb-3">
-              {t(card.descriptionKey, card.descriptionFallback)}
+              {card.description}
             </p>
 
             <ul className="space-y-1.5 mb-4">
-              {card.bulletKeys.map((b) => (
-                <li key={b.key} className="flex items-start gap-2 text-[11px] text-[var(--text-muted)]">
+              {card.bullets.map((b, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-[11px] text-[var(--text-muted)]">
                   <span className="mt-[2px] text-[var(--accent)]">•</span>
-                  <span>{t(b.key, b.fallback)}</span>
+                  <span>{b}</span>
                 </li>
               ))}
             </ul>
@@ -209,7 +158,7 @@ function ToolsSection() {
                 href={card.slug}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] md:text-xs text-[var(--text-main)] group-hover:border-[var(--accent)] group-hover:text-[var(--accent)]"
               >
-                {t(card.ctaKey, card.ctaFallback)}
+                {card.cta}
                 <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">↗</span>
               </Link>
 
