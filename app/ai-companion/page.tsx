@@ -65,6 +65,14 @@ export default function AiCompanionPage() {
   const [category, setCategory] = useState<Category>("General");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [userPlan, setUserPlan] = useState<"free" | "pro" | "founder">("free");
+
+  // pro features
+  const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // actions
   const [threadActionId, setThreadActionId] = useState<string | null>(null);
@@ -131,12 +139,22 @@ export default function AiCompanionPage() {
   const welcomeMessage = useMemo(() => makeWelcomeMessage(category), [category, t]);
   const activeThread = useMemo(() => threads.find((th) => th.id === activeThreadId) || null, [threads, activeThreadId]);
 
-  // Load user
+  // Load user & profile
   useEffect(() => {
     async function loadUser() {
       try {
         const { data } = await supabase.auth.getUser();
-        setUser(data?.user ?? null);
+        if (data?.user) {
+          setUser(data.user);
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("plan")
+            .eq("id", data.user.id)
+            .single();
+          if (profile) setUserPlan(profile.plan || "free");
+        } else {
+          setUser(null);
+        }
       } finally {
         setCheckingUser(false);
       }
@@ -235,6 +253,99 @@ export default function AiCompanionPage() {
     messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, sending]);
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (userPlan === "free") {
+      gate.openGate({
+        title: t("gate.pro.title", "Upgrade to Pro"),
+        subtitle: t("gate.pro.subtitle", "Attach files and docs for deep analysis."),
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    const file = files[0];
+    // Simple text reader for now
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string;
+      setAttachments(prev => [...prev, { name: file.name, content }]);
+    };
+    reader.readAsText(file); // TODO: check mime type?
+
+    // reset input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleGenerateImage() {
+    if (userPlan === "free") {
+      gate.openGate({
+        title: t("gate.pro.title", "Upgrade to Pro"),
+        subtitle: t("gate.pro.subtitle", "Generate AI images directly in chat."),
+      });
+      return;
+    }
+    if (!imagePrompt.trim()) return;
+
+    setShowImageModal(false);
+    setSending(true); // show thinking UI or similar
+
+    // Add optimistic user message for image prompt
+    const nowIso = new Date().toISOString();
+    const localUser: MsgRow = {
+      id: `local-u-img-${nowIso}`,
+      role: "user",
+      content: `${t("image.request", "Generate image:")} ${imagePrompt}`,
+      created_at: nowIso,
+    };
+    setMessages(prev => [...prev, localUser]);
+
+    try {
+      const threadId = await ensureThreadIfNeeded(localUser.content);
+
+      // POST to image API
+      const res = await fetch("/api/ai-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, prompt: imagePrompt })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Image generation failed");
+
+      // Add assistant message with image
+      const imageUrl = data.imageUrl;
+      const assistantMsg: MsgRow = {
+        id: `local-a-img-${Date.now()}`,
+        role: "assistant",
+        content: `![Generated Image](${imageUrl})`, // Markdown image
+        created_at: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+
+      // Save to DB
+      await supabase.from("ai_companion_messages").insert([
+        { thread_id: threadId, user_id: user.id, role: "user", content: localUser.content },
+        { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantMsg.content }
+      ]);
+
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || "Failed to generate image");
+      setMessages(prev => [...prev, {
+        id: `err-${Date.now()}`,
+        role: "assistant",
+        content: t("errors.imageFailed", "Sorry, I couldn't generate that image."),
+        created_at: new Date().toISOString()
+      }]);
+    } finally {
+      setSending(false);
+      setImagePrompt("");
+    }
+  }
+
   function startNewChat() {
     setActiveThreadId(null);
     setMessages([]);
@@ -316,8 +427,11 @@ export default function AiCompanionPage() {
           threadId,
           userId: user.id,
           lang: uiLang, // ✅ Pass current language
+          attachments, // ✅ Pass attachments
         }),
       });
+
+      setAttachments([]); // clear attachments on success setup
 
       const data = await res.json().catch(() => ({} as any));
       if (!res.ok || !data?.ok) throw new Error(data?.error || "AI error");
@@ -834,7 +948,40 @@ export default function AiCompanionPage() {
             </div>
 
             <div className="flex items-end gap-2 min-w-0">
-              <div className="shrink-0">
+              <div className="shrink-0 flex items-center gap-1">
+                {/* PRO: File Attachment */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  accept=".txt,.md,.js,.ts,.tsx,.json,.csv,.py"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title={userPlan === "free" ? t("pro.featureLocked", "Pro feature") : t("composer.attach", "Attach file")}
+                  className="h-10 w-10 flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[14px] relative"
+                >
+                  📎
+                  {userPlan === "free" && (
+                    <span className="absolute -top-1 -right-1 text-[8px]">🔒</span>
+                  )}
+                </button>
+
+                {/* PRO: Image Generation */}
+                <button
+                  type="button"
+                  onClick={() => setShowImageModal(true)}
+                  title={userPlan === "free" ? t("pro.featureLocked", "Pro feature") : t("composer.generateImage", "Generate image")}
+                  className="h-10 w-10 flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[14px] relative"
+                >
+                  🎨
+                  {userPlan === "free" && (
+                    <span className="absolute -top-1 -right-1 text-[8px]">🔒</span>
+                  )}
+                </button>
+
                 {user ? (
                   <VoiceCaptureButton userId={user.id} mode="review" onResult={handleVoiceResult} variant="compact" />
                 ) : (
@@ -846,7 +993,7 @@ export default function AiCompanionPage() {
                         subtitle: t("gate.loginToVoice.subtitle", "Voice capture saves your chats to your account."),
                       })
                     }
-                    className="h-10 px-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[12px]"
+                    className="h-10 w-10 flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[12px]"
                     title={t("composer.voice", "Voice")}
                   >
                     🎤
@@ -1009,6 +1156,63 @@ export default function AiCompanionPage() {
           )}
         </section>
       </div>
-    </main>
+
+      {/* Attachments Preview */}
+      {
+        attachments.length > 0 && (
+          <div className="fixed bottom-[80px] left-0 md:left-72 right-0 px-4 py-2 z-10 pointer-events-none">
+            <div className="flex gap-2 overflow-x-auto pointer-events-auto">
+              {attachments.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 shadow-lg text-xs">
+                  <span className="truncate max-w-[150px] font-medium">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+                    className="text-[var(--text-muted)] hover:text-red-400"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      {/* Image Generation Modal */}
+      {
+        showImageModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md bg-[var(--bg-card)] rounded-2xl border border-[var(--border-subtle)] shadow-xl p-5">
+              <h2 className="text-lg font-semibold mb-2">{t("imageModal.title", "Generate an Image")} 🎨</h2>
+              <p className="text-xs text-[var(--text-muted)] mb-4">{t("imageModal.subtitle", "Describe what you want to see. DALL-E 3 will create it.")}</p>
+
+              <textarea
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
+                placeholder="A calm forest with sunlight streaming through..."
+                className="w-full h-32 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                autoFocus
+              />
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowImageModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs hover:bg-[var(--bg-elevated)]"
+                >
+                  {t("buttons.cancel", "Cancel")}
+                </button>
+                <button
+                  onClick={handleGenerateImage}
+                  disabled={!imagePrompt.trim() || userPlan === "free"}
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                >
+                  {t("buttons.generate", "Generate")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+    </main >
   );
 }

@@ -15,6 +15,7 @@ import {
   StickyNote,
   CheckSquare,
   Calendar,
+  CalendarDays, // New Import
   MessageSquare,
   HeartHandshake,
   FileText,
@@ -33,6 +34,7 @@ type HeaderProps = {
   | "notes"
   | "tasks"
   | "planner"
+  | "calendar" // New Type
   | "templates"
   | "daily-success"
   | "weekly-reports"
@@ -56,6 +58,7 @@ const APPS: {
     { href: "/notes", navKey: "notes", fallback: "Notes", Icon: StickyNote },
     { href: "/tasks", navKey: "tasks", fallback: "Tasks", Icon: CheckSquare },
     { href: "/planner", navKey: "planner", fallback: "Planner", Icon: Calendar },
+    { href: "/calendar", navKey: "calendar", fallback: "Calendar", Icon: CalendarDays }, // New App
     { href: "/ai-chat", navKey: "aiChat", fallback: "AI Hub Chat", Icon: MessageSquare },
     { href: "/ai-companion", navKey: "aiCompanion", fallback: "AI Companion", Icon: HeartHandshake },
     { href: "/templates", navKey: "templates", fallback: "Templates", Icon: FileText },
@@ -65,6 +68,9 @@ const APPS: {
     { href: "/my-trips", navKey: "myTrips", fallback: "My Trips", Icon: Map },
     { href: "/changelog", navKey: "changelog", fallback: "What’s new", Icon: Sparkles },
   ];
+
+
+
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
@@ -188,6 +194,7 @@ export default function AppHeader({ active }: HeaderProps) {
     "notes",
     "tasks",
     "planner",
+    "calendar", // New Active
     "templates",
     "daily-success",
     "weekly-reports",
@@ -212,6 +219,7 @@ export default function AppHeader({ active }: HeaderProps) {
       { key: "notes", label: navLabel("notes", "Notes"), href: "/notes" },
       { key: "tasks", label: navLabel("tasks", "Tasks"), href: "/tasks" },
       { key: "planner", label: navLabel("planner", "Planner"), href: "/planner" },
+      { key: "calendar", label: navLabel("calendar", "Calendar"), href: "/calendar" },
       { key: "ai-chat", label: navLabel("aiChat", "AI Hub Chat"), href: "/ai-chat" },
       { key: "ai-companion", label: navLabel("aiCompanion", "AI Companion"), href: "/ai-companion" },
       { key: "templates", label: navLabel("templates", "Templates"), href: "/templates" },

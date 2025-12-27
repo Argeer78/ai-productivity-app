@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { bumpAiUsage } from "@/lib/aiUsageServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 // Use Node runtime for maximum compatibility
 export const runtime = "nodejs";
@@ -34,12 +35,14 @@ export async function POST(req: NextRequest) {
       userMessage?: string;
       category?: string;
       history?: HistoryItem[];
+      attachments?: { name: string; content: string }[];
     };
 
     const userId = body.userId ?? "";
     const userMessage = body.userMessage ?? "";
     const category = body.category ?? "General";
     const history: HistoryItem[] = Array.isArray(body.history) ? body.history : [];
+    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
 
     if (!userId || typeof userId !== "string") {
       return NextResponse.json({ ok: false, error: "Missing userId in request body." }, { status: 400 });
@@ -49,12 +52,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Missing userMessage in request body." }, { status: 400 });
     }
 
+    // Handle Attachments (Pro check)
+    let contextFromFiles = "";
+    if (attachments.length > 0) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("plan")
+        .eq("id", userId)
+        .single();
+      const isPro = profile?.plan === "pro" || profile?.plan === "founder";
+      if (!isPro) {
+        return NextResponse.json({ ok: false, error: "Attachments are a Pro feature." }, { status: 403 });
+      }
+      contextFromFiles = attachments
+        .map((f) => `\n---\nFILE: ${f.name}\nCONTENT:\n${f.content}\n---`)
+        .join("\n");
+    }
+
     // Build chat history for the model
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: "system",
         content:
-          "You are an AI productivity coach inside an app called AI Productivity Hub. You help with planning, focus, mindset, tasks and tiny wins. Be concise, practical and friendly.",
+          "You are an AI productivity coach inside an app called AI Productivity Hub. You help with planning, focus, mindset, tasks and tiny wins. Be concise, practical and friendly.\n\n" +
+          (contextFromFiles ? `USER HAS ATTACHED FILES:\n${contextFromFiles}\nUse these to answer their questions.` : "")
       },
       ...history.map((m) => ({
         role: m.role,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { bumpAiUsage } from "@/lib/aiUsageServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ const openai = new OpenAI({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { message, history, category, userId, lang } = body;
+    const { message, history, category, userId, lang, attachments } = body;
 
     // ✅ Require userId so we can count usage per user
     if (!userId || typeof userId !== "string") {
@@ -23,6 +24,30 @@ export async function POST(req: Request) {
 
     const userLang = lang || "en";
 
+    // ✅ Handle Attachments (Pro/Founder only)
+    let contextFromFiles = "";
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      // Check Plan
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("plan")
+        .eq("id", userId)
+        .single();
+
+      const isPro = profile?.plan === "pro" || profile?.plan === "founder";
+      if (!isPro) {
+        return NextResponse.json(
+          { ok: false, error: "Attachments are a Pro feature." },
+          { status: 403 }
+        );
+      }
+
+      // Append content
+      contextFromFiles = attachments
+        .map((f: any) => `\n---\nFILE: ${f.name}\nCONTENT:\n${f.content}\n---`)
+        .join("\n");
+    }
+
     const systemPrompt = `
 You are an AI Reflection Companion.
 The user speaks: ${userLang}.
@@ -33,6 +58,10 @@ ROLE & BOUNDARIES:
 - You are NOT a therapist. Never diagnose or use clinical language.
 - Do NOT label mental illness.
 - Help the user reflect, feel heard, and gain gentle clarity.
+- IMPORTANT: The user may attach files. Use the file content to answer their specific questions.
+
+CONTEXT FROM UPLOADED FILES:${contextFromFiles}
+
 
 CRISIS SAFETY:
 - If the user expresses self-harm, suicidal thoughts, or immediate danger:

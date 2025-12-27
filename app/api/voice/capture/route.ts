@@ -25,7 +25,8 @@ async function checkAndIncrementAiUsage(userId: string) {
 
   if (profErr) console.error("[voice-capture] profile load error", profErr);
 
-  const plan = (profile?.plan as "free" | "pro" | "founder") || "free";
+  const rawPlan = profile?.plan || "free";
+  const plan = rawPlan.toLowerCase();
   const isPro = plan === "pro" || plan === "founder";
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
@@ -272,7 +273,7 @@ Return ONLY JSON:
     const systemPrompt = mode === "psych" ? psychPrompt : productivityPrompt;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: rawText },
@@ -296,31 +297,31 @@ Return ONLY JSON:
 
     const tasks = Array.isArray(parsed.tasks)
       ? parsed.tasks.map((t: any) => {
-          const title = typeof t.title === "string" ? t.title : "";
+        const title = typeof t.title === "string" ? t.title : "";
 
-          let dueIso = t.due_iso ?? null;
-          let dueNatural = t.due_natural ?? null;
+        let dueIso = t.due_iso ?? null;
+        let dueNatural = t.due_natural ?? null;
 
-          if (!dueIso && typeof t.due === "string" && t.due.trim()) {
-            const raw = t.due.trim();
-            const ms = Date.parse(raw);
-            if (!Number.isNaN(ms)) dueIso = new Date(ms).toISOString();
-            else dueNatural = raw;
-          }
+        if (!dueIso && typeof t.due === "string" && t.due.trim()) {
+          const raw = t.due.trim();
+          const ms = Date.parse(raw);
+          if (!Number.isNaN(ms)) dueIso = new Date(ms).toISOString();
+          else dueNatural = raw;
+        }
 
-          return {
-            title,
-            due_natural:
-              typeof dueNatural === "string" && dueNatural.trim()
-                ? dueNatural.trim()
-                : null,
-            due_iso: typeof dueIso === "string" && dueIso.trim() ? dueIso : null,
-            priority:
-              t.priority === "low" || t.priority === "medium" || t.priority === "high"
-                ? t.priority
-                : null,
-          };
-        })
+        return {
+          title,
+          due_natural:
+            typeof dueNatural === "string" && dueNatural.trim()
+              ? dueNatural.trim()
+              : null,
+          due_iso: typeof dueIso === "string" && dueIso.trim() ? dueIso : null,
+          priority:
+            t.priority === "low" || t.priority === "medium" || t.priority === "high"
+              ? t.priority
+              : null,
+        };
+      })
       : [];
 
     const reminderRaw = parsed.reminder || {};
@@ -352,8 +353,8 @@ Return ONLY JSON:
           : null,
       actions: Array.isArray(parsed.actions)
         ? parsed.actions
-            .filter((a: any) => typeof a === "string" && a.trim())
-            .map((a: string) => a.trim())
+          .filter((a: any) => typeof a === "string" && a.trim())
+          .map((a: string) => a.trim())
         : [],
       tasks,
       reminder,
