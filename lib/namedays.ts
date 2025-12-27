@@ -52,97 +52,7 @@ function getOrthodoxEaster(year: number): Date {
     return date;
 }
 
-/**
- * Adds days to a date and returns simplified MM-DD key
- */
-function addDays(date: Date, days: number): string {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    const mm = (result.getMonth() + 1).toString().padStart(2, "0");
-    const dd = result.getDate().toString().padStart(2, "0");
-    return `${mm}-${dd}`;
-}
-
 export function getNamedaysForDate(date: Date, country: string): string[] {
-    if (country !== "GR") return [];
-
-    const mm = (date.getMonth() + 1).toString().padStart(2, "0");
-    const dd = date.getDate().toString().padStart(2, "0");
-    const key = `${mm}-${dd}`;
-
-    const names = GREEK_NAMEDAYS_FIXED[key] ? [...GREEK_NAMEDAYS_FIXED[key]] : [];
-
-    // Movable Calculation
-    const year = date.getFullYear();
-    const easter = getOrthodoxEaster(year);
-
-    // Check Movable Offsets
-    const checkDateKey = (offset: number, namesToAdd: string[]) => {
-        if (addDays(easter, offset) === key) {
-            names.push(...namesToAdd);
-        }
-    };
-
-    // Easter Sunday
-    checkDateKey(0, ["Anastasia", "Anastasios", "Lambros"]);
-    // Easter Monday
-    checkDateKey(1, ["Georgios", "Georgia"]); // *George moves to Easter Monday if April 23 is in Lent
-    // Thomas (Sunday after Easter)
-    checkDateKey(7, ["Thomas", "Thomais"]);
-    // Zoodochou Pigis (Friday after Easter)
-    checkDateKey(5, ["Zois", "Pigi"]);
-    // Agiou Pnevmatos (Holy Spirit - 50 days after Easter? Actually 50 is Pentacost, Holy Spirit is +1 day = 51)
-    // Wait, Pentecost is 49 days after Easter (7 weeks). Holy Spirit is Monday after Pentecost (50 days after Easter Sunday).
-    checkDateKey(50, ["Triada", "Koris"]);
-
-    // St. George Logic:
-    // If April 23 is BEFORE or ON Easter, George moves to Easter Monday.
-    // If April 23 is AFTER Easter, George is on April 23.
-    // My check above (offset 1) handles the moved case.
-    // But I need to REMOVE George from Fixed if it moved.
-    // Actually, simplified: users look for "George" on the day.
-    // Let's verify:
-    const april23 = new Date(year, 3, 23); // Month is 0-indexed
-    if (april23 <= easter) {
-        // George is movable (Easter Monday)
-        // I added it at offset 1 above.
-        // But I also need to make sure GREEK_NAMEDAYS_FIXED["04-23"] doesn't show it if I had included it there.
-        // I commented it out in fixed list above to handle here manually.
-    } else {
-        // George is Fixed (Apr 23)
-        if (key === "04-23") names.push("Georgios", "Georgia");
-        // And we must ensure offset 1 DOES NOT show it? 
-        // My offset 1 check adds it if today is Easter Monday.
-        // If Apr 23 > Easter, then Easter Monday is NOT Apr 23. So we are fine adding it on Easter Monday?
-        // WAIT. If George is Fixed, it is NOT celebrated on Easter Monday.
-        // So condition:
-        if (addDays(easter, 1) === key && april23 > easter) {
-            // Today IS Easter Monday, but George is Fixed (passed), so remove?
-            // No, I added it manually in `checkDateKey`.
-            // I need to condition the PUSH.
-        }
-    }
-
-    // Refined Logic for George:
-    const isGeorgeMovable = april23 <= easter;
-    const isEasterMonday = addDays(easter, 1) === key;
-    const isApril23 = key === "04-23";
-
-    if (isGeorgeMovable && isEasterMonday) {
-        // Add if not already there (it might be added by my simple check above)
-        if (!names.includes("Georgios")) names.push("Georgios", "Georgia");
-    } else if (!isGeorgeMovable && isApril23) {
-        if (!names.includes("Georgios")) names.push("Georgios", "Georgia");
-    } else {
-        // If I added it via simple offset check but it shouldn't be there (e.g. today is Easter Monday but George is fixed), filtering is hard.
-        // Better strategy: Don't use generic valid checker for George.
-    }
-
-    return names;
-}
-
-// Redefining export to include the logic cleanly
-export function getNamedaysForDateFinal(date: Date, country: string): string[] {
     if (country !== "GR") return [];
 
     const mm = (date.getMonth() + 1).toString().padStart(2, "0");
@@ -189,6 +99,3 @@ export function getNamedaysForDateFinal(date: Date, country: string): string[] {
     // Deduplicate just in case
     return Array.from(new Set(names));
 }
-
-// Overwrite the original function name for the file
-export { getNamedaysForDateFinal as getNamedaysForDate };

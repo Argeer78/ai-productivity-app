@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useMemo, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
@@ -317,6 +317,7 @@ export default function NotesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"created_desc" | "created_asc" | "alpha_asc" | "alpha_desc">("created_desc");
 
   const [autoTitleEnabled, setAutoTitleEnabled] = useState(true);
   const [voiceMode, setVoiceMode] = useState<"review" | "autosave">("review");
@@ -862,6 +863,20 @@ export default function NotesPage() {
     }
   }
 
+
+
+  const filteredNotes = useMemo(() => {
+    const res = categoryFilter === "all" ? [...notes] : notes.filter((n) => (n.category || "") === categoryFilter);
+
+    return res.sort((a, b) => {
+      if (sortBy === "created_desc") return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      if (sortBy === "created_asc") return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      if (sortBy === "alpha_asc") return (a.title || "").localeCompare(b.title || "");
+      if (sortBy === "alpha_desc") return (b.title || "").localeCompare(a.title || "");
+      return 0;
+    });
+  }, [notes, categoryFilter, sortBy]);
+
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
@@ -870,8 +885,7 @@ export default function NotesPage() {
     );
   }
 
-  const filteredNotes =
-    categoryFilter === "all" ? notes : notes.filter((n) => (n.category || "") === categoryFilter);
+
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8 pb-24">
@@ -1022,8 +1036,8 @@ export default function NotesPage() {
                   type="button"
                   onClick={() => setVoiceMode("review")}
                   className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "review"
-                      ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
-                      : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                    ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
+                    : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
                     }`}
                 >
                   {t("voice.mode.review", "Review first")}
@@ -1032,8 +1046,8 @@ export default function NotesPage() {
                   type="button"
                   onClick={() => setVoiceMode("autosave")}
                   className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "autosave"
-                      ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
-                      : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                    ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
+                    : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
                     }`}
                 >
                   {t("voice.mode.autosave", "Auto-save note")}
@@ -1174,6 +1188,17 @@ export default function NotesPage() {
             <h2 className="text-lg font-semibold">{t("list.title", "Your notes")}</h2>
 
             <div className="flex items-center gap-2 text-[11px]">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
+              >
+                <option value="created_desc">{t("sort.newest", "Newest")}</option>
+                <option value="created_asc">{t("sort.oldest", "Oldest")}</option>
+                <option value="alpha_asc">{t("sort.alphaAsc", "A-Z")}</option>
+                <option value="alpha_desc">{t("sort.alphaDesc", "Z-A")}</option>
+              </select>
+
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}

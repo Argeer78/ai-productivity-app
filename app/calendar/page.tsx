@@ -9,6 +9,7 @@ import { useAuthGate } from "@/app/hooks/useAuthGate";
 import { useT } from "@/lib/useT";
 import { getNamedaysForDate } from "@/lib/namedays";
 import { calculateBioRhythm, getEnergyLevel } from "@/lib/biorhythm";
+import { Battery, BatteryFull, BatteryMedium, BatteryLow } from "lucide-react";
 
 type CalendarTask = {
     id: string;
@@ -142,15 +143,21 @@ export default function CalendarPage() {
 
         // BioRhythm
         let bioEnergy = null;
+        let BioIcon = Battery;
         if (birthDate) {
             const { average } = calculateBioRhythm(day, birthDate);
             bioEnergy = getEnergyLevel(average);
+
+            if (bioEnergy.label === "High") BioIcon = BatteryFull;
+            else if (bioEnergy.label === "Moderate") BioIcon = BatteryMedium;
+            else if (bioEnergy.label === "Low") BioIcon = BatteryLow;
+            else BioIcon = Battery; // Critical
         }
 
-        return { dayTasks, dayNotes, dayHolidays, dayNamedays, bioEnergy };
+        return { dayTasks, dayNotes, dayHolidays, dayNamedays, bioEnergy, BioIcon };
     }
 
-    const selectedItems = selectedDate ? getItemsForDay(selectedDate) : { dayTasks: [], dayNotes: [], dayHolidays: [], dayNamedays: [], bioEnergy: null };
+    const selectedItems = selectedDate ? getItemsForDay(selectedDate) : { dayTasks: [], dayNotes: [], dayHolidays: [], dayNamedays: [], bioEnergy: null, BioIcon: Battery };
 
     if (checkingUser) {
         return <div className="min-h-screen bg-[var(--bg-body)] flex items-center justify-center text-[var(--text-muted)] text-sm">Loading...</div>;
@@ -209,7 +216,7 @@ export default function CalendarPage() {
                     {/* Grid */}
                     <div className="grid grid-cols-7 flex-1 auto-rows-fr min-h-[400px]">
                         {calendarDays.map((day, idx) => {
-                            const { dayTasks, dayNotes, dayHolidays, dayNamedays, bioEnergy } = getItemsForDay(day);
+                            const { dayTasks, dayNotes, dayHolidays, dayNamedays, bioEnergy, BioIcon } = getItemsForDay(day);
                             const isSelected = selectedDate && isSameDay(day, selectedDate);
                             const isCurrentMonth = isSameMonth(day, currentMonth);
                             const isHoliday = dayHolidays.length > 0;
@@ -228,9 +235,11 @@ export default function CalendarPage() {
                                         <span className={`${isToday(day) ? "bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 py-0.5 rounded-full" : ""}`}>{format(day, "d")}</span>
                                         {/* Holiday Icon */}
                                         {isHoliday && <span title={dayHolidays[0].localName} className="text-[10px] select-none">🎉</span>}
-                                        {/* BioRhythm Dot */}
+                                        {/* BioRhythm Battery */}
                                         {bioEnergy && !isHoliday && (
-                                            <div className={`w-2 h-2 rounded-full ${bioEnergy.color.replace('text-', 'bg-')}`} title={`Energy: ${bioEnergy.label}`} />
+                                            <div className={bioEnergy.color} title={`Energy: ${bioEnergy.label}`}>
+                                                <BioIcon size={12} className="opacity-80" />
+                                            </div>
                                         )}
                                     </div>
 
@@ -280,7 +289,7 @@ export default function CalendarPage() {
                                         <div>
                                             <div className="text-[10px] uppercase text-[var(--text-muted)] font-bold tracking-wider mb-1">Energy Potential</div>
                                             <div className={`text-sm font-semibold flex items-center gap-1 ${selectedItems.bioEnergy.color}`}>
-                                                {selectedItems.bioEnergy.icon} {selectedItems.bioEnergy.label}
+                                                <selectedItems.BioIcon size={16} /> {selectedItems.bioEnergy.label}
                                             </div>
                                         </div>
                                         <button

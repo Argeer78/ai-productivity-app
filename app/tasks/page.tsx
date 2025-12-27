@@ -515,6 +515,7 @@ export default function TasksPage() {
 
   // category filter
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"due_asc" | "due_desc" | "created_desc" | "created_asc" | "alpha_asc">("due_asc");
 
   // share UI state
   const [sharingTaskId, setSharingTaskId] = useState<string | null>(null);
@@ -1092,13 +1093,30 @@ export default function TasksPage() {
 
   // ✅ Filtered tasks is memoized (less re-renders, safer for bulk helpers)
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    const res = tasks.filter((task) => {
       const done = !!task.completed;
       const passesView = viewMode === "active" ? !done : viewMode === "completed" ? done : true;
       const passesCategory = categoryFilter === "all" ? true : (task.category || "") === categoryFilter;
       return passesView && passesCategory;
     });
-  }, [tasks, viewMode, categoryFilter]);
+
+    return res.sort((a, b) => {
+      if (sortBy === "due_asc") {
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      }
+      if (sortBy === "due_desc") {
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
+      }
+      if (sortBy === "created_desc") return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      if (sortBy === "created_asc") return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      if (sortBy === "alpha_asc") return (a.title || "").localeCompare(b.title || "");
+      return 0;
+    });
+  }, [tasks, viewMode, categoryFilter, sortBy]);
 
   // ✅ Bulk helpers (no hooks here => no “Rendered more hooks…”)
   const viewIdSet = useMemo(() => new Set(filteredTasks.map((tRow) => tRow.id)), [filteredTasks]);
@@ -1535,6 +1553,18 @@ export default function TasksPage() {
                 </button>
               ))}
             </div>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1"
+            >
+              <option value="due_asc">{t("sort.dueAsc", "Due Soonest")}</option>
+              <option value="due_desc">{t("sort.dueDesc", "Due Latest")}</option>
+              <option value="created_desc">{t("sort.newest", "Newest")}</option>
+              <option value="created_asc">{t("sort.oldest", "Oldest")}</option>
+              <option value="alpha_asc">{t("sort.alpha", "A-Z")}</option>
+            </select>
 
             <select
               value={categoryFilter}
