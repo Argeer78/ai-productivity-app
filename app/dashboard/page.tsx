@@ -15,6 +15,7 @@ import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import BadgeTrophyCase from "@/app/components/BadgeTrophyCase";
 import DashboardGlance from "@/app/components/DashboardGlance";
+import LevelProgress from "@/app/components/LevelProgress";
 import { useFocus } from "@/app/context/FocusContext";
 
 const FREE_DAILY_LIMIT = 10;
@@ -202,6 +203,7 @@ export default function DashboardPage() {
 
   // ✅ Gamification Data
   const [recentScores, setRecentScores] = useState<number[]>([]);
+  const [totalScore, setTotalScore] = useState(0); // For LevelProgress
   const [recentPlans, setRecentPlans] = useState<string[]>([]);
 
   // ✅ Action Hub: quick capture + micro-toast
@@ -447,6 +449,50 @@ export default function DashboardPage() {
 
         const list = (data || []) as DailyScoreRow[];
         setRecentScores(list.map(r => r.score));
+
+        // Calculate Total XP (with Streak Multiplier)
+        // Rules: Score >= 60 maintains streak. Streak >= 7 days gives 1.5x multiplier.
+        let currentStreak = 0;
+        let runningXP = 0;
+        let prevDate: Date | null = null;
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+
+        // Ensure list is sorted ASC for calculation
+        const sortedList = [...list].sort((a, b) => new Date(a.score_date).getTime() - new Date(b.score_date).getTime());
+
+        for (const row of sortedList) {
+          const d = new Date(row.score_date);
+          const score = row.score || 0;
+
+          if (prevDate) {
+            const diff = d.getTime() - prevDate.getTime();
+            // If gap is more than 1 day (allow slight margin for timezone weirdness, say 1.1 days), break streak
+            // Actually, strict 1 day check often fails with time, so check dates.
+            // Simplest: difference in days.
+            const dayDiff = Math.abs((d.getTime() - prevDate.getTime()) / ONE_DAY);
+
+            if (dayDiff > 1.1) {
+              // Missed a day
+              currentStreak = 0;
+            }
+          }
+
+          if (score >= 60) {
+            currentStreak += 1;
+          } else {
+            // Low score breaks streak? User logic says "Success streak (score >= 60)". 
+            // Usually yes, low score breaks it.
+            currentStreak = 0;
+          }
+
+          // Apply Multiplier
+          const multiplier = currentStreak >= 7 ? 1.5 : 1;
+          runningXP += Math.floor(score * multiplier);
+
+          prevDate = d;
+        }
+
+        setTotalScore(runningXP);
 
         const todayRow = list.find((r) => r.score_date === todayStr);
         setTodayScore(todayRow ? todayRow.score : null);
@@ -1102,11 +1148,7 @@ export default function DashboardPage() {
                   <p className="mt-2 text-[11px] text-[var(--text-muted)]">
                     {t("dashboard.actionHub.capture.guestHint", "Log in to save quick captures to your account.")}
                   </p>
-                ) : (
-                  <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                    {t("dashboard.actionHub.capture.hint", "This saves instantly — no extra screens.")}
-                  </p>
-                )}
+                ) : null}
               </div>
 
               {/* Continue */}
@@ -1316,6 +1358,11 @@ export default function DashboardPage() {
 
 
                     </div>
+                  </div>
+
+                  {/* ✨ Level Progress Widget ✨ */}
+                  <div className="mb-6">
+                    <LevelProgress totalScore={totalScore} />
                   </div>
 
                   {/* ✅ Feature Widgets (Glance, Trophy, Focus) */}

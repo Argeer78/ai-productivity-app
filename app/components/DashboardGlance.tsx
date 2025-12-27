@@ -54,13 +54,12 @@ export default function DashboardGlance() {
                 href="/ai-task-creator"
                 className="group relative overflow-hidden rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-5 hover:border-[var(--accent)] transition-all"
             >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <span className="text-4xl">⚡</span>
+                <div className="flex items-start justify-between mb-2">
+                    <p className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
+                        {t("glance.energy", "Energy")}
+                    </p>
+                    <span className="text-xl">⚡</span>
                 </div>
-
-                <p className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-2">
-                    {t("glance.energy", "Vitality")}
-                </p>
 
                 <div className="flex items-baseline gap-1">
                     {energy !== null ? (
@@ -94,13 +93,12 @@ export default function DashboardGlance() {
                 href="/daily-success"
                 className="group relative overflow-hidden rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-5 hover:border-purple-400 transition-all"
             >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <span className="text-4xl">🎯</span>
+                <div className="flex items-start justify-between mb-2">
+                    <p className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
+                        {t("glance.success", "Success")}
+                    </p>
+                    <span className="text-xl">🎯</span>
                 </div>
-
-                <p className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-2">
-                    {t("glance.success", "Success")}
-                </p>
 
                 <div className="flex items-baseline gap-1">
                     {score !== null ? (

@@ -13,6 +13,7 @@
     "@googleapis/playintegrity": "^23.0.1",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.89.0",
+    "canvas-confetti": "^1.9.4",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "framer-motion": "^12.23.26",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
