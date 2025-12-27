@@ -14,10 +14,17 @@ import { useSound } from "@/lib/sound";
 
 type PlanType = "free" | "pro" | "founder";
 
+import BioRhythmChart from "@/app/components/BioRhythmChart";
+
 type DailyScoreRow = {
   score_date: string;
   score: number;
+  energy_level: number | null;
 };
+
+// ... inside component ...
+
+
 
 function getTodayStr() {
   return new Date().toISOString().split("T")[0];
@@ -128,6 +135,9 @@ export default function DailySuccessPage() {
 
   // ✅ Confetti state (top level)
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // ✅ Chart Data
+  const [chartData, setChartData] = useState<DailyScoreRow[]>([]);
 
   // ✅ Mode / scroll + focus
   const mode = useMemo<Mode>(() => {
@@ -436,7 +446,7 @@ export default function DailySuccessPage() {
 
         const { data, error } = await supabase
           .from("daily_scores")
-          .select("score_date, score")
+          .select("score_date, score, energy_level")
           .eq("user_id", user.id)
           .gte("score_date", pastStr)
           .order("score_date", { ascending: true });
@@ -447,6 +457,8 @@ export default function DailySuccessPage() {
         }
 
         const list = (data || []) as DailyScoreRow[];
+        setChartData(list); // ✅ Save for chart
+
         if (!list.length) {
           setAvgLast7(null);
           setScoreStreak(0);
@@ -776,6 +788,17 @@ export default function DailySuccessPage() {
                 {t("dailySuccessSystem.streak.help", "Days in a row you rated your day 60+.")}
               </p>
             </div>
+          </div>
+
+          {/* ✅ Bio-Rhythm Chart */}
+          <div className="mb-6">
+            <BioRhythmChart
+              data={chartData.map(d => ({
+                date: d.score_date,
+                energy: d.energy_level,
+                score: d.score
+              }))}
+            />
           </div>
 
           {scoreLoading && (
