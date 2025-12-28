@@ -46,7 +46,8 @@ function safeTrim(s: any) {
 
 export default function AiCompanionPage() {
   // ✅ translations: aiCompanionPage.*
-  const { t, uiLang } = useT("aiCompanionPage");
+  // ✅ FIX: useT returns `lang`, not `uiLang`
+  const { t, lang: uiLang } = useT("aiCompanionPage");
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
@@ -272,7 +273,7 @@ export default function AiCompanionPage() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const content = ev.target?.result as string;
-      setAttachments(prev => [...prev, { name: file.name, content }]);
+      setAttachments((prev) => [...prev, { name: file.name, content }]);
     };
     reader.readAsText(file); // TODO: check mime type?
 
@@ -301,7 +302,7 @@ export default function AiCompanionPage() {
       content: `${t("image.request", "Generate image:")} ${imagePrompt}`,
       created_at: nowIso,
     };
-    setMessages(prev => [...prev, localUser]);
+    setMessages((prev) => [...prev, localUser]);
 
     try {
       const threadId = await ensureThreadIfNeeded(localUser.content);
@@ -310,7 +311,7 @@ export default function AiCompanionPage() {
       const res = await fetch("/api/ai-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, prompt: imagePrompt })
+        body: JSON.stringify({ userId: user.id, prompt: imagePrompt }),
       });
 
       const data = await res.json();
@@ -322,25 +323,27 @@ export default function AiCompanionPage() {
         id: `local-a-img-${Date.now()}`,
         role: "assistant",
         content: `![Generated Image](${imageUrl})`, // Markdown image
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       };
-      setMessages(prev => [...prev, assistantMsg]);
+      setMessages((prev) => [...prev, assistantMsg]);
 
       // Save to DB
       await supabase.from("ai_companion_messages").insert([
         { thread_id: threadId, user_id: user.id, role: "user", content: localUser.content },
-        { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantMsg.content }
+        { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantMsg.content },
       ]);
-
     } catch (e: any) {
       console.error(e);
       setError(e.message || "Failed to generate image");
-      setMessages(prev => [...prev, {
-        id: `err-${Date.now()}`,
-        role: "assistant",
-        content: t("errors.imageFailed", "Sorry, I couldn't generate that image."),
-        created_at: new Date().toISOString()
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err-${Date.now()}`,
+          role: "assistant",
+          content: t("errors.imageFailed", "Sorry, I couldn't generate that image."),
+          created_at: new Date().toISOString(),
+        },
+      ]);
     } finally {
       setSending(false);
       setImagePrompt("");
@@ -437,8 +440,7 @@ export default function AiCompanionPage() {
       const data = await res.json().catch(() => ({} as any));
       if (!res.ok || !data?.ok) throw new Error(data?.error || "AI error");
 
-      const assistantText =
-        safeTrim(data.message) || t("assistant.fallback", "I’m here with you. Want to try again?");
+      const assistantText = safeTrim(data.message) || t("assistant.fallback", "I’m here with you. Want to try again?");
 
       const chatSummary =
         typeof data.chat_summary === "string" && data.chat_summary.trim() ? data.chat_summary.trim() : null;
@@ -491,10 +493,7 @@ export default function AiCompanionPage() {
         {
           id: `local-err-${Date.now()}`,
           role: "assistant",
-          content: t(
-            "assistant.errorFallback",
-            "I’m sorry — something went wrong on my side. Can you try again in a moment?"
-          ),
+          content: t("assistant.errorFallback", "I’m sorry — something went wrong on my side. Can you try again in a moment?"),
         },
       ]);
     } finally {
@@ -555,15 +554,10 @@ export default function AiCompanionPage() {
     setThreadActionId(threadId);
     setError("");
     try {
-      const { error: msgErr } = await supabase
-        .from("ai_companion_messages")
-        .delete()
-        .eq("thread_id", threadId)
-        .eq("user_id", user.id);
+      const { error: msgErr } = await supabase.from("ai_companion_messages").delete().eq("thread_id", threadId).eq("user_id", user.id);
       if (msgErr) console.error("[ai-companion] delete messages error", msgErr);
 
       const { error: thErr } = await supabase.from("ai_companion_threads").delete().eq("id", threadId).eq("user_id", user.id);
-
       if (thErr) throw thErr;
 
       setThreads((prev) => prev.filter((th) => th.id !== threadId));
@@ -676,9 +670,7 @@ export default function AiCompanionPage() {
           <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2">
             <div>
               <p className="text-xs font-semibold">{t("sidebar.title", "Conversations")}</p>
-              <p className="text-[10px] text-[var(--text-muted)]">
-                {t("sidebar.subtitle", "A private space to reflect and revisit.")}
-              </p>
+              <p className="text-[10px] text-[var(--text-muted)]">{t("sidebar.subtitle", "A private space to reflect and revisit.")}</p>
             </div>
 
             <button
@@ -714,9 +706,7 @@ export default function AiCompanionPage() {
               ))}
             </select>
 
-            {!user && (
-              <p className="mt-2 text-[10px] text-[var(--text-muted)]">{t("sidebar.loginHint", "Log in to save conversations and view history.")}</p>
-            )}
+            {!user && <p className="mt-2 text-[10px] text-[var(--text-muted)]">{t("sidebar.loginHint", "Log in to save conversations and view history.")}</p>}
           </div>
 
           <div className="flex-1 overflow-y-auto text-xs p-2 space-y-1">
@@ -734,9 +724,7 @@ export default function AiCompanionPage() {
                 </button>
               </div>
             ) : threads.length === 0 ? (
-              <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                {t("sidebar.empty", "No conversations yet. Start a new chat and talk it out.")}
-              </p>
+              <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("sidebar.empty", "No conversations yet. Start a new chat and talk it out.")}</p>
             ) : (
               threads.map((th) => {
                 const isActive = activeThreadId === th.id;
@@ -760,8 +748,7 @@ export default function AiCompanionPage() {
                 return (
                   <div
                     key={th.id}
-                    className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer min-w-0 ${isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
-                      }`}
+                    className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer min-w-0 ${isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"}`}
                     onClick={() => openThread(th)}
                   >
                     <div className="flex-1 min-w-0">
@@ -802,14 +789,9 @@ export default function AiCompanionPage() {
           <div className="px-3 sm:px-4 py-3 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
             <div className="min-w-0">
               <h1 className="text-base md:text-lg font-semibold">{t("title", "AI Companion")}</h1>
-              <p className="text-[11px] text-[var(--text-muted)]">
-                {t("subtitle", "A gentle space to reflect, feel grounded, and write it out.")}
-              </p>
+              <p className="text-[11px] text-[var(--text-muted)]">{t("subtitle", "A gentle space to reflect, feel grounded, and write it out.")}</p>
               <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                {t(
-                  "safety",
-                  "Not a therapist. No diagnosis. If you’re in danger or crisis, contact local emergency services."
-                )}
+                {t("safety", "Not a therapist. No diagnosis. If you’re in danger or crisis, contact local emergency services.")}
               </p>
 
               {activeThread?.title && (
@@ -867,7 +849,6 @@ export default function AiCompanionPage() {
             </div>
           </div>
 
-
           {error && <p className="px-3 sm:px-4 pt-2 text-[11px] text-red-400">{error}</p>}
           {toast && (
             <div className="mx-3 sm:mx-4 mt-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs flex items-center gap-3 animate-in fade-in slide-in-from-top-1 bg-[var(--bg-elevated)]">
@@ -907,8 +888,8 @@ export default function AiCompanionPage() {
                 <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} min-w-0`}>
                   <div
                     className={`w-fit max-w-[92%] sm:max-w-[82%] rounded-2xl px-3 py-2 text-[13px] whitespace-pre-wrap break-words ${m.role === "user"
-                      ? "bg-[var(--accent)] text-[var(--bg-body)] rounded-br-sm"
-                      : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
+                        ? "bg-[var(--accent)] text-[var(--bg-body)] rounded-br-sm"
+                        : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
                       }`}
                   >
                     {m.content}
@@ -959,13 +940,7 @@ export default function AiCompanionPage() {
             <div className="flex items-end gap-2 min-w-0">
               <div className="shrink-0 flex items-center gap-1">
                 {/* PRO: File Attachment */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  accept=".txt,.md,.js,.ts,.tsx,.json,.csv,.py"
-                />
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept=".txt,.md,.js,.ts,.tsx,.json,.csv,.py" />
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -973,9 +948,7 @@ export default function AiCompanionPage() {
                   className="h-10 w-10 flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[14px] relative"
                 >
                   📎
-                  {userPlan === "free" && (
-                    <span className="absolute -top-1 -right-1 text-[8px]">🔒</span>
-                  )}
+                  {userPlan === "free" && <span className="absolute -top-1 -right-1 text-[8px]">🔒</span>}
                 </button>
 
                 {/* PRO: Image Generation */}
@@ -986,9 +959,7 @@ export default function AiCompanionPage() {
                   className="h-10 w-10 flex items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[14px] relative"
                 >
                   🎨
-                  {userPlan === "free" && (
-                    <span className="absolute -top-1 -right-1 text-[8px]">🔒</span>
-                  )}
+                  {userPlan === "free" && <span className="absolute -top-1 -right-1 text-[8px]">🔒</span>}
                 </button>
 
                 {user ? (
@@ -1017,11 +988,7 @@ export default function AiCompanionPage() {
                 className="flex-1 min-w-0 w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
               />
 
-              <button
-                type="submit"
-                disabled={sending || !input.trim()}
-                className="shrink-0 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
-              >
+              <button type="submit" disabled={sending || !input.trim()} className="shrink-0 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]">
                 {t("buttons.send", "Send")}
               </button>
             </div>
@@ -1084,9 +1051,7 @@ export default function AiCompanionPage() {
                   {loadingThreads ? (
                     <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("sidebar.loading", "Loading conversations…")}</p>
                   ) : !user ? (
-                    <p className="p-3 text-[var(--text-muted)] text-[11px]">
-                      {t("mobileHistory.guestHint", "Your conversations will appear here after you log in.")}
-                    </p>
+                    <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("mobileHistory.guestHint", "Your conversations will appear here after you log in.")}</p>
                   ) : threads.length === 0 ? (
                     <p className="p-3 text-[var(--text-muted)] text-[11px]">{t("mobileHistory.empty", "No conversations yet. Start a new chat.")}</p>
                   ) : (
@@ -1112,8 +1077,7 @@ export default function AiCompanionPage() {
                       return (
                         <div
                           key={th.id}
-                          className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer ${isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"
-                            }`}
+                          className={`flex items-center gap-2 px-2 py-2 rounded-xl cursor-pointer ${isActive ? "bg-[var(--bg-card)]" : "hover:bg-[var(--bg-elevated)]"}`}
                           onClick={() => openThread(th)}
                         >
                           <div className="flex-1 min-w-0">
@@ -1123,22 +1087,10 @@ export default function AiCompanionPage() {
                           </div>
 
                           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => handleRenameThread(th)}
-                              disabled={isBusy}
-                              className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[11px]"
-                              title={t("thread.rename", "Rename")}
-                            >
+                            <button type="button" onClick={() => handleRenameThread(th)} disabled={isBusy} className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[11px]" title={t("thread.rename", "Rename")}>
                               ✏️
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteThread(th.id)}
-                              disabled={isBusy}
-                              className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[11px] text-red-400"
-                              title={t("thread.delete", "Delete")}
-                            >
+                            <button type="button" onClick={() => handleDeleteThread(th.id)} disabled={isBusy} className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[11px] text-red-400" title={t("thread.delete", "Delete")}>
                               🗑
                             </button>
                           </div>
@@ -1167,61 +1119,60 @@ export default function AiCompanionPage() {
       </div>
 
       {/* Attachments Preview */}
-      {
-        attachments.length > 0 && (
-          <div className="fixed bottom-[80px] left-0 md:left-72 right-0 px-4 py-2 z-10 pointer-events-none">
-            <div className="flex gap-2 overflow-x-auto pointer-events-auto">
-              {attachments.map((f, i) => (
-                <div key={i} className="flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 shadow-lg text-xs">
-                  <span className="truncate max-w-[150px] font-medium">{f.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
-                    className="text-[var(--text-muted)] hover:text-red-400"
-                  >✕</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      }
-
-      {/* Image Generation Modal */}
-      {
-        showImageModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md bg-[var(--bg-card)] rounded-2xl border border-[var(--border-subtle)] shadow-xl p-5">
-              <h2 className="text-lg font-semibold mb-2">{t("imageModal.title", "Generate an Image")} 🎨</h2>
-              <p className="text-xs text-[var(--text-muted)] mb-4">{t("imageModal.subtitle", "Describe what you want to see. DALL-E 3 will create it.")}</p>
-
-              <textarea
-                value={imagePrompt}
-                onChange={(e) => setImagePrompt(e.target.value)}
-                placeholder="A calm forest with sunlight streaming through..."
-                className="w-full h-32 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                autoFocus
-              />
-
-              <div className="flex justify-end gap-2">
+      {attachments.length > 0 && (
+        <div className="fixed bottom-[80px] left-0 md:left-72 right-0 px-4 py-2 z-10 pointer-events-none">
+          <div className="flex gap-2 overflow-x-auto pointer-events-auto">
+            {attachments.map((f, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 shadow-lg text-xs"
+              >
+                <span className="truncate max-w-[150px] font-medium">{f.name}</span>
                 <button
-                  onClick={() => setShowImageModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs hover:bg-[var(--bg-elevated)]"
+                  type="button"
+                  onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                  className="text-[var(--text-muted)] hover:text-red-400"
                 >
-                  {t("buttons.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={handleGenerateImage}
-                  disabled={!imagePrompt.trim() || userPlan === "free"}
-                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium hover:opacity-90 disabled:opacity-50"
-                >
-                  {t("buttons.generate", "Generate")}
+                  ✕
                 </button>
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Image Generation Modal */}
+      {showImageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[var(--bg-card)] rounded-2xl border border-[var(--border-subtle)] shadow-xl p-5">
+            <h2 className="text-lg font-semibold mb-2">
+              {t("imageModal.title", "Generate an Image")} 🎨
+            </h2>
+            <p className="text-xs text-[var(--text-muted)] mb-4">{t("imageModal.subtitle", "Describe what you want to see. DALL-E 3 will create it.")}</p>
+
+            <textarea
+              value={imagePrompt}
+              onChange={(e) => setImagePrompt(e.target.value)}
+              placeholder="A calm forest with sunlight streaming through..."
+              className="w-full h-32 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              autoFocus
+            />
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowImageModal(false)} className="px-4 py-2 rounded-xl text-xs hover:bg-[var(--bg-elevated)]">
+                {t("buttons.cancel", "Cancel")}
+              </button>
+              <button
+                onClick={handleGenerateImage}
+                disabled={!imagePrompt.trim() || userPlan === "free"}
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium hover:opacity-90 disabled:opacity-50"
+              >
+                {t("buttons.generate", "Generate")}
+              </button>
             </div>
           </div>
-        )
-      }
-
-    </main >
+        </div>
+      )}
+    </main>
   );
 }
