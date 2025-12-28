@@ -300,8 +300,8 @@ export default function TravelPage() {
   const [destination, setDestination] = useState("");
   const [checkin, setCheckin] = useState("");
   const [checkout, setCheckout] = useState("");
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0);
+  const [adults, setAdults] = useState<number | string>(2);
+  const [children, setChildren] = useState<number | string>(0);
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
 
@@ -361,8 +361,8 @@ export default function TravelPage() {
           fromCity: departureCity || null,
           checkin: checkin || null,
           checkout: checkout || null,
-          adults,
-          children,
+          adults: Number(adults) || 1,
+          children: Number(children) || 0,
         }),
       });
     } catch {
@@ -433,8 +433,8 @@ export default function TravelPage() {
           destination,
           checkin,
           checkout,
-          adults,
-          children,
+          adults: Number(adults) || 1,
+          children: Number(children) || 0,
           minBudget,
           maxBudget,
         }),
@@ -491,8 +491,8 @@ export default function TravelPage() {
           destination,
           checkin_date: checkin,
           checkout_date: checkout,
-          adults,
-          children,
+          adults: Number(adults) || 1,
+          children: Number(children) || 0,
           min_budget: minBudget ? Number(minBudget) : null,
           max_budget: maxBudget ? Number(maxBudget) : null,
           plan_text: planText,
@@ -516,7 +516,7 @@ export default function TravelPage() {
 
   const bookingUrl =
     destination && checkin && checkout
-      ? buildBookingUrl({ destination, checkin, checkout, adults, children })
+      ? buildBookingUrl({ destination, checkin, checkout, adults: Number(adults) || 1, children: Number(children) || 0 })
       : null;
 
   return (
@@ -661,7 +661,8 @@ export default function TravelPage() {
                         type="number"
                         min={1}
                         value={adults}
-                        onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
+                        onChange={(e) => setAdults(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value)))}
+                        onBlur={() => setAdults((prev) => (!prev || Number(prev) < 1 ? 1 : Number(prev)))}
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
@@ -673,7 +674,8 @@ export default function TravelPage() {
                         type="number"
                         min={0}
                         value={children}
-                        onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
+                        onChange={(e) => setChildren(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value)))}
+                        onBlur={() => setChildren((prev) => (prev === "" ? 0 : Number(prev)))}
                         className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
                       />
                     </div>
@@ -783,8 +785,8 @@ export default function TravelPage() {
                           to,
                           depart: checkin,
                           returnDate: checkout || undefined,
-                          adults,
-                          children,
+                          adults: Number(adults) || 1,
+                          children: Number(children) || 0,
                         });
 
                         logTravelClick({ clickType: "flight", provider: "google-flights" });
