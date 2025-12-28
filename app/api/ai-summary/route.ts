@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     // Load profile (plan + tone + focus + language)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("plan, ai_tone, focus_area, ui_language")
+      .select("plan, ai_tone, focus_area, ui_language, email")
       .eq("id", userId)
       .maybeSingle();
 
@@ -88,7 +88,9 @@ export async function POST(req: Request) {
     }
 
     const planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
-    const isPro = planRaw === "pro" || planRaw === "founder";
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+    const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
+    const isPro = planRaw === "pro" || planRaw === "founder" || isAdmin;
     const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
     const toneDescription = buildToneDescription(profile?.ai_tone);

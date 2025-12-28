@@ -85,8 +85,11 @@ export default function AiUsageBadge({
 
                 if (!mounted) return;
 
+                const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+                const isAdmin = adminEmail && user.email === adminEmail;
+
                 const p = (profile?.plan || "free") as PlanType;
-                setPlan(p === "pro" || p === "founder" ? p : "free");
+                setPlan(p === "pro" || p === "founder" || isAdmin ? "founder" : "free");
             } catch {
                 if (!mounted) return;
                 setPlan("free");

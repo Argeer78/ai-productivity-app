@@ -108,7 +108,9 @@ export async function POST(req: Request) {
     }
 
     const planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
-    const isPro = planRaw === "pro" || planRaw === "founder";
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+    const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
+    const isPro = planRaw === "pro" || planRaw === "founder" || isAdmin;
     const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
     // ✅ Check usage (same ai_usage table your header uses)

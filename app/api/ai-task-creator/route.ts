@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     // ✅ Load plan for limits
     const { data: profile, error: profileErr } = await supabaseAdmin
       .from("profiles")
-      .select("plan")
+      .select("plan, email")
       .eq("id", userId)
       .maybeSingle();
 
@@ -60,7 +60,9 @@ export async function POST(req: Request) {
 
     const planRaw =
       (profile?.plan as "free" | "pro" | "founder" | null) || "free";
-    const isPro = planRaw === "pro" || planRaw === "founder";
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+    const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
+    const isPro = planRaw === "pro" || planRaw === "founder" || isAdmin;
     const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
     const today = getTodayString();
@@ -135,9 +137,8 @@ Today's context:
 - Plan / events: ${todayPlan || "not specified"}
 - Main goal today: ${mainGoal || "not specified"}
 - Hours available: ${hoursAvailable || "not specified"}
-- Energy level (1–10): ${
-      typeof energyLevel === "number" ? energyLevel : "not specified"
-    }
+- Energy level (1–10): ${typeof energyLevel === "number" ? energyLevel : "not specified"
+      }
 - Intensity preference: ${intensity || "balanced"}
 
 Instructions:

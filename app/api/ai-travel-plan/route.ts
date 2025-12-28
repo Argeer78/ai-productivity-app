@@ -16,7 +16,7 @@ async function checkAndIncrementAiUsage(userId: string) {
   // plan
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from("profiles")
-    .select("plan")
+    .select("plan, email")
     .eq("id", userId)
     .maybeSingle();
 
@@ -25,7 +25,9 @@ async function checkAndIncrementAiUsage(userId: string) {
   }
 
   const plan = (profile?.plan as "free" | "pro" | "founder") || "free";
-  const isPro = plan === "pro" || plan === "founder";
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
+  const isPro = plan === "pro" || plan === "founder" || isAdmin;
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
   // usage row
@@ -150,15 +152,13 @@ export async function POST(req: Request) {
     usageMeta = await checkAndIncrementAiUsage(userId);
 
     const datesText = `${checkin} → ${checkout}`;
-    const peopleText = `${adults || 1} adult(s)${
-      children ? `, ${children} child(ren)` : ""
-    }`;
+    const peopleText = `${adults || 1} adult(s)${children ? `, ${children} child(ren)` : ""
+      }`;
 
     const budgetText =
       minBudget || maxBudget
-        ? `With a budget between ${minBudget || "?"} and ${
-            maxBudget || "?"
-          } (currency user prefers).`
+        ? `With a budget between ${minBudget || "?"} and ${maxBudget || "?"
+        } (currency user prefers).`
         : "Budget is flexible or not specified.";
 
     const systemPrompt = `
@@ -210,10 +210,10 @@ Budget: ${budgetText}
       plan: content,
       ...(usageMeta
         ? {
-            planTier: usageMeta.plan,
-            dailyLimit: usageMeta.dailyLimit,
-            usedToday: usageMeta.usedToday,
-          }
+          planTier: usageMeta.plan,
+          dailyLimit: usageMeta.dailyLimit,
+          usedToday: usageMeta.usedToday,
+        }
         : {}),
     });
   } catch (err: any) {

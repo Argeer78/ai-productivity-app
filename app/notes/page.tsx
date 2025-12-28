@@ -864,6 +864,35 @@ export default function NotesPage() {
       <AuthGateModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
       <div className="w-full max-w-5xl mx-auto px-4 md:px-8 py-4 md:py-8 pb-24">
+        {!user && (
+          <div className="mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 shadow-sm relative overflow-hidden min-w-0">
+            <div className="flex-1 relative z-10 min-w-0">
+              <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+                NOTES & THOUGHTS
+              </span>
+              <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2 break-words">
+                Capture ideas instantly ⚡️
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed break-words">
+                Jot down thoughts, meetings, or journals. Use AI to clean them up, summarize, or extract action items automatically.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAuthModalOpen(true)}
+                  className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg"
+                >
+                  Log in to save notes
+                </button>
+              </div>
+            </div>
+            <div className="w-full max-w-xs relative z-10">
+              <Alive3DImage src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto drop-shadow-2xl" />
+            </div>
+            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          </div>
+        )}
+
         <div className="mt-2 grid gap-6 grid-cols-1 md:grid-cols-[1.2fr_1fr] items-start">
           {/* CREATE NOTE */}
           <section className="min-w-0 w-full border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
@@ -1001,8 +1030,8 @@ export default function NotesPage() {
                     type="button"
                     onClick={() => setVoiceMode("review")}
                     className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "review"
-                        ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
-                        : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                      ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
+                      : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
                       }`}
                   >
                     {t("voice.mode.review", "Review first")}
@@ -1011,8 +1040,8 @@ export default function NotesPage() {
                     type="button"
                     onClick={() => setVoiceMode("autosave")}
                     className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "autosave"
-                        ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
-                        : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                      ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
+                      : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
                       }`}
                   >
                     {t("voice.mode.autosave", "Auto-save note")}
@@ -1104,34 +1133,7 @@ export default function NotesPage() {
 
           {/* RIGHT SIDE (banner + list) */}
           <div className="min-w-0 w-full flex flex-col gap-6">
-            {!user && (
-              <div className="rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col sm:flex-row items-center gap-6 shadow-sm relative overflow-hidden min-w-0">
-                <div className="flex-1 relative z-10 min-w-0">
-                  <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
-                    NOTES & THOUGHTS
-                  </span>
-                  <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2 break-words">
-                    Capture ideas instantly ⚡️
-                  </h2>
-                  <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed break-words">
-                    Jot down thoughts, meetings, or journals. Use AI to clean them up, summarize, or extract action items automatically.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setAuthModalOpen(true)}
-                      className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg"
-                    >
-                      Log in to save notes
-                    </button>
-                  </div>
-                </div>
-                <div className="w-full max-w-xs relative z-10">
-                  <Alive3DImage src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto drop-shadow-2xl" />
-                </div>
-                <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-              </div>
-            )}
+
 
             <section className="min-w-0 w-full border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3 min-w-0">

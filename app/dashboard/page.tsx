@@ -723,25 +723,8 @@ export default function DashboardPage() {
           setWeeklyGoalCompleted(false);
         }
 
-        // 9) Daily Plans (For Early Bird badge)
-        const { data: planRows, error: planError } = await supabase
-          .from("daily_plans")
-          .select("created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(30);
-
-        if (planError && (planError as any).code !== "PGRST116") {
-          // If table doesn't exist (42P01), fail silently (feature disabled)
-          if ((planError as any).code === "42P01") {
-            // console.warn("Dashboard: daily_plans table missing");
-          } else {
-            console.error("Dashboard: plans error", (planError as any).message || planError);
-          }
-          setRecentPlans([]);
-        } else {
-          setRecentPlans((planRows || []).map(r => r.created_at));
-        }
+        // 9) Daily Plans (Note: "daily_plans" table is not currently populated by the API, so we skip it to avoid errors)
+        setRecentPlans([]);
 
       } catch (err: any) {
         console.error(err);
