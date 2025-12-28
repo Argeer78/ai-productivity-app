@@ -11,6 +11,7 @@ import AuthGateModal from "@/app/components/AuthGateModal";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import Alive3DImage from "@/app/components/Alive3DImage";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
+import WeatherOverview from "@/app/components/WeatherOverview";
 
 const SUGGESTED_DESTINATIONS = []; // Assuming this should be an empty array or defined elsewhere
 const BOOKING_AFFILIATE_ID = process.env.NEXT_PUBLIC_BOOKING_AID || "";
@@ -854,6 +855,9 @@ export default function TravelPage() {
 
             {/* RIGHT COLUMN – AI itinerary + assistant */}
             <div className="space-y-5">
+              {/* Weather Widget */}
+              <WeatherOverview destination={destination} checkin={checkin} checkout={checkout} />
+
               {/* AI itinerary */}
               <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
                 <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">

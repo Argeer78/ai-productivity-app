@@ -53,48 +53,33 @@ export async function GET(
       console.log("[API DEBUG] Client acquired.");
     }
 
-    // Helper to fetch all rows with pagination
-    const fetchAll = async (lang: string) => {
-      let allRows: { key: string; text: string }[] = [];
-      let page = 0;
-      const size = 1000;
-      while (true) {
-        // .range() is inclusive: 0..999, 1000..1999
-        const { data, error } = await supabase
-          .from("ui_translations")
-          .select("key, text")
-          .eq("language_code", lang)
-          .range(page * size, (page + 1) * size - 1);
+    // Optimized: Fetch both languages in one query to reduce latency
+    // Using a large limit (5000) to grab everything in a single round-trip
+    const { data: allRows, error } = await supabase
+      .from("ui_translations")
+      .select("key, text, language_code")
+      .in("language_code", languageCode === "en" ? ["en"] : ["en", languageCode])
+      .limit(5000);
 
-        if (error) {
-          console.error(`[ui-translations] ${lang} fetch error (page ${page})`, error);
-          break;
-        }
-        if (!data?.length) break;
-
-        // Type assertion to ensure we match the expected shape (though select handles it)
-        // @ts-ignore
-        allRows = allRows.concat(data);
-
-        if (data.length < size) break;
-        page++;
-      }
-      return allRows;
-    };
-
-    // 1) Load EN base
-    const enRows = await fetchAll("en");
-    for (const row of enRows) {
-      if (!row?.key || typeof row.text !== "string") continue;
-      translations[row.key] = row.text;
+    if (error) {
+      console.error("[ui-translations] Fetch error:", error);
     }
 
-    // 2) Overlay requested language
-    if (languageCode !== "en") {
-      const langRows = await fetchAll(languageCode);
-      for (const row of langRows) {
-        if (!row?.key || typeof row.text !== "string") continue;
-        translations[row.key] = row.text;
+    if (allRows) {
+      // 1. First pass: Apply 'en' DB overrides on top of UI_STRINGS
+      for (const row of allRows) {
+        if (row.language_code === "en" && row.key && row.text) {
+          translations[row.key] = row.text;
+        }
+      }
+
+      // 2. Second pass: Apply target language overrides (if strictly not en)
+      if (languageCode !== "en") {
+        for (const row of allRows) {
+          if (row.language_code === languageCode && row.key && typeof row.text === "string") {
+            translations[row.key] = row.text;
+          }
+        }
       }
     }
 

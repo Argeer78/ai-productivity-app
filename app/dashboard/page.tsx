@@ -15,6 +15,7 @@ import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import BadgeTrophyCase from "@/app/components/BadgeTrophyCase";
 import DashboardGlance from "@/app/components/DashboardGlance";
+import DashboardWeather from "@/app/components/DashboardWeather";
 import LevelProgress from "@/app/components/LevelProgress";
 import { useFocus } from "@/app/context/FocusContext";
 import Confetti from "@/app/components/Confetti";
@@ -1002,6 +1003,11 @@ export default function DashboardPage() {
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10">
+          {/* Weather Widget (Top Banner) */}
+          <div className="mb-6">
+            <DashboardWeather />
+          </div>
+
           {/* ✅ Action Hub toast */}
           {toast ? (
             <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100]">
