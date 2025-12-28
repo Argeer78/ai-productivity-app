@@ -75,24 +75,42 @@ export async function GET(req: Request) {
     since.setDate(since.getDate() - 6);
     const sinceStr = since.toISOString().split("T")[0];
 
+    // AI Usage Counts (Total Calls)
     const { data: todayRows, error: todayErr } = await supabaseAdmin
       .from("ai_usage")
-      .select("count")
+      .select("count, user_id")
       .eq("usage_date", today);
     if (todayErr) throw todayErr;
 
     const aiCallsToday =
       todayRows?.reduce((acc, row) => acc + (row.count || 0), 0) ?? 0;
 
+    // DAU: Unique users who used AI today
+    const dau = new Set(todayRows?.map(r => r.user_id)).size;
+
     const { data: weekRows, error: weekErr } = await supabaseAdmin
       .from("ai_usage")
-      .select("count")
+      .select("count, user_id")
       .gte("usage_date", sinceStr)
       .lte("usage_date", today);
     if (weekErr) throw weekErr;
 
     const aiCalls7Days =
       weekRows?.reduce((acc, row) => acc + (row.count || 0), 0) ?? 0;
+
+    // WAU: Unique users who used AI in last 7 days
+    const wau = new Set(weekRows?.map(r => r.user_id)).size;
+
+    // Feature Usage (Recent Creations)
+    const { count: notes7d } = await supabaseAdmin
+      .from("notes")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", sinceStr);
+
+    const { count: tasks7d } = await supabaseAdmin
+      .from("tasks")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", sinceStr);
 
     return NextResponse.json({
       ok: true,
@@ -103,6 +121,10 @@ export async function GET(req: Request) {
         totalTasks: totalTasks || 0,
         aiCallsToday,
         aiCalls7Days,
+        dau,
+        wau,
+        notes7d: notes7d || 0,
+        tasks7d: tasks7d || 0,
       },
     });
   } catch (err) {

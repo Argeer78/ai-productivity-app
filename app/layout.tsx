@@ -22,6 +22,12 @@ export const metadata: Metadata = {
   title: "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
   description:
     "AI Productivity Hub is a simple, focused workspace for notes, tasks, daily score tracking, weekly reports and travel planning – all powered by AI.",
+  keywords: ["AI productivity", "daily planner", "task manager", "AI notes", "travel planner", "weekly report", "habit tracker"],
+  alternates: {
+    canonical: "https://aiprod.app",
+  },
+  applicationName: "AI Productivity Hub",
+  category: "productivity",
   openGraph: {
     title: "AI Productivity Hub",
     description:
@@ -45,11 +51,29 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "AI Productivity Hub",
+    "applicationCategory": "ProductivityApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "AI-powered productivity workspace for notes, tasks, and planning."
+  };
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#020617" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </head>
 
       <body className={inter.className}>

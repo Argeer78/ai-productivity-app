@@ -429,15 +429,18 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-function joinUrl(base: string, path: string) {
-  if (!path) return base;
-  if (path.startsWith("http")) return path;
-  if (path.startsWith("#")) return base + path;
-  return base.replace(/\/$/, "") + (path.startsWith("/") ? path : `/${path}`);
+function joinUrl(base: string, pathStr: string) {
+  if (!pathStr) return base;
+  if (pathStr.startsWith("http")) return pathStr;
+  if (pathStr.startsWith("#")) return base + pathStr;
+  return base.replace(/\/$/, "") + (pathStr.startsWith("/") ? pathStr : `/${pathStr}`);
 }
 
 export default function ToolsPage() {
-  const { t } = useT("tools");
+  // ✅ IMPORTANT: keys in this file already start with "tools.*"
+  // so DO NOT namespace useT("tools") here (it becomes "tools.tools.*").
+  const { t } = useT();
+
   const [user, setUser] = useState<any | null>(null);
   const [, setCheckingUser] = useState(true);
 
@@ -493,11 +496,9 @@ export default function ToolsPage() {
         return;
       }
 
-      // Fallback if clipboard blocked
       window.prompt(t("tools.share.copyPrompt", "Copy this link:"), url);
       setToast(t("tools.share.copied", "Link copied ✅"));
     } catch (e: any) {
-      // Ignore abort errors (user cancelled share sheet)
       if (String(e?.name || "").toLowerCase() === "aborterror") return;
       console.error("[tools] share error", e);
       setToast(t("tools.share.failed", "Couldn’t share link."));
@@ -510,7 +511,6 @@ export default function ToolsPage() {
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active={user ? "dashboard" : undefined} />
 
-      {/* Toast */}
       {toast && (
         <div className="fixed z-[80] left-1/2 -translate-x-1/2 top-16 md:top-20">
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] shadow-xl">
@@ -521,7 +521,6 @@ export default function ToolsPage() {
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 pt-10 pb-16 md:pb-20 text-sm">
-          {/* Header */}
           <header className="mb-8 md:mb-10">
             <p className="text-xs font-semibold text-[var(--text-muted)] mb-2">
               {t("tools.header.sectionLabel", "ALL TOOLS")}
@@ -537,7 +536,6 @@ export default function ToolsPage() {
             </p>
           </header>
 
-          {/* Tools list */}
           <div className="space-y-5">
             {TOOLS.map((tool) => (
               <section
@@ -629,7 +627,6 @@ export default function ToolsPage() {
             ))}
           </div>
 
-          {/* What's new / changelog section */}
           <section className="mt-10 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 md:p-5 text-sm">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
@@ -655,7 +652,6 @@ export default function ToolsPage() {
             </div>
           </section>
 
-          {/* Back link */}
           <div className="mt-8">
             <Link
               href="/"

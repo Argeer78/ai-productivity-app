@@ -39,12 +39,12 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 // Languages to export
 const LANGS = [
   "en",
-  "el",
-  "es",
   "de",
+  "es",
   "fr",
   "it",
   "pt",
+  "el",
   "tr",
   "ru",
   "ro",
@@ -53,6 +53,8 @@ const LANGS = [
   "zh",
   "ja",
   "id",
+  "hi",
+  "ko",
   "sr",
   "bg",
   "hu",
@@ -62,8 +64,6 @@ const LANGS = [
   "sv",
   "nb",
   "nl",
-  "tr",
-  "ko",
 ];
 
 async function exportLang(lang: string) {

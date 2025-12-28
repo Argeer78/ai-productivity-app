@@ -13,10 +13,15 @@ const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 type AdminStats = {
   totalUsers: number;
   proUsers: number;
-  weeklyActiveUsers: number;
+  weeklyActiveUsers: number; // legacy?
   aiCalls7d: number;
+  aiCallsToday: number;
   notesCount: number;
   tasksCount: number;
+  dau: number;
+  wau: number;
+  notes7d: number;
+  tasks7d: number;
 };
 
 function AdminEmailTestPanel({
@@ -106,11 +111,11 @@ function AdminEmailTestPanel({
             onChange={(e) =>
               setKind(
                 e.target.value as
-                  | "simple"
-                  | "daily"
-                  | "weekly"
-                  | "upgrade-pro"
-                  | "upgrade-founder"
+                | "simple"
+                | "daily"
+                | "weekly"
+                | "upgrade-pro"
+                | "upgrade-founder"
               )
             }
             className="rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-2 text-sm"
@@ -290,52 +295,51 @@ export default function AdminHomePage() {
   }
 
   // ✅ NEW: Sync missing keys only (EN → all languages, skip existing completely)
-async function handleSyncMissingKeysToAll() {
-  setKeysSyncStatus(null);
+  async function handleSyncMissingKeysToAll() {
+    setKeysSyncStatus(null);
 
-  if (!ADMIN_KEY) {
-    setKeysSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
-    return;
-  }
-
-  setKeysSyncLoading(true);
-  setKeysSyncStatus("Starting missing-keys sync…");
-
-  try {
-    const res = await fetch("/api/admin/sync-ui-keys", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Admin-Key": ADMIN_KEY,
-      },
-      body: JSON.stringify({
-        sourceLang: "en",
-        // optional: targetLangs: SUPPORTED_LANGS.map(l => l.code).filter(c => c !== "en"),
-      }),
-    });
-
-    const json = await res.json().catch(() => ({} as any));
-    if (!res.ok || !json?.ok) {
-      throw new Error(json?.error || "Failed to sync missing keys.");
+    if (!ADMIN_KEY) {
+      setKeysSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
+      return;
     }
 
-    const perLang = json?.perLang || {};
-    const summary = Object.entries(perLang)
-      .map(([k, v]) => `${k}:${v}`)
-      .join(" ");
+    setKeysSyncLoading(true);
+    setKeysSyncStatus("Starting missing-keys sync…");
 
-    setKeysSyncStatus(
-      `✅ Inserted ${json.insertedTotal ?? 0} missing rows. ${
-        summary ? `Per language: ${summary}` : ""
-      }`
-    );
-  } catch (err: any) {
-    console.error("[admin] sync missing keys error", err);
-    setKeysSyncStatus(`❌ ${err?.message || "Failed to sync missing keys."}`);
-  } finally {
-    setKeysSyncLoading(false);
+    try {
+      const res = await fetch("/api/admin/sync-ui-keys", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Key": ADMIN_KEY,
+        },
+        body: JSON.stringify({
+          sourceLang: "en",
+          // optional: targetLangs: SUPPORTED_LANGS.map(l => l.code).filter(c => c !== "en"),
+        }),
+      });
+
+      const json = await res.json().catch(() => ({} as any));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "Failed to sync missing keys.");
+      }
+
+      const perLang = json?.perLang || {};
+      const summary = Object.entries(perLang)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(" ");
+
+      setKeysSyncStatus(
+        `✅ Inserted ${json.insertedTotal ?? 0} missing rows. ${summary ? `Per language: ${summary}` : ""
+        }`
+      );
+    } catch (err: any) {
+      console.error("[admin] sync missing keys error", err);
+      setKeysSyncStatus(`❌ ${err?.message || "Failed to sync missing keys."}`);
+    } finally {
+      setKeysSyncLoading(false);
+    }
   }
-}
 
   // Auth guards
   if (checkingUser) {
@@ -421,31 +425,59 @@ async function handleSyncMissingKeysToAll() {
             {statsError && <p className="text-[11px] text-red-400 mb-2">{statsError}</p>}
 
             {stats && (
-              <div className="grid gap-3 md:grid-cols-3 text-sm">
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">Total users</p>
-                  <p className="text-xl font-semibold">{stats.totalUsers}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">Pro: {stats.proUsers}</p>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 text-sm">
+                {/* 1. Engagement */}
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                  <p className="text-[11px] font-bold text-[var(--accent)] mb-1 uppercase tracking-wider">Engagement</p>
+                  <div className="mt-2">
+                    <p className="text-[11px] text-[var(--text-muted)]">Active Today (DAU)</p>
+                    <p className="text-2xl font-bold">{stats.dau}</p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <p className="text-[11px] text-[var(--text-muted)]">Active 7 Days (WAU)</p>
+                    <p className="text-xl font-semibold">{stats.wau}</p>
+                    <p className="text-[10px] text-[var(--text-muted)] mt-0.5">unique users using AI</p>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">Active (last 7 days)</p>
-                  <p className="text-xl font-semibold">{stats.weeklyActiveUsers}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">users with AI usage</p>
+
+                {/* 2. Feature Growth (7d) */}
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                  <p className="text-[11px] font-bold text-emerald-500 mb-1 uppercase tracking-wider">Growth (7d)</p>
+                  <div className="mt-2">
+                    <p className="text-[11px] text-[var(--text-muted)]">New Notes</p>
+                    <p className="text-xl font-semibold">{stats.notes7d}</p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <p className="text-[11px] text-[var(--text-muted)]">New Tasks</p>
+                    <p className="text-xl font-semibold">{stats.tasks7d}</p>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">AI calls (last 7 days)</p>
-                  <p className="text-xl font-semibold">{stats.aiCalls7d}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">across all users</p>
+
+                {/* 3. AI Consumption */}
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                  <p className="text-[11px] font-bold text-purple-400 mb-1 uppercase tracking-wider">AI Consumption</p>
+                  <div className="mt-2">
+                    <p className="text-[11px] text-[var(--text-muted)]">Calls Today</p>
+                    <p className="text-2xl font-bold">{stats.aiCallsToday}</p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <p className="text-[11px] text-[var(--text-muted)]">Calls Last 7 Days</p>
+                    <p className="text-xl font-semibold">{stats.aiCalls7d}</p>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">Notes</p>
-                  <p className="text-xl font-semibold">{stats.notesCount}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">total notes in DB</p>
-                </div>
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">Tasks</p>
-                  <p className="text-xl font-semibold">{stats.tasksCount}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">total tasks in DB</p>
+
+                {/* 4. Total Users */}
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                  <p className="text-[11px] font-bold text-[var(--text-muted)] mb-1 uppercase tracking-wider">Total Base</p>
+                  <div className="mt-2">
+                    <p className="text-[11px] text-[var(--text-muted)]">Total Users</p>
+                    <p className="text-2xl font-bold">{stats.totalUsers}</p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <p className="text-[11px] text-[var(--text-muted)]">Pro Users</p>
+                    <p className="text-xl font-semibold">{stats.proUsers}</p>
+                    <p className="text-[10px] text-[var(--text-muted)] mt-0.5">paying subscribers</p>
+                  </div>
                 </div>
               </div>
             )}
