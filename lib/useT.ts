@@ -7,78 +7,53 @@ import { useUiI18n } from "@/lib/useUiI18n";
 
 type TFn = (key: string, fallback?: string) => string;
 
+function buildScopedT(raw: (k: string) => string, ns?: string, canWarn?: boolean): TFn {
+  return (key: string, fallback?: string) => {
+    const fullKey = ns && ns.length > 0 ? `${ns}.${key}` : key;
+    const out = raw(fullKey);
+
+    if (out === fullKey) {
+      if (fallback) return fallback;
+
+      // only warn when translations finished loading
+      if (canWarn) {
+        console.warn(`[UiStrings] Missing key: '${fullKey}'`);
+      }
+      return fullKey;
+    }
+
+    return out;
+  };
+}
+
 export function useT(defaultNamespace?: string) {
   const { lang } = useLanguage();
 
-  // Load translations for the language currently selected in LanguageProvider
+  // Load the correct language based on provider
   const { t: raw, loading, error, translations } = useUiI18n(lang);
 
-  /**
-   * tCommon:
-   * Use for shared/global keys with NO forced namespace.
-   * Example: tCommon("common.close", "Close")
-   * Example: tCommon("translate.translateWithAI", "Translate with AI")
-   */
-  const tCommon: TFn = useMemo(() => {
-    return (key: string, fallback?: string) => {
-      const out = raw(key);
+  // Only warn after we actually have keys
+  const canWarn = !loading && Object.keys(translations || {}).length > 0;
 
-      if (out === key) {
-        if (fallback) return fallback;
-        console.error(`[UiStrings] Check '${key}': undefined`);
-        return key;
-      }
+  const t: TFn = useMemo(
+    () => buildScopedT(raw, defaultNamespace, canWarn),
+    [raw, defaultNamespace, canWarn]
+  );
 
-      return out;
-    };
-  }, [raw]);
+  // Common namespace helper (shared keys like close/cancel/etc)
+  const tCommon: TFn = useMemo(() => buildScopedT(raw, "common", canWarn), [raw, canWarn]);
 
-  /**
-   * t:
-   * Use for module/page keys. If you pass a namespace (e.g. "notes"),
-   * you call t("buttons.saveNote") and it resolves "notes.buttons.saveNote".
-   *
-   * If no namespace, it behaves like tCommon.
-   */
-  const t: TFn = useMemo(() => {
-    return (key: string, fallback?: string) => {
-      const fullKey =
-        defaultNamespace && defaultNamespace.length > 0
-          ? `${defaultNamespace}.${key}`
-          : key;
-
-      const out = raw(fullKey);
-
-      if (out === fullKey) {
-        if (fallback) return fallback;
-        console.error(`[UiStrings] Check '${fullKey}': undefined`);
-        return fullKey;
-      }
-
-      return out;
-    };
-  }, [raw, defaultNamespace]);
-
-  /**
-   * tRaw:
-   * Sometimes you already have the full key (like "notes.buttons.saveNote")
-   * and you want a direct lookup without namespace composition.
-   */
-  const tRaw: TFn = useMemo(() => {
-    return (fullKey: string, fallback?: string) => {
-      const out = raw(fullKey);
-      if (out === fullKey) return fallback ?? fullKey;
-      return out;
-    };
-  }, [raw]);
+  // Raw (no namespace)
+  const tRaw: TFn = useMemo(() => buildScopedT(raw, undefined, canWarn), [raw, canWarn]);
 
   return {
     t,
     tCommon,
     tRaw,
     loading,
-    error,
+    error: error || "",
     lang,
+    uiLang: lang, // ✅ backward compatible alias
     translationsCount: Object.keys(translations || {}).length,
   };
 }
