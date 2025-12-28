@@ -20,6 +20,7 @@ type ToolKind =
   | "my-trips"
   | "daily-success"
   | "weekly-history"
+  | "calendar"
   | "settings";
 
 type ToolDef = {
@@ -289,6 +290,34 @@ const TOOLS: ToolDef[] = [
     proHintFallback: "With Pro, you can lean on the planner more often and let AI handle bigger, more complex planning sessions.",
     ctaKey: "tools.planner.cta",
     ctaFallback: "Use Daily Planner",
+  },
+  {
+    id: "calendar",
+    slug: "/calendar",
+    emoji: "🗓️",
+    nameKey: "tools.calendar.name",
+    nameFallback: "Calendar & Timeline",
+    taglineKey: "tools.calendar.shortTagline",
+    taglineFallback: "See your notes, tasks, and AI chats in one view.",
+    descriptionKey: "tools.calendar.description",
+    descriptionFallback:
+      "The Calendar gives you a visual timeline of your work. It brings together your dated tasks, created notes, and AI conversations (Hub & Companion) so you can review your history or plan ahead.",
+    bestFor: [
+      { key: "tools.calendar.bestFor1", fallback: "Reviewing what you worked on yesterday or last week" },
+      { key: "tools.calendar.bestFor2", fallback: "Visualizing your workload (notes, tasks, AI chats) for the coming days" },
+      { key: "tools.calendar.bestFor3", fallback: "Finding a specific conversation or note by date" },
+    ],
+    howToUse: [
+      { key: "tools.calendar.howToUse1", fallback: "Open the Calendar from the navigation to see a month view of your activity." },
+      { key: "tools.calendar.howToUse2", fallback: "Icons show you what happened each day: Tasks (✓), Notes (📝), AI Chat (🤖) and AI Companion (💛)." },
+      { key: "tools.calendar.howToUse3", fallback: "Click any day to open the details panel and see exactly what you worked on." },
+      { key: "tools.calendar.howToUse4", fallback: "Use it to re-find ideas you lost or to see how consistent your habits are." },
+    ],
+    proHintKey: "tools.calendar.proHint",
+    proHintFallback:
+      "Use the Calendar to review your AI Companion sessions and see how your mood or focus shifts over weeks.",
+    ctaKey: "tools.calendar.cta",
+    ctaFallback: "Open Calendar",
   },
   {
     id: "my-trips",

@@ -24,6 +24,15 @@ type CalendarNote = {
     title: string | null;
     content: string | null;
     created_at: string;
+    category?: string;
+};
+
+type CalendarThread = {
+    id: string;
+    title: string;
+    category: string | null;
+    updated_at: string;
+    type: "hub" | "companion";
 };
 
 type Holiday = {
@@ -57,6 +66,7 @@ export default function CalendarPage() {
 
     const [tasks, setTasks] = useState<CalendarTask[]>([]);
     const [notes, setNotes] = useState<CalendarNote[]>([]);
+    const [threads, setThreads] = useState<CalendarThread[]>([]);
     const [holidays, setHolidays] = useState<Holiday[]>([]);
     const [loading, setLoading] = useState(false);
     const [countryCode, setCountryCode] = useState("GR");
@@ -75,7 +85,7 @@ export default function CalendarPage() {
         getUser();
     }, []);
 
-    // Fetch Data (Tasks + Notes)
+    // Fetch Data (Tasks + Notes + Threads)
     useEffect(() => {
         if (!user) return;
 
@@ -84,6 +94,7 @@ export default function CalendarPage() {
             const start = startOfMonth(currentMonth).toISOString();
             const end = endOfMonth(currentMonth).toISOString();
 
+            // 1. Tasks
             const { data: taskData } = await supabase
                 .from("tasks")
                 .select("id, title, due_date, completed, priority")
@@ -91,15 +102,48 @@ export default function CalendarPage() {
                 .gte("due_date", start)
                 .lte("due_date", end);
 
+            // 2. Notes
             const { data: noteData } = await supabase
                 .from("notes")
-                .select("id, title, content, created_at")
+                .select("id, title, content, created_at, category")
                 .eq("user_id", user.id)
                 .gte("created_at", start)
                 .lte("created_at", end);
 
+            // 3. AI Hub Threads
+            const { data: hubData } = await supabase
+                .from("ai_chat_threads")
+                .select("id, title, category, updated_at")
+                .eq("user_id", user.id)
+                .gte("updated_at", start)
+                .lte("updated_at", end);
+
+            // 4. Companion Threads
+            const { data: companionData } = await supabase
+                .from("ai_companion_threads")
+                .select("id, title, category, updated_at")
+                .eq("user_id", user.id)
+                .gte("updated_at", start)
+                .lte("updated_at", end);
+
             setTasks((taskData || []) as CalendarTask[]);
-            setNotes((noteData || []) as CalendarNote[]);
+
+            // Cast notes to include category
+            setNotes(((noteData || []) as any[]).map(n => ({
+                id: n.id,
+                title: n.title,
+                content: n.content,
+                created_at: n.created_at,
+                category: n.category
+            })) as CalendarNote[]);
+
+            // Combine threads
+            const combinedThreads: CalendarThread[] = [
+                ...(hubData || []).map((t: any) => ({ ...t, type: "hub" } as CalendarThread)),
+                ...(companionData || []).map((t: any) => ({ ...t, type: "companion" } as CalendarThread)),
+            ];
+            setThreads(combinedThreads);
+
             setLoading(false);
         }
 
@@ -135,6 +179,9 @@ export default function CalendarPage() {
         const dayTasks = tasks.filter(t => t.due_date && isSameDay(parseISO(t.due_date), day));
         const dayNotes = notes.filter(n => isSameDay(parseISO(n.created_at), day));
 
+        // Filter threads by updated_at
+        const dayThreads = threads.filter(t => isSameDay(parseISO(t.updated_at), day));
+
         // Holidays
         const dayHolidays = holidays.filter(h => isSameDay(parseISO(h.date), day));
 
@@ -154,10 +201,10 @@ export default function CalendarPage() {
             else BioIcon = Battery; // Critical
         }
 
-        return { dayTasks, dayNotes, dayHolidays, dayNamedays, bioEnergy, BioIcon };
+        return { dayTasks, dayNotes, dayThreads, dayHolidays, dayNamedays, bioEnergy, BioIcon };
     }
 
-    const selectedItems = selectedDate ? getItemsForDay(selectedDate) : { dayTasks: [], dayNotes: [], dayHolidays: [], dayNamedays: [], bioEnergy: null, BioIcon: Battery };
+    const selectedItems = selectedDate ? getItemsForDay(selectedDate) : { dayTasks: [], dayNotes: [], dayThreads: [], dayHolidays: [], dayNamedays: [], bioEnergy: null, BioIcon: Battery };
 
     if (checkingUser) {
         return <div className="min-h-screen bg-[var(--bg-body)] flex items-center justify-center text-[var(--text-muted)] text-sm">Loading...</div>;
@@ -216,10 +263,14 @@ export default function CalendarPage() {
                     {/* Grid */}
                     <div className="grid grid-cols-7 flex-1 auto-rows-fr min-h-[400px]">
                         {calendarDays.map((day, idx) => {
-                            const { dayTasks, dayNotes, dayHolidays, dayNamedays, bioEnergy, BioIcon } = getItemsForDay(day);
+                            const { dayTasks, dayNotes, dayThreads, dayHolidays, dayNamedays, bioEnergy, BioIcon } = getItemsForDay(day);
                             const isSelected = selectedDate && isSameDay(day, selectedDate);
                             const isCurrentMonth = isSameMonth(day, currentMonth);
                             const isHoliday = dayHolidays.length > 0;
+
+                            // Splitting threads types for counts
+                            const hubThreads = dayThreads.filter(t => t.type === "hub");
+                            const companionThreads = dayThreads.filter(t => t.type === "companion");
 
                             return (
                                 <div
@@ -260,6 +311,17 @@ export default function CalendarPage() {
                                         {dayNotes.length > 0 && (
                                             <div className="flex items-center gap-1 text-[9px] bg-blue-500/10 text-blue-600 px-1 rounded truncate w-fit max-w-full">
                                                 <span>📝</span> {dayNotes.length}
+                                            </div>
+                                        )}
+                                        {/* Threads Indicators */}
+                                        {hubThreads.length > 0 && (
+                                            <div className="flex items-center gap-1 text-[9px] bg-indigo-500/10 text-indigo-600 px-1 rounded truncate w-fit max-w-full">
+                                                <span>🤖</span> {hubThreads.length}
+                                            </div>
+                                        )}
+                                        {companionThreads.length > 0 && (
+                                            <div className="flex items-center gap-1 text-[9px] bg-rose-500/10 text-rose-600 px-1 rounded truncate w-fit max-w-full">
+                                                <span>💛</span> {companionThreads.length}
                                             </div>
                                         )}
                                     </div>
@@ -341,15 +403,47 @@ export default function CalendarPage() {
 
                                 {/* Notes Section */}
                                 <div>
-                                    <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase mb-2 tracking-wider">Notes</h4>
+                                    <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase mb-2 tracking-wider">Notes & Journals</h4>
                                     {selectedItems.dayNotes.length === 0 ? (
                                         <p className="text-xs text-[var(--text-muted)] italic">No notes.</p>
                                     ) : (
                                         <div className="space-y-2">
                                             {selectedItems.dayNotes.map(note => (
                                                 <div key={note.id} className="bg-[var(--bg-card)] p-2 rounded border border-[var(--border-subtle)] text-sm">
-                                                    <div className="font-medium mb-1">{note.title || "Untitled Note"}</div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {/* Category badge */}
+                                                        {note.category && (
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
+                                                                {note.category}
+                                                            </span>
+                                                        )}
+                                                        <span className="font-medium truncate flex-1">{note.title || "Untitled Note"}</span>
+                                                    </div>
                                                     <div className="text-xs text-[var(--text-muted)] line-clamp-2">{note.content}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* AI Threads Section */}
+                                <div>
+                                    <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase mb-2 tracking-wider">AI Conversations</h4>
+                                    {selectedItems.dayThreads.length === 0 ? (
+                                        <p className="text-xs text-[var(--text-muted)] italic">No activity.</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {selectedItems.dayThreads.map(thread => (
+                                                <div key={thread.id} className={`bg-[var(--bg-card)] p-2 rounded border border-[var(--border-subtle)] text-sm flex items-center gap-2 ${thread.type === 'companion' ? 'border-l-4 border-l-rose-400' : 'border-l-4 border-l-indigo-400'}`}>
+                                                    <span className="text-lg">
+                                                        {thread.type === 'companion' ? '💛' : '🤖'}
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <div className="font-medium truncate">{thread.title || "New Chat"}</div>
+                                                        <div className="text-[10px] text-[var(--text-muted)]">
+                                                            {thread.type === 'companion' ? 'AI Companion' : 'AI Hub'} • {format(parseISO(thread.updated_at), "HH:mm")}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>

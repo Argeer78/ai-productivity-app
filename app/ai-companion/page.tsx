@@ -1,6 +1,7 @@
 // app/ai-companion/page.tsx
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import AppHeader from "@/app/components/AppHeader";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
@@ -866,8 +867,16 @@ export default function AiCompanionPage() {
             </div>
           </div>
 
+
           {error && <p className="px-3 sm:px-4 pt-2 text-[11px] text-red-400">{error}</p>}
-          {toast && <p className="px-3 sm:px-4 pt-2 text-[11px] text-emerald-400">{toast}</p>}
+          {toast && (
+            <div className="mx-3 sm:mx-4 mt-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs flex items-center gap-3 animate-in fade-in slide-in-from-top-1 bg-[var(--bg-elevated)]">
+              <span>✅ {toast}</span>
+              <Link href="/notes" className="ml-auto font-medium hover:underline underline-offset-2">
+                Open Notes →
+              </Link>
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 space-y-3 text-sm min-w-0">
             {messages.length === 0 && (
