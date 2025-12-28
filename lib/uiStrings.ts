@@ -22,8 +22,34 @@ export const UI_STRINGS = {
   // ===============================
   // AUTH
   // ===============================
-  "auth.login": "Log in",
-  "auth.logout": "Log out",
+  "auth.aiSubtitle": "AI trip planning uses your daily AI limit and is linked to your account.",
+  "auth.aiTitle": "Log in to generate an AI trip plan",
+  "auth.backHome.link": "← Back to home",
+  "auth.email.placeholder": "Email",
+  "auth.error.authFailed": "Authentication failed.",
+  "auth.error.emailRequired": "Please enter your email.",
+  "auth.error.googleFailed": "Google sign-in failed.",
+  "auth.error.passwordRequired": "Please enter your password.",
+  "auth.error.passwordShort": "Password must be at least 6 characters.",
+  "auth.error.resetFailed": "Failed to send reset email.",
+  "auth.forgot.button": "Send reset email",
+  "auth.forgot.title": "Reset password",
+  "auth.google.button": "Continue with Google",
+  "auth.language.label": "Language",
+  "auth.loading.button": "Please wait…",
+  "auth.login.button": "Log in",
+  "auth.login.title": "Log in",
+  "auth.message.loginSuccess": "Logged in! Redirecting to your dashboard…",
+  "auth.message.resetSent": "If an account exists for this email, a reset link has been sent.",
+  "auth.message.signupSuccess": "Signup successful! Check your email for confirmation, then log in.",
+  "auth.password.placeholder": "Password (min 6 characters)",
+  "auth.redirect.note": "After login you’ll be redirected to your dashboard.",
+  "auth.saveSubtitle": "Saved trips are stored in your account so you can access them later.",
+  "auth.saveTitle": "Log in to save this trip",
+  "auth.signup.button": "Sign up",
+  "auth.signup.title": "Sign up",
+  "auth.subtitle": "Log in to save trips and access them later.",
+  "auth.title": "Create a free account",
 
   // ===============================
   // DASHBOARD PAGE

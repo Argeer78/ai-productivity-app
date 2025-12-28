@@ -46,7 +46,9 @@ export async function GET(
         { ok: true, languageCode: "en", translations },
         { status: 200 }
       );
-    } else {
+    }
+
+    else {
       // Verify if it's admin or anon (can't easily check instance, but can check if it fails like anon)
       console.log("[API DEBUG] Client acquired.");
     }
