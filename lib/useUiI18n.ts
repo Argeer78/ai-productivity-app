@@ -119,7 +119,6 @@ export function useUiI18n(initialLanguage?: string) {
 
         if (local && !cancelled && reqId === inFlight.current) {
           setTranslations(local);
-          console.error(`[UiStrings] Loaded ${Object.keys(local).length} keys for ${lang} (local json)`);
         }
 
         const api = await loadFromApi(lang);
@@ -130,9 +129,6 @@ export function useUiI18n(initialLanguage?: string) {
             ...(api || {}),
           };
           setTranslations(merged);
-          console.error(
-            `[UiStrings] Loaded ${Object.keys(api || {}).length} keys for ${lang} (api). Merged total: ${Object.keys(merged).length}`
-          );
           setLoading(false);
         }
       } catch (err: any) {
