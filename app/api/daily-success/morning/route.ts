@@ -265,6 +265,19 @@ Make a realistic plan for today.
         // ✅ Increment usage AFTER successful AI response
         const usedTodayAfter = await incrementUsage(userId, usageInfo.today, usageInfo.usageRow as any);
 
+        // ✅ Save plan to DB (for history & Early Bird badge)
+        try {
+            const { error: saveErr } = await supabaseAdmin.from("daily_plans").insert({
+                user_id: userId,
+                plan_text: plan,
+            });
+            if (saveErr) {
+                console.error("[daily-success/morning] failed to save to daily_plans:", saveErr);
+            }
+        } catch (err) {
+            console.error("[daily-success/morning] save exception:", err);
+        }
+
         return NextResponse.json(
             {
                 ok: true,

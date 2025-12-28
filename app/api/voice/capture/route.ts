@@ -141,7 +141,7 @@ export async function POST(req: Request) {
 
     const modeRaw = (formData.get("mode") as string | null) || "review";
     const mode =
-      modeRaw === "autosave" ? "autosave" : modeRaw === "psych" ? "psych" : "review";
+      modeRaw === "autosave" ? "autosave" : modeRaw === "psych" ? "psych" : modeRaw === "travel" ? "travel" : "review";
 
     const tz = (formData.get("tz") as string | null) || DEFAULT_TZ;
 
@@ -270,7 +270,32 @@ Return ONLY JSON:
 }
 `.trim();
 
-    const systemPrompt = mode === "psych" ? psychPrompt : productivityPrompt;
+    const travelPrompt = `
+You are a travel assistant extracting trip details from speech.
+
+TIME CONTEXT:
+- User timezone: ${tz}
+- Current local date/time: ${nowLocal}
+- Today's local date (YYYY-MM-DD): ${todayLocalYmd}
+- Current UTC ISO: ${nowUtcIso}
+
+GOAL: Extract travel parameters.
+- destination: string (city/country)
+- checkin: string (ISO date YYYY-MM-DD) or null
+- checkout: string (ISO date YYYY-MM-DD) or null
+- adults: number (default 2 if not mentioned but implied "we", else 1)
+- children: number (default 0)
+- budget_min: number or null
+- budget_max: number or null
+- notes: string (any extra preferences)
+
+RULES:
+- If user says "next weekend", calculate valid YYYY-MM-DD dates based on valid calendar logic relative to today.
+- If user says "for a week", set checkout 7 days after checkin.
+- Return JSON only.
+`.trim();
+
+    const systemPrompt = mode === "psych" ? psychPrompt : mode === "travel" ? travelPrompt : productivityPrompt;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -375,6 +400,17 @@ Return ONLY JSON:
         typeof parsed.grounding === "string" && parsed.grounding.trim()
           ? parsed.grounding.trim()
           : null,
+
+      // ✅ Travel fields
+      travel: mode === "travel" ? {
+        destination: parsed.destination || null,
+        checkin: parsed.checkin || null,
+        checkout: parsed.checkout || null,
+        adults: typeof parsed.adults === 'number' ? parsed.adults : null,
+        children: typeof parsed.children === 'number' ? parsed.children : null,
+        budget_min: parsed.budget_min || null,
+        budget_max: parsed.budget_max || null,
+      } : null,
     };
 
     let noteId: string | null = null;

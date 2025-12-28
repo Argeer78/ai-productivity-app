@@ -722,9 +722,7 @@ export default function DashboardPage() {
           setWeeklyGoalCompleted(false);
         }
 
-        // 9) Daily Plans (Skipped: table not active)
-        setRecentPlans([]);
-        /*
+        // 9) Daily Plans (For Early Bird badge)
         const { data: planRows, error: planError } = await supabase
           .from("daily_plans")
           .select("created_at")
@@ -737,7 +735,6 @@ export default function DashboardPage() {
         } else {
           setRecentPlans((planRows || []).map(r => r.created_at));
         }
-        */
 
       } catch (err: any) {
         console.error(err);

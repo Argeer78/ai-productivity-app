@@ -1,4 +1,4 @@
-// app/components/AIAssistant.tsx (or wherever this lives)
+// app/components/AIAssistant.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useT } from "@/lib/useT";
+import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 
 type Msg = {
   role: "user" | "assistant";
@@ -151,6 +152,15 @@ export default function AIAssistant() {
     }
   }
 
+  // ✅ Voice Handler
+  function handleVoiceResult(payload: { rawText: string | null; structured: any | null }) {
+    // For general chat, we just want the raw text or the 'note' if structured
+    const text = payload.structured?.note || payload.rawText;
+    if (text) {
+      setInput((prev) => (prev ? prev + " " + text : text));
+    }
+  }
+
   return (
     <>
       {/* Toggle button – bottom-left */}
@@ -186,9 +196,8 @@ export default function AIAssistant() {
               messages.map((m, i) => (
                 <div
                   key={i}
-                  className={`text-[11px] leading-relaxed ${
-                    m.role === "user" ? "text-[var(--text-main)]" : "text-indigo-200"
-                  }`}
+                  className={`text-[11px] leading-relaxed ${m.role === "user" ? "text-[var(--text-main)]" : "text-indigo-200"
+                    }`}
                 >
                   <span className="font-semibold mr-1">
                     {m.role === "user" ? t("role.you", "You") : t("role.ai", "AI")}:
@@ -209,14 +218,26 @@ export default function AIAssistant() {
             className="w-full text-[11px] rounded-xl bg-[var(--bg-body)] border border-[var(--border-subtle)] px-2 py-1.5 mb-2 resize-none h-16 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[var(--text-main)]"
           />
 
-          <button
-            type="button"
-            onClick={sendMessage}
-            disabled={loading || !input.trim()}
-            className="w-full py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-[11px]"
-          >
-            {loading ? t("button.thinking", "Thinking...") : t("button.send", "Send")}
-          </button>
+          <div className="flex gap-2">
+            {/* ✅ Voice Capture */}
+            <VoiceCaptureButton
+              userId={userId || ""}
+              mode="review"
+              variant="icon"
+              size="sm"
+              interaction="hold"
+              onResult={handleVoiceResult}
+            />
+
+            <button
+              type="button"
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className="flex-1 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-[11px]"
+            >
+              {loading ? t("button.thinking", "Thinking...") : t("button.send", "Send")}
+            </button>
+          </div>
         </div>
       )}
     </>

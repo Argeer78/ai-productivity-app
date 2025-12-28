@@ -26,11 +26,21 @@ type StructuredResult = {
   // optional fields
   reflection?: string | null;
   note_title?: string | null;
+
+  travel?: {
+    destination?: string | null;
+    checkin?: string | null;
+    checkout?: string | null;
+    adults?: number | null;
+    children?: number | null;
+    budget_min?: number | null;
+    budget_max?: number | null;
+  };
 };
 
 type Props = {
   userId: string;
-  mode: "review" | "autosave" | "psych";
+  mode: "review" | "autosave" | "psych" | "travel";
   resetKey?: number;
   onResult?: (payload: {
     rawText: string | null;
@@ -106,7 +116,7 @@ export default function VoiceCaptureButton({
     ) {
       try {
         URL.revokeObjectURL(audioPreviewUrlRef.current);
-      } catch {}
+      } catch { }
     }
     audioPreviewUrlRef.current = audioPreviewUrl;
   }, [audioPreviewUrl]);
@@ -116,14 +126,14 @@ export default function VoiceCaptureButton({
     return () => {
       try {
         if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
-      } catch {}
+      } catch { }
       try {
         mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
-      } catch {}
+      } catch { }
       try {
         if (audioPreviewUrlRef.current)
           URL.revokeObjectURL(audioPreviewUrlRef.current);
-      } catch {}
+      } catch { }
     };
   }, []);
 
@@ -137,7 +147,7 @@ export default function VoiceCaptureButton({
   function softHaptic(ms = 12) {
     try {
       (navigator as any).vibrate?.(ms);
-    } catch {}
+    } catch { }
   }
 
   function chooseMimeType(): string {
@@ -225,7 +235,7 @@ export default function VoiceCaptureButton({
         // stop tracks
         try {
           recorder.stream.getTracks().forEach((t) => t.stop());
-        } catch {}
+        } catch { }
 
         if (blob.size < 2000) {
           setError(
@@ -238,7 +248,7 @@ export default function VoiceCaptureButton({
         try {
           const url = URL.createObjectURL(blob);
           setAudioPreviewUrl(url);
-        } catch {}
+        } catch { }
 
         setLoading(true);
 
@@ -344,7 +354,7 @@ export default function VoiceCaptureButton({
       if (mr?.requestData) {
         try {
           mr.requestData();
-        } catch {}
+        } catch { }
       }
 
       // stop triggers onstop (upload)
@@ -355,7 +365,7 @@ export default function VoiceCaptureButton({
       recordingRef.current = false;
       try {
         mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
-      } catch {}
+      } catch { }
     }
   }
 
@@ -399,31 +409,31 @@ export default function VoiceCaptureButton({
             loading
               ? t("notes.voice.status.processing", "Processing…")
               : isToggle
-              ? recording
-                ? t("notes.voice.button.stop", "Stop")
-                : t("notes.voice.button.start", "Record")
-              : recording
-              ? t("notes.voice.button.holdRecording", "Recording… release to send")
-              : t("notes.voice.button.holdToTalk", "Hold to talk")
+                ? recording
+                  ? t("notes.voice.button.stop", "Stop")
+                  : t("notes.voice.button.start", "Record")
+                : recording
+                  ? t("notes.voice.button.holdRecording", "Recording… release to send")
+                  : t("notes.voice.button.holdToTalk", "Hold to talk")
           }
           onClick={isToggle ? toggleRecording : undefined}
           onPointerDown={
             !isToggle
               ? (e) => {
-                  e.preventDefault();
-                  if (recording || loading) return;
-                  (e.currentTarget as any).setPointerCapture?.(e.pointerId);
-                  startRecording();
-                }
+                e.preventDefault();
+                if (recording || loading) return;
+                (e.currentTarget as any).setPointerCapture?.(e.pointerId);
+                startRecording();
+              }
               : undefined
           }
           onPointerUp={
             !isToggle
               ? (e) => {
-                  e.preventDefault();
-                  if (!recording) return;
-                  stopRecording();
-                }
+                e.preventDefault();
+                if (!recording) return;
+                stopRecording();
+              }
               : undefined
           }
           onPointerLeave={!isToggle ? () => (recording ? stopRecording() : null) : undefined}

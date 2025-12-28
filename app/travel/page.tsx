@@ -10,6 +10,7 @@ import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import Alive3DImage from "@/app/components/Alive3DImage";
+import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 
 const SUGGESTED_DESTINATIONS = []; // Assuming this should be an empty array or defined elsewhere
 const BOOKING_AFFILIATE_ID = process.env.NEXT_PUBLIC_BOOKING_AID || "";
@@ -322,6 +323,27 @@ export default function TravelPage() {
   const [assistantDays, setAssistantDays] = useState(4);
   const [assistantAdults, setAssistantAdults] = useState(2);
   const [assistantChildren, setAssistantChildren] = useState(0);
+
+  // ✅ Voice Handler
+  function handleTravelVoice(payload: { rawText: string | null; structured: any | null }) {
+    const travel = payload.structured?.travel;
+
+    if (travel) {
+      // Apply structured fields
+      if (travel.destination) setDestination(travel.destination);
+      if (travel.checkin) setCheckin(travel.checkin);
+      if (travel.checkout) setCheckout(travel.checkout);
+
+      if (typeof travel.adults === 'number') setAdults(travel.adults);
+      if (typeof travel.children === 'number') setChildren(travel.children);
+
+      if (travel.budget_min) setMinBudget(String(travel.budget_min));
+      if (travel.budget_max) setMaxBudget(String(travel.budget_max));
+    } else if (payload.rawText) {
+      // Fallback if no structured data found
+      setDestination(payload.rawText);
+    }
+  }
 
   async function logTravelClick(payload: {
     clickType: "stay" | "flight" | "car";
@@ -685,7 +707,16 @@ export default function TravelPage() {
 
                   {planError && <p className="text-[11px] text-red-400">{planError}</p>}
 
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-2 items-center">
+                    <VoiceCaptureButton
+                      userId={user?.id || ""}
+                      mode="travel"
+                      variant="icon"
+                      size="sm"
+                      interaction="hold"
+                      onResult={handleTravelVoice}
+                    />
+
                     <button
                       type="button"
                       onClick={generatePlan}

@@ -12,6 +12,7 @@ import AnimatedNumber from "@/app/components/AnimatedNumber";
 import Confetti from "@/app/components/Confetti";
 import Alive3DImage from "@/app/components/Alive3DImage";
 import { useSound } from "@/lib/sound";
+import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 
 type PlanType = "free" | "pro" | "founder";
 
@@ -703,6 +704,42 @@ export default function DailySuccessPage() {
     }
   }
 
+  // ✅ Voice Handling
+  function handleMorningVoice(payload: { rawText: string | null; structured: any | null }) {
+    if (payload.rawText || payload.structured?.note) {
+      // Prefer structured note/summary for planning, or fallback to raw
+      const text = payload.structured?.note || payload.structured?.summary || payload.rawText;
+      const combined = morningInput ? morningInput + "\n\n" + text : text;
+
+      setMorningInput(combined);
+      play("success");
+
+      // ✅ Extract priorities from voice
+      const tasks = (payload.structured?.tasks || []).map((t: any) => t.title);
+      const actions = (payload.structured?.actions || []);
+      const candidates = [...tasks, ...actions].filter((s: string) => s && s.trim().length > 0);
+
+      if (candidates.length > 0) {
+        setTopPriorities([
+          candidates[0] || "",
+          candidates[1] || "",
+          candidates[2] || ""
+        ]);
+      }
+    }
+  }
+
+  function handleVoiceReflection(payload: { rawText: string | null; structured: any | null }) {
+    if (payload.rawText) {
+      // If we got a structured reflection, prefer that + the note, otherwise just raw text
+      const reflection = payload.structured?.reflection || payload.structured?.note || payload.rawText;
+      const combined = eveningInput ? eveningInput + "\n\n" + reflection : reflection;
+
+      setEveningInput(combined);
+      play("success"); // Feedback sound
+    }
+  }
+
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
@@ -906,9 +943,20 @@ export default function DailySuccessPage() {
               ref={morningRef}
               className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4"
             >
-              <h2 className="text-sm font-semibold mb-2">
-                {t("dailySuccessSystem.morning.title", "🌅 Morning: Design your day")}
-              </h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold">
+                  {t("dailySuccessSystem.morning.title", "🌅 Morning: Design your day")}
+                </h2>
+                {/* ✅ Voice Button */}
+                <VoiceCaptureButton
+                  userId={user?.id || ""}
+                  mode="review" // Use review mode for planning/notes
+                  variant="icon"
+                  size="sm"
+                  interaction="hold"
+                  onResult={handleMorningVoice}
+                />
+              </div>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 {t(
                   "dailySuccessSystem.morning.description",
@@ -1021,9 +1069,20 @@ export default function DailySuccessPage() {
               ref={eveningRef}
               className="border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-2xl p-4"
             >
-              <h2 className="text-sm font-semibold mb-2">
-                {t("dailySuccessSystem.evening.title", "🌙 Evening: Reflect & score your day")}
-              </h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold">
+                  {t("dailySuccessSystem.evening.title", "🌙 Evening: Reflect & score your day")}
+                </h2>
+                {/* ✅ Voice Button */}
+                <VoiceCaptureButton
+                  userId={user?.id || ""}
+                  mode="psych"
+                  variant="icon"
+                  size="sm"
+                  interaction="hold" // or toggle
+                  onResult={handleVoiceReflection}
+                />
+              </div>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 {t(
                   "dailySuccessSystem.evening.description",
@@ -1047,6 +1106,7 @@ export default function DailySuccessPage() {
                     className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm min-h-[100px]"
                   />
                 </div>
+
 
                 <button
                   type="submit"
@@ -1245,7 +1305,7 @@ export default function DailySuccessPage() {
             )}
           </p>
         </div>
-      </div>
-    </main>
+      </div >
+    </main >
   );
 }
