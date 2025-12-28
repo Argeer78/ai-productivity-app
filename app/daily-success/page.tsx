@@ -505,6 +505,21 @@ export default function DailySuccessPage() {
     loadScores();
   }, [user]);
 
+  // ✅ Energy Level logic
+  const [energyLevel, setEnergyLevel] = useState<number>(5);
+
+  // Load energy level if available
+  useEffect(() => {
+    if (chartData.length > 0) {
+      const todayStr = getTodayStr();
+      const todayRow = chartData.find(r => r.score_date === todayStr);
+      if (todayRow && todayRow.energy_level !== null) {
+        setEnergyLevel(todayRow.energy_level);
+      }
+    }
+  }, [chartData]);
+
+
   // 6) Save today's score
   async function handleSaveScore() {
     setError("");
@@ -529,11 +544,15 @@ export default function DailySuccessPage() {
     try {
       const todayStr = getTodayStr();
 
+      // Also save to localStorage for FocusMate
+      localStorage.setItem(`energy_${todayStr}`, String(energyLevel));
+
       const { error } = await supabase.from("daily_scores").upsert(
         {
           user_id: user.id,
           score_date: todayStr,
           score,
+          energy_level: energyLevel, // ✅ Added energy level
           note: eveningInput.trim() || null,
         },
         { onConflict: "user_id,score_date" }
@@ -718,12 +737,12 @@ export default function DailySuccessPage() {
       <div className="flex-1">
         <div className="max-w-4xl mx-auto px-4 py-8 md:py-10 text-sm">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-            <div className="flex-1">
+          <div className="flex flex-col-reverse md:flex-row items-center justify-between gap-6 mb-8">
+            <div className="flex-1 text-center md:text-left">
               <h1 className="text-2xl md:text-3xl font-bold mb-2">
                 {t("dailySuccessSystem.title", "AI Daily Success System")}
               </h1>
-              <p className="text-sm text-[var(--text-muted)] max-w-lg leading-relaxed mb-4">
+              <p className="text-sm text-[var(--text-muted)] max-w-lg leading-relaxed mb-4 mx-auto md:mx-0">
                 {t(
                   "dailySuccessSystem.subtitle",
                   "Start your day with a focused plan, end it with a clear reflection, and track your progress with a simple score."
@@ -731,7 +750,7 @@ export default function DailySuccessPage() {
               </p>
 
               {!user && (
-                <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-[11px] text-[var(--text-muted)]">
                   <span>
                     {t(
                       "dailySuccessSystem.auth.inline",
@@ -754,7 +773,7 @@ export default function DailySuccessPage() {
             </div>
 
             {/* 3D Illustration */}
-            <div className="w-full max-w-[320px] h-[320px] relative pointer-events-none">
+            <div className="shrink-0 w-[200px] h-[200px] md:w-[240px] md:h-[240px] relative pointer-events-none">
               <Alive3DImage src="/images/success-hero.png" alt="Daily Success" className="relative z-10 w-full h-full object-contain" />
             </div>
           </div>
@@ -1083,6 +1102,62 @@ export default function DailySuccessPage() {
 
               {/* Score slider + AI suggest */}
               <div ref={scoreRef} className="mt-5 border-t border-[var(--border-subtle)] pt-3">
+
+                {/* ✅ Energy Level Slider */}
+                <div className="mb-6">
+                  <label className="block text-[11px] text-[var(--text-muted)] mb-2">
+                    {t("dailySuccessSystem.evening.energyQuestion", "Energy level at end of day:")}
+                  </label>
+
+                  <div className="flex items-center gap-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-3 rounded-xl">
+                    {/* Dynamic Battery Icon */}
+                    <div className="shrink-0 w-8 h-12 relative transition-all duration-300">
+                      <img
+                        src={
+                          energyLevel <= 3
+                            ? "/images/energy-low.png"
+                            : energyLevel >= 8
+                              ? "/images/energy-high.png"
+                              : "/images/energy-medium.png"
+                        }
+                        alt="Energy"
+                        className="w-full h-full object-contain drop-shadow-sm transition-opacity duration-300"
+                      />
+                    </div>
+
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span
+                          className={`text-xs font-medium ${energyLevel <= 3
+                            ? "text-red-400"
+                            : energyLevel >= 8
+                              ? "text-emerald-400"
+                              : "text-[var(--accent)]"
+                            }`}
+                        >
+                          {energyLevel <= 3
+                            ? t("energy.low", "Low Battery")
+                            : energyLevel >= 8
+                              ? t("energy.high", "Full Power!")
+                              : t("energy.medium", "Balanced")}
+                        </span>
+                        <span className="text-xs font-semibold">{energyLevel}/10</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={10}
+                        value={energyLevel}
+                        onChange={(e) => {
+                          play("pop");
+                          setEnergyLevel(Number(e.target.value));
+                        }}
+                        className="w-full h-2 bg-[var(--bg-card)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   {t("dailySuccessSystem.evening.scoreQuestion", "How would you rate today overall?")}
                 </label>
@@ -1097,7 +1172,7 @@ export default function DailySuccessPage() {
                       play("pop"); // Added play('pop')
                       setScore(Number(e.target.value));
                     }}
-                    className="flex-1"
+                    className="flex-1 accent-[var(--accent)]"
                   />
                   <span className="text-sm font-semibold w-10 text-right">{score}</span>
                 </div>
@@ -1142,11 +1217,11 @@ export default function DailySuccessPage() {
                   type="button"
                   onClick={handleSaveScore}
                   disabled={savingScore}
-                  className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-xs"
+                  className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-xs text-white shadow-sm hover:shadow-md transition-all active:scale-95"
                 >
                   {savingScore
                     ? t("dailySuccessSystem.evening.saveScoreSaving", "Saving...")
-                    : t("dailySuccessSystem.evening.saveScoreButton", "Save today's score")}
+                    : t("dailySuccessSystem.evening.saveScoreButton", "Save today's score & energy")}
                 </button>
               </div>
 
