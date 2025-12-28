@@ -7,11 +7,7 @@ import { useT } from "@/lib/useT";
 
 type PlanType = "free" | "pro" | "founder";
 
-function safeVibrate(ms = 10) {
-    try {
-        navigator.vibrate?.(ms);
-    } catch { }
-}
+
 
 // ✅ MUST match server usage_date writes (UTC YYYY-MM-DD)
 function todayYmdUtc() {
@@ -221,13 +217,10 @@ export default function AiUsageBadge({
         if (prev === null) return;
 
         if (remaining === 2 && prev > 2) {
-            safeVibrate(10);
             showToast(t("ai.usage.toast.low2", "⚠️ Only 2 AI calls left today."));
         } else if (remaining === 1 && prev > 1) {
-            safeVibrate(10);
             showToast(t("ai.usage.toast.low1", "⚠️ Only 1 AI call left today."));
         } else if (remaining === 0 && prev > 0) {
-            safeVibrate(15);
             showToast(t("ai.usage.toast.none", "⛔ Daily AI limit reached."));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -315,8 +308,8 @@ export default function AiUsageBadge({
                     <Link
                         href={pricingHref}
                         className={`text-[11px] px-3 py-1 rounded-full border ${isBlocked
-                                ? "border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/15"
-                                : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
+                            ? "border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/15"
+                            : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
                             }`}
                     >
                         {t("ai.usage.upgrade", "Upgrade")}

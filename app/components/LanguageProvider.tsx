@@ -8,15 +8,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  SUPPORTED_LANGS,
-  type Lang,
-  DEFAULT_LOCALE,
-} from "@/lib/i18n";
+import { SUPPORTED_LANGS, type Lang, DEFAULT_LOCALE } from "@/lib/i18n";
 import { supabase } from "@/lib/supabaseClient";
 
 type LanguageContextValue = {
+  // ✅ New system
   lang: Lang;
+
+  // ✅ Backwards-compatible alias for older pages/hooks
+  // (so anything still reading `language` won’t fall back to English)
+  language: Lang;
+
   label?: string;
   setLang: (l: Lang) => void;
 };
@@ -33,13 +35,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // 1) Load from localStorage first (fast, no auth needed)
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const stored =
       window.localStorage.getItem(LS_KEY) ||
       window.localStorage.getItem("uiLang"); // old key fallback
-    if (
-      stored &&
-      SUPPORTED_LANGS.some((entry) => entry.code === stored)
-    ) {
+
+    if (stored && SUPPORTED_LANGS.some((entry) => entry.code === stored)) {
       setLangState(stored as Lang);
     }
   }, []);
@@ -67,10 +68,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
         const dbLang = profile?.ui_language as Lang | null;
 
-        if (
-          dbLang &&
-          SUPPORTED_LANGS.some((entry) => entry.code === dbLang)
-        ) {
+        if (dbLang && SUPPORTED_LANGS.some((entry) => entry.code === dbLang)) {
           if (!cancelled) {
             setLangState(dbLang);
             if (typeof window !== "undefined") {
@@ -127,6 +125,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     <LanguageContext.Provider
       value={{
         lang,
+        language: lang, // ✅ alias for old code
         label: currentMeta?.label,
         setLang,
       }}

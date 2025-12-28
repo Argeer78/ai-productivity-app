@@ -87,7 +87,14 @@ export async function GET(
       ok: true,
       languageCode,
       translations,
-    }, { status: 200 });
+    }, {
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+      }
+    });
   } catch (err) {
     console.error("[ui-translations] GET error", err);
     return NextResponse.json(

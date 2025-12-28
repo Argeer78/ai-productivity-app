@@ -3,7 +3,7 @@
 // - Offline fallback + push notifications
 // -------------------------------
 
-const CACHE_VERSION = "v4"; // ⬅️ bump this on deploys
+const CACHE_VERSION = "v5"; // ⬅️ bump this on deploys
 const CACHE_NAME = `aiprod-cache-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline.html";
 

@@ -44,7 +44,11 @@ export function UiStringsProvider({ children }: { children: React.ReactNode }) {
           );
         }
 
-        if (!cancelled) setDict(json.translations || {});
+        if (!cancelled) {
+          setDict(json.translations || {});
+          console.error(`[UiStrings] Loaded ${Object.keys(json.translations || {}).length} keys for ${lang}`);
+          console.error(`[UiStrings] Check 'notes.buttons.saveNote':`, json.translations?.["notes.buttons.saveNote"]);
+        }
       } catch (e: any) {
         console.error("[UiStringsProvider] load error:", e);
         if (!cancelled) {

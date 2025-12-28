@@ -4,6 +4,8 @@ import { useSound } from "@/lib/sound";
 import { useT } from "@/lib/useT";
 import { useFocus } from "@/app/context/FocusContext";
 
+import BreathingCircle from "@/app/components/BreathingCircle";
+
 export default function FocusOverlay() {
     const { t } = useT();
     const sound = useSound();
@@ -30,10 +32,8 @@ export default function FocusOverlay() {
     return (
         <div className="fixed inset-0 z-[99999] bg-[var(--bg-body)] flex flex-col items-center justify-center animate-in fade-in duration-300">
 
-            {/* Background Ambience Visual */}
-            <div className={`absolute inset-0 pointer-events-none transition-opacity duration-1000 ${!isPaused ? "opacity-30" : "opacity-10"}`}>
-                <div className="absolute inset-0 bg-gradient-radial from-[var(--accent)] to-transparent opacity-20 transform scale-150 animate-pulse-slow" />
-            </div>
+            {/* Background Zen Visual */}
+            <BreathingCircle isPaused={isPaused} />
 
             {/* Main Timer */}
             <div className="relative z-10 text-center">

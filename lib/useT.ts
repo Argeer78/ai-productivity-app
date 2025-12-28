@@ -1,53 +1,84 @@
 // lib/useT.ts
 "use client";
 
-import { useUiStrings } from "@/app/components/UiStringsProvider";
-import { useUiLanguage } from "@/app/components/UiLanguageProvider";
+import { useMemo } from "react";
+import { useLanguage } from "@/app/components/LanguageProvider";
+import { useUiI18n } from "@/lib/useUiI18n";
 
-type Namespace = string;
+type TFn = (key: string, fallback?: string) => string;
 
-export function useT(namespace?: Namespace) {
-  const { dict } = useUiStrings();
-  const { uiLang } = useUiLanguage(); // ✅ keep for reactivity
+export function useT(defaultNamespace?: string) {
+  const { lang } = useLanguage();
 
-  function get(fullKey: string, fallback?: string): string {
-    const val = dict[fullKey];
-    if (typeof val === "string" && val.length > 0) return val;
-    if (typeof fallback === "string") return fallback;
-    return fullKey; // debug fallback
-  }
+  // Load translations for the language currently selected in LanguageProvider
+  const { t: raw, loading, error, translations } = useUiI18n(lang);
 
   /**
-   * Rules:
-   * - If key starts with "common.", never namespace it
-   * - If key already starts with `${namespace}.`, use as-is
-   * - Otherwise prefix with namespace
+   * tCommon:
+   * Use for shared/global keys with NO forced namespace.
+   * Example: tCommon("common.close", "Close")
+   * Example: tCommon("translate.translateWithAI", "Translate with AI")
    */
-  function t(key: string, fallback?: string): string {
-    const ns = namespace ? `${namespace}.` : "";
+  const tCommon: TFn = useMemo(() => {
+    return (key: string, fallback?: string) => {
+      const out = raw(key);
 
-    if (key.startsWith("common.")) {
-      return get(key, fallback);
-    }
+      if (out === key) {
+        if (fallback) return fallback;
+        console.error(`[UiStrings] Check '${key}': undefined`);
+        return key;
+      }
 
-    if (ns && key.startsWith(ns)) {
-      return get(key, fallback);
-    }
+      return out;
+    };
+  }, [raw]);
 
-    if (!ns) {
-      return get(key, fallback);
-    }
+  /**
+   * t:
+   * Use for module/page keys. If you pass a namespace (e.g. "notes"),
+   * you call t("buttons.saveNote") and it resolves "notes.buttons.saveNote".
+   *
+   * If no namespace, it behaves like tCommon.
+   */
+  const t: TFn = useMemo(() => {
+    return (key: string, fallback?: string) => {
+      const fullKey =
+        defaultNamespace && defaultNamespace.length > 0
+          ? `${defaultNamespace}.${key}`
+          : key;
 
-    return get(`${ns}${key}`, fallback);
-  }
+      const out = raw(fullKey);
 
-  function tCommon(key: string, fallback?: string): string {
-    return get(`common.${key}`, fallback);
-  }
+      if (out === fullKey) {
+        if (fallback) return fallback;
+        console.error(`[UiStrings] Check '${fullKey}': undefined`);
+        return fullKey;
+      }
+
+      return out;
+    };
+  }, [raw, defaultNamespace]);
+
+  /**
+   * tRaw:
+   * Sometimes you already have the full key (like "notes.buttons.saveNote")
+   * and you want a direct lookup without namespace composition.
+   */
+  const tRaw: TFn = useMemo(() => {
+    return (fullKey: string, fallback?: string) => {
+      const out = raw(fullKey);
+      if (out === fullKey) return fallback ?? fullKey;
+      return out;
+    };
+  }, [raw]);
 
   return {
     t,
     tCommon,
-    uiLang, // optional but useful for debugging / conditional UI
+    tRaw,
+    loading,
+    error,
+    lang,
+    translationsCount: Object.keys(translations || {}).length,
   };
 }

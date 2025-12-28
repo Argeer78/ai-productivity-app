@@ -12,6 +12,8 @@ import { useLanguage } from "@/app/components/LanguageProvider";
 import Alive3DImage from "@/app/components/Alive3DImage";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import WeatherOverview from "@/app/components/WeatherOverview";
+import Confetti from "@/app/components/Confetti";
+import { useSound } from "@/lib/sound";
 
 const SUGGESTED_DESTINATIONS = []; // Assuming this should be an empty array or defined elsewhere
 const BOOKING_AFFILIATE_ID = process.env.NEXT_PUBLIC_BOOKING_AID || "";
@@ -317,6 +319,76 @@ export default function TravelPage() {
   // Save trip
   const [savingTrip, setSavingTrip] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [generatingTasks, setGeneratingTasks] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [toast, setToast] = useState("");
+  const { play } = useSound();
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
+
+  async function handleGenerateTasks() {
+    if (!planText.trim()) return;
+    play("pop");
+
+    if (!user) {
+      gate.openGate({
+        title: t("auth.tasks.title", "Log in to create tasks"),
+        subtitle: t("auth.tasks.subtitle", "Save this plan directly to your tasks.")
+      });
+      return;
+    }
+
+    setGeneratingTasks(true);
+
+    try {
+      const res = await fetch("/api/ai/note-to-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: planText }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        console.error("[travel] generate-tasks error:", data);
+        alert(data?.error || t("tasks.error", "Failed to generate tasks."));
+        return;
+      }
+
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      if (tasks.length === 0) {
+        alert(t("tasks.empty", "AI couldn't find actionable tasks in this plan."));
+        return;
+      }
+
+      const rows = tasks.map((tItem: any) => ({
+        user_id: user.id,
+        title: typeof tItem.title === "string" ? tItem.title.trim() : "",
+        completed: false,
+        category: "travel"
+      })).filter((r: any) => r.title.length > 0);
+
+      const { error: insertError } = await supabase.from("tasks").insert(rows);
+      if (insertError) {
+        console.error("[travel] tasks insert error:", insertError);
+        alert(t("tasks.saveError", "Failed to save tasks."));
+        return;
+      }
+
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+      showToast(t("tasks.success", `Created ${rows.length} travel tasks! ✅`));
+
+    } catch (err) {
+      console.error("[travel] unexpected:", err);
+      alert(t("tasks.networkError", "Unexpected error."));
+    } finally {
+      setGeneratingTasks(false);
+    }
+  }
 
   // Mini planning assistant
   const [assistantStep, setAssistantStep] = useState<1 | 2 | 3>(1);
@@ -525,6 +597,15 @@ export default function TravelPage() {
 
       {/* ✅ Always mounted (like Settings) */}
       <AuthGateModal open={gate.open} onClose={gate.close} copy={gate.copy} authHref={gate.authHref} />
+      {showConfetti && <Confetti />}
+
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-2">
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/95 backdrop-blur px-4 py-2 text-xs shadow-lg">
+            {toast}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 text-sm">
@@ -883,6 +964,15 @@ export default function TravelPage() {
                       className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs md:text-sm text-white disabled:opacity-60"
                     >
                       {savingTrip ? t("save.buttonSaving", "Saving trip...") : t("save.button", "Save this trip to my account")}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleGenerateTasks}
+                      disabled={generatingTasks}
+                      className="px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs md:text-sm disabled:opacity-60"
+                    >
+                      {generatingTasks ? t("tasks.creating", "Creating...") : t("tasks.convertToTasks", "⚡ Convert to Tasks")}
                     </button>
 
                     {saveMessage && (

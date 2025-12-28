@@ -116,13 +116,11 @@ type VoiceStructured = {
     due_iso?: string | null;
     priority?: "low" | "medium" | "high" | null;
   }[];
-  reminder?:
-  | {
+  reminder?: {
     time_natural?: string | null;
     time_iso?: string | null;
     reason?: string | null;
-  }
-  | null;
+  } | null;
   summary?: string | null;
 };
 
@@ -242,7 +240,7 @@ function AuthGateModal({
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+            className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
           >
             ✕
           </button>
@@ -354,7 +352,6 @@ export default function NotesPage() {
     const key = CATEGORY_KEY_MAP[value as (typeof NOTE_CATEGORIES)[number]];
     return key ? t(`category.${key}`, value) : value;
   }
-
   function handleShareNote(note: Note) {
     if (!note?.content) return;
 
@@ -429,31 +426,28 @@ export default function NotesPage() {
     }
 
     if (structured && Array.isArray(structured.tasks)) {
-      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((t) => {
-        const rawTitle = typeof t.title === "string" && t.title.trim() ? t.title.trim() : "(Untitled task)";
+      const suggestions: VoiceTaskSuggestion[] = structured.tasks.map((tItem) => {
+        const rawTitle =
+          typeof tItem.title === "string" && tItem.title.trim() ? tItem.title.trim() : "(Untitled task)";
 
         let dueIso: string | null = null;
         let dueLabel: string | null = null;
 
-        if (typeof t.due_iso === "string" && t.due_iso.trim()) {
-          dueIso = t.due_iso.trim();
+        if (typeof tItem.due_iso === "string" && tItem.due_iso.trim()) {
+          dueIso = tItem.due_iso.trim();
           if (dueIso) {
             const parsed = Date.parse(dueIso);
-            if (!Number.isNaN(parsed)) {
-              dueLabel = new Date(parsed).toLocaleString();
-            }
+            if (!Number.isNaN(parsed)) dueLabel = new Date(parsed).toLocaleString();
           }
         }
 
-        if (!dueIso && typeof t.due_natural === "string" && t.due_natural.trim()) {
-          const natural = t.due_natural.trim();
+        if (!dueIso && typeof tItem.due_natural === "string" && tItem.due_natural.trim()) {
+          const natural = tItem.due_natural.trim();
           const resolved = resolveNaturalDue(natural);
           if (resolved) {
             dueIso = resolved;
             const parsed = Date.parse(resolved);
-            if (!Number.isNaN(parsed)) {
-              dueLabel = new Date(parsed).toLocaleString();
-            }
+            if (!Number.isNaN(parsed)) dueLabel = new Date(parsed).toLocaleString();
           }
           if (!dueLabel) dueLabel = natural;
         }
@@ -462,7 +456,7 @@ export default function NotesPage() {
           title: rawTitle,
           dueIso,
           dueLabel,
-          priority: t.priority === "low" || t.priority === "medium" || t.priority === "high" ? t.priority : null,
+          priority: tItem.priority === "low" || tItem.priority === "medium" || tItem.priority === "high" ? tItem.priority : null,
         };
       });
 
@@ -474,6 +468,7 @@ export default function NotesPage() {
       setVoiceTasksMessage("");
     }
   }
+
   async function handleGenerateTasksFromNote(note: Note) {
     if (!requireAuth()) return;
     if (!note.content?.trim()) return;
@@ -498,9 +493,9 @@ export default function NotesPage() {
 
       const tasks = Array.isArray(data.tasks) ? data.tasks : [];
       const rows = tasks
-        .map((t: any) => ({
+        .map((tItem: any) => ({
           user_id: (user as any)!.id,
-          title: typeof t.title === "string" ? t.title.trim() : "",
+          title: typeof tItem.title === "string" ? tItem.title.trim() : "",
           completed: false,
           category: note.category || null,
         }))
@@ -697,7 +692,11 @@ export default function NotesPage() {
       return;
     }
 
-    const { error: updateError } = await supabase.from("notes").update({ ai_result: data.result }).eq("id", noteId).eq("user_id", user!.id);
+    const { error: updateError } = await supabase
+      .from("notes")
+      .update({ ai_result: data.result })
+      .eq("id", noteId)
+      .eq("user_id", user!.id);
 
     if (updateError) {
       console.error("[notes] AI result update error", updateError);
@@ -788,10 +787,9 @@ export default function NotesPage() {
         let dueDateForColumn: string | null = null;
 
         if (dueIso) {
-          const due = new Date(dueIso);
           dueDateForColumn = dueIso;
 
-          const local = new Date(due);
+          const local = new Date(dueIso);
           const h = local.getHours();
           const m = local.getMinutes();
 
@@ -809,13 +807,10 @@ export default function NotesPage() {
           completed: false,
           created_at: now.toISOString(),
           completed_at: null,
-
           category: finalCategory,
-
           time_from: timeFrom,
           time_to: timeTo,
           due_date: dueDateForColumn,
-
           reminder_enabled: !!reminderAt,
           reminder_at: reminderAt,
           reminder_sent_at: null,
@@ -857,201 +852,175 @@ export default function NotesPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center w-full overflow-x-hidden">
+      <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)]">{t("checkingSession", "Checking session…")}</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] p-4 md:p-8 pb-24 w-full overflow-x-hidden">
+    <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] overflow-x-hidden">
       <AppHeader active="notes" />
-
       <AuthGateModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
-      {/* Guest Banner - Full Width */}
-      {!user && (
-        <div className="max-w-5xl mx-auto mt-6 mb-8 rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm relative overflow-hidden">
-          <div className="flex-1 relative z-10 min-w-0">
-            <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
-              NOTES & THOUGHTS
-            </span>
-            <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">Capture ideas instantly ⚡️</h2>
-            <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed">
-              Jot down thoughts, meetings, or journals. Use AI to clean them up, summarize, or extract action items automatically.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setAuthModalOpen(true)}
-                className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg shadow-indigo-500/20"
-              >
-                Log in to save notes
-              </button>
-            </div>
-          </div>
-          <div className="w-full max-w-xs relative z-10 hidden md:block">
-            <Alive3DImage src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto drop-shadow-2xl" />
-          </div>
-          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        </div>
-      )}
-
-      <div className="max-w-5xl mx-auto w-full grid gap-6 grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        {/* CREATE NOTE */}
-        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] min-w-0 h-fit">
-          <div className="flex items-center justify-between mb-3 gap-3">
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold break-words">{t("create.heading", "Create a new note")}</h2>
-              <p className="text-[11px] text-[var(--text-muted)] mt-1 break-words">
-                {t("create.subheading", "Use AI to summarize, bullet, or rewrite your notes. Capture ideas with your voice, too.")}
-              </p>
-
-              {!user && (
-                <p className="mt-2 text-[11px] text-[var(--text-muted)] break-words">
-                  You’re browsing as a <span className="font-semibold">visitor</span>. Click any action to log in.
+      <div className="w-full max-w-5xl mx-auto px-4 md:px-8 py-4 md:py-8 pb-24">
+        <div className="mt-2 grid gap-6 grid-cols-1 md:grid-cols-[1.2fr_1fr] items-start">
+          {/* CREATE NOTE */}
+          <section className="min-w-0 w-full border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3 min-w-0">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold break-words">{t("create.heading", "Create a new note")}</h2>
+                <p className="text-[11px] text-[var(--text-muted)] mt-1 break-words">
+                  {t("create.subheading", "Use AI to summarize, bullet, or rewrite your notes. Capture ideas with your voice, too.")}
                 </p>
+
+                {!user && (
+                  <p className="mt-2 text-[11px] text-[var(--text-muted)] break-words">
+                    You’re browsing as a <span className="font-semibold">visitor</span>. Click any action to log in.
+                  </p>
+                )}
+              </div>
+
+              {user ? (
+                <button
+                  onClick={() => supabase.auth.signOut()}
+                  className="shrink-0 text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+                >
+                  {t("create.logout", "Log out")}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  className="shrink-0 text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+                >
+                  Log in
+                </button>
               )}
             </div>
 
-            {user ? (
-              <button
-                onClick={() => supabase.auth.signOut()}
-                className="shrink-0 text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
-              >
-                {t("create.logout", "Log out")}
-              </button>
-            ) : (
-              <button
-                onClick={() => setAuthModalOpen(true)}
-                className="shrink-0 text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
-              >
-                Log in
-              </button>
-            )}
-          </div>
+            {error && <div className="text-sm text-red-400 mb-3 break-words">{error}</div>}
 
-          {error && <div className="text-sm text-red-400 mb-3 break-words">{error}</div>}
-
-          <form
-            onSubmit={(e) => {
-              if (!user) {
-                e.preventDefault();
-                setAuthModalOpen(true);
-                return;
-              }
-              handleSaveNote(e);
-            }}
-            className="flex flex-col gap-3"
-          >
-            <input
-              type="text"
-              placeholder={"Note title"}
-              className="w-full min-w-0 px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm focus:outline-none"
-              value={title}
-              readOnly={!user}
-              onFocus={() => requireAuth()}
-              onChange={(e) => {
-                if (!requireAuth()) return;
-                setTitle(e.target.value);
+            <form
+              onSubmit={(e) => {
+                if (!user) {
+                  e.preventDefault();
+                  setAuthModalOpen(true);
+                  return;
+                }
+                handleSaveNote(e);
               }}
-            />
+              className="flex flex-col gap-3 min-w-0"
+            >
+              <input
+                type="text"
+                placeholder={t("form.titlePlaceholder", "Note title")}
+                className="w-full max-w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm focus:outline-none"
+                value={title}
+                readOnly={!user}
+                onFocus={() => requireAuth()}
+                onChange={(e) => {
+                  if (!requireAuth()) return;
+                  setTitle(e.target.value);
+                }}
+              />
 
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="break-words">{t("form.dateLabel", "Note date:")}</span>
-                <input
-                  type="date"
-                  value={noteDate}
-                  onFocus={() => requireAuth()}
-                  onChange={(e) => {
-                    if (!requireAuth()) return;
-                    setNoteDate(e.target.value);
-                  }}
-                  className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
-                />
+              <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="whitespace-nowrap">{t("form.dateLabel", "Note date:")}</span>
+                  <input
+                    type="date"
+                    value={noteDate}
+                    onFocus={() => requireAuth()}
+                    onChange={(e) => {
+                      if (!requireAuth()) return;
+                      setNoteDate(e.target.value);
+                    }}
+                    className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px] max-w-full"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="whitespace-nowrap">{t("form.categoryLabel", "Category:")}</span>
+                  <select
+                    value={newCategory}
+                    onFocus={() => requireAuth()}
+                    onChange={(e) => {
+                      if (!requireAuth()) return;
+                      setNewCategory(e.target.value);
+                      setTasksSourceCategory(normalizeTaskCategory(e.target.value || null));
+                    }}
+                    className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px] max-w-full"
+                  >
+                    <option value="">{t("form.category.none", "None")}</option>
+                    {NOTE_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {t(`category.${CATEGORY_KEY_MAP[c]}`, c)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    id="auto-title"
+                    type="checkbox"
+                    checked={autoTitleEnabled}
+                    onChange={(e) => setAutoTitleEnabled(e.target.checked)}
+                    className="h-3 w-3"
+                  />
+                  <label htmlFor="auto-title" className="cursor-pointer text-[11px] break-words">
+                    {t("form.smartTitleLabel", "Smart title from content")}
+                  </label>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="break-words">{t("form.categoryLabel", "Category:")}</span>
-                <select
-                  value={newCategory}
-                  onFocus={() => requireAuth()}
-                  onChange={(e) => {
-                    if (!requireAuth()) return;
-                    setNewCategory(e.target.value);
-                    setTasksSourceCategory(normalizeTaskCategory(e.target.value || null));
-                  }}
-                  className="max-w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
-                >
-                  <option value="">{t("form.category.none", "None")}</option>
-                  {NOTE_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {t(`category.${CATEGORY_KEY_MAP[c]}`, c)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <textarea
+                placeholder={t("form.contentPlaceholder", "Write your note here...")}
+                className="w-full max-w-full min-h-[120px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm whitespace-pre-wrap break-words"
+                value={content}
+                readOnly={!user}
+                onFocus={() => requireAuth()}
+                onChange={(e) => {
+                  if (!requireAuth()) return;
+                  setContent(e.target.value);
+                }}
+              />
 
-              <div className="flex items-center gap-1 min-w-0">
-                <input
-                  id="auto-title"
-                  type="checkbox"
-                  checked={autoTitleEnabled}
-                  onChange={(e) => {
-                    setAutoTitleEnabled(e.target.checked);
-                  }}
-                  className="h-3 w-3 shrink-0"
-                />
-                <label htmlFor="auto-title" className="cursor-pointer text-[11px] break-words">
-                  {t("form.smartTitleLabel", "Smart title from content")}
-                </label>
-              </div>
-            </div>
-
-            <textarea
-              placeholder={"Write your note here..."}
-              className="w-full min-w-0 min-h-[120px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
-              value={content}
-              readOnly={!user}
-              onFocus={() => requireAuth()}
-              onChange={(e) => {
-                if (!requireAuth()) return;
-                setContent(e.target.value);
-              }}
-            />
-
-            <div className="flex flex-col gap-2 text-[11px] text-[var(--text-muted)] min-w-0">
-              <span className="break-words">
-                {t("plan.label", "Plan")}: <span className="font-semibold">{plan}</span> • {t("plan.aiTodayLabel", "AI today")}:{" "}
-                <span className="font-semibold">
-                  {aiCountToday}/{dailyLimit}
+              <div className="flex flex-col gap-2 text-[11px] text-[var(--text-muted)]">
+                <span className="break-words">
+                  {t("plan.label", "Plan")}: <span className="font-semibold">{plan}</span> •{" "}
+                  {t("plan.aiTodayLabel", "AI today")}:{" "}
+                  <span className="font-semibold">
+                    {aiCountToday}/{dailyLimit}
+                  </span>
                 </span>
-              </span>
 
-              <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <span className="text-[10px] break-words">{t("voice.modeLabel", "Voice capture mode:")}</span>
-                <button
-                  type="button"
-                  onClick={() => setVoiceMode("review")}
-                  className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "review" ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]" : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
-                    }`}
-                >
-                  {t("voice.mode.review", "Review first")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVoiceMode("autosave")}
-                  className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "autosave" ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]" : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
-                    }`}
-                >
-                  {t("voice.mode.autosave", "Auto-save note")}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] whitespace-nowrap">{t("voice.modeLabel", "Voice capture mode:")}</span>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceMode("review")}
+                    className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "review"
+                        ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
+                        : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                      }`}
+                  >
+                    {t("voice.mode.review", "Review first")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceMode("autosave")}
+                    className={`px-2 py-1 rounded-full border text-[10px] ${voiceMode === "autosave"
+                        ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]"
+                        : "bg-[var(--bg-elevated)] border-[var(--border-subtle)]"
+                      }`}
+                  >
+                    {t("voice.mode.autosave", "Auto-save note")}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <div className="mt-2 flex items-center gap-2 flex-wrap min-w-0">
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
                 {user ? (
                   <VoiceCaptureButton
                     userId={user.id as string}
@@ -1067,7 +1036,7 @@ export default function NotesPage() {
                     type="button"
                     onClick={() => setAuthModalOpen(true)}
                     aria-label={t("voice.loginToUse", "Log in to use voice")}
-                    className="h-10 w-10 shrink-0 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
                   >
                     🎤
                   </button>
@@ -1083,298 +1052,335 @@ export default function NotesPage() {
                   </button>
                 )}
               </div>
-            </div>
 
-            {voiceSuggestedTasks.length > 0 && (
-              <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px] min-w-0">
-                <div className="flex items-center justify-between mb-2 gap-2 min-w-0">
-                  <p className="font-semibold break-words">{t("tasks.suggested.title", "Suggested tasks")}</p>
-                  {voiceTasksMessage && <span className="text-[10px] text-emerald-400 break-words">{voiceTasksMessage}</span>}
+              {voiceSuggestedTasks.length > 0 && (
+                <div className="mt-3 border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)]/60 text-[11px]">
+                  <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
+                    <p className="font-semibold break-words">{t("tasks.suggested.title", "Suggested tasks")}</p>
+                    {voiceTasksMessage && <span className="text-[10px] text-emerald-400 break-words">{voiceTasksMessage}</span>}
+                  </div>
+
+                  <ul className="list-disc pl-4 space-y-1 mb-2">
+                    {voiceSuggestedTasks.map((tItem, idx) => (
+                      <li key={idx} className="break-words">
+                        <span className="font-medium">{tItem.title}</span>
+                        {tItem.dueLabel && <span className="text-[var(--text-muted)]"> — {tItem.dueLabel}</span>}
+                        {tItem.priority && (
+                          <span className="ml-1 uppercase text-[9px] text-[var(--text-muted)]">[{tItem.priority}]</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    type="button"
+                    onClick={handleCreateTasksFromVoice}
+                    disabled={creatingTasks}
+                    className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-[11px] disabled:opacity-60"
+                  >
+                    {creatingTasks ? t("tasks.suggested.creating", "Creating tasks…") : t("tasks.suggested.createButton", "Create tasks")}
+                  </button>
                 </div>
+              )}
 
-                <ul className="list-disc pl-4 space-y-1 mb-2 min-w-0">
-                  {voiceSuggestedTasks.map((tItem, idx) => (
-                    <li key={idx} className="break-words">
-                      <span className="font-medium break-words">{tItem.title}</span>
-                      {tItem.dueLabel && <span className="text-[var(--text-muted)] break-words"> — {tItem.dueLabel}</span>}
-                      {tItem.priority && <span className="ml-1 uppercase text-[9px] text-[var(--text-muted)]">[{tItem.priority}]</span>}
-                    </li>
-                  ))}
-                </ul>
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-3 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-50"
+              >
+                {loading ? t("buttons.saveNoteLoading", "Saving...") : t("buttons.saveNote", "Save note")}
+              </button>
+            </form>
 
-                <button
-                  type="button"
-                  onClick={handleCreateTasksFromVoice}
-                  disabled={creatingTasks}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-[11px] disabled:opacity-60"
-                >
-                  {creatingTasks ? t("tasks.suggested.creating", "Creating tasks…") : t("tasks.suggested.createButton", "Create tasks")}
+            {plan === "free" && (
+              <div className="mt-3 text-[11px] text-[var(--text-muted)] break-words">
+                {t("buttons.upgradeHint", "AI limit reached often?")}{" "}
+                <button disabled={billingLoading} onClick={() => setAuthModalOpen(true)} className="underline text-[var(--accent)]">
+                  {t("buttons.upgradeToPro", "Upgrade to Pro")}
                 </button>
               </div>
             )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-3 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-50"
-            >
-              {loading ? t("buttons.saveNoteLoading", "Saving...") : t("buttons.saveNote", "Save note")}
-            </button>
-          </form>
-
-          {plan === "free" && (
-            <div className="mt-3 text-[11px] text-[var(--text-muted)] break-words">
-              {t("buttons.upgradeHint", "AI limit reached often?")}{" "}
-              <button disabled={billingLoading} onClick={() => setAuthModalOpen(true)} className="underline text-[var(--accent)]">
-                {t("buttons.upgradeToPro", "Upgrade to Pro")}
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* Notes List Column */}
-        <section className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] min-w-0 h-fit">
-          <div className="flex flex-wrap items-center justify-between mb-3 gap-2 min-w-0">
-            <h2 className="text-lg font-semibold break-words">{t("list.title", "Your notes")}</h2>
-
-            <div className="flex flex-wrap items-center gap-2 text-[11px] min-w-0">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="max-w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
-              >
-                <option value="created_desc">{t("sort.newest", "Newest")}</option>
-                <option value="created_asc">{t("sort.oldest", "Oldest")}</option>
-                <option value="alpha_asc">{t("sort.alphaAsc", "A-Z")}</option>
-                <option value="alpha_desc">{t("sort.alphaDesc", "Z-A")}</option>
-              </select>
-
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="max-w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
-              >
-                <option value="all">{t("list.filter.allCategories", "All categories")}</option>
-                {NOTE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {t(`category.${CATEGORY_KEY_MAP[c]}`, c)}
-                  </option>
-                ))}
-                <option value="">{t("list.filter.noCategory", "No category")}</option>
-              </select>
-
-              <button
-                onClick={() => {
-                  if (!user) {
-                    setNotes(DEMO_NOTES);
-                    return;
-                  }
-                  fetchNotes();
-                }}
-                className="text-sm px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
-              >
-                {t("list.refresh", "Refresh")}
-              </button>
-            </div>
-          </div>
-
-          {filteredNotes.length === 0 && !loadingList && <p className="text-[var(--text-muted)] text-sm break-words">{t("list.empty", "No notes found.")}</p>}
-
-          <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto overflow-x-hidden pr-1 min-w-0">
-            {filteredNotes.map((note) => {
-              const isEditing = editingNoteId === note.id;
-              const badge = noteCategoryStyles[note.category || "Other"];
-              const isOpen = openNoteIds.includes(note.id);
-
-              return (
-                <article key={note.id} className="border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)] min-w-0">
-                  {!isEditing && (
-                    <div className="flex items-start gap-2 mb-1 min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => toggleNoteOpen(note.id)}
-                        className="shrink-0 h-5 w-5 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[10px] hover:bg-[var(--bg-elevated)]"
-                        aria-label={isOpen ? t("list.aria.collapse", "Collapse note") : t("list.aria.expand", "Expand note")}
-                      >
-                        {isOpen ? "▲" : "▼"}
-                      </button>
-
-                      <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
-                        <div className="flex flex-col min-w-0">
-                          <h3 className="font-semibold text-sm line-clamp-1 break-words">
-                            {note.title || t("list.untitled", "Untitled")}
-                          </h3>
-                          <span className="text-[10px] text-[var(--text-muted)] break-words">
-                            {note.created_at ? formatDateTime(note.created_at) : ""}
-                          </span>
-                        </div>
-
-                        {note.category && (
-                          <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${badge}`}>
-                            {getCategoryLabel(note.category)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {!isEditing && isOpen && (
-                    <>
-                      {note.content && (
-                        <p className="mt-2 text-xs text-[var(--text-main)] whitespace-pre-wrap break-words min-w-0">
-                          {note.content}
-                        </p>
-                      )}
-
-                      <div className="mt-3 flex flex-wrap gap-2 min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => handleGenerateTasksFromNote(note)}
-                          disabled={noteTasksLoadingId === note.id || creatingTasks}
-                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)] disabled:opacity-60"
-                        >
-                          {noteTasksLoadingId === note.id || creatingTasks ? "Finding tasks..." : "⚡ Tasks from note"}
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (!requireAuth()) return;
-                            setError("");
-                          }}
-                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
-                        >
-                          🌍 Translate text
-                        </button>
-
-                        <button
-                          onClick={() => handleAI(note.id, note.content, "summarize")}
-                          disabled={aiLoading === note.id}
-                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
-                        >
-                          {aiLoading === note.id ? t("buttons.summarizeLoading", "Summarizing...") : t("buttons.summarize", "✨ Summarize")}
-                        </button>
-
-                        <button
-                          onClick={() => handleAI(note.id, note.content, "bullets")}
-                          disabled={aiLoading === note.id}
-                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
-                        >
-                          {t("buttons.bullets", "📋 Bullets")}
-                        </button>
-
-                        <button
-                          onClick={() => handleAI(note.id, note.content, "rewrite")}
-                          disabled={aiLoading === note.id}
-                          className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
-                        >
-                          {t("buttons.rewrite", "✍️ Rewrite")}
-                        </button>
-
-                        <button
-                          onClick={() => handleShareNote(note)}
-                          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
-                        >
-                          {copiedNoteId === note.id ? t("buttons.shareCopied", "✅ Copied") : t("buttons.share", "Share")}
-                        </button>
-
-                        <button
-                          onClick={() => handleAskAssistantAboutNote(note)}
-                          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
-                        >
-                          {t("buttons.askAI", "🤖 Ask AI")}
-                        </button>
-
-                        <button
-                          onClick={() => startEdit(note)}
-                          className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
-                        >
-                          {t("buttons.edit", "✏️ Edit")}
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(note.id)}
-                          disabled={deletingId === note.id}
-                          className="px-2 py-1 rounded-lg border border-red-500 text-red-400 hover:bg-red-900/30 text-[11px]"
-                        >
-                          {deletingId === note.id ? t("buttons.deleteLoading", "Deleting...") : t("buttons.delete", "🗑 Delete")}
-                        </button>
-                      </div>
-
-                      {note.ai_result && (
-                        <div className="mt-3 text-xs text-[var(--text-main)] border-t border-[var(--border-subtle)] pt-2 whitespace-pre-wrap break-words min-w-0">
-                          <strong>{t("list.aiResultTitle", "AI Result:")}</strong>
-                          <br />
-                          {note.ai_result}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {isEditing && (
-                    <div className="mt-2 space-y-3 min-w-0">
-                      <input
-                        type="text"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full min-w-0 px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
-                      />
-
-                      <select
-                        value={editCategory}
-                        onChange={(e) => setEditCategory(e.target.value)}
-                        className="max-w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px]"
-                      >
-                        <option value="">{t("list.filter.noCategory", "No category")}</option>
-                        {NOTE_CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {t(`category.${CATEGORY_KEY_MAP[c]}`, c)}
-                          </option>
-                        ))}
-                      </select>
-
-                      <textarea
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        className="w-full min-w-0 min-h-[100px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
-                      />
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => saveEdit(note.id)}
-                          disabled={savingEditId === note.id}
-                          className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
-                        >
-                          {savingEditId === note.id ? t("buttons.editSaveLoading", "Saving...") : t("buttons.editSave", "Save")}
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
-                        >
-                          {t("buttons.editCancel", "Cancel")}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 text-[11px] flex flex-wrap gap-3 text-[var(--text-muted)]">
-            <Link href="/tasks" className="hover:text-[var(--accent)]">
-              {t("list.goToTasks", "→ Go to Tasks")}
-            </Link>
-            <Link href="/dashboard" className="hover:text-[var(--accent)]">
-              {t("list.openDashboard", "Open Dashboard")}
-            </Link>
-          </div>
-
-          <section className="mt-6">
-            <div className="max-w-md mx-auto">
-              <FeedbackForm user={user} />
-            </div>
           </section>
-        </section>
+
+          {/* RIGHT SIDE (banner + list) */}
+          <div className="min-w-0 w-full flex flex-col gap-6">
+            {!user && (
+              <div className="rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 flex flex-col sm:flex-row items-center gap-6 shadow-sm relative overflow-hidden min-w-0">
+                <div className="flex-1 relative z-10 min-w-0">
+                  <span className="inline-block px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-semibold mb-3">
+                    NOTES & THOUGHTS
+                  </span>
+                  <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2 break-words">
+                    Capture ideas instantly ⚡️
+                  </h2>
+                  <p className="text-sm text-[var(--text-muted)] mb-5 max-w-md leading-relaxed break-words">
+                    Jot down thoughts, meetings, or journals. Use AI to clean them up, summarize, or extract action items automatically.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAuthModalOpen(true)}
+                      className="px-5 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] shadow-lg"
+                    >
+                      Log in to save notes
+                    </button>
+                  </div>
+                </div>
+                <div className="w-full max-w-xs relative z-10">
+                  <Alive3DImage src="/images/notes-welcome.png?v=1" alt="Notes" className="w-full h-auto drop-shadow-2xl" />
+                </div>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+              </div>
+            )}
+
+            <section className="min-w-0 w-full border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)]">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3 min-w-0">
+                <h2 className="text-lg font-semibold break-words">{t("list.title", "Your notes")}</h2>
+
+                <div className="flex flex-wrap items-center gap-2 text-[11px] min-w-0">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px] max-w-full"
+                  >
+                    <option value="created_desc">{t("sort.newest", "Newest")}</option>
+                    <option value="created_asc">{t("sort.oldest", "Oldest")}</option>
+                    <option value="alpha_asc">{t("sort.alphaAsc", "A-Z")}</option>
+                    <option value="alpha_desc">{t("sort.alphaDesc", "Z-A")}</option>
+                  </select>
+
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px] max-w-full"
+                  >
+                    <option value="all">{t("list.filter.allCategories", "All categories")}</option>
+                    {NOTE_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {t(`category.${CATEGORY_KEY_MAP[c]}`, c)}
+                      </option>
+                    ))}
+                    <option value="">{t("list.filter.noCategory", "No category")}</option>
+                  </select>
+
+                  <button
+                    onClick={() => {
+                      if (!user) {
+                        setNotes(DEMO_NOTES);
+                        return;
+                      }
+                      fetchNotes();
+                    }}
+                    className="text-[11px] px-3 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
+                  >
+                    {t("list.refresh", "Refresh")}
+                  </button>
+                </div>
+              </div>
+
+              {filteredNotes.length === 0 && !loadingList && (
+                <p className="text-[var(--text-muted)] text-sm break-words">{t("list.empty", "No notes found.")}</p>
+              )}
+
+              <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1 min-w-0">
+                {filteredNotes.map((note) => {
+                  const isEditing = editingNoteId === note.id;
+                  const badge = noteCategoryStyles[note.category || "Other"];
+                  const isOpen = openNoteIds.includes(note.id);
+
+                  return (
+                    <article key={note.id} className="border border-[var(--border-subtle)] rounded-xl p-3 bg-[var(--bg-elevated)] min-w-0">
+                      {!isEditing && (
+                        <div className="flex items-start gap-2 mb-1 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => toggleNoteOpen(note.id)}
+                            className="shrink-0 h-5 w-5 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[10px] hover:bg-[var(--bg-elevated)]"
+                            aria-label={isOpen ? t("list.aria.collapse", "Collapse note") : t("list.aria.expand", "Expand note")}
+                          >
+                            {isOpen ? "▲" : "▼"}
+                          </button>
+
+                          <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+                            <div className="flex flex-col min-w-0">
+                              <h3 className="font-semibold text-sm line-clamp-1 break-words">
+                                {note.title || t("list.untitled", "Untitled")}
+                              </h3>
+                              <span className="text-[10px] text-[var(--text-muted)] break-words">
+                                {note.created_at ? formatDateTime(note.created_at) : ""}
+                              </span>
+                            </div>
+
+                            {note.category && (
+                              <span
+                                className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${badge}`}
+                              >
+                                {getCategoryLabel(note.category)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {!isEditing && isOpen && (
+                        <>
+                          {note.content && (
+                            <p className="mt-2 text-xs text-[var(--text-main)] whitespace-pre-wrap break-words">{note.content}</p>
+                          )}
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleGenerateTasksFromNote(note)}
+                              disabled={noteTasksLoadingId === note.id || creatingTasks}
+                              className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)] disabled:opacity-60"
+                            >
+                              {noteTasksLoadingId === note.id || creatingTasks
+                                ? t("buttons.tasksFromNoteLoading", "Finding tasks...")
+                                : t("buttons.tasksFromNote", "⚡ Tasks from note")}
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                if (!requireAuth()) return;
+                                setError("");
+                              }}
+                              className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
+                            >
+                              🌍 Translate text
+                            </button>
+
+                            <button
+                              onClick={() => handleAI(note.id, note.content, "summarize")}
+                              disabled={aiLoading === note.id}
+                              className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
+                            >
+                              {aiLoading === note.id ? t("buttons.summarizeLoading", "Summarizing...") : t("buttons.summarize", "✨ Summarize")}
+                            </button>
+
+                            <button
+                              onClick={() => handleAI(note.id, note.content, "bullets")}
+                              disabled={aiLoading === note.id}
+                              className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
+                            >
+                              {t("buttons.bullets", "📋 Bullets")}
+                            </button>
+
+                            <button
+                              onClick={() => handleAI(note.id, note.content, "rewrite")}
+                              disabled={aiLoading === note.id}
+                              className="text-xs px-3 py-1 border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--bg-card)]"
+                            >
+                              {t("buttons.rewrite", "✍️ Rewrite")}
+                            </button>
+
+                            <button
+                              onClick={() => handleShareNote(note)}
+                              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
+                            >
+                              {copiedNoteId === note.id ? t("buttons.shareCopied", "✅ Copied") : t("buttons.share", "Share")}
+                            </button>
+
+                            <button
+                              onClick={() => handleAskAssistantAboutNote(note)}
+                              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
+                            >
+                              {t("buttons.askAI", "🤖 Ask AI")}
+                            </button>
+
+                            <button
+                              onClick={() => startEdit(note)}
+                              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[11px]"
+                            >
+                              {t("buttons.edit", "✏️ Edit")}
+                            </button>
+
+                            <button
+                              onClick={() => handleDelete(note.id)}
+                              disabled={deletingId === note.id}
+                              className="px-2 py-1 rounded-lg border border-red-500 text-red-400 hover:bg-red-900/30 text-[11px]"
+                            >
+                              {deletingId === note.id ? t("buttons.deleteLoading", "Deleting...") : t("buttons.delete", "🗑 Delete")}
+                            </button>
+                          </div>
+
+                          {note.ai_result && (
+                            <div className="mt-3 text-xs text-[var(--text-main)] border-t border-[var(--border-subtle)] pt-2 whitespace-pre-wrap break-words">
+                              <strong>{t("list.aiResultTitle", "AI Result:")}</strong>
+                              <br />
+                              {note.ai_result}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {isEditing && (
+                        <div className="mt-2 space-y-3">
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
+                          />
+
+                          <select
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                            className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px] max-w-full"
+                          >
+                            <option value="">{t("list.filter.noCategory", "No category")}</option>
+                            {NOTE_CATEGORIES.map((c) => (
+                              <option key={c} value={c}>
+                                {t(`category.${CATEGORY_KEY_MAP[c]}`, c)}
+                              </option>
+                            ))}
+                          </select>
+
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="w-full min-h-[100px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm"
+                          />
+
+                          <div className="flex gap-2 flex-wrap">
+                            <button
+                              onClick={() => saveEdit(note.id)}
+                              disabled={savingEditId === note.id}
+                              className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
+                            >
+                              {savingEditId === note.id ? t("buttons.editSaveLoading", "Saving...") : t("buttons.editSave", "Save")}
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-xs"
+                            >
+                              {t("buttons.editCancel", "Cancel")}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 text-[11px] flex flex-wrap gap-3 text-[var(--text-muted)]">
+                <Link href="/tasks" className="hover:text-[var(--accent)]">
+                  {t("list.goToTasks", "→ Go to Tasks")}
+                </Link>
+                <Link href="/dashboard" className="hover:text-[var(--accent)]">
+                  {t("list.openDashboard", "Open Dashboard")}
+                </Link>
+              </div>
+
+              <section className="mt-6">
+                <div className="max-w-md mx-auto">
+                  <FeedbackForm user={user} />
+                </div>
+              </section>
+            </section>
+          </div>
+        </div>
       </div>
     </main>
   );

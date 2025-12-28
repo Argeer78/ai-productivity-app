@@ -732,7 +732,13 @@ export default function DashboardPage() {
           .limit(30);
 
         if (planError && (planError as any).code !== "PGRST116") {
-          console.error("Dashboard: plans error", planError);
+          // If table doesn't exist (42P01), fail silently (feature disabled)
+          if ((planError as any).code === "42P01") {
+            // console.warn("Dashboard: daily_plans table missing");
+          } else {
+            console.error("Dashboard: plans error", (planError as any).message || planError);
+          }
+          setRecentPlans([]);
         } else {
           setRecentPlans((planRows || []).map(r => r.created_at));
         }

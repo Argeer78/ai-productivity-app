@@ -6,11 +6,7 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import {
-  LANGUAGES,
-  LS_PREF_LANG,
-  type Language,
-} from "@/lib/translateLanguages";
+import { LANGUAGES, LS_PREF_LANG, type Language } from "@/lib/translateLanguages";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useT } from "@/lib/useT";
 import { supabase } from "@/lib/supabaseClient";
@@ -30,11 +26,24 @@ function clamp(n: number, min: number, max: number) {
 }
 
 export default function TranslateWithAIButton() {
-  const { t, tCommon } = useT("translate");
+  /**
+   * ✅ FIX: useT() return shape can differ depending on your implementation.
+   * Your crash was: "tCommon is not a function".
+   * This pattern is safe even if tCommon doesn't exist in some builds.
+   */
+  const anyT = useT("translate") as any;
+  const t: (key: string, fallback: string) => string =
+    typeof anyT?.t === "function" ? anyT.t : (_k: string, fb: string) => fb;
+
+  const tCommon: (key: string, fallback: string) => string =
+    typeof anyT?.tCommon === "function"
+      ? anyT.tCommon
+      : (key: string, fallback: string) =>
+        // fallback: try a "common" namespaced translator if available
+        (typeof anyT?.tAny === "function" ? anyT.tAny(`common.${key}`, fallback) : fallback);
 
   // App UI language, used only as a hint for default target language
-  const languageCtx = useLanguage();
-  const uiLangCode = (languageCtx as any)?.lang || "en";
+  const { lang: uiLangCode } = useLanguage();
 
   const [open, setOpen] = useState(false);
 
@@ -122,9 +131,7 @@ export default function TranslateWithAIButton() {
 
       if (savedLangCode) {
         lang =
-          LANGUAGES.find(
-            (l) => l.code.toLowerCase() === savedLangCode.toLowerCase()
-          ) || null;
+          LANGUAGES.find((l) => l.code.toLowerCase() === savedLangCode.toLowerCase()) || null;
       }
 
       if (!lang && uiLangCode) {
@@ -134,8 +141,7 @@ export default function TranslateWithAIButton() {
 
       if (!lang && typeof navigator !== "undefined" && navigator.language) {
         const browserBase = navigator.language.split("-")[0].toLowerCase();
-        lang =
-          LANGUAGES.find((l) => l.code.toLowerCase() === browserBase) || null;
+        lang = LANGUAGES.find((l) => l.code.toLowerCase() === browserBase) || null;
       }
 
       if (lang) setSelectedLang(lang);
@@ -161,10 +167,10 @@ export default function TranslateWithAIButton() {
 
       setPosition(clampToViewport(desiredTop, desiredLeft));
     });
-     
   }, [open]);
 
-  function startDrag(e: ReactMouseEvent<HTMLDivElement>) {
+  // ✅ FIX: handle both mouse + touch drag (mobile)
+  function startDragMouse(e: ReactMouseEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
 
@@ -172,6 +178,21 @@ export default function TranslateWithAIButton() {
     dragStartRef.current = {
       x: e.clientX,
       y: e.clientY,
+      top: position.top,
+      left: position.left,
+    };
+  }
+
+  function startDragTouch(e: React.TouchEvent<HTMLDivElement>) {
+    const t0 = e.touches?.[0];
+    if (!t0) return;
+
+    e.stopPropagation();
+
+    setDragging(true);
+    dragStartRef.current = {
+      x: t0.clientX,
+      y: t0.clientY,
       top: position.top,
       left: position.left,
     };
@@ -196,17 +217,39 @@ export default function TranslateWithAIButton() {
       dragStartRef.current = null;
     }
 
+    function handleTouchMove(e: TouchEvent) {
+      if (!dragging) return;
+      const start = dragStartRef.current;
+      const t0 = e.touches?.[0];
+      if (!start || !t0) return;
+
+      const nextTop = start.top + (t0.clientY - start.y);
+      const nextLeft = start.left + (t0.clientX - start.x);
+
+      setPosition(clampToViewport(nextTop, nextLeft));
+    }
+
+    function handleTouchEnd() {
+      setDragging(false);
+      dragStartRef.current = null;
+    }
+
     if (dragging) {
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("touchmove", handleTouchMove, { passive: false });
+      window.addEventListener("touchend", handleTouchEnd);
+      window.addEventListener("touchcancel", handleTouchEnd);
     }
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("touchmove", handleTouchMove as any);
+      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchcancel", handleTouchEnd);
     };
-     
-  }, [dragging]);
+  }, [dragging, position.top, position.left]);
 
   function handleOpen() {
     try {
@@ -230,9 +273,7 @@ export default function TranslateWithAIButton() {
 
     const text = sourceText.trim();
     if (!text) {
-      setErrorMsg(
-        t("noTextToTranslate", "Please type or paste some text to translate.")
-      );
+      setErrorMsg(t("noTextToTranslate", "Please type or paste some text to translate."));
       return;
     }
 
@@ -254,9 +295,7 @@ export default function TranslateWithAIButton() {
         }),
       });
 
-      const data = (await res.json().catch(() => null)) as
-        | TranslationResponse
-        | null;
+      const data = (await res.json().catch(() => null)) as TranslationResponse | null;
 
       if (!res.ok || !data) {
         if (res.status === 413) {
@@ -271,19 +310,13 @@ export default function TranslateWithAIButton() {
         if (res.status === 429) {
           setErrorMsg(
             (data as any)?.error ||
-              t(
-                "rateLimited",
-                "AI translation is temporarily rate-limited. Please try again in a few seconds."
-              )
+            t("rateLimited", "AI translation is temporarily rate-limited. Please try again in a few seconds.")
           );
           return;
         }
 
         console.error("[translate-text] server error", res.status, data);
-        setErrorMsg(
-          (data as any)?.error ||
-            t("failedGeneric", `Failed to translate (status ${res.status}).`)
-        );
+        setErrorMsg((data as any)?.error || t("failedGeneric", `Failed to translate (status ${res.status}).`));
         return;
       }
 
@@ -294,38 +327,34 @@ export default function TranslateWithAIButton() {
       }
     } catch (err) {
       console.error("[translate-text] fetch error", err);
-      setErrorMsg(
-        t("networkError", "Network error while calling translation API.")
-      );
+      setErrorMsg(t("networkError", "Network error while calling translation API."));
     } finally {
       setLoading(false);
     }
   }
 
   // language helpers
-  const popularLanguages = LANGUAGES.filter((l) => l.region === "Popular").sort(
-    (a, b) => a.label.localeCompare(b.label)
+  const popularLanguages = LANGUAGES.filter((l) => l.region === "Popular").sort((a, b) =>
+    a.label.localeCompare(b.label)
   );
 
   const searchTerm = search.trim().toLowerCase();
 
   const filteredLanguages = searchTerm
     ? LANGUAGES.filter(
-        (l) =>
-          l.label.toLowerCase().includes(searchTerm) ||
-          l.code.toLowerCase().includes(searchTerm)
-      ).sort((a, b) => a.label.localeCompare(b.label))
+      (l) =>
+        l.label.toLowerCase().includes(searchTerm) || l.code.toLowerCase().includes(searchTerm)
+    ).sort((a, b) => a.label.localeCompare(b.label))
     : null;
 
-  const allNonPopular = LANGUAGES.filter((l) => l.region !== "Popular").sort(
-    (a, b) => a.label.localeCompare(b.label)
+  const allNonPopular = LANGUAGES.filter((l) => l.region !== "Popular").sort((a, b) =>
+    a.label.localeCompare(b.label)
   );
 
   const languagesToShow = filteredLanguages ?? allNonPopular;
 
   function renderLangButton(lang: Language) {
-    const isSelected =
-      selectedLang?.code === lang.code && selectedLang?.label === lang.label;
+    const isSelected = selectedLang?.code === lang.code && selectedLang?.label === lang.label;
 
     return (
       <button
@@ -337,17 +366,18 @@ export default function TranslateWithAIButton() {
             window.localStorage.setItem(LS_PREF_LANG, lang.code);
           }
         }}
-        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${
-          isSelected
+        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[12px] ${isSelected
             ? "bg-indigo-600 text-white"
             : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
-        }`}
+          }`}
       >
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-2 min-w-0">
           <span>{lang.flag}</span>
-          <span>{lang.label}</span>
+          <span className="truncate">{lang.label}</span>
         </span>
-        <span className="text-[10px] text-[var(--text-muted)]">{lang.code}</span>
+        <span className={`text-[10px] ${isSelected ? "text-white/80" : "text-[var(--text-muted)]"}`}>
+          {lang.code}
+        </span>
       </button>
     );
   }
@@ -363,7 +393,13 @@ export default function TranslateWithAIButton() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[9999] bg-black/50">
+        <div className="fixed inset-0 z-[9999]">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setOpen(false)}
+          />
+
           <div
             ref={modalRef}
             data-translate-modal="1"
@@ -373,20 +409,21 @@ export default function TranslateWithAIButton() {
               left: position.left,
               transform: "translateX(-50%)",
             }}
-            className="w-[95%] max-w-xl rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-2xl"
+            className="w-[95%] max-w-xl rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] shadow-2xl overflow-hidden"
           >
             {/* Header (draggable) */}
             <div
-              onMouseDown={startDrag}
-              className="cursor-move flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)] rounded-t-2xl"
+              onMouseDown={startDragMouse}
+              onTouchStart={startDragTouch}
+              className="cursor-move flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 80%,transparent)]"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="text-lg">🌎</span>
-                <div>
-                  <p className="text-xs font-semibold text-[var(--text-main)]">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-[var(--text-main)] break-words">
                     {t("title", "Translate with AI")}
                   </p>
-                  <p className="text-[10px] text-[var(--text-muted)]">
+                  <p className="text-[10px] text-[var(--text-muted)] break-words">
                     {t("subtitle", "Select your language and translate text.")}
                   </p>
                 </div>
@@ -403,7 +440,7 @@ export default function TranslateWithAIButton() {
             {/* Body */}
             <div className="px-4 py-3 space-y-3 text-xs">
               {/* Language picker */}
-              <div>
+              <div className="min-w-0">
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   {t("targetLanguage", "Target language")}
                 </label>
@@ -412,10 +449,7 @@ export default function TranslateWithAIButton() {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t(
-                    "searchLanguagePlaceholder",
-                    "Search language (e.g. Spanish, 日本語, Português)…"
-                  )}
+                  placeholder={t("searchLanguagePlaceholder", "Search language (e.g. Spanish, 日本語, Português)…")}
                   className="w-full px-3 py-2 mb-2 rounded-xl bg-[var(--bg-body)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-main)]"
                 />
 
@@ -440,17 +474,14 @@ export default function TranslateWithAIButton() {
 
                   {filteredLanguages && filteredLanguages.length === 0 && (
                     <p className="text-[11px] text-[var(--text-muted)] px-1">
-                      {t(
-                        "noLanguagesFound",
-                        `No languages found for “${search}”.`
-                      )}
+                      {t("noLanguagesFound", `No languages found for “${search}”.`)}
                     </p>
                   )}
                 </div>
               </div>
 
               {/* Text to translate */}
-              <div>
+              <div className="min-w-0">
                 <label className="block text-[11px] text-[var(--text-muted)] mb-1">
                   {t("textToTranslate", "Text to translate")}
                 </label>
@@ -465,21 +496,17 @@ export default function TranslateWithAIButton() {
                 />
               </div>
 
-              {errorMsg && (
-                <p className="text-[11px] text-red-400">{errorMsg}</p>
-              )}
+              {errorMsg && <p className="text-[11px] text-red-400 break-words">{errorMsg}</p>}
 
               {/* Actions (ONLY translate text) */}
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={handleTranslateText}
                   disabled={loading || !selectedLang}
                   className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white disabled:opacity-60"
                 >
-                  {loading
-                    ? t("translating", "Translating…")
-                    : t("translateText", "Translate text")}
+                  {loading ? t("translating", "Translating…") : t("translateText", "Translate text")}
                 </button>
 
                 <button
@@ -497,22 +524,13 @@ export default function TranslateWithAIButton() {
                   <p className="text-[11px] text-[var(--text-muted)] mb-1">
                     {t("translationResult", "Translation")}
                   </p>
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 90%,transparent)] p-2 max-h-52 overflow-y-auto text-[11px] text-[var(--text-main)] whitespace-pre-wrap">
+                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in srgb,var(--bg-body) 90%,transparent)] p-2 max-h-52 overflow-y-auto text-[11px] text-[var(--text-main)] whitespace-pre-wrap break-words">
                     {translatedText}
                   </div>
                 </div>
               )}
             </div>
           </div>
-
-          {/* click outside to close */}
-          <button
-            type="button"
-            aria-label="Close translate modal"
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 w-full h-full cursor-default"
-            style={{ background: "transparent" }}
-          />
         </div>
       )}
     </>

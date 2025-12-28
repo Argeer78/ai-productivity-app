@@ -93,6 +93,84 @@
   "aiCompanion.welcome.questionsTitle": "بعض الأسئلة اللطيفة للبدء:",
   "aiCompanion.welcome.rule1": "لست معالجًا نفسيًا ولا أستطيع التشخيص.",
   "aiCompanion.welcome.rule2": "يمكنني مساعدتك على التأمل، والشعور بالاستقرار، واتخاذ خطوات صغيرة تالية.",
+  "aiCompanionPage.assistant.errorFallback": "أنا آسف - حدث خطأ ما من جانبي. هل يمكنك المحاولة مرة أخرى بعد لحظة؟",
+  "aiCompanionPage.assistant.fallback": "أنا هنا معك. هل ترغب في المحاولة مرة أخرى؟",
+  "aiCompanionPage.buttons.history": "السجل",
+  "aiCompanionPage.buttons.newChat": "محادثة جديدة",
+  "aiCompanionPage.buttons.saveAsJournal": "احفظ كدفتر يوميات",
+  "aiCompanionPage.buttons.saving": "جارٍ الحفظ…",
+  "aiCompanionPage.buttons.send": "إرسال",
+  "aiCompanionPage.category.general": "عام",
+  "aiCompanionPage.category.mindset": "عقلية",
+  "aiCompanionPage.category.reflection": "تفكير",
+  "aiCompanionPage.category.relationships": "علاقات",
+  "aiCompanionPage.category.stress": "ضغط",
+  "aiCompanionPage.category.work": "عمل",
+  "aiCompanionPage.checkingSession": "جارٍ التحقق من جلستك…",
+  "aiCompanionPage.composer.category": "الفئة:",
+  "aiCompanionPage.composer.hint": "يساعد الرفيق على التكيف مع النغمة والأسئلة.",
+  "aiCompanionPage.composer.placeholder": "اكتب هنا… أو استخدم الميكروفون.",
+  "aiCompanionPage.composer.voice": "الصوت",
+  "aiCompanionPage.conversationPrefix": "المحادثة:",
+  "aiCompanionPage.errors.deleteFailed": "فشل في حذف المحادثة.",
+  "aiCompanionPage.errors.generic": "حدث خطأ ما.",
+  "aiCompanionPage.errors.loadConversations": "فشل في تحميل المحادثات.",
+  "aiCompanionPage.errors.loadMessages": "فشل في تحميل الرسائل.",
+  "aiCompanionPage.errors.renameFailed": "فشل في إعادة تسمية المحادثة.",
+  "aiCompanionPage.errors.saveJournalFailed": "لم يتمكن من حفظ مدخل اليوميات. يرجى المحاولة مرة أخرى.",
+  "aiCompanionPage.gate.loginToChat.subtitle": "أنشئ حسابًا مجانيًا لحفظ تأملاتك.",
+  "aiCompanionPage.gate.loginToChat.title": "تسجيل الدخول للدردشة",
+  "aiCompanionPage.gate.loginToVoice.subtitle": "تسجيل الصوت يحفظ محادثاتك في حسابك.",
+  "aiCompanionPage.gate.loginToVoice.title": "تسجيل الدخول لاستخدام الصوت",
+  "aiCompanionPage.gate.manageChats.title": "قم بتسجيل الدخول لإدارة المحادثات",
+  "aiCompanionPage.gate.saveNotes.subtitle": "احفظ هذه المحادثة في ملاحظاتك.",
+  "aiCompanionPage.gate.saveNotes.title": "قم بتسجيل الدخول لحفظ الملاحظات",
+  "aiCompanionPage.gate.unlockHistory.title": "قم بتسجيل الدخول لفتح السجل",
+  "aiCompanionPage.gate.viewHistory.subtitle": "تم حفظ محادثاتك في حسابك.",
+  "aiCompanionPage.gate.viewHistory.title": "قم بتسجيل الدخول لعرض السجل",
+  "aiCompanionPage.journal.category": "فئة",
+  "aiCompanionPage.journal.companion": "رفيق",
+  "aiCompanionPage.journal.date": "تاريخ",
+  "aiCompanionPage.journal.me": "أنا",
+  "aiCompanionPage.journal.notesCategory": "يوميات",
+  "aiCompanionPage.journal.titleFallback": "مدخل يوميات",
+  "aiCompanionPage.loadingConversation": "جارٍ تحميل المحادثة…",
+  "aiCompanionPage.mobileHistory.close": "إغلاق",
+  "aiCompanionPage.mobileHistory.empty": "لا توجد محادثات بعد. ابدأ محادثة جديدة.",
+  "aiCompanionPage.mobileHistory.guestHint": "ستظهر محادثاتك هنا بعد تسجيل الدخول.",
+  "aiCompanionPage.mobileHistory.title": "سجل المحادثات",
+  "aiCompanionPage.safety": "ليس معالجًا. لا تشخيص. إذا كنت في خطر أو أزمة، اتصل بخدمات الطوارئ المحلية.",
+  "aiCompanionPage.sidebar.categoryHint": "الفئة (للرسائل الجديدة)",
+  "aiCompanionPage.sidebar.empty": "لا توجد محادثات بعد. ابدأ محادثة جديدة وتحدث عنها.",
+  "aiCompanionPage.sidebar.guestHint": "سيظهر سجلك هنا بعد تسجيل الدخول.",
+  "aiCompanionPage.sidebar.loading": "جارٍ تحميل المحادثات…",
+  "aiCompanionPage.sidebar.loginCta": "تسجيل الدخول / الاشتراك",
+  "aiCompanionPage.sidebar.loginHint": "قم بتسجيل الدخول لحفظ المحادثات وعرض السجل.",
+  "aiCompanionPage.sidebar.new": "جديد",
+  "aiCompanionPage.sidebar.subtitle": "مساحة خاصة للتفكير وإعادة الزيارة.",
+  "aiCompanionPage.sidebar.title": "المحادثات",
+  "aiCompanionPage.subtitle": "مساحة لطيفة للتفكير، والشعور بالاستقرار، والكتابة.",
+  "aiCompanionPage.thinking": "أفكر…",
+  "aiCompanionPage.thread.delete": "حذف",
+  "aiCompanionPage.thread.deleteConfirm": "هل تريد حذف هذه المحادثة؟ لا يمكن التراجع عن ذلك.",
+  "aiCompanionPage.thread.newReflection": "تأمل جديد",
+  "aiCompanionPage.thread.rename": "إعادة تسمية",
+  "aiCompanionPage.thread.renamePrompt": "عنوان جديد لهذه المحادثة:",
+  "aiCompanionPage.thread.untitled": "بدون عنوان",
+  "aiCompanionPage.title": "رفيق الذكاء الاصطناعي",
+  "aiCompanionPage.toast.savedJournal": "تم حفظه كمدخل يوميات ✅",
+  "aiCompanionPage.welcome.base": "مرحبًا — أنا هنا معك. 💛",
+  "aiCompanionPage.welcome.beforeBegin": "قبل أن نبدأ:",
+  "aiCompanionPage.welcome.cta": "يمكنك الكتابة، أو استخدام الميكروفون. ماذا تود أن تستكشف؟",
+  "aiCompanionPage.welcome.q1": "كيف تشعر الآن - في جسدك وفي عقلك؟",
+  "aiCompanionPage.welcome.q2": "ما الذي يأخذ معظم طاقتك مؤخرًا؟",
+  "aiCompanionPage.welcome.q3": "إذا كان اليوم له موضوع، فما هو؟",
+  "aiCompanionPage.welcome.questionsTitle": "بعض الأسئلة اللطيفة للبدء:",
+  "aiCompanionPage.welcome.relationshipsIntro": "يمكننا استكشاف التواصل، الصراع، القرب، أو الوحدة.",
+  "aiCompanionPage.welcome.rule1": "أنا لست معالجًا نفسيًا ولا أستطيع التشخيص.",
+  "aiCompanionPage.welcome.rule2": "يمكنني مساعدتك في التفكير، والشعور بالاستقرار، واتخاذ خطوات صغيرة التالية.",
+  "aiCompanionPage.welcome.stressIntro": "يمكننا أن نبطئ معًا ونخفف الضغط قليلاً.",
+  "aiCompanionPage.welcome.workIntro": "يمكننا التحدث عن ضغط العمل، الحدود، التركيز، أو الثقة.",
   "aiHubChat.categories.health": "الصحة",
   "aiHubChat.categories.ideas": "الأفكار",
   "aiHubChat.categories.mindset": "العقلية",
@@ -105,6 +183,9 @@
   "aiTaskCreator.buttons.generate": "✨ الذكاء الاصطناعي: اقترح مهامي لليوم",
   "aiTaskCreator.buttons.thinking": "جارٍ التفكير…",
   "aiTaskCreator.checkingSession": "جارٍ التحقق من جلستك…",
+  "aiTaskCreator.energy.high": "طاقة كاملة!",
+  "aiTaskCreator.energy.low": "بطارية منخفضة",
+  "aiTaskCreator.energy.medium": "متوازن",
   "aiTaskCreator.errors.emptyAfterClean": "قائمة مهامك فارغة.",
   "aiTaskCreator.errors.generateFailed": "تعذر إنشاء المهام. يرجى المحاولة مرة أخرى.",
   "aiTaskCreator.errors.insertFailed": "فشل في إنشاء المهام في حسابك.",
@@ -115,8 +196,44 @@
   "aiTaskCreator.errors.networkGenerate": "خطأ في الشبكة أثناء إنشاء المهام.",
   "aiTaskCreator.errors.noTasksReturned": "لم يُرجع الذكاء الاصطناعي أي مهام. حاول إضافة المزيد من التفاصيل.",
   "aiTaskCreator.errors.noTasksYet": "أنشئ المهام أولاً، أو أضف مهمة واحدة على الأقل.",
+  "aiTaskCreator.form.age.18_24": "18–24",
+  "aiTaskCreator.form.age.25_34": "25–34",
+  "aiTaskCreator.form.age.35_44": "35–44",
+  "aiTaskCreator.form.age.45plus": "45+",
+  "aiTaskCreator.form.age.label": "نطاق العمر",
+  "aiTaskCreator.form.age.under18": "< 18",
+  "aiTaskCreator.form.energy.help": "1 = مرهق، 10 = مليء بالطاقة.",
+  "aiTaskCreator.form.energy.label": "مستوى الطاقة الآن",
+  "aiTaskCreator.form.gender.female": "أنثى",
+  "aiTaskCreator.form.gender.label": "الجنس (اختياري)",
+  "aiTaskCreator.form.gender.male": "ذكر",
+  "aiTaskCreator.form.gender.other": "أخرى",
+  "aiTaskCreator.form.gender.skip": "أفضل عدم الإفصاح",
   "aiTaskCreator.form.heading": "أخبر الذكاء الاصطناعي عن يومك",
+  "aiTaskCreator.form.hobbies.help": "يمكن للذكاء الاصطناعي تضمين 1-2 مهمة ممتعة أو استعادة إذا كانت ذات صلة.",
+  "aiTaskCreator.form.hobbies.label": "الهوايات أو الاهتمامات (اختياري)",
+  "aiTaskCreator.form.hobbies.placeholder": "مثل: صالة الألعاب الرياضية، القراءة، البرمجة، الألعاب",
+  "aiTaskCreator.form.hours.1_2": "1–2 ساعات",
+  "aiTaskCreator.form.hours.2_4": "2–4 ساعات",
+  "aiTaskCreator.form.hours.4plus": "4+ ساعات",
+  "aiTaskCreator.form.hours.label": "الوقت المتاح اليوم",
+  "aiTaskCreator.form.hours.lt1": "< 1 ساعة",
+  "aiTaskCreator.form.intensity.aggressive": "دفع عميق",
+  "aiTaskCreator.form.intensity.balanced": "متوازن",
+  "aiTaskCreator.form.intensity.label": "ما مدى شدة اليوم؟",
+  "aiTaskCreator.form.intensity.light": "خفيف",
+  "aiTaskCreator.form.job.label": "ماذا تفعل بشكل رئيسي؟",
+  "aiTaskCreator.form.job.placeholder": "مثل: مهندس برمجيات، طالب، مصمم، مستقل",
+  "aiTaskCreator.form.mainGoal.label": "الهدف الرئيسي لليوم",
+  "aiTaskCreator.form.mainGoal.placeholder": "مثل: إنهاء المسودة، اجتياز موضوع الامتحان، تنظيف المنزل",
   "aiTaskCreator.form.subheading": "كلما كنت أكثر واقعية، كانت اقتراحات المهام أفضل.",
+  "aiTaskCreator.form.todayPlan.label": "ما هي خطتك أو سياقك لليوم؟",
+  "aiTaskCreator.form.todayPlan.placeholder": "اجتماعات، مواعيد نهائية، مهام، مواعيد، إلخ.",
+  "aiTaskCreator.form.workType.dayOff": "يوم عطلة",
+  "aiTaskCreator.form.workType.label": "ما نوع اليوم؟",
+  "aiTaskCreator.form.workType.mixed": "مختلط",
+  "aiTaskCreator.form.workType.study": "يوم دراسة",
+  "aiTaskCreator.form.workType.work": "يوم عمل",
   "aiTaskCreator.freeBanner.body": "إنشاء المهام بالذكاء الاصطناعي يستخدم حدك اليومي من الذكاء الاصطناعي.",
   "aiTaskCreator.freeBanner.cta": "عرض خيارات النسخة الاحترافية",
   "aiTaskCreator.freeBanner.highlight": "النسخة الاحترافية تمنحك حدودًا أعلى بكثير والمزيد من الأتمتة",
@@ -136,6 +253,7 @@
   "aiTaskCreator.tasksSection.sizeSuffix": "مهمة",
   "aiTaskCreator.tasksSection.subheading": "راجع، حرر، أو احذف أي شيء لا يعجبك. ثم اضغط زرًا واحدًا لإنشاء المهام في حسابك.",
   "aiTaskCreator.title": "منشئ المهام بالذكاء الاصطناعي",
+  "analytics.chartTitle": "بيو-ريذم: الطاقة مقابل النجاح",
   "appName": "مركز إنتاجية الذكاء الاصطناعي (مملوك لأنارجيروس سغوروس)",
   "assistant.apply": "تقديم الطلب واستخدام الذكاء الاصطناعي",
   "assistant.back": "← العودة",
@@ -171,6 +289,7 @@
   "auth.email.placeholder": "البريد الإلكتروني",
   "auth.error.authFailed": "فشل التحقق من الهوية.",
   "auth.error.emailRequired": "يرجى إدخال بريدك الإلكتروني.",
+  "auth.error.emailTypes": "هذا البريد الإلكتروني مسجل بالفعل. يرجى تسجيل الدخول أو استخدام 'نسيت كلمة المرور' لتعيين كلمة مرور.",
   "auth.error.googleFailed": "فشل تسجيل الدخول عبر جوجل.",
   "auth.error.passwordRequired": "يرجى إدخال كلمة المرور.",
   "auth.error.passwordShort": "يجب أن تكون كلمة المرور 6 أحرف على الأقل.",
@@ -192,11 +311,19 @@
   "auth.signup.button": "إنشاء حساب",
   "auth.signup.title": "إنشاء حساب",
   "auth.subtitle": "قم بتسجيل الدخول لحفظ الرحلات والوصول إليها لاحقًا.",
+  "auth.tasks.subtitle": "حوّل خطتك إلى مهام قابلة للتنفيذ تلقائيًا.",
+  "auth.tasks.title": "تسجيل الدخول لإنشاء مهام.",
   "auth.title": "قم بإنشاء حساب مجاني",
   "back": "← العودة إلى لوحة التحكم",
   "backHome.link": "العودة إلى الصفحة الرئيسية",
   "backToDashboard": "← العودة إلى لوحة التحكم",
   "backToTravel": "← العودة إلى مخطط الرحلات",
+  "badge.earlyBird.desc": "خطط قبل الساعة 8 صباحًا",
+  "badge.earlyBird.title": "طائر الصباح",
+  "badge.perfect.desc": "احصل على 100",
+  "badge.perfect.title": "الكمال",
+  "badge.streak7.desc": "سلسلة 7 أيام",
+  "badge.streak7.title": "مشعل",
   "body": "اختر نغمة الذكاء الاصطناعي، ومجال التركيز الرئيسي، وتفضيلات البريد الإلكتروني في الإعدادات. يستغرق الأمر أقل من دقيقة.",
   "bookingNote": "روابط الحجز قد تكون روابط تابعة. تساعد في دعم التطبيق دون أي تكلفة إضافية لك.",
   "budgetMax.label": "الحد الأقصى للميزانية (اختياري)",
@@ -299,6 +426,8 @@
   "dailySuccessSystem.auth.saveScore.title": "قم بتسجيل الدخول لحفظ درجاتك اليومية.",
   "dailySuccessSystem.auth.suggestScore.subtitle": "يستخدم الذكاء الاصطناعي نشاطك المحفوظ لتقدير درجة واقعية.",
   "dailySuccessSystem.auth.suggestScore.title": "قم بتسجيل الدخول ليقوم الذكاء الاصطناعي باقتراح درجتك.",
+  "dailySuccessSystem.auth.tasks.subtitle": "حوّل خطتك إلى مهام قابلة للتنفيذ تلقائيًا.",
+  "dailySuccessSystem.auth.tasks.title": "تسجيل الدخول لإنشاء مهام.",
   "dailySuccessSystem.auth.title": "قم بتسجيل الدخول لاستخدام نظام النجاح اليومي.",
   "dailySuccessSystem.avg7d.help": "استهدف الاتساق، لا الكمال.",
   "dailySuccessSystem.avg7d.label": "متوسط آخر 7 أيام",
@@ -309,9 +438,15 @@
   "dailySuccessSystem.evening.aiSuggestReasonPrefix": "مقترح بسبب:",
   "dailySuccessSystem.evening.description": "التقط كيف كان يومك. سيحولها الذكاء الاصطناعي إلى انتصارات، دروس، وتحسينات للغد.",
   "dailySuccessSystem.evening.errorEmpty": "اكتب تأملًا قصيرًا عن كيف كان يومك.",
+  "dailySuccessSystem.evening.errorEmptyAi": "أعاد الذكاء الاصطناعي انعكاسًا فارغًا. حاول مرة أخرى.",
+  "dailySuccessSystem.evening.errorGeneric": "لم يتمكن من إنشاء انعكاس المساء. يرجى المحاولة مرة أخرى.",
+  "dailySuccessSystem.evening.generating": "جاري الإنشاء…",
+  "dailySuccessSystem.evening.networkError": "خطأ في الشبكة أثناء الانعكاس مع الذكاء الاصطناعي.",
+  "dailySuccessSystem.evening.openInAssistant": "افتح في المساعد",
   "dailySuccessSystem.evening.questionDay": "كيف كان اليوم فعليًا؟",
   "dailySuccessSystem.evening.questionDay.placeholder": "ما الذي أنجزته، ما الذي أوقفك، طاقتك، المشتتات، إلخ.",
   "dailySuccessSystem.evening.reflectButton": "💭 تأمل مع الذكاء الاصطناعي",
+  "dailySuccessSystem.evening.resultTitle": "انعكاسك",
   "dailySuccessSystem.evening.saveScoreButton": "احفظ درجة اليوم",
   "dailySuccessSystem.evening.saveScoreSaving": "جارٍ الحفظ...",
   "dailySuccessSystem.evening.scoreHelp": "فكر في الجهد + التركيز، ليس فقط النتائج. يوم بدرجة 60–80 غالبًا ما يكون نجاحًا.",
@@ -328,13 +463,19 @@
   "dailySuccessSystem.loadingSystem": "جارٍ تحميل نظامك اليومي…",
   "dailySuccessSystem.morning.description": "أخبر الذكاء الاصطناعي بما لديك، وسيبني جدولًا واقعيًا مع الأولويات.",
   "dailySuccessSystem.morning.errorEmpty": "أضف على الأقل تفاصيل واحدة حول يومك أو أولوية.",
+  "dailySuccessSystem.morning.errorEmptyPlan": "أعاد الذكاء الاصطناعي خطة فارغة. حاول مرة أخرى.",
+  "dailySuccessSystem.morning.errorGeneric": "لم يتمكن من إنشاء خطة. يرجى المحاولة مرة أخرى.",
   "dailySuccessSystem.morning.generateButton": "✨ أنشئ خطة اليوم بالذكاء الاصطناعي",
+  "dailySuccessSystem.morning.generating": "جاري الإنشاء…",
+  "dailySuccessSystem.morning.networkError": "خطأ في الشبكة أثناء إنشاء خطتك.",
+  "dailySuccessSystem.morning.openInAssistant": "افتح في المساعد",
   "dailySuccessSystem.morning.prioritiesHelp": "لا يجب ملء الثلاثة، لكن وجود أولوية واحدة على الأقل يساعد كثيرًا.",
   "dailySuccessSystem.morning.priority1": "الأولوية #1",
   "dailySuccessSystem.morning.priority2": "الأولوية #2",
   "dailySuccessSystem.morning.priority3": "الأولوية #3",
   "dailySuccessSystem.morning.questionToday": "ما الذي يحدث اليوم؟",
   "dailySuccessSystem.morning.questionToday.placeholder": "اجتماعات، مواعيد نهائية، مهام شخصية، مستوى الطاقة، إلخ.",
+  "dailySuccessSystem.morning.resultTitle": "خطتك",
   "dailySuccessSystem.morning.title": "🌅 الصباح: صمم يومك",
   "dailySuccessSystem.morning.top3.label": "أفضل 3 أولويات",
   "dailySuccessSystem.quick.evening": "المساء",
@@ -349,6 +490,11 @@
   "dailySuccessSystem.suggest.errorGeneric": "لم يكن بالإمكان الحصول على اقتراح من الذكاء الاصطناعي.",
   "dailySuccessSystem.suggest.networkError": "خطأ في الشبكة أثناء طلب الذكاء الاصطناعي لاقتراح درجتك.",
   "dailySuccessSystem.suggest.rateLimit": "لقد وصلت إلى الحد اليومي للذكاء الاصطناعي. حاول مرة أخرى غدًا أو قم بترقية إلى النسخة الاحترافية.",
+  "dailySuccessSystem.tasks.empty": "لم تتمكن الذكاء الاصطناعي من العثور على أي مهام محددة في هذا النص.",
+  "dailySuccessSystem.tasks.error": "فشل في إنشاء المهام.",
+  "dailySuccessSystem.tasks.networkError": "خطأ غير متوقع.",
+  "dailySuccessSystem.tasks.saveError": "فشل في حفظ المهام.",
+  "dailySuccessSystem.tasks.success": "dailySuccessSystem.tasks.success",
   "dailySuccessSystem.title": "نظام النجاح اليومي بالذكاء الاصطناعي",
   "dailySuccessSystem.todaysScore.heading": "درجة اليوم",
   "dailySuccessSystem.todaysScore.help": "0 = يوم سيء، 100 = يوم مثالي. كن صادقًا، لا تكون صارمًا.",
@@ -400,6 +546,7 @@
   "dashboard.aiSummary.limitReached": "لقد وصلت إلى حد AI اليوم على خطتك الحالية. جرب مرة أخرى غدًا أو قم بالترقية إلى Pro.",
   "dashboard.aiSummary.networkError": "خطأ في الشبكة أثناء إنشاء الملخص.",
   "dashboard.aiSummary.planLimit": "لقد وصلت إلى حد الذكاء الاصطناعي اليوم لخطة العمل الخاصة بك.",
+  "dashboard.aiSummary.sentToAssistant": "تم الإرسال إلى مساعد الذكاء الاصطناعي ✅",
   "dashboard.aiSummary.usageNote": "يستخدم حد الذكاء الاصطناعي اليومي الخاص بك (مشترك مع الملاحظات، المساعد، والمخطط).",
   "dashboard.aiToday.label": "الذكاء الاصطناعي اليوم:",
   "dashboard.aiToday.unlimitedNote": "النسخة الاحترافية تمنحك استخدامًا يوميًا غير محدود للذكاء الاصطناعي للمهام العادية.",
@@ -420,6 +567,8 @@
   "dashboard.auth.checkout.title": "تسجيل الدخول للترقية.",
   "dashboard.auth.summary.subtitle": "قم بإنشاء حساب للسماح لـ AI بمسح ملاحظاتك ومهامك.",
   "dashboard.auth.summary.title": "تسجيل الدخول لإنشاء ملخص AI الخاص بك.",
+  "dashboard.auth.tasks.subtitle": "حوّل ملخصك إلى مهام قابلة للتنفيذ تلقائيًا.",
+  "dashboard.auth.tasks.title": "تسجيل الدخول لإنشاء مهام.",
   "dashboard.auth.weekGoal.subtitle": "تم حفظ هدفك الأسبوعي في حسابك.",
   "dashboard.auth.weekGoal.title": "تسجيل الدخول لحفظ هدفك الأسبوعي.",
   "dashboard.auth.weekGoalToggle.title": "تسجيل الدخول لتحديث هدفك.",
@@ -438,6 +587,8 @@
   "dashboard.checkoutReturn.ctaRefresh": "تحديث",
   "dashboard.checkoutReturn.success.subtitle": "اشتراكك نشط. إذا لم يتم تحديث خطتك فورًا، قم بتحديث الصفحة بعد قليل.",
   "dashboard.checkoutReturn.success.title": "تم الدفع بنجاح",
+  "dashboard.focus.subtitle": "مؤقت + صوت محيطي",
+  "dashboard.focus.title": "وضع التركيز",
   "dashboard.freeLimitReached": "لقد reached reached today’s limit on the free plan.",
   "dashboard.goToAuth": "اذهب إلى تسجيل الدخول / التسجيل",
   "dashboard.guest.badge": "ابدأ",
@@ -500,6 +651,11 @@
   "dashboard.streakBannerMain": "أنت في",
   "dashboard.streakBannerTail": "سلسلة الإنتاجية.",
   "dashboard.subtitle": "نظرة سريعة على خطتك، استخدام الذكاء الاصطناعي، والنشاط.",
+  "dashboard.tasks.empty": "لم تتمكن الذكاء الاصطناعي من العثور على أي مهام محددة في هذا الملخص.",
+  "dashboard.tasks.error": "فشل في إنشاء المهام.",
+  "dashboard.tasks.networkError": "خطأ غير متوقع.",
+  "dashboard.tasks.saveError": "فشل في حفظ المهام.",
+  "dashboard.tasks.success": "dashboard.tasks.success",
   "dashboard.title": "لوحة التحكم",
   "dashboard.unlockReports": "🔒 فتح التقارير الأسبوعية مع المحترف →",
   "dashboard.upgradeBenefitsShort": "للحصول على ذكاء اصطناعي يومي غير محدود (للاستخدام العادي).",
@@ -558,6 +714,8 @@
   "detail.success.updated": "تم تحديث القالب.",
   "detail.upgradeToPro": "ترقية إلى برو",
   "detail.viewOnlyHint": "يمكنك عرض هذا القالب، ولكن فقط المالك يمكنه تحريره أو حذفه.",
+  "diff.trophyCase": "🏆 حالة الجوائز",
+  "diff.unlocked": "مفتوح",
   "disclaimer": "هذه صفحة شروط بسيطة وسهلة القراءة ولا تحل محل المراجعة القانونية المناسبة. قبل الإطلاق التجاري، ضع في اعتبارك طلب مراجعة المحامي لهذه الشروط وتكييفها حسب وضعك الخاص.",
   "dismiss": "ليس الآن",
   "edit": "تعديل",
@@ -657,6 +815,19 @@
   "form.time.to": "إلى",
   "form.timeLabel": "الوقت (اختياري)",
   "form.titlePlaceholder": "عنوان المهمة…",
+  "gamification.level.apprentice": "متدرب",
+  "gamification.level.expert": "خبير",
+  "gamification.level.grandmaster": "ماجستير",
+  "gamification.level.journeyman": "حرفي",
+  "gamification.level.novice": "مبتدئ",
+  "gamification.levelLabel": "المستوى {n}",
+  "gamification.maxLevel": "تم الوصول إلى الحد الأقصى من المستوى!",
+  "gamification.nextLevel": "{xp} XP للوصول إلى المستوى التالي",
+  "gamification.nextReward": "فتح: {r}",
+  "gamification.reward.gold": "🎨 سمة الذهب",
+  "gamification.reward.rain": "🌧️ صوت المطر",
+  "gamification.reward.stealth": "🕶️ وضع التخفي",
+  "gamification.xpHelp": "كيفية كسب XP:\n1. سجل نقاط نجاحك اليومية.\n2. نقطة واحدة = 1 XP.",
   "gate.loginToChat.subtitle": "أنشئ حسابًا مجانيًا لحفظ تأملاتك.",
   "gate.loginToChat.title": "تسجيل الدخول للدردشة",
   "gate.loginToVoice.subtitle": "تسجيل الصوت يحفظ محادثاتك في حسابك.",
@@ -671,12 +842,19 @@
   "generatedLabel": "تم الإنشاء:",
   "generateNote": "يستخدم حد الذكاء الاصطناعي اليومي الخاص بك (المشترك مع الملاحظات، المساعد، وملخص اللوحة).",
   "generatingButton": "جاري إنشاء الخطة...",
+  "glance.energy": "طاقة",
+  "glance.success": "نجاح",
+  "glance.tapToRate": "اضغط للتقييم",
+  "glance.tapToSet": "اضغط لتعيين",
   "goHome": "ارجع إلى الصفحة الرئيسية",
   "google.button": "تسجيل الدخول عبر جوجل",
   "goToAuth": "اذهب إلى تسجيل الدخول / التسجيل",
   "guestBrowsing": "أنت تتصفح كضيف.",
   "guestCta.body": "إنشاء حساب مجاني لحفظ مساراتك التي تم إنشاؤها بواسطة الذكاء الاصطناعي، ومزامنتها مع لوحة معلومات الإنتاجية الخاصة بك، والحصول على ملخصات أسبوعية.",
   "guestCta.button": "إنشاء حساب مجاني / تسجيل الدخول",
+  "guestCta.perk1": "💾 حفظ المسارات",
+  "guestCta.perk2": "📊 مزامنة مع لوحة المعلومات",
+  "guestCta.perk3": "📩 ملخصات أسبوعية",
   "guestCta.title": "هل تريد حفظ رحلاتك والوصول إليها لاحقًا؟",
   "home.faq.a1": "لا — إنه بسيط ومناسب للمبتدئين عمدًا.",
   "home.faq.a2": "الخطة المجانية تغطي الأساسيات. الاحترافية تفتح رسائل ذكاء اصطناعي غير محدودة وأدوات تخطيط أعمق.",
@@ -918,6 +1096,10 @@
   "login.button": "تسجيل الدخول",
   "login.title": "تسجيل الدخول",
   "loginPrompt": "تسجيل الدخول أو إنشاء حساب مجاني لعرض تقارير الذكاء الاصطناعي الأسبوعية الخاصة بك.",
+  "mate.dismiss": "تجاهل",
+  "mate.late": "لقد تأخر الوقت! 🌙 تذكر أن تستريح حتى تتمكن من الفوز غدًا.",
+  "mate.morning": "صباح الخير! ☀️ ما هو الهدف رقم 1 اليوم؟",
+  "mate.slump": "الطاقة منخفضة مباشرة. ☕ ماذا عن قيلولة لمدة 10 دقائق؟",
   "message.loginSuccess": "تم تسجيل الدخول بنجاح",
   "message.resetSent": "تم إرسال إعادة التعيين",
   "message.signupSuccess": "تم التسجيل بنجاح",
@@ -938,6 +1120,7 @@
   "myTrips.subtitle": "كل الرحلات التي خططت لها باستخدام مخطط السفر.",
   "myTrips.title": "رحلاتي",
   "nav.aiCompanion": "الرفيق الذكي",
+  "nav.calendar": "التقويم",
   "nav.pricing": "التسعير",
   "networkError": "خطأ في الشبكة أثناء الاتصال بواجهة برمجة التطبيقات لترجمة.",
   "newChat": "+ دردشة جديدة",
@@ -1460,8 +1643,19 @@
   "tasks.actions.markDone": "✔ تعليم كمكتمل",
   "tasks.actions.select": "تحديد",
   "tasks.actions.share": "مشاركة",
+  "tasks.addError": "فشل في إضافة المهمة.",
   "tasks.addNew": "أضف مهمة جديدة",
   "tasks.aiTaskCreator": "🤖 منشئ المهام بالذكاء الاصطناعي",
+  "tasks.bulkDelete.confirmSelected": "هل تريد حذف المهام المحددة؟ ({N})",
+  "tasks.bulkDelete.confirmToday": "هل تريد حذف مهام اليوم؟ ({N})",
+  "tasks.bulkDelete.deleteSelected": "حذف المحدد",
+  "tasks.bulkDelete.deleting": "جارٍ الحذف…",
+  "tasks.bulkDelete.noneSelected": "لا توجد مهام محددة للحذف.",
+  "tasks.bulkDelete.noneToday": "لا توجد مهام اليوم للحذف.",
+  "tasks.bulkSelect.clear": "مسح",
+  "tasks.bulkSelect.clearTitle": "مسح التحديد",
+  "tasks.bulkSelect.selectAll": "حدد الكل",
+  "tasks.bulkSelect.selectAllTitle": "حدد جميع المهام المعروضة حاليًا",
   "tasks.categories.errands": "المهام",
   "tasks.categories.health": "الصحة",
   "tasks.categories.home": "المنزل",
@@ -1478,9 +1672,15 @@
   "tasks.category.Study": "دراسة",
   "tasks.category.Travel": "سفر",
   "tasks.category.Work": "عمل",
+  "tasks.checkingSession": "جارٍ التحقق من جلستك…",
+  "tasks.confirmDelete": "هل تريد حذف هذه المهمة؟",
   "tasks.date.nextMonth": "الشهر التالي",
   "tasks.date.prevMonth": "الشهر السابق",
+  "tasks.deleteError": "لم يتمكن من حذف المهمة.",
   "tasks.empty": "لا توجد مهام بعد. أضف أول مهمة أعلاه.",
+  "tasks.error": "فشل في إنشاء المهام.",
+  "tasks.feedbackSubtitle": "هل لاحظت خطأً، أو ميزة مفقودة، أو شيء محير؟ دعني أعرف.",
+  "tasks.feedbackTitle": "أرسل ملاحظات حول المهام",
   "tasks.fields.dateIcon": "📅",
   "tasks.fields.detailsPlaceholder": "تفاصيل أو ملاحظات…",
   "tasks.fields.due": "الموعد النهائي:",
@@ -1489,7 +1689,12 @@
   "tasks.fields.timeDash": "–",
   "tasks.fields.timeFrom": "10:00",
   "tasks.fields.timeTo": "11:00",
+  "tasks.filters.active": "نشط",
+  "tasks.filters.all": "الكل",
+  "tasks.filters.allCategories": "جميع الفئات",
+  "tasks.filters.completed": "مكتمل",
   "tasks.form.addButton": "أضف المهمة",
+  "tasks.form.adding": "جارٍ الإضافة…",
   "tasks.form.calendarIconLabel": "📅",
   "tasks.form.category.none": "لا شيء",
   "tasks.form.categoryLabel": "الفئة",
@@ -1531,14 +1736,45 @@
   "tasks.item.shareViber": "📲 فايبر",
   "tasks.item.shareWhatsApp": "💬 واتساب",
   "tasks.item.untitled": "(مهمة بدون عنوان)",
+  "tasks.loadError": "فشل في تحميل المهام.",
+  "tasks.loadingTasks": "جارٍ تحميل المهام…",
   "tasks.meta.created": "تم الإنشاء:",
+  "tasks.networkError": "خطأ غير متوقع.",
+  "tasks.noTasksInView": "لا توجد مهام في هذا العرض. حاول تغيير الفلاتر أعلاه.",
+  "tasks.reminderUpdateError": "لم يتمكن من تحديث التذكير.",
+  "tasks.repeat.daily": "يومي",
+  "tasks.repeat.label": "تكرار:",
+  "tasks.repeat.monthly": "شهري",
+  "tasks.repeat.monthly.onDay": "في اليوم",
+  "tasks.repeat.none": "لا شيء",
+  "tasks.repeat.note": "نصيحة: استخدم التكرار للعادات. التذكيرات لمرة واحدة هي الأفضل للمواعيد النهائية.",
+  "tasks.repeat.timeLabel": "وقت التذكير",
+  "tasks.repeat.weekly": "أسبوعي",
+  "tasks.repeat.weekly.on": "تشغيل:",
+  "tasks.saveError": "لم يتمكن من حفظ المهمة.",
   "tasks.sections.details": "تفاصيل",
+  "tasks.share.copied": "تم النسخ إلى الحافظة.",
+  "tasks.share.copySelected": "نسخ المحدد",
+  "tasks.share.copyToday": "نسخ مهام اليوم",
+  "tasks.share.noSelected": "لا توجد مهام محددة للمشاركة.",
+  "tasks.share.noToday": "لا توجد مهام اليوم للمشاركة.",
+  "tasks.share.selectedHeader": "المهام المحددة",
+  "tasks.share.todayHeader": "مهام اليوم",
   "tasks.subtitle": "التقط المهام، ضع علامة عليها، وتتبع تقدمك.",
+  "tasks.success": "نجاح المهام",
   "tasks.suggested.createButton": "إنشاء المهام",
   "tasks.suggested.creating": "جارٍ إنشاء المهام…",
   "tasks.suggested.title": "المهام المقترحة",
   "tasks.title": "المهام",
+  "tasks.updateError": "لم يتمكن من تحديث المهمة.",
+  "tasks.voice.clear": "مسح الصوت",
+  "tasks.voice.createBtn": "إنشاء مهام",
   "tasks.voice.created": "تم إنشاء المهام.",
+  "tasks.voice.createError": "فشل في إنشاء المهام من الصوت.",
+  "tasks.voice.creating": "جارٍ الإنشاء…",
+  "tasks.voice.loginToUse": "تسجيل الدخول لاستخدام الصوت",
+  "tasks.voice.noTasks": "لم يتم العثور على مهام واضحة في الإدخال الصوتي.",
+  "tasks.voice.panelTitle": "المهام المقترحة بالصوت",
   "tasks.weekday.0": "الأحد",
   "tasks.weekday.1": "الاثنين",
   "tasks.weekday.2": "الثلاثاء",
@@ -1767,6 +2003,24 @@
   "tools.tool.howToUseTitle": "كيفية الاستخدام",
   "tools.tool.proTipLabel": "نصيحة احترافية:",
   "tools.tool.routeLabel": "المسار:",
+  "tools.tools.backToHome": "← العودة إلى الصفحة الرئيسية",
+  "tools.tools.changelog.cta": "عرض ما هو جديد",
+  "tools.tools.changelog.description": "هل أنت فضولي بشأن الأدوات الجديدة، والتحسينات، وإصلاحات الأخطاء؟ تتبع صفحة ما هو الجديد (سجل التغييرات) كيفية تطور التطبيق بمرور الوقت.",
+  "tools.tools.changelog.title": "ما هو الجديد وملاحظات الإصدار",
+  "tools.tools.header.sectionLabel": "جميع الأدوات",
+  "tools.tools.header.subtitle": "فكر في هذا كخريطتك. كل قسم أدناه هو صفحة أو ميزة داخل التطبيق - ماذا تفعل، ومتى تستخدمها، وكيف تحصل على أقصى قيمة منها.",
+  "tools.tools.header.title": "كل أداة في مركز إنتاجية الذكاء الاصطناعي، موضحة.",
+  "tools.tools.share.copied": "تم نسخ الرابط ✅",
+  "tools.tools.share.copyPrompt": "انسخ هذا الرابط:",
+  "tools.tools.share.cta": "مشاركة",
+  "tools.tools.share.failed": "لم يتمكن من مشاركة الرابط.",
+  "tools.tools.share.shared": "مشاركة ✅",
+  "tools.tools.share.sharing": "جارٍ المشاركة…",
+  "tools.tools.share.title": "شارك هذه الأداة",
+  "tools.tools.tool.bestForTitle": "الأفضل لـ",
+  "tools.tools.tool.howToUseTitle": "كيفية استخدامها",
+  "tools.tools.tool.proTipLabel": "نصيحة احترافية:",
+  "tools.tools.tool.routeLabel": "المسار:",
   "tools.travel.bestFor1": "تخطيط رحلات نهاية الأسبوع أو العطلات الطويلة بسرعة",
   "tools.travel.bestFor2": "الحصول على أفكار لما يمكن رؤيته، أكله والقيام به في مدينة جديدة",
   "tools.travel.bestFor3": "إنشاء جداول يومية منظمة بدلاً من العلامات العشوائية",
@@ -1796,6 +2050,7 @@
   "translate.networkError": "خطأ في الشبكة أثناء استدعاء واجهة برمجة الترجمة.",
   "translate.noLanguagesFound": "لم يتم العثور على لغات.",
   "translate.noTextToTranslate": "يرجى كتابة أو لصق بعض النص للترجمة.",
+  "translate.popularLabel": "الأكثر شعبية",
   "translate.rateLimited": "تم تقييد الترجمة بالذكاء الاصطناعي مؤقتًا. يرجى المحاولة بعد بضع ثوانٍ.",
   "translate.searchLanguagePlaceholder": "ابحث عن اللغة (مثلاً الإسبانية، 日本語، البرتغالية)…",
   "translate.subtitle": "اختر لغتك وترجم النص.",
@@ -1818,6 +2073,11 @@
   "travelPage.assistant.step1.suggestion.barcelona": "برشلونة",
   "travelPage.assistant.step1.suggestion.london": "لندن",
   "travelPage.assistant.step1.title": "1/3 – إلى أين تريد الذهاب؟",
+  "travelPage.auth.aiSubtitle": "تخطيط الرحلات بالذكاء الاصطناعي يستخدم حدك اليومي من الذكاء الاصطناعي وهو مرتبط بحسابك.",
+  "travelPage.auth.aiTitle": "تسجيل الدخول لإنشاء خطة سفر بالذكاء الاصطناعي",
+  "travelPage.auth.saveSubtitle": "تُخزن الرحلات المحفوظة في حسابك حتى تتمكن من الوصول إليها لاحقًا.",
+  "travelPage.auth.saveTitle": "تسجيل الدخول لحفظ هذه الرحلة",
+  "travelPage.auth.title": "إنشاء حساب مجاني",
   "travelPage.bookingNote": "روابط الحجز قد تكون روابط تابعة. تساعد في دعم التطبيق دون تكلفة إضافية عليك.",
   "travelPage.budgetMax.label": "الحد الأقصى للميزانية (اختياري)",
   "travelPage.budgetMin.label": "الحد الأدنى للميزانية (اختياري)",
@@ -1840,21 +2100,33 @@
   "travelPage.carRental.searchButton": "ابحث عن سيارات للإيجار →",
   "travelPage.checkIn.label": "تسجيل الوصول",
   "travelPage.checkIn.placeholder": "اختر التاريخ",
+  "travelPage.checkingAccount": "جارٍ التحقق من الحساب…",
   "travelPage.checkOut.label": "تسجيل المغادرة",
   "travelPage.checkOut.placeholder": "اختر التاريخ",
   "travelPage.children.label": "الأطفال",
   "travelPage.destination.label": "الوجهة",
   "travelPage.destination.placeholder": "مثلاً: أثينا، برشلونة، لندن",
+  "travelPage.error.generateFailed": "فشل في إنشاء خطة السفر.",
+  "travelPage.error.invalidResponse": "عاد الخادم برد غير صالح.",
+  "travelPage.error.missingFields": "يرجى ملء الوجهة والتواريخ أولاً.",
+  "travelPage.error.network": "خطأ في الشبكة أثناء إنشاء خطة السفر.",
   "travelPage.flights.departureCity.helper": "إذا كانت فارغة، سنستخدم وجهتك كخيار احتياطي.",
   "travelPage.flights.departureCity.label": "مدينة المغادرة",
   "travelPage.flights.departureCity.placeholder": "مثلاً: أثينا، لندن",
   "travelPage.flights.note": "نوجهك إلى صفحة بحث عن الرحلات (حالياً Google Flights). يمكنك ربط رابط تابع لاحقًا.",
   "travelPage.flights.searchButton": "ابحث عن الرحلات →",
   "travelPage.generateButton": "إنشاء خطة رحلة بالذكاء الاصطناعي",
+  "travelPage.guestBrowsing": "أنت تتصفح كزائر.",
+  "travelPage.guestCta.perk3": "📩 ملخصات أسبوعية",
+  "travelPage.itinerary.guestSaveButton": "إنشاء حساب مجاني / تسجيل الدخول",
   "travelPage.loggedInAs": "مسجل الدخول كـ",
   "travelPage.quickOption.cityBreak": "استراحة مدينة 3–4 أيام",
   "travelPage.quickOption.week": "أسبوع واحد (6 ليالٍ)",
   "travelPage.quickOption.weekend": "رحلة نهاية الأسبوع (ليلتان)",
+  "travelPage.save.error": "لم يتمكن من حفظ الرحلة. يرجى المحاولة مرة أخرى.",
+  "travelPage.save.missingFields": "املأ الوجهة والتواريخ وأنشئ خطة أولاً.",
+  "travelPage.save.networkError": "خطأ في الشبكة أثناء حفظ الرحلة.",
+  "travelPage.save.success": "تم حفظ الرحلة في حسابك ✅",
   "travelPage.section.aiItinerary": "جدول الرحلة بالذكاء الاصطناعي",
   "travelPage.section.carRental": "تأجير السيارات",
   "travelPage.section.flights": "الرحلات الجوية",
