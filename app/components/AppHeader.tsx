@@ -25,6 +25,7 @@ import {
   Map,
   Sparkles,
   Shield,
+  Star,
 } from "lucide-react";
 
 type HeaderProps = {
@@ -67,6 +68,7 @@ const APPS: {
     { href: "/travel", navKey: "travel", fallback: "Travel", Icon: Plane },
     { href: "/my-trips", navKey: "myTrips", fallback: "My Trips", Icon: Map },
     { href: "/changelog", navKey: "changelog", fallback: "What’s new", Icon: Sparkles },
+    { href: "/reviews", navKey: "reviews", fallback: "Rate this App", Icon: Star },
   ];
 
 

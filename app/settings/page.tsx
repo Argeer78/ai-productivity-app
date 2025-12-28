@@ -786,6 +786,20 @@ export default function SettingsPage() {
                 </button>
               </div>
 
+              {/* Reviews */}
+              <div className="pt-4 border-t border-[var(--border-subtle)] mt-4">
+                <p className="text-[11px] text-[var(--text-muted)] mb-2">
+                  {t("settings.review.description", "Enjoying the app? Your review helps us grow.")}
+                </p>
+                <Link
+                  href="/reviews"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
+                >
+                  <span className="text-amber-400">★</span>
+                  {t("settings.review.button", "Rate this App")}
+                </Link>
+              </div>
+
               {/* Export */}
               <div className="pt-4 border-t border-[var(--border-subtle)] mt-4">
                 <p className="text-[11px] text-[var(--text-muted)] mb-2">

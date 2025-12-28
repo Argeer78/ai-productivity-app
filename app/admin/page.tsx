@@ -487,7 +487,21 @@ export default function AdminHomePage() {
             )}
           </section>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Link
+              href="/admin/reviews"
+              className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 hover:bg-[var(--bg-elevated)] transition-colors flex flex-col justify-between"
+            >
+              <div>
+                <p className="text-[11px] font-semibold text-[var(--text-muted)] mb-1">FEEDBACK</p>
+                <h2 className="text-base font-semibold mb-1">User Reviews</h2>
+                <p className="text-[12px] text-[var(--text-muted)]">
+                  Read 1-5 star ratings and comments from users.
+                </p>
+              </div>
+              <p className="mt-3 text-[11px] text-[var(--accent)]">View reviews →</p>
+            </Link>
+
             <Link
               href="/admin/users"
               className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 hover:bg-[var(--bg-elevated)] transition-colors flex flex-col justify-between"

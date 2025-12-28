@@ -13,6 +13,7 @@ import { useT } from "@/lib/useT";
 // ✅ Auth gate (full page always)
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import ReviewPopup from "@/app/components/ReviewPopup";
 import BadgeTrophyCase from "@/app/components/BadgeTrophyCase";
 import DashboardGlance from "@/app/components/DashboardGlance";
 import DashboardWeather from "@/app/components/DashboardWeather";
@@ -1667,6 +1668,8 @@ export default function DashboardPage() {
 
         </div>
       </div >
+
+      <ReviewPopup />
     </main >
   );
 }
