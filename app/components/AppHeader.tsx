@@ -9,7 +9,7 @@ import TranslateWithAIButton from "@/app/components/TranslateWithAIButton";
 import InstallAppButton from "@/app/components/InstallAppButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import AiUsageBadge from "@/app/components/AiUsageBadge";
-import { useUiStrings } from "@/app/components/UiStringsProvider";
+import { useT } from "@/lib/useT";
 import { useSound } from "@/lib/sound";
 import {
   StickyNote,
@@ -77,22 +77,12 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
-
+  const { play } = useSound();
   const appsWrapRef = useRef<HTMLDivElement | null>(null);
   const appsButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const { lang, label: currentLangLabel } = useLanguage();
-  const ui = useUiStrings();
-  const { play } = useSound();
-
-  const t = useMemo(() => {
-    if (typeof (ui as any)?.t === "function") {
-      return (key: string, fallback?: string) => (ui as any).t(key, fallback);
-    }
-    const dict = (ui as any)?.dict as Record<string, string> | undefined;
-    return (key: string, fallback?: string) => dict?.[key] ?? fallback ?? key;
-  }, [ui, lang]);
-
+  const { t } = useT(); // no namespace
   const navLabel = (key: string, fallback: string) => t(`nav.${key}`, fallback);
   const authLabel = (key: "login" | "logout", fallback: string) => t(`auth.${key}`, fallback);
 
