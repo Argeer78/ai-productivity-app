@@ -15,18 +15,16 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "";
 export async function GET(req: NextRequest) {
     try {
         const adminHeader = req.headers.get("X-Admin-Key") || "";
-        // Optional: Allow public read if no admin key? 
-        // For now, let's strictly require admin key for the Admin UI usage.
-        // The frontend (GlobalScreenRecorder) might need a public way to read this.
-        // Actually, for the recorder, we should probably allow public read or have a separate public endpoint.
-        // But this is the ADMIN API.
-
-        if (!ADMIN_KEY || adminHeader !== ADMIN_KEY) {
-            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-        }
-
         const { searchParams } = new URL(req.url);
         const flag = searchParams.get("flag");
+
+        // Public whitelist: Flags that anyone can read
+        const PUBLIC_FLAGS = ["video_recorder"];
+        const isPublic = flag && PUBLIC_FLAGS.includes(flag);
+
+        if (!isPublic && (!ADMIN_KEY || adminHeader !== ADMIN_KEY)) {
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
 
         if (!flag) {
             return NextResponse.json({ ok: false, error: "Missing flag name" }, { status: 400 });
