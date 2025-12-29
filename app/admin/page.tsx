@@ -623,6 +623,25 @@ export default function AdminHomePage() {
             )}
           </section>
 
+
+          {/* ✅ NEW panel: System Flags */}
+          <section className="mt-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4">
+            <h2 className="text-sm font-semibold mb-1 text-[var(--text-main)]">
+              System Flags (Global)
+            </h2>
+            <p className="text-[11px] text-[var(--text-muted)] mb-3">
+              Toggle global features on/off for all users immediately.
+            </p>
+
+            <div className="flex items-center justify-between p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] max-w-md">
+              <div>
+                <p className="text-xs font-semibold text-[var(--text-main)]">Video Recorder Icon</p>
+                <p className="text-[10px] text-[var(--text-muted)]">Show/Hide the floating camcorder.</p>
+              </div>
+              <SystemFlagToggle flag="video_recorder" />
+            </div>
+          </section>
+
           <AdminEmailTestPanel currentUserEmail={user.email ?? null} />
 
           <div className="mt-8 text-[11px] text-[var(--text-muted)]">
@@ -634,5 +653,56 @@ export default function AdminHomePage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function SystemFlagToggle({ flag }: { flag: string }) {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load initial state
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch(`/api/admin/system-flags?flag=${flag}`, {
+          headers: { "X-Admin-Key": process.env.NEXT_PUBLIC_ADMIN_KEY || "" }
+        });
+        const data = await res.json();
+        if (data.ok) setEnabled(data.enabled);
+      } catch (e) {
+        console.error("Failed to load flag", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [flag]);
+
+  const toggle = async () => {
+    const newVal = !enabled;
+    setEnabled(newVal); // Optimistic
+
+    try {
+      await fetch("/api/admin/system-flags", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Key": process.env.NEXT_PUBLIC_ADMIN_KEY || ""
+        },
+        body: JSON.stringify({ flag, enabled: newVal })
+      });
+    } catch (e) {
+      console.error("Failed to toggle flag", e);
+      setEnabled(!newVal); // Revert
+    }
+  };
+
+  if (loading) return <span className="text-[10px] text-[var(--text-muted)]">Loading...</span>;
+
+  return (
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input type="checkbox" className="sr-only peer" checked={enabled} onChange={toggle} />
+      <div className="w-9 h-5 bg-slate-600 peer-focus:outline-none ring-0 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+    </label>
   );
 }

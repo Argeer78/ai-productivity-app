@@ -63,6 +63,23 @@ export default function GlobalScreenRecorder() {
         setLogs(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString().split(' ')[0]} ${msg}`]);
     };
 
+    // Global Feature Flag: Video Recorder
+    const [isEnabledGlobal, setIsEnabledGlobal] = useState(true);
+    useEffect(() => {
+        async function checkFlag() {
+            try {
+                const res = await fetch('/api/admin/system-flags?flag=video_recorder');
+                const data = await res.json();
+                if (data.ok) {
+                    setIsEnabledGlobal(!!data.enabled);
+                }
+            } catch (e) {
+                console.warn('[Recorder] Failed to check global flag', e);
+            }
+        }
+        checkFlag();
+    }, []);
+
     // Teleprompter
     const [teleprompterOpen, setTeleprompterOpen] = useState(true);
     const [scriptContent, setScriptContent] = useState('');
@@ -91,6 +108,37 @@ export default function GlobalScreenRecorder() {
     const startTimeRef = useRef<number>(0);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    // Virtual Scaling State
+    // We force the iframe to render at selectedPreset dimensions (e.g. 1920x1080)
+    // and then scale it down via CSS transform to fit the UI stage.
+    // This ensures "Desktop" layout is preserved even on small screens.
+    const stageContainerRef = useRef<HTMLDivElement>(null);
+    const [iframeScale, setIframeScale] = useState(1);
+
+    useEffect(() => {
+        const updateScale = () => {
+            if (stageContainerRef.current) {
+                const container = stageContainerRef.current;
+                const cWidth = container.clientWidth;
+                const cHeight = container.clientHeight;
+                const pWidth = selectedPreset.width;
+                const pHeight = selectedPreset.height;
+
+                // Calculate the scale needed to fit the preset dimensions into the container
+                // We use Math.min to ensure it fits both width and height (contain)
+                // We limit scale to 1 (never upscale to pixelated mess on huge screens)
+                const scale = Math.min(cWidth / pWidth, cHeight / pHeight, 1);
+                setIframeScale(scale);
+            }
+        };
+
+        // Initial calc
+        updateScale();
+        // Recalc on resize
+        window.addEventListener('resize', updateScale);
+        return () => window.removeEventListener('resize', updateScale);
+    }, [selectedPreset, isOpen, isFrameMode]); // Recalc when preset or layout changes
 
     // Load Scripts
     useEffect(() => {
@@ -548,54 +596,51 @@ export default function GlobalScreenRecorder() {
                     </div>
 
                     {/* Center: The Stage */}
-                    <div className="flex-1 bg-black flex items-center justify-center relative p-2 z-0 overflow-hidden">
-                        {/* Container */}
-                        {/* This container defines the aspect ratio box */}
-                        <div
-                            // Remove shadows/rings when recording to prevent edge artifacts
-                            className={`bg-white relative overflow-hidden transition-all ${isRecording ? '' : 'shadow-2xl ring-4 ring-indigo-500/20'}`}
-                            style={{
-                                aspectRatio: `${selectedPreset.width} / ${selectedPreset.height}`,
-                                // Use max-dimensions + auto to NEVER squash the aspect ratio on screen
-                                height: 'auto',
-                                width: 'auto',
-                                maxHeight: '96%',
-                                maxWidth: '96%',
-                            }}
-                        >
-                            {/* PREVIEW MODE: Show video if we have one and not recording */}
-                            {previewUrl && !isRecording ? (
-                                <div className="w-full h-full bg-black relative group">
-                                    <video
-                                        src={previewUrl}
-                                        controls
-                                        className="w-full h-full object-contain"
-                                    />
-                                    <button
-                                        onClick={() => setPreviewUrl(null)}
-                                        className="absolute top-2 right-2 bg-slate-800/80 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700"
-                                        title="Close Preview & Return to App"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ) : (
-                                /* RECORDING MODE: Show Iframe */
-                                <>
-                                    <iframe
-                                        ref={iframeRef}
-                                        src={typeof window !== 'undefined' ? window.location.href : '/'}
-                                        className="w-full h-full border-0 block"
-                                    />
+                    <div ref={stageContainerRef} className="flex-1 bg-black flex items-center justify-center relative p-2 z-0 overflow-hidden">
 
-                                    {!isRecording && (
-                                        <div className="absolute top-4 left-4 right-4 bg-indigo-600/90 text-white text-center p-2 rounded text-sm z-10 backdrop-blur pointer-events-none font-bold shadow-lg">
-                                            Target Area: Recording will auto-crop to this box!
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
+                        {/* PREVIEW MODE: Standard Responsive Video (No Scaling) */}
+                        {previewUrl && !isRecording ? (
+                            <div className="w-full h-full bg-black relative group flex items-center justify-center">
+                                <video
+                                    src={previewUrl}
+                                    controls
+                                    className="w-full h-full object-contain"
+                                />
+                                <button
+                                    onClick={() => setPreviewUrl(null)}
+                                    className="absolute top-2 right-2 bg-slate-800/80 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 z-50"
+                                    title="Close Preview & Return to App"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            /* RECORDING MODE: Maximize available pixels */
+                            <div
+                                // Remove shadows/rings when recording to prevent edge artifacts
+                                className={`bg-white relative overflow-hidden transition-all ${isRecording ? '' : 'shadow-2xl ring-4 ring-indigo-500/20'}`}
+                                style={{
+                                    aspectRatio: `${selectedPreset.width} / ${selectedPreset.height}`,
+                                    // Use max-dimensions + auto to NEVER squash the aspect ratio on screen
+                                    height: 'auto',
+                                    width: 'auto',
+                                    maxHeight: '96%',
+                                    maxWidth: '96%',
+                                }}
+                            >
+                                <iframe
+                                    ref={iframeRef}
+                                    src={typeof window !== 'undefined' ? window.location.href : '/'}
+                                    className="w-full h-full border-0 block"
+                                />
+
+                                {!isRecording && (
+                                    <div className="absolute top-4 left-4 right-4 bg-indigo-600/90 text-white text-center p-2 rounded text-sm z-10 backdrop-blur pointer-events-none font-bold shadow-lg">
+                                        Target Area: Recording will auto-crop to this box!
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Hidden Video Elements */}
                         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
@@ -849,6 +894,7 @@ export default function GlobalScreenRecorder() {
 
     // Main Return
     if (isInsideIframe) return null; // Recursion protection (Safe)
+    if (!isEnabledGlobal) return null; // Global Admin Disable
 
     if (!isOpen) {
         return (
