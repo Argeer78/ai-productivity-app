@@ -488,21 +488,20 @@ export default function GlobalScreenRecorder() {
                     <div className="flex-1 bg-black flex items-center justify-center relative p-8">
                         {/* This container defines the aspect ratio box */}
                         <div
-                            className="bg-white shadow-2xl relative"
+                            className="bg-white shadow-2xl relative overflow-hidden ring-4 ring-indigo-500/20"
                             style={{
                                 aspectRatio: `${selectedPreset.width} / ${selectedPreset.height}`,
-                                height: '100%',
-                                maxHeight: '100%',
-                                width: 'auto' // Let height drive width
+                                height: '90%',
+                                width: 'auto'
                             }}
                         >
                             <iframe
                                 ref={iframeRef}
                                 src={typeof window !== 'undefined' ? window.location.href : '/'}
-                                className="w-full h-full border-0"
+                                className="w-full h-full border-0 block"
                             />
 
-                            {/* Overlay Badge (only visible if NOT recording to help user select tab) */}
+                            {/* Overlay Badge */}
                             {!isRecording && (
                                 <div className="absolute top-4 left-4 right-4 bg-indigo-600/90 text-white text-center p-2 rounded text-sm z-10 backdrop-blur pointer-events-none animate-pulse">
                                     Target Area: Recording will auto-crop to this box!
@@ -510,7 +509,7 @@ export default function GlobalScreenRecorder() {
                             )}
                         </div>
 
-                        {/* Offscreen Elements (Must be somewhere in DOM) */}
+                        {/* Offscreen Elements */}
                         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
                             <video ref={sourceVideoRef} playsInline autoPlay muted />
                             <canvas ref={canvasRef} />
@@ -518,51 +517,63 @@ export default function GlobalScreenRecorder() {
                     </div>
 
                     {/* Right Sidebar: Controls */}
-                    <div className="w-64 flex-shrink-0 border-l border-slate-800 bg-slate-900 p-4 flex flex-col gap-6">
-                        <div className="flex items-center justify-between">
+                    {/* Right Sidebar: Controls */}
+                    <div className="w-64 flex-shrink-0 border-l border-slate-800 bg-slate-900 flex flex-col h-full overflow-hidden">
+                        {/* Header */}
+                        <div className="p-4 flex-shrink-0 flex items-center justify-between border-b border-slate-800">
                             <h2 className="text-white font-bold flex items-center gap-2"><Video className="w-4 h-4" /> Studio</h2>
                             <button onClick={() => { setIsFrameMode(false); setIsOpen(false); }} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
                         </div>
 
-                        {/* Presets */}
-                        <div className="space-y-2">
-                            <label className="text-xs text-slate-500 uppercase font-bold">Canvas Size</label>
-                            <div className="grid grid-cols-1 gap-2">
-                                {PRESETS.map(p => (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => !isRecording && setSelectedPreset(p)}
-                                        className={`px-3 py-2 rounded text-xs text-left ${selectedPreset.id === p.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
-                                    >
-                                        {p.label}
-                                    </button>
-                                ))}
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                            {/* Mic */}
+                            <label className="flex items-center justify-between text-slate-300 text-sm cursor-pointer p-2 rounded hover:bg-slate-800 border border-slate-700">
+                                <span className="flex items-center gap-2"><Mic className="w-4 h-4" /> Mic</span>
+                                <input type="checkbox" checked={micEnabled} onChange={e => setMicEnabled(e.target.checked)} />
+                            </label>
+
+                            {/* Presets */}
+                            <div className="space-y-2">
+                                <label className="text-xs text-slate-500 uppercase font-bold">Canvas Size</label>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {PRESETS.map(p => (
+                                        <button
+                                            key={p.id}
+                                            onClick={() => !isRecording && setSelectedPreset(p)}
+                                            className={`px-3 py-2 rounded text-xs text-left ${selectedPreset.id === p.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                        >
+                                            {p.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Debug Logs */}
+                            <div className="text-[10px] font-mono text-green-500 bg-black/50 p-2 rounded opacity-50 hover:opacity-100 transition-opacity">
+                                <div className="mb-1 border-b border-green-900 pb-1">Debug Info</div>
+                                {logs.slice(-5).map((l, i) => <div key={i}>{l}</div>)}
+                                <div className="mt-1 pt-1 border-t border-green-900">
+                                    Res: {typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : ''}
+                                </div>
                             </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="mt-auto space-y-3">
+                        {/* Fixed Footer Actions */}
+                        <div className="p-4 border-t border-slate-800 bg-slate-900 flex-shrink-0 space-y-3 z-10">
                             {!mediaStream ? (
-                                <button onClick={startCapture} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold">Select Screen (This Tab)</button>
+                                <button onClick={startCapture} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold shadow-lg shadow-indigo-500/20">Select Screen</button>
                             ) : !isRecording ? (
-                                <button onClick={startRecording} className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded font-bold animate-pulse">Start Recording</button>
+                                <button onClick={startRecording} className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded font-bold animate-pulse shadow-lg shadow-red-500/20">Start Recording</button>
                             ) : (
-                                <button onClick={stopRecording} className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold">Stop</button>
+                                <button onClick={stopRecording} className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold border border-slate-600">Stop Recording</button>
                             )}
-                            {previewUrl && !isRecording && (
-                                <button onClick={downloadVideo} className="w-full py-2 border border-slate-700 text-slate-300 rounded hover:bg-slate-800">Download Last</button>
+
+                            {(previewUrl || recordedChunks.length > 0) && !isRecording && (
+                                <button onClick={downloadVideo} className="w-full py-3 bg-green-600 hover:bg-green-500 text-white rounded font-bold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20">
+                                    <Download className="w-4 h-4" /> Download Video
+                                </button>
                             )}
-                        </div>
-
-                        {/* Mic */}
-                        <label className="flex items-center justify-between text-slate-300 text-sm cursor-pointer p-2 rounded hover:bg-slate-800">
-                            <span className="flex items-center gap-2"><Mic className="w-4 h-4" /> Mic</span>
-                            <input type="checkbox" checked={micEnabled} onChange={e => setMicEnabled(e.target.checked)} />
-                        </label>
-
-                        {/* Debug */}
-                        <div className="h-20 overflow-y-auto text-[10px] font-mono text-green-500 bg-black/50 p-2 rounded">
-                            {logs.map((l, i) => <div key={i}>{l}</div>)}
                         </div>
                     </div>
                 </div>
