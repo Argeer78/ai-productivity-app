@@ -13,6 +13,7 @@ import FacebookRedirectGuard from "@/app/components/FacebookRedirectGuard";
 import { UiLanguageProvider } from "@/app/components/UiLanguageProvider"; // ✅ NEW
 import { FocusProvider } from "@/app/context/FocusContext";
 import GlobalFocusPlayer from "@/app/components/GlobalFocusPlayer";
+import GlobalScreenRecorder from "@/app/components/GlobalScreenRecorder";
 
 const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
@@ -97,6 +98,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {children}
                     {/* 🌍 Global Focus Player (Overlay + Floating) */}
                     <GlobalFocusPlayer />
+                    <GlobalScreenRecorder />
                   </AppShell>
                 </RtlDirectionManager>
               </PlausibleProvider>
