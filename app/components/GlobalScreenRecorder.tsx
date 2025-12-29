@@ -284,7 +284,7 @@ export default function GlobalScreenRecorder() {
                 systemAudio: 'include',
                 surfaceSwitching: 'include',
                 monitorTypeSurfaces: 'include'
-            });
+            } as any);
 
             addLog("Display Media Acquired");
 
