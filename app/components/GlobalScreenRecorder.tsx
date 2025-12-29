@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { Mic, Square, Download, MonitorPlay, FileText, Settings, X, Play, ChevronDown, Video, Bug } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
+import { WindowPortal } from './WindowPortal';
 
 type Preset = {
     id: string;
@@ -41,7 +42,12 @@ const ROUTE_MAPPING: Record<string, string> = {
 export default function GlobalScreenRecorder() {
     const router = useRouter();
     const currentPath = usePathname();
-    const [isOpen, setIsOpen] = useState(false); // Hidden by default
+
+    // Core State
+    const [isOpen, setIsOpen] = useState(false);
+    const [isPopout, setIsPopout] = useState(false);
+    const [isFrameMode, setIsFrameMode] = useState(false);
+
     const [selectedPreset, setSelectedPreset] = useState<Preset>(PRESETS[0]);
     const [isRecording, setIsRecording] = useState(false);
     const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
@@ -70,6 +76,7 @@ export default function GlobalScreenRecorder() {
     const scrollerRef = useRef<HTMLTextAreaElement>(null);
     const animationFrameRef = useRef<number | null>(null);
     const processingFrameRef = useRef<number | null>(null);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
 
     // Auto-Nav State
     const startTimeRef = useRef<number>(0);
@@ -95,37 +102,16 @@ export default function GlobalScreenRecorder() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    // Teleprompter Scrolling & Auto-Nav Logic
+    // Recursion Check: Don't render recorder inside the iframe
     useEffect(() => {
-        const tick = () => {
-            if (isRecording) {
-                const now = Date.now();
-                const elapsed = (now - startTimeRef.current) / 1000;
-                setElapsedTime(elapsed);
-
-                // Auto-Scroll
-                if (scrollerRef.current && scrollSpeed > 0) {
-                    scrollerRef.current.scrollTop += (scrollSpeed * 0.5);
-                }
-
-                // Auto-Nav Logic
-                checkNavigationPoints(elapsed);
-
-                animationFrameRef.current = requestAnimationFrame(tick);
-            }
-        };
-
-        if (isRecording) {
-            startTimeRef.current = Date.now() - (elapsedTime * 1000); // Resume correct time
-            animationFrameRef.current = requestAnimationFrame(tick);
-        } else {
-            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        if (typeof window !== 'undefined' && window.self !== window.top) {
+            // We are inside an iframe, hide ourselves
+            return;
         }
+    }, []);
 
-        return () => {
-            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-        };
-    }, [isRecording, scrollSpeed, scriptContent]); // Added scriptContent dependency
+    // Frame Counter for Debug in UI
+    const [frameCount, setFrameCount] = useState(0);
 
     // Wrap in useCallback to ensure we can use it in the effect dependency
     const checkNavigationPoints = React.useCallback((elapsedSeconds: number) => {
@@ -144,9 +130,16 @@ export default function GlobalScreenRecorder() {
                     const key = Object.keys(ROUTE_MAPPING).find(k => pageName.toLowerCase().includes(k.toLowerCase()));
                     if (key) {
                         const path = ROUTE_MAPPING[key];
-                        // checkNavigationPoints depends on currentPath, so this will be fresh if the effect updates
-                        if (currentPath !== path) {
-                            addLog(`Nav -> ${path} (${pageName})`);
+
+                        addLog(`Nav -> ${path} (${pageName})`);
+
+                        if (isFrameMode && iframeRef.current) {
+                            // Navigate Iframe
+                            if (iframeRef.current.contentWindow?.location.pathname !== path) {
+                                iframeRef.current.src = path;
+                            }
+                        } else if (currentPath !== path) {
+                            // Navigate Main Window
                             router.push(path);
                         }
                     }
@@ -167,7 +160,7 @@ export default function GlobalScreenRecorder() {
                 }
             }
         }
-    }, [scriptContent, currentPath, isRecording]); // Dependencies for the callback
+    }, [scriptContent, currentPath, isRecording, isFrameMode]); // Dependencies for the callback
 
     // Teleprompter Scrolling & Auto-Nav Logic
     useEffect(() => {
@@ -220,35 +213,56 @@ export default function GlobalScreenRecorder() {
         targetCanvas.width = selectedPreset.width;
         targetCanvas.height = selectedPreset.height;
 
+        let frames = 0;
         const draw = () => {
             if (!sourceVideo.videoWidth || sourceVideo.ended || sourceVideo.paused) {
-                // Keep trying if just metadata missing, but stop if ended
                 if (!sourceVideo.ended) {
                     processingFrameRef.current = requestAnimationFrame(draw);
                 }
                 return;
             }
-            const srcW = sourceVideo.videoWidth;
-            const srcH = sourceVideo.videoHeight;
-            const targetW = selectedPreset.width;
-            const targetH = selectedPreset.height;
-            const srcAspect = srcW / srcH;
-            const targetAspect = targetW / targetH;
+            const videoW = sourceVideo.videoWidth;
+            const videoH = sourceVideo.videoHeight;
 
-            let renderW, renderH, offsetX, offsetY;
-            if (srcAspect > targetAspect) {
-                renderH = srcH;
-                renderW = srcH * targetAspect;
-                offsetX = (srcW - renderW) / 2;
-                offsetY = 0;
+            // Calculate Crop
+            let cropX = 0, cropY = 0, cropW = videoW, cropH = videoH;
+
+            if (isFrameMode && iframeRef.current) {
+                // Get Iframe Bounds relative to viewport
+                const rect = iframeRef.current.getBoundingClientRect();
+
+                // Calculate Scale (Video Pixels / Viewport Pixels)
+                // Assuming "Current Tab" capture, video is usually full viewport
+                const scaleX = videoW / window.innerWidth;
+                const scaleY = videoH / window.innerHeight;
+
+                cropX = rect.left * scaleX;
+                cropY = rect.top * scaleY;
+                cropW = rect.width * scaleX;
+                cropH = rect.height * scaleY;
             } else {
-                renderW = srcW;
-                renderH = srcW / targetAspect;
-                offsetX = 0;
-                offsetY = (srcH - renderH) / 2;
+                // Standard Center Crop (Existing Logic refactored)
+                const targetAspect = selectedPreset.width / selectedPreset.height;
+                const srcAspect = videoW / videoH;
+
+                if (srcAspect > targetAspect) {
+                    cropH = videoH;
+                    cropW = videoH * targetAspect;
+                    cropX = (videoW - cropW) / 2;
+                } else {
+                    cropW = videoW;
+                    cropH = videoW / targetAspect;
+                    cropY = (videoH - cropH) / 2;
+                }
             }
 
-            ctx.drawImage(sourceVideo, offsetX, offsetY, renderW, renderH, 0, 0, targetW, targetH);
+            // Draw
+            ctx.drawImage(sourceVideo, cropX, cropY, cropW, cropH, 0, 0, selectedPreset.width, selectedPreset.height);
+
+            // Updates UI every ~60 frames so we don't kill React performance
+            frames++;
+            if (frames % 60 === 0) setFrameCount(frames);
+
             processingFrameRef.current = requestAnimationFrame(draw);
         };
         draw();
@@ -257,13 +271,19 @@ export default function GlobalScreenRecorder() {
     const startCapture = async () => {
         try {
             addLog("Requesting Display Media...");
+            // @ts-ignore - preferCurrentTab is a non-standard but supported Chrome option
             const displayStream = await navigator.mediaDevices.getDisplayMedia({
                 video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: 60 },
                 audio: {
                     echoCancellation: false,
                     noiseSuppression: false,
                     autoGainControl: false,
-                }
+                },
+                preferCurrentTab: true,
+                selfBrowserSurface: 'include',
+                systemAudio: 'include',
+                surfaceSwitching: 'include',
+                monitorTypeSurfaces: 'include'
             });
 
             addLog("Display Media Acquired");
@@ -427,36 +447,130 @@ export default function GlobalScreenRecorder() {
         addLog("Download Triggered");
     };
 
-    if (!isOpen) {
-        return (
-            <div className="fixed bottom-4 right-20 z-50">
-                <button
-                    onClick={() => setIsOpen(true)}
-                    className="bg-black/50 hover:bg-black/80 text-white p-3 rounded-full shadow-lg backdrop-blur-sm transition-all"
-                    title="Open Studio Recorder (Ctrl+Shift+S)"
-                >
-                    <Video className="w-5 h-5" />
-                </button>
-            </div>
-        );
-    }
+    // Render Content Function (Reusable for Inline or Popout)
+    const renderContent = () => {
+        if (isFrameMode) {
+            return (
+                <div className="flex w-full h-full bg-slate-950 overflow-hidden">
+                    {/* Left Sidebar: Teleprompter */}
+                    <div className="w-80 flex-shrink-0 border-r border-slate-800 bg-slate-900 p-4 flex flex-col gap-4">
+                        <div className="text-white text-sm font-bold flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-indigo-400" /> Prompter
+                        </div>
+                        {/* Selector */}
+                        <select
+                            value={selectedScriptId}
+                            onChange={handleScriptSelect}
+                            className="bg-slate-800 text-white text-xs p-2 rounded border border-slate-700 focus:outline-none"
+                        >
+                            <option value="">No Script</option>
+                            {scripts.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                        </select>
+                        <textarea
+                            ref={scrollerRef}
+                            className="flex-1 bg-transparent resize-none focus:outline-none text-white text-lg leading-relaxed font-serif"
+                            placeholder="Paste script..."
+                            value={scriptContent}
+                            onChange={e => setScriptContent(e.target.value)}
+                        />
+                        {/* Speed Controls */}
+                        <div className="flex items-center justify-between text-slate-400 text-xs">
+                            <span>Scroll Speed:</span>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setScrollSpeed(s => Math.max(0, s - 0.5))} className="px-2 py-1 bg-slate-800 rounded">-</button>
+                                <span>{scrollSpeed}x</span>
+                                <button onClick={() => setScrollSpeed(s => Math.min(5, s + 0.5))} className="px-2 py-1 bg-slate-800 rounded">+</button>
+                            </div>
+                        </div>
+                    </div>
 
-    return (
-        <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center bg-black/5">
-            {/* Debug Console Overlay */}
-            <div className="absolute top-4 left-4 pointer-events-auto bg-black/80 text-green-400 font-mono text-[10px] p-2 rounded border border-green-900 w-64 max-h-48 overflow-y-auto z-[200]">
-                <div className="font-bold border-b border-green-900 mb-1 flex items-center gap-2">
-                    <Bug className="w-3 h-3" /> DEBUG LOG
+                    {/* Center: The Stage (Iframe) */}
+                    <div className="flex-1 bg-black flex items-center justify-center relative p-8">
+                        {/* This container defines the aspect ratio box */}
+                        <div
+                            className="bg-white shadow-2xl relative"
+                            style={{
+                                aspectRatio: `${selectedPreset.width} / ${selectedPreset.height}`,
+                                height: '100%',
+                                maxHeight: '100%',
+                                width: 'auto' // Let height drive width
+                            }}
+                        >
+                            <iframe
+                                ref={iframeRef}
+                                src={typeof window !== 'undefined' ? window.location.href : '/'}
+                                className="w-full h-full border-0"
+                            />
+
+                            {/* Overlay Badge (only visible if NOT recording to help user select tab) */}
+                            {!isRecording && (
+                                <div className="absolute top-4 left-4 right-4 bg-indigo-600/90 text-white text-center p-2 rounded text-sm z-10 backdrop-blur pointer-events-none animate-pulse">
+                                    Target Area: Recording will auto-crop to this box!
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Offscreen Elements (Must be somewhere in DOM) */}
+                        <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+                            <video ref={sourceVideoRef} playsInline autoPlay muted />
+                            <canvas ref={canvasRef} />
+                        </div>
+                    </div>
+
+                    {/* Right Sidebar: Controls */}
+                    <div className="w-64 flex-shrink-0 border-l border-slate-800 bg-slate-900 p-4 flex flex-col gap-6">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-white font-bold flex items-center gap-2"><Video className="w-4 h-4" /> Studio</h2>
+                            <button onClick={() => { setIsFrameMode(false); setIsOpen(false); }} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+                        </div>
+
+                        {/* Presets */}
+                        <div className="space-y-2">
+                            <label className="text-xs text-slate-500 uppercase font-bold">Canvas Size</label>
+                            <div className="grid grid-cols-1 gap-2">
+                                {PRESETS.map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => !isRecording && setSelectedPreset(p)}
+                                        className={`px-3 py-2 rounded text-xs text-left ${selectedPreset.id === p.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="mt-auto space-y-3">
+                            {!mediaStream ? (
+                                <button onClick={startCapture} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold">Select Screen (This Tab)</button>
+                            ) : !isRecording ? (
+                                <button onClick={startRecording} className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded font-bold animate-pulse">Start Recording</button>
+                            ) : (
+                                <button onClick={stopRecording} className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold">Stop</button>
+                            )}
+                            {previewUrl && !isRecording && (
+                                <button onClick={downloadVideo} className="w-full py-2 border border-slate-700 text-slate-300 rounded hover:bg-slate-800">Download Last</button>
+                            )}
+                        </div>
+
+                        {/* Mic */}
+                        <label className="flex items-center justify-between text-slate-300 text-sm cursor-pointer p-2 rounded hover:bg-slate-800">
+                            <span className="flex items-center gap-2"><Mic className="w-4 h-4" /> Mic</span>
+                            <input type="checkbox" checked={micEnabled} onChange={e => setMicEnabled(e.target.checked)} />
+                        </label>
+
+                        {/* Debug */}
+                        <div className="h-20 overflow-y-auto text-[10px] font-mono text-green-500 bg-black/50 p-2 rounded">
+                            {logs.map((l, i) => <div key={i}>{l}</div>)}
+                        </div>
+                    </div>
                 </div>
-                {logs.length === 0 && <span className="opacity-50">Waiting for logs...</span>}
-                {logs.map((log, i) => (
-                    <div key={i} className="whitespace-nowrap">{log}</div>
-                ))}
-            </div>
+            );
+        }
 
-            {/* Floating Window Container */}
-            <div className="pointer-events-auto bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl w-[90vw] max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-
+        return (
+            <div className={`flex flex-col h-full bg-white dark:bg-slate-950 ${isPopout ? '' : 'rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800'}`}>
                 {/* Header */}
                 <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                     <div className="flex items-center gap-3">
@@ -467,11 +581,32 @@ export default function GlobalScreenRecorder() {
                             <h2 className="font-bold text-slate-900 dark:text-white">Studio Mode</h2>
                             <div className="flex items-center gap-2 text-xs text-slate-500">
                                 {isRecording && <span className="flex items-center gap-1 text-red-500 font-mono animate-pulse">● REC {elapsedTime.toFixed(1)}s</span>}
+                                {isRecording && <span className="font-mono text-xs opacity-50 ml-2">FPS: {Math.round(frameCount / (elapsedTime || 1))}</span>}
                             </div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {!isPopout && (
+                            <div className="flex items-center gap-2">
+                                {/* Frame Mode Button */}
+                                <button
+                                    onClick={() => setIsFrameMode(true)}
+                                    className="px-3 py-1.5 text-xs font-bold bg-pink-600 text-white hover:bg-pink-700 rounded-lg shadow-md flex items-center gap-2"
+                                    title="Wrap app in iframe for perfect isolation"
+                                >
+                                    <Square className="w-3 h-3" /> Frame Mode
+                                </button>
+
+                                <button
+                                    onClick={() => setIsPopout(true)}
+                                    className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-slate-800 dark:text-indigo-400 rounded-lg flex items-center gap-2"
+                                >
+                                    Popout
+                                </button>
+                            </div>
+                        )}
+
                         <select
                             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm rounded-lg px-2 py-1.5 focus:outline-none"
                             value={selectedPreset.id}
@@ -481,7 +616,7 @@ export default function GlobalScreenRecorder() {
                             {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                         </select>
 
-                        <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
+                        <button onClick={() => { setIsOpen(false); setIsPopout(false); }} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
@@ -491,6 +626,23 @@ export default function GlobalScreenRecorder() {
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left: Controls & Script */}
                     <div className="w-1/3 p-6 border-r border-slate-200 dark:border-slate-800 flex flex-col gap-6 overflow-y-auto bg-slate-50 dark:bg-slate-950">
+
+                        {/* Hidden Off-Screen Elements (Must remain in DOM tree) */}
+                        {/* Note: In Popout, these are in the popout window. This is fine as getDisplayMedia is called from the context.
+                             Wait! Videos need to be in the DOM. Logic runs in main thread. React Portal puts them in the other window.
+                             They validly exist in the component tree. */}
+                        <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+                            <video
+                                ref={sourceVideoRef}
+                                playsInline
+                                autoPlay
+                                muted
+                                style={{ width: '1280px', height: '720px' }}
+                            />
+                            <canvas
+                                ref={canvasRef}
+                            />
+                        </div>
 
                         {/* Controls */}
                         <div className="grid grid-cols-2 gap-3">
@@ -510,7 +662,7 @@ export default function GlobalScreenRecorder() {
 
                             {previewUrl && !isRecording && (
                                 <button onClick={downloadVideo} className="col-span-2 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-2">
-                                    <Download className="w-4 h-4" /> Download Result
+                                    <Download className="w-4 h-4" /> Download
                                 </button>
                             )}
                         </div>
@@ -558,28 +710,9 @@ export default function GlobalScreenRecorder() {
 
                     {/* Right: Preview */}
                     <div className="w-2/3 bg-black/95 relative flex items-center justify-center p-8">
-                        {/* Critical: Canvas must be VISIBLE (not display:none) for captureStream to work - opacity 0 keeps it active */}
-                        <canvas
-                            ref={canvasRef}
-                            style={{
-                                position: 'absolute',
-                                opacity: 0,
-                                pointerEvents: 'none',
-                                zIndex: -1
-                            }}
-                        />
-
-                        {/* Source Video for processing - Rendered but invisible (opacity 0) to prevent browser pausing it */}
-                        <video
-                            ref={sourceVideoRef}
-                            style={{ opacity: 0, position: 'absolute', pointerEvents: 'none', zIndex: -1, width: '1px', height: '1px' }}
-                            playsInline
-                            autoPlay
-                            muted
-                        />
-
                         {previewUrl && !isRecording && !mediaStream ? (
                             <div className="flex flex-col items-center gap-4 w-full h-full animate-in fade-in zoom-in-95 duration-300">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <video
                                     src={previewUrl}
                                     controls
@@ -602,9 +735,60 @@ export default function GlobalScreenRecorder() {
                                 className={`max-h-full shadow-2xl ${selectedPreset.height > selectedPreset.width ? 'aspect-[9/16]' : 'aspect-video'} bg-black`}
                             />
                         )}
+
+                        {/* Debug Logs in Popout */}
+                        <div className="absolute top-4 left-4 bg-black/50 text-green-400 font-mono text-[10px] p-2 rounded max-h-32 overflow-y-auto opacity-50 hover:opacity-100 transition-opacity">
+                            {logs.slice(-3).map((l, i) => <div key={i}>{l}</div>)}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        );
+    };
+
+    // Main Return
+    if (typeof window !== 'undefined' && window.self !== window.top) return null; // Recursion protection
+
+    if (!isOpen) {
+        return (
+            <div className="fixed bottom-4 right-20 z-50">
+                <button
+                    onClick={() => setIsOpen(true)}
+                    className="bg-black/50 hover:bg-black/80 text-white p-3 rounded-full shadow-lg backdrop-blur-sm transition-all"
+                    title="Open Studio Recorder (Ctrl+Shift+S)"
+                >
+                    <Video className="w-5 h-5" />
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            {/* If Popout is active, render the portal. Otherwise render the modal overlay. */}
+            {isPopout ? (
+                <WindowPortal title="Studio Controller" onClose={() => { setIsPopout(false); setIsOpen(false); }}>
+                    {renderContent()}
+                </WindowPortal>
+            ) : (
+                <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center bg-black/5">
+                    <div className="pointer-events-auto bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl w-[90vw] max-w-5xl h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {renderContent()}
+                    </div>
+                </div>
+            )}
+
+            {/* If Popped Out, show a small reminder in main window (HIDDEN WHEN RECORDING) */}
+            {isPopout && !isRecording && (
+                <div className="fixed bottom-4 right-20 z-50 animate-pulse">
+                    <button
+                        onClick={() => setIsPopout(false)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full shadow-lg font-medium text-sm flex items-center gap-2"
+                    >
+                        <Video className="w-4 h-4" /> Controller Active
+                    </button>
+                </div>
+            )}
+        </>
     );
 }

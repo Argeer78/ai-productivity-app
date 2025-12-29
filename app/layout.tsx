@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://aiprod.app"),
-  title: "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
+  title: process.env.NODE_ENV === 'development' ? '[DEV] AI Productivity Hub' : "AI Productivity Hub – Notes, Tasks, Planner & AI Coach in one place",
   description:
     "AI Productivity Hub is a simple, focused workspace for notes, tasks, daily score tracking, weekly reports and travel planning – all powered by AI.",
   keywords: ["AI productivity", "daily planner", "task manager", "AI notes", "travel planner", "weekly report", "habit tracker"],
