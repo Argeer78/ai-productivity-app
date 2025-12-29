@@ -46,7 +46,8 @@ export default function GlobalScreenRecorder() {
     // Core State
     const [isOpen, setIsOpen] = useState(false);
     const [isPopout, setIsPopout] = useState(false);
-    const [isFrameMode, setIsFrameMode] = useState(false);
+    // FORCE FRAME MODE DEFAULT TO TRUE for better UX
+    const [isFrameMode, setIsFrameMode] = useState(true);
 
     const [selectedPreset, setSelectedPreset] = useState<Preset>(PRESETS[0]);
     const [isRecording, setIsRecording] = useState(false);
@@ -78,6 +79,14 @@ export default function GlobalScreenRecorder() {
     const processingFrameRef = useRef<number | null>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
+    // Iframe Safety Check
+    const [isInsideIframe, setIsInsideIframe] = useState(false);
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.self !== window.top) {
+            setIsInsideIframe(true);
+        }
+    }, []);
+
     // Auto-Nav State
     const startTimeRef = useRef<number>(0);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -96,19 +105,13 @@ export default function GlobalScreenRecorder() {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'S') {
                 setIsOpen(prev => !prev);
+                // Ensure Frame Mode is ON when opening
+                if (!isOpen) setIsFrameMode(true);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
-
-    // Recursion Check: Don't render recorder inside the iframe
-    useEffect(() => {
-        if (typeof window !== 'undefined' && window.self !== window.top) {
-            // We are inside an iframe, hide ourselves
-            return;
-        }
-    }, []);
+    }, [isOpen]); // Added dependency to logically toggle frame mode correctly
 
     // Frame Counter for Debug in UI
     const [frameCount, setFrameCount] = useState(0);
@@ -231,15 +234,29 @@ export default function GlobalScreenRecorder() {
                 // Get Iframe Bounds relative to viewport
                 const rect = iframeRef.current.getBoundingClientRect();
 
-                // Calculate Scale (Video Pixels / Viewport Pixels)
-                // Assuming "Current Tab" capture, video is usually full viewport
-                const scaleX = videoW / window.innerWidth;
-                const scaleY = videoH / window.innerHeight;
+                // IMPORTANT: The video stream from getDisplayMedia usually matches the *screen* or *tab* resolution.
+                // If it's the current tab, the coordinate system effectively matches window.innerWidth/Height scaled by devicePixelRatio.
+                // However, the videoW/videoH tells us the TRUE pixel density of the stream.
 
-                cropX = rect.left * scaleX;
-                cropY = rect.top * scaleY;
-                cropW = rect.width * scaleX;
-                cropH = rect.height * scaleY;
+                // We trust the ratio between the Video Track Size and the Window Size.
+                // Calculate Scale (Video Pixels / Viewport Pixels)
+                // We use WIDTH as the anchor because browser height often varies (tabs, bookmarks bar) which disturbs vertical scale.
+                // Forcing uniform scale based on width prevents "smashing" (aspect ratio distortion).
+                const scale = videoW / window.innerWidth;
+
+                // Apply Uniform Scale
+                cropX = rect.left * scale;
+                // If there's a vertical offset mismatch (e.g. browser chrome), this might need tuning, 
+                // but usually 'preferCurrentTab' matches the viewport top-left.
+                cropY = rect.top * scale;
+                cropW = rect.width * scale;
+                cropH = rect.height * scale;
+
+                // Safety: Clamp to video bounds
+                cropX = Math.max(0, cropX);
+                cropY = Math.max(0, cropY);
+                cropW = Math.min(cropW, videoW - cropX);
+                cropH = Math.min(cropH, videoH - cropY);
             } else {
                 // Standard Center Crop (Existing Logic refactored)
                 const targetAspect = selectedPreset.width / selectedPreset.height;
@@ -451,65 +468,102 @@ export default function GlobalScreenRecorder() {
     const renderContent = () => {
         if (isFrameMode) {
             return (
-                <div className="flex w-full h-full bg-slate-950 overflow-hidden">
+                <div className="flex w-full h-full bg-slate-950 overflow-hidden relative">
+                    {/* Emergency Escape Hatch */}
+                    <button
+                        onClick={() => { setIsFrameMode(false); setIsOpen(false); }}
+                        className="absolute top-2 right-2 z-[9999] bg-red-600 hover:bg-red-700 text-white p-2 rounded-full shadow-2xl border border-white/20"
+                        title="Emergency Close"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+
                     {/* Left Sidebar: Teleprompter */}
-                    <div className="w-80 flex-shrink-0 border-r border-slate-800 bg-slate-900 p-4 flex flex-col gap-4">
-                        <div className="text-white text-sm font-bold flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-indigo-400" /> Prompter
+                    <div className="w-80 flex-shrink-0 border-r border-slate-700 bg-slate-900 p-4 flex flex-col gap-4 z-50 relative shadow-2xl">
+                        <div className="text-white font-bold flex items-center gap-2 text-base">
+                            <FileText className="w-5 h-5 text-indigo-400" />
+                            <span className="text-white">Prompter</span>
                         </div>
                         {/* Selector */}
                         <select
                             value={selectedScriptId}
                             onChange={handleScriptSelect}
-                            className="bg-slate-800 text-white text-xs p-2 rounded border border-slate-700 focus:outline-none"
+                            className="bg-slate-800 text-white text-sm p-2 rounded border border-slate-600 focus:outline-none focus:border-indigo-500 w-full"
                         >
-                            <option value="">No Script</option>
-                            {scripts.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                            <option value="" className="text-slate-400">No Script (Type freely)</option>
+                            {scripts.map(s => <option key={s.id} value={s.id} className="text-white">{s.title}</option>)}
                         </select>
-                        <textarea
-                            ref={scrollerRef}
-                            className="flex-1 bg-transparent resize-none focus:outline-none text-white text-lg leading-relaxed font-serif"
-                            placeholder="Paste script..."
-                            value={scriptContent}
-                            onChange={e => setScriptContent(e.target.value)}
-                        />
+
+                        <div className="flex-1 relative flex flex-col">
+                            {/* Visual background for textarea to catch layout bugs */}
+                            <textarea
+                                ref={scrollerRef}
+                                className="flex-1 w-full h-full bg-slate-800/50 p-3 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-white placeholder-slate-500 text-lg leading-relaxed font-serif"
+                                placeholder="Paste your script here... Text will scroll when you verify recording."
+                                value={scriptContent}
+                                onChange={e => setScriptContent(e.target.value)}
+                                style={{ color: 'white', backgroundColor: 'rgba(30, 41, 59, 0.5)' }}
+                            />
+                        </div>
+
                         {/* Speed Controls */}
-                        <div className="flex items-center justify-between text-slate-400 text-xs">
-                            <span>Scroll Speed:</span>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setScrollSpeed(s => Math.max(0, s - 0.5))} className="px-2 py-1 bg-slate-800 rounded">-</button>
-                                <span>{scrollSpeed}x</span>
-                                <button onClick={() => setScrollSpeed(s => Math.min(5, s + 0.5))} className="px-2 py-1 bg-slate-800 rounded">+</button>
+                        <div className="flex items-center justify-between text-slate-300 text-sm bg-slate-800 p-2 rounded border border-slate-700">
+                            <span className="font-semibold">Scroll Speed:</span>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => setScrollSpeed(s => Math.max(0, s - 0.5))} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold">-</button>
+                                <span className="font-mono text-white w-8 text-center">{scrollSpeed}x</span>
+                                <button onClick={() => setScrollSpeed(s => Math.min(5, s + 0.5))} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold">+</button>
                             </div>
                         </div>
                     </div>
 
-                    {/* Center: The Stage (Iframe) */}
-                    <div className="flex-1 bg-black flex items-center justify-center relative p-8">
+                    {/* Center: The Stage */}
+                    <div className="flex-1 bg-black flex items-center justify-center relative p-2 z-0 overflow-hidden">
+                        {/* Container */}
                         {/* This container defines the aspect ratio box */}
                         <div
                             className="bg-white shadow-2xl relative overflow-hidden ring-4 ring-indigo-500/20"
                             style={{
                                 aspectRatio: `${selectedPreset.width} / ${selectedPreset.height}`,
-                                height: '90%',
+                                height: '96%',
                                 width: 'auto'
                             }}
                         >
-                            <iframe
-                                ref={iframeRef}
-                                src={typeof window !== 'undefined' ? window.location.href : '/'}
-                                className="w-full h-full border-0 block"
-                            />
-
-                            {/* Overlay Badge */}
-                            {!isRecording && (
-                                <div className="absolute top-4 left-4 right-4 bg-indigo-600/90 text-white text-center p-2 rounded text-sm z-10 backdrop-blur pointer-events-none animate-pulse">
-                                    Target Area: Recording will auto-crop to this box!
+                            {/* PREVIEW MODE: Show video if we have one and not recording */}
+                            {previewUrl && !isRecording ? (
+                                <div className="w-full h-full bg-black relative group">
+                                    <video
+                                        src={previewUrl}
+                                        controls
+                                        className="w-full h-full object-contain"
+                                    />
+                                    <button
+                                        onClick={() => setPreviewUrl(null)}
+                                        className="absolute top-2 right-2 bg-slate-800/80 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700"
+                                        title="Close Preview & Return to App"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
                                 </div>
+                            ) : (
+                                /* RECORDING MODE: Show Iframe */
+                                <>
+                                    <iframe
+                                        ref={iframeRef}
+                                        src={typeof window !== 'undefined' ? window.location.href : '/'}
+                                        className="w-full h-full border-0 block"
+                                    />
+
+                                    {!isRecording && (
+                                        <div className="absolute top-4 left-4 right-4 bg-indigo-600/90 text-white text-center p-2 rounded text-sm z-10 backdrop-blur pointer-events-none font-bold shadow-lg">
+                                            Target Area: Recording will auto-crop to this box!
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
 
-                        {/* Offscreen Elements */}
+                        {/* Hidden Video Elements */}
                         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
                             <video ref={sourceVideoRef} playsInline autoPlay muted />
                             <canvas ref={canvasRef} />
@@ -517,61 +571,63 @@ export default function GlobalScreenRecorder() {
                     </div>
 
                     {/* Right Sidebar: Controls */}
-                    {/* Right Sidebar: Controls */}
-                    <div className="w-64 flex-shrink-0 border-l border-slate-800 bg-slate-900 flex flex-col h-full overflow-hidden">
+                    <div className="w-72 flex-shrink-0 border-l border-slate-700 bg-slate-900 flex flex-col h-full overflow-hidden z-50 relative shadow-2xl">
                         {/* Header */}
-                        <div className="p-4 flex-shrink-0 flex items-center justify-between border-b border-slate-800">
-                            <h2 className="text-white font-bold flex items-center gap-2"><Video className="w-4 h-4" /> Studio</h2>
-                            <button onClick={() => { setIsFrameMode(false); setIsOpen(false); }} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+                        <div className="p-4 flex-shrink-0 flex items-center justify-between border-b border-slate-700 bg-slate-900">
+                            <h2 className="text-white font-bold flex items-center gap-2 text-base"><Video className="w-5 h-5 text-indigo-400" /> Studio</h2>
+                            <button onClick={() => { setIsFrameMode(false); setIsOpen(false); }} className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded"><X className="w-5 h-5" /></button>
                         </div>
 
                         {/* Scrollable Content */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-900">
                             {/* Mic */}
-                            <label className="flex items-center justify-between text-slate-300 text-sm cursor-pointer p-2 rounded hover:bg-slate-800 border border-slate-700">
-                                <span className="flex items-center gap-2"><Mic className="w-4 h-4" /> Mic</span>
-                                <input type="checkbox" checked={micEnabled} onChange={e => setMicEnabled(e.target.checked)} />
+                            <label className="flex items-center justify-between text-white text-sm cursor-pointer p-3 rounded hover:bg-slate-800 border border-slate-700 bg-slate-800/50 transition-colors">
+                                <span className="flex items-center gap-2 font-medium"><Mic className="w-4 h-4 text-indigo-400" /> Microhone</span>
+                                <input type="checkbox" checked={micEnabled} onChange={e => setMicEnabled(e.target.checked)} className="w-4 h-4 accent-indigo-500" />
                             </label>
 
                             {/* Presets */}
                             <div className="space-y-2">
-                                <label className="text-xs text-slate-500 uppercase font-bold">Canvas Size</label>
+                                <label className="text-xs text-indigo-300 uppercase font-bold tracking-wider">Canvas Size</label>
                                 <div className="grid grid-cols-1 gap-2">
                                     {PRESETS.map(p => (
                                         <button
                                             key={p.id}
                                             onClick={() => !isRecording && setSelectedPreset(p)}
-                                            className={`px-3 py-2 rounded text-xs text-left ${selectedPreset.id === p.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                            className={`px-3 py-3 rounded-lg text-sm font-medium text-left transition-all ${selectedPreset.id === p.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'}`}
                                         >
-                                            {p.label}
+                                            {p.label} <span className="text-xs opacity-50 float-right">({p.width}x{p.height})</span>
                                         </button>
                                     ))}
                                 </div>
                             </div>
 
                             {/* Debug Logs */}
-                            <div className="text-[10px] font-mono text-green-500 bg-black/50 p-2 rounded opacity-50 hover:opacity-100 transition-opacity">
-                                <div className="mb-1 border-b border-green-900 pb-1">Debug Info</div>
-                                {logs.slice(-5).map((l, i) => <div key={i}>{l}</div>)}
-                                <div className="mt-1 pt-1 border-t border-green-900">
-                                    Res: {typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : ''}
-                                </div>
+                            <div className="text-[10px] font-mono text-green-400 bg-black/80 p-3 rounded border border-green-900/50 max-h-32 overflow-y-auto">
+                                <div className="mb-2 border-b border-green-900 pb-1 font-bold">System Logs</div>
+                                {logs.slice(-5).map((l, i) => <div key={i} className="truncate">{l}</div>)}
                             </div>
                         </div>
 
                         {/* Fixed Footer Actions */}
-                        <div className="p-4 border-t border-slate-800 bg-slate-900 flex-shrink-0 space-y-3 z-10">
+                        <div className="p-4 border-t border-slate-700 bg-slate-900 flex-shrink-0 space-y-3 z-50 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
                             {!mediaStream ? (
-                                <button onClick={startCapture} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold shadow-lg shadow-indigo-500/20">Select Screen</button>
+                                <button onClick={startCapture} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-base shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02]">
+                                    Select Screen (Tab)
+                                </button>
                             ) : !isRecording ? (
-                                <button onClick={startRecording} className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded font-bold animate-pulse shadow-lg shadow-red-500/20">Start Recording</button>
+                                <button onClick={startRecording} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-base animate-pulse shadow-lg shadow-red-500/20 transition-all hover:scale-[1.02]">
+                                    Start Recording
+                                </button>
                             ) : (
-                                <button onClick={stopRecording} className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold border border-slate-600">Stop Recording</button>
+                                <button onClick={stopRecording} className="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-base border border-slate-500 transition-all hover:scale-[1.02]">
+                                    Stop Recording
+                                </button>
                             )}
 
                             {(previewUrl || recordedChunks.length > 0) && !isRecording && (
-                                <button onClick={downloadVideo} className="w-full py-3 bg-green-600 hover:bg-green-500 text-white rounded font-bold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20">
-                                    <Download className="w-4 h-4" /> Download Video
+                                <button onClick={downloadVideo} className="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all hover:scale-[1.02]">
+                                    <Download className="w-5 h-5" /> Download Video
                                 </button>
                             )}
                         </div>
@@ -758,13 +814,13 @@ export default function GlobalScreenRecorder() {
     };
 
     // Main Return
-    if (typeof window !== 'undefined' && window.self !== window.top) return null; // Recursion protection
+    if (isInsideIframe) return null; // Recursion protection (Safe)
 
     if (!isOpen) {
         return (
             <div className="fixed bottom-4 right-20 z-50">
                 <button
-                    onClick={() => setIsOpen(true)}
+                    onClick={() => { setIsOpen(true); setIsFrameMode(true); }}
                     className="bg-black/50 hover:bg-black/80 text-white p-3 rounded-full shadow-lg backdrop-blur-sm transition-all"
                     title="Open Studio Recorder (Ctrl+Shift+S)"
                 >
