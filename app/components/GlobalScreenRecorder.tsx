@@ -211,8 +211,17 @@ export default function GlobalScreenRecorder() {
     };
 
     const startProcessingLoop = (sourceVideo: HTMLVideoElement, targetCanvas: HTMLCanvasElement) => {
-        const ctx = targetCanvas.getContext('2d');
+        const ctx = targetCanvas.getContext('2d', { alpha: false }); // Optimize for no alpha
         if (!ctx) return;
+
+        // High Quality Scaling
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Perceptual Sharpening: Slight contrast/saturation boost to counteract upscaling blur
+        // This brings back the "crystal" look losing during resampling.
+        ctx.filter = 'contrast(102%) saturate(101%)';
+
         targetCanvas.width = selectedPreset.width;
         targetCanvas.height = selectedPreset.height;
 
@@ -236,28 +245,47 @@ export default function GlobalScreenRecorder() {
 
                 // IMPORTANT: The video stream from getDisplayMedia usually matches the *screen* or *tab* resolution.
                 // If it's the current tab, the coordinate system effectively matches window.innerWidth/Height scaled by devicePixelRatio.
-                // However, the videoW/videoH tells us the TRUE pixel density of the stream.
-
-                // We trust the ratio between the Video Track Size and the Window Size.
-                // Calculate Scale (Video Pixels / Viewport Pixels)
-                // We use WIDTH as the anchor because browser height often varies (tabs, bookmarks bar) which disturbs vertical scale.
-                // Forcing uniform scale based on width prevents "smashing" (aspect ratio distortion).
+                // However, the videoW/videoH tells                // Calculate Raw Scale based on Width (safest anchor)
                 const scale = videoW / window.innerWidth;
 
-                // Apply Uniform Scale
-                cropX = rect.left * scale;
-                // If there's a vertical offset mismatch (e.g. browser chrome), this might need tuning, 
-                // but usually 'preferCurrentTab' matches the viewport top-left.
-                cropY = rect.top * scale;
-                cropW = rect.width * scale;
-                cropH = rect.height * scale;
+                // Raw bounds of the iframe
+                let rawCropX = rect.left * scale;
+                let rawCropY = rect.top * scale;
+                let rawCropW = rect.width * scale;
+                let rawCropH = rect.height * scale;
 
-                // Safety: Clamp to video bounds
-                cropX = Math.max(0, cropX);
-                cropY = Math.max(0, cropY);
-                cropW = Math.min(cropW, videoW - cropX);
-                cropH = Math.min(cropH, videoH - cropY);
+                // Enforce Aspect Ratio on the Source Crop
+                // We want to fill the target canvas (1920x1080) without stretching.
+                // So we must ensure the source rectangle has the SAME aspect ratio as the target.
+                const targetAspect = selectedPreset.width / selectedPreset.height;
+                const sourceAspect = rawCropW / rawCropH;
+
+                if (sourceAspect > targetAspect) {
+                    // Source is wider than target: Crop the sides
+                    const newWidth = rawCropH * targetAspect;
+                    const diff = rawCropW - newWidth;
+                    rawCropX += diff / 2;
+                    rawCropW = newWidth;
+                } else {
+                    // Source is taller than target: Crop top/bottom
+                    const newHeight = rawCropW / targetAspect;
+                }
+
+                // MICRO-CROP: Shrink by 2px to remove any edge-bleeding or sub-pixel borders
+                const safetyMargin = 2; // px
+                rawCropX += safetyMargin;
+                rawCropY += safetyMargin;
+                rawCropW -= (safetyMargin * 2);
+                rawCropH -= (safetyMargin * 2);
+
+                // PIXEL SNAPPING: Round to integers to prevent anti-aliasing blur (The "Shadowing" effect)
+                cropX = Math.round(Math.max(0, rawCropX));
+                cropY = Math.round(Math.max(0, rawCropY));
+                cropW = Math.round(Math.min(rawCropW, videoW - cropX));
+                cropH = Math.round(Math.min(rawCropH, videoH - cropY));
+
             } else {
+                // ... (rest of standard crop logic is unchanged)
                 // Standard Center Crop (Existing Logic refactored)
                 const targetAspect = selectedPreset.width / selectedPreset.height;
                 const srcAspect = videoW / videoH;
@@ -348,7 +376,7 @@ export default function GlobalScreenRecorder() {
 
             if (canvasRef.current) {
                 startProcessingLoop(sourceVideo, canvasRef.current);
-                const canvasStream = canvasRef.current.captureStream(30);
+                const canvasStream = canvasRef.current.captureStream(60); // 60fps capture
 
                 // If we have mixed audio, add that track. Otherwise try to grab system audio directly?
                 // Mixed is safer if it exists.
@@ -392,7 +420,8 @@ export default function GlobalScreenRecorder() {
         setPreviewUrl(null);
         setRecordedChunks([]);
 
-        const options = { mimeType: 'video/webm; codecs=vp9', bitsPerSecond: 2500000 };
+        // High Bitrate for clear text
+        const options = { mimeType: 'video/webm; codecs=vp9', bitsPerSecond: 8000000 };
         const mimeType = MediaRecorder.isTypeSupported('video/webm; codecs=vp9') ? 'video/webm; codecs=vp9' : 'video/webm';
         addLog(`MimeType: ${mimeType}`);
 
@@ -522,7 +551,8 @@ export default function GlobalScreenRecorder() {
                         {/* Container */}
                         {/* This container defines the aspect ratio box */}
                         <div
-                            className="bg-white shadow-2xl relative overflow-hidden ring-4 ring-indigo-500/20"
+                            // Remove shadows/rings when recording to prevent edge artifacts
+                            className={`bg-white relative overflow-hidden transition-all ${isRecording ? '' : 'shadow-2xl ring-4 ring-indigo-500/20'}`}
                             style={{
                                 aspectRatio: `${selectedPreset.width} / ${selectedPreset.height}`,
                                 height: '96%',
