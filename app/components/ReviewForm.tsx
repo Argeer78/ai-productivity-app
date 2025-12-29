@@ -1,9 +1,10 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Star } from "lucide-react";
 import { useT } from "@/lib/useT";
+import { supabase } from "@/lib/supabaseClient";
 
 type Props = {
     source?: string;
@@ -24,26 +25,58 @@ export default function ReviewForm({
     const [comment, setComment] = useState("");
     const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
 
+    // 🔹 Auth Check
+    const [checkingUser, setCheckingUser] = useState(true);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+    useEffect(() => {
+        // Simple client-side check. 
+        import("@/lib/supabaseClient").then(({ supabase }) => {
+            supabase.auth.getSession().then(({ data }) => {
+                setIsLoggedIn(!!data.session);
+                setCheckingUser(false);
+            });
+        });
+    }, []);
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+
         if (rating === 0) return;
 
         setStatus("submitting");
         try {
+            // Get the current session token to pass to the server
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            const headers: Record<string, string> = {
+                "Content-Type": "application/json"
+            };
+
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+            }
+
             const res = await fetch("/api/reviews", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({ rating, comment, source }),
             });
 
-            if (!res.ok) throw new Error("Failed to submit");
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                console.error("[ReviewForm] Submit failed:", res.status, res.statusText, errorData);
+                throw new Error(errorData.error || "Failed to submit");
+            }
 
             setStatus("success");
             if (onSuccess) {
                 setTimeout(onSuccess, 2000);
             }
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            console.error("[ReviewForm] Error caught:", err);
+            // Optionally set error message state to display to user
             setStatus("error");
         }
     }
@@ -64,6 +97,27 @@ export default function ReviewForm({
                         {t("reviews.success.return", "Return to Dashboard")}
                     </a>
                 )}
+            </div>
+        );
+    }
+
+    // Show Auth Gate if not logged in (and not loading)
+    if (!checkingUser && !isLoggedIn) {
+        return (
+            <div className="text-center py-8">
+                <div className="mb-4">
+                    <Star className="w-12 h-12 text-gray-300 mx-auto" />
+                </div>
+                <h2 className="text-xl font-bold mb-2">{t("reviews.guest.title", "Login to Review")}</h2>
+                <p className="text-[var(--text-muted)] mb-6 text-sm">
+                    {t("reviews.guest.subtitle", "You need to be logged in to rate the app.")}
+                </p>
+                <a
+                    href="/auth"
+                    className="inline-block px-6 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-sm font-medium hover:opacity-90"
+                >
+                    {t("reviews.guest.button", "Go to Login")}
+                </a>
             </div>
         );
     }
@@ -100,7 +154,7 @@ export default function ReviewForm({
                 ))}
             </div>
 
-            {/* Comment Area (Reveals after rating is selected usually, but here always visible is fine or better UX) */}
+            {/* Comment Area */}
             <div className={`space-y-3 transition-all duration-300 ${rating > 0 ? 'opacity-100 max-h-96' : 'opacity-50 max-h-96 blur-[1px]'}`}>
                 <label className="block text-sm font-medium text-[var(--text-main)]">
                     {rating < 5

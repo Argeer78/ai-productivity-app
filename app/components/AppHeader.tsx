@@ -47,7 +47,8 @@ type HeaderProps = {
   | "my-trips"
   | "travel"
   | "ai-companion"
-  | "ai-chat";
+  | "ai-chat"
+  | "reviews";
 };
 
 const APPS: {
@@ -198,6 +199,7 @@ export default function AppHeader({ active }: HeaderProps) {
     "admin",
     "ai-companion",
     "ai-chat",
+    "reviews",
   ].includes(active || "");
 
   const mobileRoutes: {
@@ -220,6 +222,7 @@ export default function AppHeader({ active }: HeaderProps) {
       { key: "travel", label: navLabel("travel", "Travel Planner"), href: "/travel" },
       { key: "my-trips", label: navLabel("myTrips", "My Trips"), href: "/my-trips" },
       { key: "changelog", label: navLabel("changelog", "What’s new"), href: "/changelog" },
+      { key: "reviews", label: navLabel("reviews", "Rate this App"), href: "/reviews" },
       { key: "settings", label: navLabel("settings", "Settings"), href: "/settings" },
       { key: "admin", label: navLabel("admin", "Admin"), href: "/admin", adminOnly: true },
     ];
