@@ -243,20 +243,18 @@ export default function GlobalScreenRecorder() {
                 // Get Iframe Bounds relative to viewport
                 const rect = iframeRef.current.getBoundingClientRect();
 
-                // IMPORTANT: The video stream from getDisplayMedia usually matches the *screen* or *tab* resolution.
-                // If it's the current tab, the coordinate system effectively matches window.innerWidth/Height scaled by devicePixelRatio.
-                // However, the videoW/videoH tells                // Calculate Raw Scale based on Width (safest anchor)
-                const scale = videoW / window.innerWidth;
+                // Calculate Scales Independently (Video Pixels / Viewport Pixels)
+                // This handles cases where X and Y axes have different densities (e.g. Browser Chrome vs Content)
+                const scaleX = videoW / window.innerWidth;
+                const scaleY = videoH / window.innerHeight;
 
-                // Raw bounds of the iframe
-                let rawCropX = rect.left * scale;
-                let rawCropY = rect.top * scale;
-                let rawCropW = rect.width * scale;
-                let rawCropH = rect.height * scale;
+                // Raw bounds of the iframe mapped to video space
+                let rawCropX = rect.left * scaleX;
+                let rawCropY = rect.top * scaleY;
+                let rawCropW = rect.width * scaleX;
+                let rawCropH = rect.height * scaleY;
 
                 // Enforce Aspect Ratio on the Source Crop
-                // We want to fill the target canvas (1920x1080) without stretching.
-                // So we must ensure the source rectangle has the SAME aspect ratio as the target.
                 const targetAspect = selectedPreset.width / selectedPreset.height;
                 const sourceAspect = rawCropW / rawCropH;
 
@@ -269,6 +267,9 @@ export default function GlobalScreenRecorder() {
                 } else {
                     // Source is taller than target: Crop top/bottom
                     const newHeight = rawCropW / targetAspect;
+                    const diff = rawCropH - newHeight;
+                    rawCropY += diff / 2;
+                    rawCropH = newHeight;
                 }
 
                 // MICRO-CROP: Shrink by 2px to remove any edge-bleeding or sub-pixel borders
@@ -278,7 +279,7 @@ export default function GlobalScreenRecorder() {
                 rawCropW -= (safetyMargin * 2);
                 rawCropH -= (safetyMargin * 2);
 
-                // PIXEL SNAPPING: Round to integers to prevent anti-aliasing blur (The "Shadowing" effect)
+                // PIXEL SNAPPING: Round to integers to prevent anti-aliasing blur
                 cropX = Math.round(Math.max(0, rawCropX));
                 cropY = Math.round(Math.max(0, rawCropY));
                 cropW = Math.round(Math.min(rawCropW, videoW - cropX));
@@ -555,8 +556,11 @@ export default function GlobalScreenRecorder() {
                             className={`bg-white relative overflow-hidden transition-all ${isRecording ? '' : 'shadow-2xl ring-4 ring-indigo-500/20'}`}
                             style={{
                                 aspectRatio: `${selectedPreset.width} / ${selectedPreset.height}`,
-                                height: '96%',
-                                width: 'auto'
+                                // Use max-dimensions + auto to NEVER squash the aspect ratio on screen
+                                height: 'auto',
+                                width: 'auto',
+                                maxHeight: '96%',
+                                maxWidth: '96%',
                             }}
                         >
                             {/* PREVIEW MODE: Show video if we have one and not recording */}
