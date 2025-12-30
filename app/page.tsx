@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Alive3DImage from "@/app/components/Alive3DImage";
+import FeatureSlider from "@/app/components/FeatureSlider";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import SocialShareBar from "@/app/components/SocialShareBar";
@@ -463,6 +464,10 @@ export default function HomePage() {
 
           {/* ✅ PROMO / AD BANNER */}
           <AdsFreeSection />
+
+          {/* 3D Feature Slider */}
+          <FeatureSlider />
+
           {!checkingUser && <PromoHighlights isAuthed={!!user} />}
 
           {/* TOOLS / WHAT YOU GET */}
