@@ -23,7 +23,7 @@ import SoundToggle from "@/app/components/SoundToggle";
 type Tone = "balanced" | "friendly" | "direct" | "motivational" | "casual";
 type Reminder = "none" | "daily" | "weekly";
 
-const THEME_OPTIONS: { value: ThemeId; key: string; fallback: string }[] = [
+const THEME_OPTIONS: { value: ThemeId; key: string; fallback: string; isPro?: boolean }[] = [
   { value: "default", key: "settings.theme.dark", fallback: "Dark (default)" },
   { value: "light", key: "settings.theme.light", fallback: "Light" },
   { value: "ocean", key: "settings.theme.ocean", fallback: "Ocean" },
@@ -33,13 +33,13 @@ const THEME_OPTIONS: { value: ThemeId; key: string; fallback: string }[] = [
   { value: "halloween", key: "settings.theme.halloween", fallback: "Halloween 🎃" },
   { value: "christmas", key: "settings.theme.christmas", fallback: "Christmas 🎄" },
   { value: "easter", key: "settings.theme.easter", fallback: "Easter 🐣" },
-  { value: "gold", key: "settings.theme.gold", fallback: "Luxury Gold (Pro) 🏆" },
-  { value: "silver", key: "settings.theme.silver", fallback: "Sleek Silver (Pro) 🥈" },
-  { value: "cyberpunk", key: "settings.theme.cyberpunk", fallback: "Cyberpunk 🦾" },
-  { value: "nordic", key: "settings.theme.nordic", fallback: "Nordic ❄️" },
-  { value: "midnight", key: "settings.theme.midnight", fallback: "Midnight 🌑" },
-  { value: "nebula", key: "settings.theme.nebula", fallback: "Nebula (Pro) 🌌" },
-  { value: "rainbow", key: "settings.theme.rainbow", fallback: "Rainbow (Pro) 🌈" },
+  { value: "gold", key: "settings.theme.gold", fallback: "Luxury Gold (Pro) 🏆", isPro: true },
+  { value: "silver", key: "settings.theme.silver", fallback: "Sleek Silver (Pro) 🥈", isPro: true },
+  { value: "cyberpunk", key: "settings.theme.cyberpunk", fallback: "Cyberpunk 🦾", isPro: true },
+  { value: "nordic", key: "settings.theme.nordic", fallback: "Nordic ❄️", isPro: true },
+  { value: "midnight", key: "settings.theme.midnight", fallback: "Midnight 🌑", isPro: true },
+  { value: "nebula", key: "settings.theme.nebula", fallback: "Nebula (Pro) 🌌", isPro: true },
+  { value: "rainbow", key: "settings.theme.rainbow", fallback: "Rainbow (Pro) 🌈", isPro: true },
 ];
 
 const TONE_OPTIONS: { value: Tone; icon: string; key: string; fallback: string }[] = [
@@ -683,19 +683,35 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {THEME_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setTheme(opt.value)}
-                      className={`px-3 py-1.5 rounded-full border text-[11px] transition ${theme === opt.value
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
-                        }`}
-                    >
-                      {t(opt.key, opt.fallback)}
-                    </button>
-                  ))}
+                  {THEME_OPTIONS.map((opt) => {
+                    // Logic: Guests (no user) get all themes. Pro users get all themes. Free users get non-Pro themes.
+                    const isLocked = !!user && plan === "free" && opt.isPro;
+
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          if (isLocked) {
+                            if (confirm(t("settings.theme.upgradePrompt", "This theme is available for Pro users. Unlock it now?"))) {
+                              window.location.href = "/dashboard#pricing";
+                            }
+                            return;
+                          }
+                          setTheme(opt.value);
+                        }}
+                        className={`relative px-3 py-1.5 rounded-full border text-[11px] transition ${theme === opt.value
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                          : isLocked
+                            ? "border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-muted)] opacity-60 cursor-not-allowed"
+                            : "border-[var(--border-subtle)] bg-[var(--bg-body)] hover:bg-[var(--bg-card)] text-[var(--text-main)]"
+                          }`}
+                      >
+                        {isLocked && <span className="mr-1">🔒</span>}
+                        {t(opt.key, opt.fallback)}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
