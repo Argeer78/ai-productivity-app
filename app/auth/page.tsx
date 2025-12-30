@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useT } from "@/lib/useT";
@@ -182,8 +183,20 @@ export default function AuthPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4">
       <div className="w-full max-w-md border border-slate-800 rounded-2xl p-6 bg-slate-900/70 shadow-lg">
-        {/* Language selector */}
-        <div className="flex justify-end mb-3">
+        {/* Logo & Language Row */}
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/icon-512.png"
+              alt="AI Productivity Hub"
+              width={48}
+              height={48}
+              className="rounded-2xl"
+              priority
+            />
+            <span className="font-bold text-lg tracking-tight">AI Productivity Hub</span>
+          </div>
+
           <select
             value={lang}
             onChange={(e) => setLang(e.target.value as Lang)}
