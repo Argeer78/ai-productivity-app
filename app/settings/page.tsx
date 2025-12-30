@@ -33,6 +33,12 @@ const THEME_OPTIONS: { value: ThemeId; key: string; fallback: string }[] = [
   { value: "halloween", key: "settings.theme.halloween", fallback: "Halloween 🎃" },
   { value: "christmas", key: "settings.theme.christmas", fallback: "Christmas 🎄" },
   { value: "easter", key: "settings.theme.easter", fallback: "Easter 🐣" },
+  { value: "gold", key: "settings.theme.gold", fallback: "Luxury Gold (Pro) 🏆" },
+  { value: "silver", key: "settings.theme.silver", fallback: "Sleek Silver (Pro) 🥈" },
+  { value: "cyberpunk", key: "settings.theme.cyberpunk", fallback: "Cyberpunk 🦾" },
+  { value: "nordic", key: "settings.theme.nordic", fallback: "Nordic ❄️" },
+  { value: "midnight", key: "settings.theme.midnight", fallback: "Midnight 🌑" },
+  { value: "nebula", key: "settings.theme.nebula", fallback: "Nebula (Red & Blue) 🌌" },
 ];
 
 const TONE_OPTIONS: { value: Tone; icon: string; key: string; fallback: string }[] = [

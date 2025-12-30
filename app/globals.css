@@ -181,6 +181,164 @@
   /* white on pink */
 }
 
+/* Luxury Gold (Royal Blue & Gold Upgrade) */
+:root[data-theme="gold"] {
+  color-scheme: dark;
+
+  /* Deep Royal Blue bases */
+  --bg-body: #0b0f19;
+  /* Fallback solid (Deep Navy) */
+  --bg-elevated: #111827;
+  /* Gray-900/Blue mix */
+  --bg-card: #172554;
+  /* Blue-950 (Rich blue) */
+  --bg-card-gradient: linear-gradient(145deg, #172554, #1e1b4b);
+  /* Optional for cards if we used it */
+
+  --border-subtle: #1e3a8a;
+  /* Blue-900 */
+  --border-strong: #d97706;
+  /* Gold border for contrast */
+
+  --text-main: #fffbeb;
+  /* Warm white */
+  --text-muted: #94a3b8;
+  /* Slate-400 */
+
+  --accent: #fbbf24;
+  /* Amber-400 (Bright Gold) */
+  --accent-soft: rgba(251, 191, 36, 0.15);
+  --accent-contrast: #0f172a;
+  /* Dark text on gold */
+}
+
+/* Gradient override for Gold theme body */
+:root[data-theme="gold"] body {
+  background-image: linear-gradient(to bottom right, #020617, #172554, #0f172a);
+  background-attachment: fixed;
+  /* Parallax feel */
+  background-size: 200% 200%;
+  /* subtle movement potential */
+}
+
+/* Sleek Silver */
+:root[data-theme="silver"] {
+  color-scheme: dark;
+
+  --bg-body: #0f172a;
+  /* Dark Blue/Slate Base (Slate-900) */
+  --bg-elevated: #1e293b;
+  /* Slate-800 */
+  --bg-card: #334155;
+  /* Slate-700 */
+  --border-subtle: #475569;
+  /* Slate-600 */
+  --border-strong: #94a3b8;
+  /* Slate-400 */
+
+  --text-main: #f8fafc;
+  /* Slate-50 */
+  --text-muted: #cbd5e1;
+  /* Slate-300 */
+
+  --accent: #e2e8f0;
+  /* Slate-200 (Silver/White intent) */
+  --accent-soft: rgba(226, 232, 240, 0.15);
+  --accent-contrast: #0f172a;
+  /* Dark text on silver button */
+}
+
+/* Cyberpunk (Neon) */
+:root[data-theme="cyberpunk"] {
+  color-scheme: dark;
+  --bg-body: #050505;
+  /* Pitch black */
+  --bg-elevated: #0a0a0a;
+  --bg-card: #121212;
+  --border-subtle: #333333;
+  --border-strong: #00ff41;
+  /* Neon green borders */
+  --text-main: #e0e0e0;
+  --text-muted: #808080;
+  --accent: #00ff41;
+  /* Matrix/Neon Green */
+  --accent-soft: rgba(0, 255, 65, 0.15);
+  --accent-contrast: #000000;
+}
+
+/* Nordic (Arctic) */
+:root[data-theme="nordic"] {
+  color-scheme: dark;
+  --bg-body: #2e3440;
+  /* Nord Polar Night 0 */
+  --bg-elevated: #3b4252;
+  /* Nord Polar Night 1 */
+  --bg-card: #434c5e;
+  /* Nord Polar Night 2 */
+  --border-subtle: #4c566a;
+  /* Nord Polar Night 3 */
+  --border-strong: #81a1c1;
+  /* Nord Frost 2 */
+  --text-main: #eceff4;
+  /* Nord Snow Storm 2 */
+  --text-muted: #d8dee9;
+  /* Nord Snow Storm 0 */
+  --accent: #88c0d0;
+  /* Nord Frost 1 (Cyan) */
+  --accent-soft: rgba(136, 192, 208, 0.15);
+  --accent-contrast: #2e3440;
+}
+
+/* Midnight Monochrome */
+:root[data-theme="midnight"] {
+  color-scheme: dark;
+  --bg-body: #000000;
+  --bg-elevated: #111111;
+  --bg-card: #1c1c1c;
+  --border-subtle: #333333;
+  --border-strong: #555555;
+  --text-main: #ffffff;
+  --text-muted: #888888;
+  --accent: #ffffff;
+  /* Pure white accent */
+  --accent-soft: rgba(255, 255, 255, 0.15);
+  --accent-contrast: #000000;
+}
+
+/* Nebula (Issue Red - Bright & Bold) */
+:root[data-theme="nebula"] {
+  color-scheme: dark;
+  /* Much brighter base - distinct Red, not black */
+  --bg-body: #450a0a;
+  /* Red-950 (Visible Dark Red) */
+  --bg-elevated: #7f1d1d;
+  /* Red-900 */
+  --bg-card: #991b1b;
+  /* Red-800 */
+  --border-subtle: #b91c1c;
+  /* Red-700 */
+  --border-strong: #3b82f6;
+  /* Blue contrast */
+
+  --text-main: #ffffff;
+  /* White */
+  --text-muted: #fca5a5;
+  /* Red-300 */
+
+  --accent: #3b82f6;
+  /* Bright Blue */
+  --accent-soft: rgba(59, 130, 246, 0.25);
+  --accent-contrast: #ffffff;
+}
+
+/* Nebula Gradient (Bold Red) */
+:root[data-theme="nebula"] body {
+  /* Gradient from Red-800 to Red-950 */
+  background-image: linear-gradient(135deg, #991b1b 0%, #450a0a 60%, #1e3a8a 100%);
+  background-attachment: fixed;
+  background-size: cover;
+}
+
 /* === Base body styles === */
 
 body {

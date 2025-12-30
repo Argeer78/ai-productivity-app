@@ -18,7 +18,13 @@ export type ThemeId =
   | "sunset"
   | "halloween"
   | "christmas"
-  | "easter";
+  | "easter"
+  | "gold"
+  | "silver"
+  | "cyberpunk"
+  | "nordic"
+  | "midnight"
+  | "nebula";
 
 type ThemeContextValue = {
   theme: ThemeId;
@@ -44,7 +50,7 @@ function applyTheme(theme: ThemeId) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeId>("default");
 
-   // Load initial theme from localStorage or system preference
+  // Load initial theme from localStorage or system preference
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -91,17 +97,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(initial);
   }, []);
 
-   function setTheme(next: ThemeId) {
-  setThemeState(next);
-  if (typeof window !== "undefined") {
-    if (next === "default") {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(STORAGE_KEY, next);
+  function setTheme(next: ThemeId) {
+    setThemeState(next);
+    if (typeof window !== "undefined") {
+      if (next === "default") {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, next);
+      }
     }
+    applyTheme(next);
   }
-  applyTheme(next);
-}
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
