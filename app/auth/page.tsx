@@ -187,7 +187,7 @@ export default function AuthPage() {
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-3">
             <Image
-              src="/icon-512.png"
+              src="/logo-rounded.png"
               alt="AI Productivity Hub"
               width={48}
               height={48}
