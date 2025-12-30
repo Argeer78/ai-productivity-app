@@ -24,7 +24,8 @@ export type ThemeId =
   | "cyberpunk"
   | "nordic"
   | "midnight"
-  | "nebula";
+  | "nebula"
+  | "rainbow";
 
 type ThemeContextValue = {
   theme: ThemeId;

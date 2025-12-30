@@ -141,7 +141,7 @@ export default function WeeklyHistoryPage() {
             </p>
             <Link
               href="/auth"
-              className="inline-block px-6 py-3 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm font-semibold shadow-lg shadow-indigo-500/20 relative z-10"
+              className="inline-block px-6 py-3 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm font-semibold shadow-lg shadow-indigo-500/20 relative z-10"
             >
               {t("goToAuth", "Go to login / signup")}
             </Link>
@@ -194,7 +194,7 @@ export default function WeeklyHistoryPage() {
               </p>
               <Link
                 href="/dashboard#pricing"
-                className="inline-block px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--bg-body)] font-medium text-xs"
+                className="inline-block px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)] font-medium text-xs"
               >
                 {t("lockedCta", "🔒 Upgrade to Pro")}
               </Link>

@@ -1014,7 +1014,7 @@ export default function DailySuccessPage() {
                 <button
                   type="submit"
                   disabled={morningLoading}
-                  className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs active:scale-95 transition-transform"
+                  className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 disabled:opacity-60 text-xs active:scale-95 transition-transform"
                 >
                   {morningLoading
                     ? t("dailySuccessSystem.morning.generating", "Generating…")
@@ -1249,7 +1249,7 @@ export default function DailySuccessPage() {
                     type="button"
                     onClick={handleSuggestScore}
                     disabled={suggestLoading}
-                    className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[11px] active:scale-95 transition-transform"
+                    className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 disabled:opacity-60 text-[11px] active:scale-95 transition-transform"
                   >
                     {suggestLoading
                       ? t("dailySuccessSystem.evening.aiSuggestLoading", "Asking AI…")

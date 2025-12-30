@@ -86,7 +86,7 @@ export default function AuthGateModal({
         <div className="flex items-center gap-2">
           <Link
             href={resolvedCtaHref}
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
           >
             {resolvedCtaLabel}
           </Link>

@@ -243,7 +243,7 @@ function MiniDatePicker({ value, onChange, t }: MiniDatePickerProps) {
                     type="button"
                     onClick={() => handleSelectDay(day)}
                     className={`h-6 rounded-md text-center ${isSelected
-                      ? "bg-[var(--accent)] text-[var(--bg-body)]"
+                      ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
                       : "text-[var(--text-main)] hover:bg-[var(--bg-elevated)]"
                       }`}
                   >
@@ -433,7 +433,7 @@ function AuthGateModal({
         <div className="mt-4 flex gap-2">
           <a
             href="/auth"
-            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
+            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
           >
             Log in / Sign up
           </a>
@@ -1222,7 +1222,7 @@ export default function TasksPage() {
                     type="button"
                     onClick={() => setAuthModalOpen(true)}
                     aria-label={t("voice.loginToUse", "Log in to use voice")}
-                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
                   >
                     🎤
                   </button>
@@ -1429,7 +1429,7 @@ export default function TasksPage() {
                             });
                           }}
                           className={`px-2 py-1 rounded-lg border text-[10px] ${active
-                            ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
+                            ? "bg-[var(--accent)] text-[var(--accent-contrast)] border-[var(--accent)]"
                             : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                             }`}
                         >
@@ -1469,7 +1469,7 @@ export default function TasksPage() {
               <button
                 type="submit"
                 disabled={savingNew}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs text-[var(--bg-body)]"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-xs text-[var(--accent-contrast)]"
               >
                 {savingNew ? t("form.adding", "Adding…") : t("form.addButton", "Add task")}
               </button>
@@ -1494,7 +1494,7 @@ export default function TasksPage() {
                 type="button"
                 onClick={handleCreateTasksFromVoice}
                 disabled={creatingVoiceTasks}
-                className="mt-3 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
+                className="mt-3 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-xs disabled:opacity-60"
               >
                 {creatingVoiceTasks ? t("voice.creating", "Creating…") : t("voice.createBtn", "Create tasks")}
               </button>
@@ -1985,7 +1985,7 @@ export default function TasksPage() {
                                         handleRepeatPatch({ reminder_weekdays: finalNext });
                                       }}
                                       className={`px-2 py-1 rounded-lg border text-[10px] ${active
-                                        ? "bg-[var(--accent)] text-[var(--bg-body)] border-[var(--accent)]"
+                                        ? "bg-[var(--accent)] text-[var(--accent-contrast)] border-[var(--accent)]"
                                         : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                                         }`}
                                     >

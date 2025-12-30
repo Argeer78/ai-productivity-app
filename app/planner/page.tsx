@@ -390,7 +390,7 @@ export default function PlannerPage() {
             <button
               onClick={generatePlan}
               disabled={loading}
-              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm"
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 disabled:opacity-60 text-xs md:text-sm"
             >
               {loading ? t("generatingButton", "Generating plan...") : t("generateButton", "Generate today’s plan")}
             </button>

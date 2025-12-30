@@ -120,7 +120,7 @@ export default function MyTripsPage() {
             </p>
             <Link
               href="/auth"
-              className="inline-block px-6 py-3 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm font-semibold shadow-lg shadow-indigo-500/20"
+              className="inline-block px-6 py-3 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm font-semibold shadow-lg shadow-indigo-500/20"
             >
               {t("unauth.cta", "Go to login / signup")}
             </Link>
@@ -176,7 +176,7 @@ export default function MyTripsPage() {
               </p>
               <Link
                 href="/travel"
-                className="inline-block px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
+                className="inline-block px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-xs"
               >
                 {t("planATrip", "Plan a trip →")}
               </Link>

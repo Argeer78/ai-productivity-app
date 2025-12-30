@@ -432,7 +432,7 @@ export default function OnboardingWizard() {
               <button
                 type="button"
                 onClick={next}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
               >
                 {t("onboarding.start", "Get started")}
               </button>
@@ -717,7 +717,7 @@ export default function OnboardingWizard() {
                 type="button"
                 onClick={finish}
                 disabled={saving}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-60"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm disabled:opacity-60"
               >
                 {saving ? t("auth.loading.button", "Please wait…") : t("onboarding.finish.button", "Go to dashboard")}
               </button>
@@ -752,7 +752,7 @@ function NavRow({
         type="button"
         onClick={next}
         disabled={saving}
-        className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-60"
+        className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm disabled:opacity-60"
       >
         {saving ? "Saving…" : "Continue"}
       </button>

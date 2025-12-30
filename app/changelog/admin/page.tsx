@@ -127,7 +127,7 @@ export default function ChangelogAdminPage() {
         </p>
         <a
           href="/auth"
-          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs"
+          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-xs"
         >
           Log in
         </a>
@@ -230,7 +230,7 @@ export default function ChangelogAdminPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs font-semibold disabled:opacity-60"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-xs font-semibold disabled:opacity-60"
               >
                 {saving ? "Saving…" : "Publish entry"}
               </button>

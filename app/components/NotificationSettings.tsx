@@ -248,14 +248,14 @@ export default function NotificationSettings({ userId }: Props) {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-[11px] text-[var(--bg-body)]"
+          className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-[11px] text-[var(--accent-contrast)]"
         >
           {saving
             ? t("settings.notifications.saving", "Saving…")
             : t(
-                "settings.notifications.save",
-                "Save notification settings"
-              )}
+              "settings.notifications.save",
+              "Save notification settings"
+            )}
         </button>
 
         {message && (

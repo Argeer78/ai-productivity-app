@@ -160,7 +160,7 @@ export default function DiagnosticsOverlay() {
           type="button"
           onClick={run}
           disabled={running}
-          className="px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs"
+          className="px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 disabled:opacity-60 text-xs"
         >
           {running ? "Running…" : "Run checks"}
         </button>

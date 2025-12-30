@@ -203,7 +203,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
           <p className="text-[var(--text-muted)] mb-4 text-center max-w-sm text-sm">
             {t("loginPrompt", "Log in or create a free account to view your weekly AI reports.")}
           </p>
-          <Link href="/auth" className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm">
+          <Link href="/auth" className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm">
             {t("goToAuth", "Go to login / signup")}
           </Link>
         </div>
@@ -228,7 +228,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
         <AppHeader active="weekly-reports" />
         <div className="flex-1 flex flex-col items-center justify-center px-4">
           <p className="text-[var(--text-muted)] text-sm mb-3">{error || t("notFoundError", "Weekly report not found.")}</p>
-          <Link href="/weekly-reports" className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm">
+          <Link href="/weekly-reports" className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm">
             {t("viewer.backToList", "← Back to all reports")}
           </Link>
         </div>
@@ -298,7 +298,7 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
                 </p>
                 <Link
                   href="/dashboard#pricing"
-                  className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                  className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
                 >
                   {t("viewer.unlockWithPro", "🔒 Unlock with Pro")}
                 </Link>
@@ -322,13 +322,13 @@ export default function WeeklyReportDetailPage({ params }: PageProps) {
                   type="button"
                   onClick={handleGenerateActionPlan}
                   disabled={planLoading}
-                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs font-medium disabled:opacity-60"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-xs font-medium disabled:opacity-60"
                 >
                   {planLoading
                     ? t("viewer.generatingPlan", "Generating action plan...")
                     : actionPlan
-                    ? t("viewer.regeneratePlan", "Regenerate action plan")
-                    : t("viewer.generatePlan", "Generate weekly action plan")}
+                      ? t("viewer.regeneratePlan", "Regenerate action plan")
+                      : t("viewer.generatePlan", "Generate weekly action plan")}
                 </button>
               </>
             )}

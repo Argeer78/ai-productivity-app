@@ -596,7 +596,7 @@ export default function AIChatPage() {
                       subtitle: "Create a free account to save and load your chat conversations.",
                     })
                   }
-                  className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
+                  className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
                 >
                   {t("visitor.cta", "Log in / Sign up")}
                 </button>
@@ -710,7 +710,7 @@ export default function AIChatPage() {
                       subtitle: "Log in or sign up to send messages and save your AI chats.",
                     })
                   }
-                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[12px]"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[12px]"
                 >
                   {t("visitor.previewCta", "Log in / Sign up")}
                 </button>
@@ -731,7 +731,7 @@ export default function AIChatPage() {
                 <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[80%] rounded-2xl px-3 py-2 text-[13px] whitespace-pre-wrap ${m.role === "user"
-                      ? "bg-[var(--accent)] text-[var(--bg-body)] rounded-br-sm"
+                      ? "bg-[var(--accent)] text-[var(--accent-contrast)] rounded-br-sm"
                       : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
                       }`}
                   >
@@ -839,7 +839,7 @@ export default function AIChatPage() {
                   }
                 }}
                 disabled={sending || (!canInteract ? false : !input.trim()) || (canInteract && !isPro && remaining <= 0)}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 disabled:opacity-60 text-[13px]"
               >
                 {sending ? t("input.sending", "Sending…") : canInteract && !isPro && remaining <= 0 ? t("input.limitReached", "Daily limit reached") : t("input.send", "Send")}
               </button>
@@ -874,7 +874,7 @@ export default function AIChatPage() {
                             subtitle: "Create an account to access your saved conversations.",
                           })
                         }
-                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
+                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
                       >
                         {t("visitor.mobileCta", "Log in / Sign up")}
                       </button>
@@ -982,7 +982,7 @@ export default function AIChatPage() {
               <button
                 onClick={handleGenerateImage}
                 disabled={!imagePrompt.trim() || !isPro}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-xs font-medium hover:opacity-90 disabled:opacity-50"
               >
                 {t("buttons.generate", "Generate")}
               </button>

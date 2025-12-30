@@ -140,7 +140,7 @@ export default function WeeklyReportsPage() {
           </p>
           <Link
             href="/auth"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
           >
             {t("goToAuth", "Go to login / signup")}
           </Link>
@@ -228,7 +228,7 @@ export default function WeeklyReportsPage() {
 
               <Link
                 href="/pricing"
-                className="inline-block px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 font-medium text-xs"
+                className="inline-block px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 font-medium text-xs"
               >
                 {t("lockedCta", "🔒 Unlock Weekly Reports with Pro")}
               </Link>

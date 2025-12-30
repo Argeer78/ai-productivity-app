@@ -38,7 +38,8 @@ const THEME_OPTIONS: { value: ThemeId; key: string; fallback: string }[] = [
   { value: "cyberpunk", key: "settings.theme.cyberpunk", fallback: "Cyberpunk 🦾" },
   { value: "nordic", key: "settings.theme.nordic", fallback: "Nordic ❄️" },
   { value: "midnight", key: "settings.theme.midnight", fallback: "Midnight 🌑" },
-  { value: "nebula", key: "settings.theme.nebula", fallback: "Nebula (Red & Blue) 🌌" },
+  { value: "nebula", key: "settings.theme.nebula", fallback: "Nebula (Pro) 🌌" },
+  { value: "rainbow", key: "settings.theme.rainbow", fallback: "Rainbow (Pro) 🌈" },
 ];
 
 const TONE_OPTIONS: { value: Tone; icon: string; key: string; fallback: string }[] = [
@@ -448,7 +449,7 @@ export default function SettingsPage() {
                       subtitle: t("settings.auth.subtitle", "Settings are saved to your account."),
                     })
                   }
-                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--bg-body)]"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm text-[var(--accent-contrast)]"
                 >
                   {t("settings.guest.cta", "Log in / signup")}
                 </button>
@@ -589,7 +590,7 @@ export default function SettingsPage() {
 
                     <a
                       href="/dashboard#pricing"
-                      className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--bg-body)]"
+                      className="inline-block text-xs px-3 py-1.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-[var(--accent-contrast)]"
                     >
                       {t("settings.weeklyReport.unlockPro", "🔒 Unlock with Pro")}
                     </a>
@@ -738,7 +739,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-sm text-[var(--bg-body)]"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:opacity-90 disabled:opacity-60 text-sm text-[var(--accent-contrast)]"
               >
                 {saving ? t("settings.mainFocus.saving", "Saving...") : t("settings.mainFocus.save", "Save settings")}
               </button>

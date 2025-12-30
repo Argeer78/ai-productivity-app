@@ -718,7 +718,7 @@ export default function AiCompanionPage() {
                 <button
                   type="button"
                   onClick={() => gate.openGate({ title: t("gate.unlockHistory.title", "Log in to unlock history") })}
-                  className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
+                  className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
                 >
                   {t("sidebar.loginCta", "Log in / Sign up")}
                 </button>
@@ -842,7 +842,7 @@ export default function AiCompanionPage() {
               <button
                 type="button"
                 onClick={startNewChat}
-                className="text-[11px] px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                className="text-[11px] px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
               >
                 + {t("buttons.newChat", "New chat")}
               </button>
@@ -888,8 +888,8 @@ export default function AiCompanionPage() {
                 <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} min-w-0`}>
                   <div
                     className={`w-fit max-w-[92%] sm:max-w-[82%] rounded-2xl px-3 py-2 text-[13px] whitespace-pre-wrap break-words ${m.role === "user"
-                        ? "bg-[var(--accent)] text-[var(--bg-body)] rounded-br-sm"
-                        : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
+                      ? "bg-[var(--accent)] text-[var(--accent-contrast)] rounded-br-sm"
+                      : "bg-[var(--bg-card)] text-[var(--text-main)] rounded-bl-sm border border-[var(--border-subtle)]"
                       }`}
                   >
                     {m.content}
@@ -988,7 +988,7 @@ export default function AiCompanionPage() {
                 className="flex-1 min-w-0 w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-[13px] text-[var(--text-main)] min-h-[48px] max-h-[140px] resize-y"
               />
 
-              <button type="submit" disabled={sending || !input.trim()} className="shrink-0 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-[13px]">
+              <button type="submit" disabled={sending || !input.trim()} className="shrink-0 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 disabled:opacity-60 text-[13px]">
                 {t("buttons.send", "Send")}
               </button>
             </div>
@@ -1039,7 +1039,7 @@ export default function AiCompanionPage() {
                       <button
                         type="button"
                         onClick={() => gate.openGate({ title: t("gate.viewHistory.title", "Log in to view history") })}
-                        className="w-full text-[11px] px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                        className="w-full text-[11px] px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
                       >
                         {t("sidebar.loginCta", "Log in / Sign up")}
                       </button>
@@ -1107,7 +1107,7 @@ export default function AiCompanionPage() {
                       startNewChat();
                       setShowMobileThreads(false);
                     }}
-                    className="w-full text-[11px] px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                    className="w-full text-[11px] px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
                   >
                     + {t("buttons.newChat", "New chat")}
                   </button>
@@ -1165,7 +1165,7 @@ export default function AiCompanionPage() {
               <button
                 onClick={handleGenerateImage}
                 disabled={!imagePrompt.trim() || userPlan === "free"}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-xs font-medium hover:opacity-90 disabled:opacity-50"
               >
                 {t("buttons.generate", "Generate")}
               </button>

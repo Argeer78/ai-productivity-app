@@ -249,7 +249,7 @@ function AuthGateModal({
         <div className="mt-4 flex gap-2">
           <a
             href="/auth"
-            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
+            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
           >
             Log in / Sign up
           </a>
@@ -1065,7 +1065,7 @@ export default function NotesPage() {
                     type="button"
                     onClick={() => setAuthModalOpen(true)}
                     aria-label={t("voice.loginToUse", "Log in to use voice")}
-                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90"
+                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
                   >
                     🎤
                   </button>
@@ -1105,7 +1105,7 @@ export default function NotesPage() {
                     type="button"
                     onClick={handleCreateTasksFromVoice}
                     disabled={creatingTasks}
-                    className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-[11px] disabled:opacity-60"
+                    className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--accent-contrast)] text-[11px] disabled:opacity-60"
                   >
                     {creatingTasks ? t("tasks.suggested.creating", "Creating tasks…") : t("tasks.suggested.createButton", "Create tasks")}
                   </button>
@@ -1115,7 +1115,7 @@ export default function NotesPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="mt-3 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm disabled:opacity-50"
+                className="mt-3 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm disabled:opacity-50"
               >
                 {loading ? t("buttons.saveNoteLoading", "Saving...") : t("buttons.saveNote", "Save note")}
               </button>
@@ -1348,7 +1348,7 @@ export default function NotesPage() {
                             <button
                               onClick={() => saveEdit(note.id)}
                               disabled={savingEditId === note.id}
-                              className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
+                              className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--accent-contrast)] text-xs disabled:opacity-60"
                             >
                               {savingEditId === note.id ? t("buttons.editSaveLoading", "Saving...") : t("buttons.editSave", "Save")}
                             </button>

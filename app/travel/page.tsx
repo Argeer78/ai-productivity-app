@@ -231,7 +231,7 @@ function CalendarInput({
               if (isDisabled) {
                 classes += "text-[var(--text-muted)] opacity-40 cursor-not-allowed";
               } else if (isSelected) {
-                classes += "bg-[var(--accent)] text-[var(--bg-body)]";
+                classes += "bg-[var(--accent)] text-[var(--accent-contrast)]";
               } else if (isToday) {
                 classes += "border border-[var(--accent)] text-[var(--text-main)]";
               } else {
@@ -805,7 +805,7 @@ export default function TravelPage() {
                       type="button"
                       onClick={generatePlan}
                       disabled={planning}
-                      className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs md:text-sm disabled:opacity-60"
+                      className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-xs md:text-sm disabled:opacity-60"
                     >
                       {planning ? t("buttons.generating", "Generating...") : t("generateButton", "Generate AI trip plan")}
                     </button>
@@ -1048,7 +1048,7 @@ export default function TravelPage() {
                         setDestination(assistantDestination.trim());
                         setAssistantStep(2);
                       }}
-                      className="mt-1 px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs disabled:opacity-60"
+                      className="mt-1 px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-xs disabled:opacity-60"
                     >
                       {t("assistant.step1.next", "Next: How many days?")}
                     </button>
@@ -1081,7 +1081,7 @@ export default function TravelPage() {
                           setCheckout(outStr);
                           setAssistantStep(3);
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs"
+                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-xs"
                       >
                         {t("assistant.step2.next", "Next: Who’s going?")}
                       </button>
@@ -1132,7 +1132,7 @@ export default function TravelPage() {
                           setChildren(assistantChildren);
                           setAssistantStep(1);
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-xs"
+                        className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-xs"
                       >
                         {t("assistant.apply", "Apply to form & use AI")}
                       </button>

@@ -114,7 +114,7 @@ export default function ReviewForm({
                 </p>
                 <a
                     href="/auth"
-                    className="inline-block px-6 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] text-sm font-medium hover:opacity-90"
+                    className="inline-block px-6 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] text-sm font-medium hover:opacity-90"
                 >
                     {t("reviews.guest.button", "Go to Login")}
                 </a>

@@ -309,7 +309,7 @@ export default function AITaskCreatorPage() {
               <button
                 type="button"
                 onClick={() => router.push("/dashboard#pricing")}
-                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-[11px]"
+                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-[11px]"
               >
                 {translate("freeBanner.cta", "View Pro options")}
               </button>
@@ -436,7 +436,7 @@ export default function AITaskCreatorPage() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <span className={`text - xs font - medium ${energyLevel <= 3 ? "text-red-400" :
-                            energyLevel >= 8 ? "text-emerald-400" : "text-yellow-400"
+                          energyLevel >= 8 ? "text-emerald-400" : "text-yellow-400"
                           } `}>
                           {energyLevel <= 3 ? translate("energy.low", "Low Battery") :
                             energyLevel >= 8 ? translate("energy.high", "Full Power!") :
@@ -469,8 +469,8 @@ export default function AITaskCreatorPage() {
                       type="button"
                       onClick={() => setIntensity("light")}
                       className={`px - 3 py - 1.5 rounded - xl border ${intensity === "light"
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                         } `}
                     >
                       {translate("form.intensity.light", "Light")}
@@ -479,8 +479,8 @@ export default function AITaskCreatorPage() {
                       type="button"
                       onClick={() => setIntensity("balanced")}
                       className={`px - 3 py - 1.5 rounded - xl border ${intensity === "balanced"
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                         } `}
                     >
                       {translate("form.intensity.balanced", "Balanced")}
@@ -489,8 +489,8 @@ export default function AITaskCreatorPage() {
                       type="button"
                       onClick={() => setIntensity("aggressive")}
                       className={`px - 3 py - 1.5 rounded - xl border ${intensity === "aggressive"
-                          ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                         } `}
                     >
                       {translate("form.intensity.aggressive", "Deep push")}
@@ -545,7 +545,7 @@ export default function AITaskCreatorPage() {
                 <button
                   type="submit"
                   disabled={loadingSuggestions}
-                  className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-xs"
+                  className="mt-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 disabled:opacity-60 text-xs"
                 >
                   {loadingSuggestions
                     ? translate("buttons.thinking", "Thinking…")

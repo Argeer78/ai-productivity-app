@@ -284,7 +284,7 @@ export default function TemplateDetailPage() {
           <p className="text-[var(--text-muted)] mb-3">{error || t("detail.error.notFound", "Template not found.")}</p>
           <Link
             href="/templates"
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-sm"
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
           >
             {t("detail.backToTemplates", "Back to templates")}
           </Link>
@@ -352,9 +352,8 @@ export default function TemplateDetailPage() {
               type="button"
               onClick={handleUseWithAssistant}
               disabled={locked}
-              className={`px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-xs ${
-                locked ? "opacity-60 cursor-not-allowed" : "hover:bg-[var(--bg-elevated)]"
-              }`}
+              className={`px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-xs ${locked ? "opacity-60 cursor-not-allowed" : "hover:bg-[var(--bg-elevated)]"
+                }`}
             >
               {cardT("use", "🤖 Use with Assistant")}
             </button>
@@ -377,7 +376,7 @@ export default function TemplateDetailPage() {
               <button
                 type="button"
                 onClick={() => (window.location.href = "/dashboard#pricing")}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 text-xs"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-xs"
               >
                 {t("detail.upgradeToPro", "Upgrade to Pro")}
               </button>
@@ -467,7 +466,7 @@ export default function TemplateDetailPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--bg-body)] hover:opacity-90 disabled:opacity-60 text-sm"
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 disabled:opacity-60 text-sm"
                   >
                     {saving ? t("detail.buttons.saving", "Saving...") : t("detail.buttons.saveChanges", "Save changes")}
                   </button>
