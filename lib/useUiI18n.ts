@@ -22,8 +22,7 @@ async function loadFromLocalJson(lang: string): Promise<Record<string, string> |
 }
 
 async function loadFromApi(lang: string): Promise<Record<string, string>> {
-  const url = new URL("/api/ui-i18n", window.location.origin);
-  url.searchParams.set("lang", lang);
+  const url = `/api/ui-i18n?lang=${lang}`;
 
   const res = await fetch(url.toString(), { cache: "no-store" });
   const data = (await res.json().catch(() => null)) as UiTranslationsResponse | null;

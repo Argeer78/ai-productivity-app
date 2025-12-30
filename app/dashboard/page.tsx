@@ -409,7 +409,11 @@ export default function DashboardPage() {
     async function loadUser() {
       try {
         const { data, error } = await supabase.auth.getUser();
-        if (error) console.error(error);
+        if (error) {
+          if (!error.message.includes("Auth session missing")) {
+            console.error(error);
+          }
+        }
         setUser(data?.user ?? null);
       } catch (err) {
         console.error(err);
@@ -678,9 +682,10 @@ export default function DashboardPage() {
 
         const { count: notes7Count, error: notes7Err } = await supabase
           .from("notes")
-          .select("*", { count: "exact", head: true })
+          .select("id", { count: "exact" })
           .eq("user_id", user.id)
-          .gte("created_at", sevenDateStr);
+          .gte("created_at", sevenDateStr)
+          .limit(0);
 
         if (notes7Err && (notes7Err as any).code !== "PGRST116") {
           console.error("[dashboard] notes7 count error", notes7Err);

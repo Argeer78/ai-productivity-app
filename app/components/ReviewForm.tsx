@@ -32,8 +32,15 @@ export default function ReviewForm({
     useEffect(() => {
         // Simple client-side check. 
         import("@/lib/supabaseClient").then(({ supabase }) => {
-            supabase.auth.getSession().then(({ data }) => {
-                setIsLoggedIn(!!data.session);
+            supabase.auth.getSession().then(({ data, error }) => {
+                if (!error && data?.session) {
+                    setIsLoggedIn(true);
+                } else {
+                    setIsLoggedIn(false);
+                }
+                setCheckingUser(false);
+            }).catch(() => {
+                setIsLoggedIn(false);
                 setCheckingUser(false);
             });
         });

@@ -105,10 +105,14 @@ export default function AppHeader({ active }: HeaderProps) {
     let cancelled = false;
     async function loadUser() {
       try {
-        const { data } = await supabase.auth.getUser();
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          // If 403 or session missing, we just treat as logged out
+          // console.warn("[AppHeader] getUser error", error);
+        }
         if (!cancelled) setUserEmail(data?.user?.email ?? null);
       } catch (e) {
-        console.error("[AppHeader] loadUser error", e);
+        console.warn("[AppHeader] loadUser exception", e);
       } finally {
         if (!cancelled) setLoadingUser(false);
       }

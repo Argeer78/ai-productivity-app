@@ -22,7 +22,19 @@ export default function DashboardGlance() {
                 if (savedEnergy) setEnergy(parseInt(savedEnergy, 10));
 
                 // 2. Score & Energy from DB
-                const { data: { user } } = await supabase.auth.getUser();
+                let user = null;
+                try {
+                    const { data, error } = await supabase.auth.getUser();
+                    if (error && !error.message.includes("Auth session missing")) {
+                        console.error("DashboardGlance auth error", error);
+                    }
+                    user = data?.user ?? null;
+                } catch (e: any) {
+                    // ignore session missing
+                    if (!e?.message?.includes("Auth session missing")) {
+                        console.error(e);
+                    }
+                }
                 if (user) {
                     const { data } = await supabase
                         .from("daily_scores")

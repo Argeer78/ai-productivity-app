@@ -359,9 +359,13 @@ export default function HomePage() {
   useEffect(() => {
     async function loadUser() {
       try {
-        const { data } = await supabase.auth.getUser();
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          // console.warn("HomePage: getUser error or no session", error);
+        }
         setUser(data?.user ?? null);
-      } catch {
+      } catch (err) {
+        // console.error("HomePage: exception loading user", err);
         setUser(null);
       } finally {
         setCheckingUser(false);
