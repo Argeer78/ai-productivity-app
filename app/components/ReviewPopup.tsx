@@ -14,37 +14,57 @@ const MIN_SESSIONS_TO_SHOW = 3;
 // Simple hook to track active usage and showing popup
 export function useReviewPopupTrigger() {
     const [show, setShow] = useState(false);
+    const [checkedServer, setCheckedServer] = useState(false);
 
     useEffect(() => {
         // Only run on client
         if (typeof window === "undefined") return;
 
-        // 1. Check if already reviewed
-        const hasReviewed = localStorage.getItem(STORAGE_KEY);
-        if (hasReviewed) return;
+        // 1. Check if already reviewed (Local Storage)
+        const hasReviewedLocal = localStorage.getItem(STORAGE_KEY);
+        if (hasReviewedLocal) return;
 
-        // 2. Increment session/usage count
-        // A simple way is to check session storage to avoid incrementing on every refresh in same tab,
-        // but for simplicity let's just use a timer or mount check.
-        // Let's increment specific "visits" to dashboard.
-        const currentSessions = parseInt(localStorage.getItem(SESSION_COUNT_KEY) || "0");
-        const newCount = currentSessions + 1;
-        localStorage.setItem(SESSION_COUNT_KEY, newCount.toString());
-
-        // 3. Trigger condition: 
-        // - User has visited dashboard > 3 times
-        // - AND we haven't shown it in this session yet (use sessionStorage for that?)
-        // Actually simpler: just show it if count == 3 or 10 or 20 (milestones)
-        // to avoid spamming every time.
-        if ([3, 10, 25, 50].includes(newCount)) {
-            // Delay slightly so it doesn't pop immediately on load
-            const timer = setTimeout(() => {
-                setShow(true);
-            }, 5000);
-            return () => clearTimeout(timer);
+        // 2. Check server-side (for cross-device or lost local storage) - triggers once
+        if (!checkedServer) {
+            fetch("/api/reviews/check")
+                .then(res => res.json())
+                .then(data => {
+                    if (data.hasReviewed) {
+                        localStorage.setItem(STORAGE_KEY, "true");
+                    } else {
+                        // Only proceed with session counting if NOT reviewed on server either
+                        checkSessionLogic();
+                    }
+                    setCheckedServer(true);
+                })
+                .catch(() => {
+                    // On error, proceed with standard logic
+                    checkSessionLogic();
+                    setCheckedServer(true);
+                });
         }
 
-    }, []);
+        function checkSessionLogic() {
+            // Re-check local just in case async fetch set it
+            if (localStorage.getItem(STORAGE_KEY)) return;
+
+            // 3. Increment session/usage count
+            const currentSessions = parseInt(localStorage.getItem(SESSION_COUNT_KEY) || "0");
+            const newCount = currentSessions + 1;
+            localStorage.setItem(SESSION_COUNT_KEY, newCount.toString());
+
+            // 4. Trigger condition: 
+            // - User has visited dashboard > 3 times
+            if ([3, 10, 25, 50].includes(newCount)) {
+                // Delay slightly so it doesn't pop immediately on load
+                const timer = setTimeout(() => {
+                    setShow(true);
+                }, 5000);
+                return () => clearTimeout(timer);
+            }
+        }
+
+    }, [checkedServer]);
 
     const markAsReviewed = () => {
         setShow(false);

@@ -221,7 +221,7 @@ export default function SettingsPage() {
           if (typeof data.weekly_report_enabled === "boolean") setWeeklyReportEnabled(data.weekly_report_enabled);
           else setWeeklyReportEnabled(true);
 
-          setPlan(data.plan === "pro" ? "pro" : "free");
+          setPlan(["pro", "founder", "lifetime"].includes(data.plan) ? "pro" : "free");
 
           if (data.onboarding_use_case) setOnboardingUseCase(data.onboarding_use_case);
           if (data.onboarding_weekly_focus) setOnboardingWeeklyFocus(data.onboarding_weekly_focus);
@@ -694,7 +694,7 @@ export default function SettingsPage() {
                         onClick={() => {
                           if (isLocked) {
                             if (confirm(t("settings.theme.upgradePrompt", "This theme is available for Pro users. Unlock it now?"))) {
-                              window.location.href = "/dashboard#pricing";
+                              window.location.href = "/pricing";
                             }
                             return;
                           }
