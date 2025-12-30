@@ -446,12 +446,7 @@ export default function SettingsPage() {
                 >
                   {t("settings.guest.cta", "Log in / signup")}
                 </button>
-                <Link
-                  href="/auth"
-                  className="px-4 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-sm"
-                >
-                  {t("settings.guest.openAuth", "Open auth page")}
-                </Link>
+                {/* Open auth page button removed */}
               </div>
             </div>
           )}

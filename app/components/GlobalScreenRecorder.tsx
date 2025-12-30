@@ -109,6 +109,14 @@ export default function GlobalScreenRecorder() {
     const [elapsedTime, setElapsedTime] = useState(0);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+    // Safe Iframe Source (avoid hydration mismatch)
+    const [iframeSrc, setIframeSrc] = useState('/');
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setIframeSrc(window.location.href);
+        }
+    }, [isOpen]);
+
     // Virtual Scaling State
     // We force the iframe to render at selectedPreset dimensions (e.g. 1920x1080)
     // and then scale it down via CSS transform to fit the UI stage.
@@ -542,6 +550,10 @@ export default function GlobalScreenRecorder() {
         addLog("Download Triggered");
     };
 
+    // Sidebar State
+    const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
+    const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+
     // Render Content Function (Reusable for Inline or Popout)
     const renderContent = () => {
         if (isFrameMode) {
@@ -557,46 +569,60 @@ export default function GlobalScreenRecorder() {
                     </button>
 
                     {/* Left Sidebar: Teleprompter */}
-                    <div className="w-80 flex-shrink-0 border-r border-slate-700 bg-slate-900 p-4 flex flex-col gap-4 z-50 relative shadow-2xl">
-                        <div className="text-white font-bold flex items-center gap-2 text-base">
-                            <FileText className="w-5 h-5 text-indigo-400" />
-                            <span className="text-white">Prompter</span>
-                        </div>
-                        {/* Selector */}
-                        <select
-                            value={selectedScriptId}
-                            onChange={handleScriptSelect}
-                            className="bg-slate-800 text-white text-sm p-2 rounded border border-slate-600 focus:outline-none focus:border-indigo-500 w-full"
-                        >
-                            <option value="" className="text-slate-400">No Script (Type freely)</option>
-                            {scripts.map(s => <option key={s.id} value={s.id} className="text-white">{s.title}</option>)}
-                        </select>
+                    {isLeftSidebarOpen && (
+                        <div className="w-80 flex-shrink-0 border-r border-slate-700 bg-slate-900 p-4 flex flex-col gap-4 z-50 relative shadow-2xl transition-all">
+                            <div className="text-white font-bold flex items-center justify-between text-base">
+                                <span className="flex items-center gap-2"><FileText className="w-5 h-5 text-indigo-400" /> Prompter</span>
+                                <button onClick={() => setIsLeftSidebarOpen(false)} className="text-slate-400 hover:text-white"><ChevronDown className="rotate-90 w-4 h-4" /></button>
+                            </div>
+                            {/* Selector */}
+                            <select
+                                value={selectedScriptId}
+                                onChange={handleScriptSelect}
+                                className="bg-slate-800 text-white text-sm p-2 rounded border border-slate-600 focus:outline-none focus:border-indigo-500 w-full"
+                            >
+                                <option value="" className="text-slate-400">No Script (Type freely)</option>
+                                {scripts.map(s => <option key={s.id} value={s.id} className="text-white">{s.title}</option>)}
+                            </select>
 
-                        <div className="flex-1 relative flex flex-col">
-                            {/* Visual background for textarea to catch layout bugs */}
-                            <textarea
-                                ref={scrollerRef}
-                                className="flex-1 w-full h-full bg-slate-800/50 p-3 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-white placeholder-slate-500 text-lg leading-relaxed font-serif"
-                                placeholder="Paste your script here... Text will scroll when you verify recording."
-                                value={scriptContent}
-                                onChange={e => setScriptContent(e.target.value)}
-                                style={{ color: 'white', backgroundColor: 'rgba(30, 41, 59, 0.5)' }}
-                            />
-                        </div>
+                            <div className="flex-1 relative flex flex-col">
+                                {/* Visual background for textarea to catch layout bugs */}
+                                <textarea
+                                    ref={scrollerRef}
+                                    className="flex-1 w-full h-full bg-slate-800/50 p-3 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-white placeholder-slate-500 text-lg leading-relaxed font-serif"
+                                    placeholder="Paste your script here... Text will scroll when you verify recording."
+                                    value={scriptContent}
+                                    onChange={e => setScriptContent(e.target.value)}
+                                    style={{ color: 'white', backgroundColor: 'rgba(30, 41, 59, 0.5)' }}
+                                />
+                            </div>
 
-                        {/* Speed Controls */}
-                        <div className="flex items-center justify-between text-slate-300 text-sm bg-slate-800 p-2 rounded border border-slate-700">
-                            <span className="font-semibold">Scroll Speed:</span>
-                            <div className="flex items-center gap-3">
-                                <button onClick={() => setScrollSpeed(s => Math.max(0, s - 0.5))} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold">-</button>
-                                <span className="font-mono text-white w-8 text-center">{scrollSpeed}x</span>
-                                <button onClick={() => setScrollSpeed(s => Math.min(5, s + 0.5))} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold">+</button>
+                            {/* Speed Controls */}
+                            <div className="flex items-center justify-between text-slate-300 text-sm bg-slate-800 p-2 rounded border border-slate-700">
+                                <span className="font-semibold">Scroll Speed:</span>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => setScrollSpeed(s => Math.max(0, s - 0.5))} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold">-</button>
+                                    <span className="font-mono text-white w-8 text-center">{scrollSpeed}x</span>
+                                    <button onClick={() => setScrollSpeed(s => Math.min(5, s + 0.5))} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold">+</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Center: The Stage */}
                     <div ref={stageContainerRef} className="flex-1 bg-black flex items-center justify-center relative p-2 z-0 overflow-hidden">
+
+                        {/* Sidebar Toggles (Floating on Stage) */}
+                        {!isLeftSidebarOpen && (
+                            <button onClick={() => setIsLeftSidebarOpen(true)} className="absolute top-4 left-4 z-40 bg-slate-800/80 hover:bg-slate-700 text-white p-2 rounded shadow backdrop-blur transition-all">
+                                <FileText className="w-4 h-4" />
+                            </button>
+                        )}
+                        {!isRightSidebarOpen && (
+                            <button onClick={() => setIsRightSidebarOpen(true)} className="absolute top-4 right-4 z-40 bg-slate-800/80 hover:bg-slate-700 text-white p-2 rounded shadow backdrop-blur transition-all">
+                                <Settings className="w-4 h-4" />
+                            </button>
+                        )}
 
                         {/* PREVIEW MODE: Standard Responsive Video (No Scaling) */}
                         {previewUrl && !isRecording ? (
@@ -630,7 +656,7 @@ export default function GlobalScreenRecorder() {
                             >
                                 <iframe
                                     ref={iframeRef}
-                                    src={typeof window !== 'undefined' ? window.location.href : '/'}
+                                    src={iframeSrc}
                                     className="w-full h-full border-0 block"
                                 />
 
@@ -650,68 +676,75 @@ export default function GlobalScreenRecorder() {
                     </div>
 
                     {/* Right Sidebar: Controls */}
-                    <div className="w-72 flex-shrink-0 border-l border-slate-700 bg-slate-900 flex flex-col h-full overflow-hidden z-50 relative shadow-2xl">
-                        {/* Header */}
-                        <div className="p-4 flex-shrink-0 flex items-center justify-between border-b border-slate-700 bg-slate-900">
-                            <h2 className="text-white font-bold flex items-center gap-2 text-base"><Video className="w-5 h-5 text-indigo-400" /> Studio</h2>
-                            <button onClick={() => { setIsFrameMode(false); setIsOpen(false); }} className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded"><X className="w-5 h-5" /></button>
-                        </div>
+                    {
+                        isRightSidebarOpen && (
+                            <div className="w-72 flex-shrink-0 border-l border-slate-700 bg-slate-900 flex flex-col h-full overflow-hidden z-50 relative shadow-2xl transition-all">
+                                {/* Header */}
+                                <div className="p-4 flex-shrink-0 flex items-center justify-between border-b border-slate-700 bg-slate-900">
+                                    <h2 className="text-white font-bold flex items-center gap-2 text-base"><Video className="w-5 h-5 text-indigo-400" /> Studio</h2>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => setIsRightSidebarOpen(false)} className="text-slate-400 hover:text-white"><ChevronDown className="-rotate-90 w-4 h-4" /></button>
+                                        <button onClick={() => { setIsFrameMode(false); setIsOpen(false); }} className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded"><X className="w-5 h-5" /></button>
+                                    </div>
+                                </div>
 
-                        {/* Scrollable Content */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-900">
-                            {/* Mic */}
-                            <label className="flex items-center justify-between text-white text-sm cursor-pointer p-3 rounded hover:bg-slate-800 border border-slate-700 bg-slate-800/50 transition-colors">
-                                <span className="flex items-center gap-2 font-medium"><Mic className="w-4 h-4 text-indigo-400" /> Microhone</span>
-                                <input type="checkbox" checked={micEnabled} onChange={e => setMicEnabled(e.target.checked)} className="w-4 h-4 accent-indigo-500" />
-                            </label>
+                                {/* Scrollable Content */}
+                                <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-900">
+                                    {/* Mic */}
+                                    <label className="flex items-center justify-between text-white text-sm cursor-pointer p-3 rounded hover:bg-slate-800 border border-slate-700 bg-slate-800/50 transition-colors">
+                                        <span className="flex items-center gap-2 font-medium"><Mic className="w-4 h-4 text-indigo-400" /> Microhone</span>
+                                        <input type="checkbox" checked={micEnabled} onChange={e => setMicEnabled(e.target.checked)} className="w-4 h-4 accent-indigo-500" />
+                                    </label>
 
-                            {/* Presets */}
-                            <div className="space-y-2">
-                                <label className="text-xs text-indigo-300 uppercase font-bold tracking-wider">Canvas Size</label>
-                                <div className="grid grid-cols-1 gap-2">
-                                    {PRESETS.map(p => (
-                                        <button
-                                            key={p.id}
-                                            onClick={() => !isRecording && setSelectedPreset(p)}
-                                            className={`px-3 py-3 rounded-lg text-sm font-medium text-left transition-all ${selectedPreset.id === p.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'}`}
-                                        >
-                                            {p.label} <span className="text-xs opacity-50 float-right">({p.width}x{p.height})</span>
+                                    {/* Presets */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs text-indigo-300 uppercase font-bold tracking-wider">Canvas Size</label>
+                                        <div className="grid grid-cols-1 gap-2">
+                                            {PRESETS.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => !isRecording && setSelectedPreset(p)}
+                                                    className={`px-3 py-3 rounded-lg text-sm font-medium text-left transition-all ${selectedPreset.id === p.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'}`}
+                                                >
+                                                    {p.label} <span className="text-xs opacity-50 float-right">({p.width}x{p.height})</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Debug Logs */}
+                                    <div className="text-[10px] font-mono text-green-400 bg-black/80 p-3 rounded border border-green-900/50 max-h-32 overflow-y-auto">
+                                        <div className="mb-2 border-b border-green-900 pb-1 font-bold">System Logs</div>
+                                        {logs.slice(-5).map((l, i) => <div key={i} className="truncate">{l}</div>)}
+                                    </div>
+                                </div>
+
+                                {/* Fixed Footer Actions */}
+                                <div className="p-4 border-t border-slate-700 bg-slate-900 flex-shrink-0 space-y-3 z-50 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
+                                    {!mediaStream ? (
+                                        <button onClick={startCapture} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-base shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02]">
+                                            Select Screen (Tab)
                                         </button>
-                                    ))}
+                                    ) : !isRecording ? (
+                                        <button onClick={startRecording} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-base animate-pulse shadow-lg shadow-red-500/20 transition-all hover:scale-[1.02]">
+                                            Start Recording
+                                        </button>
+                                    ) : (
+                                        <button onClick={stopRecording} className="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-base border border-slate-500 transition-all hover:scale-[1.02]">
+                                            Stop Recording
+                                        </button>
+                                    )}
+
+                                    {(previewUrl || recordedChunks.length > 0) && !isRecording && (
+                                        <button onClick={downloadVideo} className="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all hover:scale-[1.02]">
+                                            <Download className="w-5 h-5" /> Download Video
+                                        </button>
+                                    )}
                                 </div>
                             </div>
-
-                            {/* Debug Logs */}
-                            <div className="text-[10px] font-mono text-green-400 bg-black/80 p-3 rounded border border-green-900/50 max-h-32 overflow-y-auto">
-                                <div className="mb-2 border-b border-green-900 pb-1 font-bold">System Logs</div>
-                                {logs.slice(-5).map((l, i) => <div key={i} className="truncate">{l}</div>)}
-                            </div>
-                        </div>
-
-                        {/* Fixed Footer Actions */}
-                        <div className="p-4 border-t border-slate-700 bg-slate-900 flex-shrink-0 space-y-3 z-50 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
-                            {!mediaStream ? (
-                                <button onClick={startCapture} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-base shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.02]">
-                                    Select Screen (Tab)
-                                </button>
-                            ) : !isRecording ? (
-                                <button onClick={startRecording} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-base animate-pulse shadow-lg shadow-red-500/20 transition-all hover:scale-[1.02]">
-                                    Start Recording
-                                </button>
-                            ) : (
-                                <button onClick={stopRecording} className="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-base border border-slate-500 transition-all hover:scale-[1.02]">
-                                    Stop Recording
-                                </button>
-                            )}
-
-                            {(previewUrl || recordedChunks.length > 0) && !isRecording && (
-                                <button onClick={downloadVideo} className="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all hover:scale-[1.02]">
-                                    <Download className="w-5 h-5" /> Download Video
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                        )
+                    }
+                </div >
             );
         }
 
