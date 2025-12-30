@@ -291,6 +291,64 @@ function PromoHighlights({ isAuthed }: { isAuthed: boolean }) {
   );
 }
 
+/** ✅ NEW: Ads Free & Multi-Platform Showcase */
+function AdsFreeSection() {
+  const { t } = useT();
+
+  return (
+    <section className="mb-14">
+      <div className="relative overflow-hidden rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 shadow-2xl shadow-black/5">
+
+        {/* Gradient Background Layer */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-elevated)] via-[var(--bg-card)] to-[var(--bg-elevated)] opacity-50" />
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-10">
+          <div className="flex-1 text-center md:text-left">
+            <span className="inline-block px-3 py-1 rounded-full bg-green-500/10 text-green-500 text-[10px] font-bold tracking-wider mb-3 border border-green-500/20">
+              100% CLEAN
+            </span>
+            <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2">
+              Ads Free. Forever. <span className="hidden md:inline">🚫📢</span>
+            </h2>
+            <p className="text-sm text-[var(--text-muted)] leading-relaxed max-w-md mx-auto md:mx-0">
+              {t("home.adsfree.desc", "No trackers, no banners, no distractions. Just you and your goals, on every device you own.")}
+            </p>
+          </div>
+
+          {/* Platform Icons Grid */}
+          <div className="flex items-center justify-center gap-4 md:gap-6 flex-wrap opacity-90">
+            <div className="flex flex-col items-center gap-2 group">
+              <div className="h-12 w-12 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-sm">
+                🖥️
+              </div>
+              <span className="text-[10px] font-medium text-[var(--text-muted)]">Desktop</span>
+            </div>
+            <div className="flex flex-col items-center gap-2 group">
+              <div className="h-12 w-12 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-sm">
+                📱
+              </div>
+              <span className="text-[10px] font-medium text-[var(--text-muted)]">iPhone</span>
+            </div>
+            <div className="flex flex-col items-center gap-2 group">
+              <div className="h-12 w-12 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-sm">
+                🤖
+              </div>
+              <span className="text-[10px] font-medium text-[var(--text-muted)]">Android</span>
+            </div>
+            <div className="flex flex-col items-center gap-2 group">
+              <div className="h-12 w-12 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-sm">
+                🌐
+              </div>
+              <span className="text-[10px] font-medium text-[var(--text-muted)]">Web</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HomePage() {
   const { t } = useT();
 
@@ -404,6 +462,7 @@ export default function HomePage() {
           </section>
 
           {/* ✅ PROMO / AD BANNER */}
+          <AdsFreeSection />
           {!checkingUser && <PromoHighlights isAuthed={!!user} />}
 
           {/* TOOLS / WHAT YOU GET */}
