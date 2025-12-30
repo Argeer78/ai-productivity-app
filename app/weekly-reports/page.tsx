@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Alive3DImage from "@/app/components/Alive3DImage";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import { useT } from "@/lib/useT";
@@ -117,6 +118,17 @@ export default function WeeklyReportsPage() {
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="weekly-reports" />
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-sm">
+
+          <div className="relative w-32 h-32 md:w-40 md:h-40 mb-6">
+            <Alive3DImage
+              src="/images/weekly-reports-3d.png"
+              alt="Weekly Reports 3D"
+              className="w-full h-full object-contain"
+            />
+            {/* Decor */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-purple-500/20 rounded-full blur-3xl -z-10" />
+          </div>
+
           <h1 className="text-2xl font-bold mb-3">
             {t("title", "Weekly Reports")}
           </h1>
@@ -142,33 +154,55 @@ export default function WeeklyReportsPage() {
       <AppHeader active="weekly-reports" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10 text-sm">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                {t("listTitle", "Weekly AI Reports")}
-              </h1>
-              <p className="text-xs md:text-sm text-[var(--text-muted)]">
+          <div className="flex flex-col-reverse md:flex-row md:items-center justify-between gap-6 mb-8">
+            <div className="flex-1">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <h1 className="text-2xl md:text-3xl font-bold">
+                  {t("listTitle", "Weekly AI Reports")}
+                </h1>
+                <Link
+                  href="/dashboard"
+                  className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:hidden"
+                >
+                  {t("backToDashboard", "← Back")}
+                </Link>
+              </div>
+
+              <p className="text-xs md:text-sm text-[var(--text-muted)] max-w-lg mb-4">
                 {t(
                   "subtitle",
                   "See how your AI usage, tasks, and notes add up week by week."
                 )}
               </p>
+
+              <div className="hidden md:block">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs text-[var(--text-muted)]"
+                >
+                  {t("backToDashboard", "← Back to Dashboard")}
+                </Link>
+              </div>
             </div>
-            <Link
-              href="/dashboard"
-              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
-            >
-              {t("backToDashboard", "← Back to Dashboard")}
-            </Link>
+
+            {/* 3D Image */}
+            <div className="relative w-full max-w-[180px] md:max-w-[220px] mx-auto md:mx-0">
+              <Alive3DImage
+                src="/images/weekly-reports-3d.png"
+                alt="Weekly Reports 3D"
+                className="w-full h-auto drop-shadow-xl"
+              />
+              {/* Decor */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-purple-500/20 rounded-full blur-3xl -z-10" />
+            </div>
           </div>
 
           {/* Plan pill */}
           <div className="mb-4">
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[11px] text-[var(--text-muted)]">
               <span
-                className={`h-2 w-2 rounded-full ${
-                  isPro ? "bg-emerald-400" : "bg-amber-400"
-                }`}
+                className={`h-2 w-2 rounded-full ${isPro ? "bg-emerald-400" : "bg-amber-400"
+                  }`}
               />
               {t("planLabel", "Plan:")}{" "}
               <span className="font-semibold uppercase text-[var(--text-main)]">

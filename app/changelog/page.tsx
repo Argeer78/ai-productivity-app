@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Alive3DImage from "@/app/components/Alive3DImage";
 import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
@@ -105,24 +106,47 @@ export default function ChangelogPage() {
       <AppHeader active="changelog" />
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10 text-sm">
-          <div className="flex items-center justify-between gap-3 mb-6">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                {t("title", "What's new")}
-              </h1>
-              <p className="text-xs md:text-sm text-[var(--text-muted)]">
+          <div className="flex flex-col-reverse md:flex-row md:items-center justify-between gap-6 mb-8">
+            <div className="flex-1">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <h1 className="text-2xl md:text-3xl font-bold">
+                  {t("title", "What's new")}
+                </h1>
+                <Link
+                  href="/dashboard"
+                  className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs md:hidden"
+                >
+                  {t("back", "← Back")}
+                </Link>
+              </div>
+
+              <p className="text-xs md:text-sm text-[var(--text-muted)] max-w-lg mb-4">
                 {t(
                   "subtitle",
                   "Recent updates, fixes, and experiments in AI Productivity Hub."
                 )}
               </p>
+
+              <div className="hidden md:block">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs text-[var(--text-muted)]"
+                >
+                  {t("back", "← Back to dashboard")}
+                </Link>
+              </div>
             </div>
-            <Link
-              href="/dashboard"
-              className="px-3 py-1.5 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-xs"
-            >
-              {t("back", "← Back to dashboard")}
-            </Link>
+
+            {/* 3D Image */}
+            <div className="relative w-full max-w-[180px] md:max-w-[220px] mx-auto md:mx-0">
+              <Alive3DImage
+                src="/images/changelog-3d.png"
+                alt="Changelog 3D"
+                className="w-full h-auto drop-shadow-xl"
+              />
+              {/* Decor */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-teal-500/20 rounded-full blur-3xl -z-10" />
+            </div>
           </div>
 
           {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
@@ -144,10 +168,10 @@ export default function ChangelogPage() {
                 const icon = SECTION_ICON[section] || "✨";
                 const dateLabel = entry.published_at
                   ? new Date(entry.published_at).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
                   : "";
 
                 const bullets =
