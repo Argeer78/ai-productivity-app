@@ -158,6 +158,7 @@ function AiSummaryCard(props: {
 }
 /** ---------- end AI Summary parsing + UI ---------- */
 import Alive3DImage from "@/app/components/Alive3DImage";
+import HideDevTools from "@/app/components/HideDevTools";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -989,6 +990,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
+      <HideDevTools />
       <AppHeader active="dashboard" />
 
       {/* ✅ Auth modal */}

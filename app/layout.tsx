@@ -2,6 +2,7 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script";
 import PlausibleProvider from "next-plausible";
 
 import AppShell from "@/app/components/AppShell";
@@ -78,6 +79,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
 
       <body className={inter.className}>
+        {/* Google tag (gtag.js) */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=AW-17847132623"
+          strategy="afterInteractive"
+        />
+        <Script id="google-ads-tag" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'AW-17847132623');
+          `}
+        </Script>
         {/* ✅ Make language available everywhere (including /auth) */}
         <UiLanguageProvider>
           <FocusProvider>

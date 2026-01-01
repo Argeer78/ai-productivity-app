@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { Play, Pause, Square, Smartphone, Monitor, Instagram, Youtube, Facebook, RefreshCw, Video, Download, X, Save } from "lucide-react";
+import { Play, Pause, Square, Smartphone, Monitor, Instagram, Youtube, Facebook, RefreshCw, Video, Download, X, Save, Music, Upload, Music2, Layers, MousePointer2 } from "lucide-react";
 
 // The screenshots to use (original UI)
 const SLIDES = [
@@ -55,12 +55,26 @@ export default function PromoStudioPage() {
     const [isRecording, setIsRecording] = useState(false);
     const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
     const chunksRef = useRef<BlobPart[]>([]);
+    const mimeTypeRef = useRef<string>("video/webm"); // Default fallback
+
+    // Demo Mode State
+    const [demoMode, setDemoMode] = useState<"slides" | "live">("slides");
+
+    // Audio State
+    const [musicTrack, setMusicTrack] = useState<string | null>(null);
+    const [musicName, setMusicName] = useState<string>("No Audio");
     const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    // Coding Refs for Cropping
+    const containerRef = useRef<HTMLDivElement>(null);
+    const animationFrameRef = useRef<number | null>(null);
+    const sourceStreamRef = useRef<MediaStream | null>(null);
 
     // Sequence Timer & Auto-Stop Recording
     useEffect(() => {
-        if (!isPlaying) return;
+        if (!isPlaying || demoMode === "live") return;
 
         const interval = setInterval(() => {
             setCurrentIndex((prev) => {
@@ -76,17 +90,136 @@ export default function PromoStudioPage() {
         }, 4000);
 
         return () => clearInterval(interval);
+        return () => clearInterval(interval);
     }, [isPlaying, isRecording]);
+
+    // Audio Sync Effect
+    useEffect(() => {
+        if (isPlaying && musicTrack && audioRef.current) {
+            audioRef.current.volume = 1.0;
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(e => console.error("Audio play failed", e));
+        } else if (!isPlaying && audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+        }
+    }, [isPlaying, musicTrack]);
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setMusicTrack(url);
+            setMusicName(file.name.substring(0, 15) + "...");
+        }
+    };
 
     const startRecording = async () => {
         try {
-            // Prompt user to select screen - suggest "This Tab"
+            // 1. Capture the Tab (Best effort to get current tab)
+            // 1. Capture the Tab (Best effort to get current tab)
             const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: { frameRate: 60 } as any,
-                audio: true
+                video: {
+                    displaySurface: "browser",
+                    frameRate: 30, // Reduced to 30fps to prevent audio/video desync and CPU overload
+                } as any,
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    sampleRate: 44100
+                },
+                preferCurrentTab: true, // Experimental hint
+            } as any);
+
+            // 2. Play the raw stream in a hidden video element to "decode" it for the canvas
+            const video = document.createElement("video");
+            video.srcObject = stream;
+            video.muted = true;
+            await video.play();
+
+            // 3. Set up the Canvas for Cropping
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d", { alpha: false }); // optimization
+            if (!ctx) throw new Error("No canvas context");
+
+            // We need to calculate the crop area based on the DOM element
+            const updateCanvasDrawing = () => {
+                if (!containerRef.current || video.ended || video.paused) return;
+
+                const rect = containerRef.current.getBoundingClientRect();
+
+                // Set canvas size to the *output* size (the container size)
+                // We do this once or dynamically? Dynamically if window resizes, but let's assume static for recording.
+                if (canvas.width !== rect.width || canvas.height !== rect.height) {
+                    canvas.width = rect.width;
+                    canvas.height = rect.height;
+                }
+
+                // Calculate scale in case screen capture assumes high-DPI or different zoom
+                // "video.videoWidth" is the actual stream resolution
+                // "window.innerWidth" is the DOM viewport resolution
+                // Usually stream matches viewport, but let's be safe:
+                const scaleX = video.videoWidth / window.innerWidth;
+                const scaleY = video.videoHeight / window.innerHeight;
+
+                // Crop!
+                // source x/y = rect.x * scale
+                // source w/h = rect.width * scale
+                // dest x/y = 0, 0
+                // dest w/h = rect.width, rect.height
+
+                try {
+                    ctx.drawImage(
+                        video,
+                        rect.x * scaleX, rect.y * scaleY, rect.width * scaleX, rect.height * scaleY, // Source (Crop)
+                        0, 0, rect.width, rect.height // Destination (Full Canvas)
+                    );
+                } catch (e) {
+                    // ignore occasional draw errors
+                }
+
+                animationFrameRef.current = requestAnimationFrame(updateCanvasDrawing);
+            };
+
+            // Start the loop
+            updateCanvasDrawing();
+
+            // 4. Create a stream from the canvas
+            const canvasStream = canvas.captureStream(30);
+
+            // 5. Merge Audio from the original stream (if any)
+            const audioTracks = stream.getAudioTracks();
+            if (audioTracks.length > 0) {
+                console.log(`Adding ${audioTracks.length} audio tracks to recording.`);
+            } else {
+                console.warn("No audio tracks found in source stream. Recording will be silent.");
+            }
+
+            // Combine into a single stream explicitly
+            const combinedStream = new MediaStream([
+                ...canvasStream.getVideoTracks(),
+                ...audioTracks
+            ]);
+
+            sourceStreamRef.current = stream;
+
+            // 6. Start Recording the COMBINED stream
+            // Detect best format
+            const mimeType = [
+                "video/mp4;codecs=avc1,mp4a.40.2",
+                "video/mp4",
+                "video/webm;codecs=vp9,opus"
+            ].find(type => MediaRecorder.isTypeSupported(type)) || "video/webm";
+
+            mimeTypeRef.current = mimeType;
+
+            const mediaRecorder = new MediaRecorder(combinedStream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: 5000000,
+                audioBitsPerSecond: 192000 // 192kbps High Quality Audio
             });
 
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp9" });
             mediaRecorderRef.current = mediaRecorder;
             chunksRef.current = [];
 
@@ -95,21 +228,33 @@ export default function PromoStudioPage() {
             };
 
             mediaRecorder.onstop = () => {
-                const blob = new Blob(chunksRef.current, { type: "video/webm" });
+                const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
                 const url = URL.createObjectURL(blob);
-                setRecordedVideoUrl(url); // Trigger Preview Modal
+                setRecordedVideoUrl(url);
 
-                setIsRecording(false);
-                setIsPlaying(false);
-
-                // Stop all tracks to clear the sharing indicator
-                stream.getTracks().forEach(track => track.stop());
+                stopRecording(); // Cleanup refs
             };
+
+            // Detect if user clicks "Stop Sharing" on the browser native bar
+            stream.getVideoTracks()[0].onended = () => {
+                if (isRecording) stopRecording();
+            };
+
+            // Start Audio immediately (before recorder) to ensure sync
+            if (musicTrack && audioRef.current) {
+                audioRef.current.currentTime = 0;
+                await audioRef.current.play().catch(e => console.error("Pre-start audio play failed", e));
+            }
 
             mediaRecorder.start();
             setIsRecording(true);
-            setCurrentIndex(0); // Reset
-            setIsPlaying(true); // Start Playing
+
+            // Only force slide reset if we are in slide mode
+            if (demoMode === "slides") {
+                setCurrentIndex(0);
+            }
+
+            setIsPlaying(true);
 
         } catch (err) {
             console.error("Recording cancelled or failed", err);
@@ -118,8 +263,24 @@ export default function PromoStudioPage() {
     };
 
     const stopRecording = () => {
+        setIsRecording(false);
+        setIsPlaying(false);
+
+        // Stop the recorder
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
             mediaRecorderRef.current.stop();
+        }
+
+        // Cancel frame loop
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+
+        // Stop the source stream strictly (removes "Sharing" bar)
+        if (sourceStreamRef.current) {
+            sourceStreamRef.current.getTracks().forEach(track => track.stop());
+            sourceStreamRef.current = null;
         }
     };
 
@@ -127,7 +288,8 @@ export default function PromoStudioPage() {
         if (!recordedVideoUrl) return;
         const a = document.createElement("a");
         a.href = recordedVideoUrl;
-        a.download = `promo-video-${new Date().getTime()}.webm`;
+        const ext = mimeTypeRef.current.includes("mp4") ? "mp4" : "webm";
+        a.download = `promo-video-${new Date().getTime()}.${ext}`;
         a.click();
         setRecordedVideoUrl(null); // Close modal after save
     };
@@ -182,6 +344,57 @@ export default function PromoStudioPage() {
                             <Instagram className="w-5 h-5" />
                         </button>
                     </div>
+
+                    {/* MODE TOGGLE */}
+                    <div className="flex bg-slate-800 rounded-lg p-1 items-center">
+                        <button
+                            onClick={() => setDemoMode("slides")}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition ${demoMode === "slides" ? "bg-slate-600 text-white shadow-sm" : "text-slate-400 hover:text-white"}`}
+                        >
+                            <Layers className="w-3.5 h-3.5" />
+                            Slides
+                        </button>
+                        <button
+                            onClick={() => setDemoMode("live")}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition ${demoMode === "live" ? "bg-red-500/20 text-red-200 border border-red-500/30" : "text-slate-400 hover:text-white"}`}
+                        >
+                            <MousePointer2 className="w-3.5 h-3.5" />
+                            Live App
+                        </button>
+                    </div>
+
+                    {/* MUSIC SELECTOR */}
+                    <div className="flex bg-slate-800 rounded-lg p-1 items-center gap-2 px-2">
+                        <Music2 className="w-4 h-4 text-slate-400" />
+                        <span className="text-xs text-slate-300 w-24 truncate">{musicName}</span>
+
+                        <div className="h-4 w-[1px] bg-slate-700 mx-1" />
+
+                        <button
+                            onClick={() => { setMusicTrack(null); setMusicName("No Audio"); }}
+                            className={`text-[10px] px-2 py-1 rounded ${!musicTrack ? "bg-slate-600 text-white" : "text-slate-400 hover:text-white"}`}
+                        >
+                            Off
+                        </button>
+                        <button
+                            onClick={() => { setMusicTrack("/sounds/rain.ogg"); setMusicName("Ambience: Rain"); }}
+                            className={`text-[10px] px-2 py-1 rounded ${musicName.includes("Rain") ? "bg-blue-900/50 text-blue-200" : "text-slate-400 hover:text-white"}`}
+                        >
+                            Rain
+                        </button>
+                        <button
+                            onClick={() => { setMusicTrack("/sounds/river.ogg"); setMusicName("Ambience: River"); }}
+                            className={`text-[10px] px-2 py-1 rounded ${musicName.includes("River") ? "bg-emerald-900/50 text-emerald-200" : "text-slate-400 hover:text-white"}`}
+                        >
+                            River
+                        </button>
+
+                        <label className="cursor-pointer text-slate-400 hover:text-white transition p-1 hover:bg-slate-700 rounded is-clickable flex items-center gap-1" title="Upload custom music (MP3)">
+                            <Upload className="w-3 h-3" />
+                            <span className="text-[10px]">Upload</span>
+                            <input type="file" accept="audio/*" className="hidden" onChange={handleFileUpload} />
+                        </label>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -228,6 +441,7 @@ export default function PromoStudioPage() {
 
                 {/* SAFE ZONE BORDER (Visual guide for recording) */}
                 <div
+                    ref={containerRef}
                     className={`${getContainerStyle()} relative bg-black shadow-2xl overflow-hidden transition-all duration-500 ring-4 ring-slate-800`}
                 >
                     <AnimatePresence mode="wait">
@@ -253,7 +467,7 @@ export default function PromoStudioPage() {
                                         transition={{ delay: 0.2 }}
                                         className={`font-black uppercase tracking-tighter text-white drop-shadow-lg ${aspectRatio === "9:16" ? "text-4xl mb-4" : "text-5xl mb-6"}`}
                                     >
-                                        {SLIDES[currentIndex].title}
+                                        {demoMode === "live" ? "Live Demo" : SLIDES[currentIndex].title}
                                     </motion.h2>
                                     <motion.p
                                         initial={{ y: 20, opacity: 0 }}
@@ -261,7 +475,7 @@ export default function PromoStudioPage() {
                                         transition={{ delay: 0.4 }}
                                         className="text-lg text-white/90 font-medium bg-black/30 backdrop-blur-sm p-3 rounded-xl inline-block"
                                     >
-                                        {SLIDES[currentIndex].subtitle}
+                                        {demoMode === "live" ? "Experience AI Productivity in real-time" : SLIDES[currentIndex].subtitle}
                                     </motion.p>
                                 </div>
 
@@ -278,13 +492,21 @@ export default function PromoStudioPage() {
 
                                         {/* Screen */}
                                         <div className="w-full h-full relative bg-slate-900">
-                                            <Image
-                                                src={SLIDES[currentIndex].image}
-                                                alt="Screen"
-                                                fill
-                                                unoptimized
-                                                className="object-cover"
-                                            />
+                                            {demoMode === "live" ? (
+                                                <iframe
+                                                    src="/dashboard?promo_mode=true"
+                                                    className="w-full h-full border-none bg-slate-900"
+                                                    title="Live Preview"
+                                                />
+                                            ) : (
+                                                <Image
+                                                    src={SLIDES[currentIndex].image}
+                                                    alt="Screen"
+                                                    fill
+                                                    unoptimized
+                                                    className="object-cover"
+                                                />
+                                            )}
                                         </div>
                                     </div>
                                     {/* Reflection */}
@@ -349,6 +571,9 @@ export default function PromoStudioPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* HIDDEN AUDIO PLAYER */}
+            <audio ref={audioRef} src={musicTrack || ""} loop className="hidden" />
         </div>
     );
 }
