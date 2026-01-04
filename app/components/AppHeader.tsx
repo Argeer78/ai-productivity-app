@@ -236,6 +236,7 @@ export default function AppHeader({ active }: HeaderProps) {
       {/* =======================
           MAIN HEADER ROW
           (Settings + Language are here)
+          DEBUG MARKER: {userEmail === null ? "NULL" : userEmail}
       ======================= */}
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">
@@ -328,25 +329,31 @@ export default function AppHeader({ active }: HeaderProps) {
           </Link>
         </div>
 
-        {/* Mobile button */}
-        <button
-          type="button"
-          onClick={() => {
-            setMobileOpen((v) => !v);
-            setAppsOpen(false);
-          }}
-          className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[var(--text-main)] text-xs ml-auto"
-        >
-          {mobileOpen ? "✕" : "☰"}
-        </button>
-
         {/* Mobile: language + settings compact */}
-        <div className="md:hidden flex items-center gap-2">
+        <div className="md:hidden flex items-center gap-2 ml-auto">
           {currentLangLabel && (
             <span className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)] whitespace-nowrap">
               {currentLangLabel}
             </span>
           )}
+
+          {userEmail ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px] whitespace-nowrap"
+            >
+              {loggingOut ? "…" : authLabel("logout", "Log out")}
+            </button>
+          ) : (
+            <Link
+              href="/auth"
+              className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px] whitespace-nowrap"
+            >
+              {authLabel("login", "Log in")}
+            </Link>
+          )}
+
           <Link
             href="/settings"
             className="px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px] whitespace-nowrap"
@@ -354,6 +361,18 @@ export default function AppHeader({ active }: HeaderProps) {
             {navLabel("settings", "Settings")}
           </Link>
         </div>
+
+        {/* Mobile button */}
+        <button
+          type="button"
+          onClick={() => {
+            setMobileOpen((v) => !v);
+            setAppsOpen(false);
+          }}
+          className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[var(--text-main)] text-xs"
+        >
+          {mobileOpen ? "✕" : "☰"}
+        </button>
       </div>
 
       {/* =======================
@@ -427,25 +446,7 @@ export default function AppHeader({ active }: HeaderProps) {
               );
             })}
 
-            {/* Auth action moved into menu for mobile (keeps top clean) */}
-            <div className="pt-2 border-t border-[var(--border-subtle)]">
-              {userEmail ? (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px] text-left"
-                >
-                  {loggingOut ? "…" : authLabel("logout", "Log out")}
-                </button>
-              ) : (
-                <Link
-                  href="/auth"
-                  className="block w-full px-3 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--accent-soft)] text-[11px]"
-                >
-                  {authLabel("login", "Log in")}
-                </Link>
-              )}
-            </div>
+            {/* Auth action moved to header for mobile (removed from here) */}
           </div>
         </div>
       )}

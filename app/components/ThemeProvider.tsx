@@ -88,12 +88,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Fallback: system preference for default vs light
-    const prefersDark =
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-    const initial: ThemeId = prefersDark ? "default" : "light";
+    // Fallback: Default to "rainbow" for visitors/generic new users
+    // (Previously: system preference for default vs light)
+    const initial: ThemeId = "rainbow";
     setThemeState(initial);
     applyTheme(initial);
   }, []);

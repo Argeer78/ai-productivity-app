@@ -301,7 +301,7 @@ function AdsFreeSection() {
       <div className="relative overflow-hidden rounded-3xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 md:p-8 shadow-2xl shadow-black/5">
 
         {/* Gradient Background Layer */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-elevated)] via-[var(--bg-card)] to-[var(--bg-elevated)] opacity-50" />
+        <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-[var(--bg-elevated)] via-[var(--bg-card)] to-[var(--bg-elevated)] opacity-50" />
 
         {/* Content */}
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-10">
@@ -398,8 +398,8 @@ export default function HomePage() {
                 </span>
               </div>
 
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-3">
-                {t("home.hero.heading", "Your AI workspace for focus, planning & tiny wins.")}
+              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
+                Your AI workspace for focus, planning & tiny wins.
               </h1>
 
               <p className="text-sm md:text-base text-[var(--text-muted)] mb-5 max-w-xl">
@@ -461,8 +461,8 @@ export default function HomePage() {
               </div>
 
               {/* Decorative elements behind */}
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
-              <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-teal-500/10 rounded-full blur-3xl" />
+              <div className="absolute -top-10 right-0 md:-right-10 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
+              <div className="absolute -bottom-10 left-0 md:-left-10 w-40 h-40 bg-teal-500/10 rounded-full blur-3xl" />
             </div>
           </section>
 
