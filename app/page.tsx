@@ -491,8 +491,8 @@ export default function HomePage() {
                   </h2>
                   <p className="text-xs md:text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
                     {t(
-                      "home.pricing.teaser",
-                      "Pricing is now on a dedicated page so people can choose Monthly vs Yearly (and currency) without cluttering the homepage."
+                      "home.pricing.teas",
+                      "Go to pricing page to check our FOUNDER & PRO prices."
                     )}
                   </p>
                 </div>
