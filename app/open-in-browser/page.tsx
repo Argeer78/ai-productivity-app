@@ -3,19 +3,8 @@
 import { useEffect } from "react";
 
 export default function OpenInBrowserPage() {
-  useEffect(() => {
-    const ua = navigator.userAgent || navigator.vendor;
-
-    const isFacebook =
-      ua.includes("FBAN") ||
-      ua.includes("FBAV") ||
-      ua.includes("Instagram");
-
-    if (isFacebook) {
-      // Try to force external browser
-      window.location.href = "intent://aiprod.app#Intent;scheme=https;package=com.android.chrome;end";
-    }
-  }, []);
+  // Removed automatic intent redirect as it causes blank pages/errors on iOS and some Android WebViews
+  // useEffect(() => { ... }, []);
 
   return (
     <div style={{ padding: 24, textAlign: "center" }}>
