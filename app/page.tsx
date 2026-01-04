@@ -398,7 +398,7 @@ export default function HomePage() {
                 </span>
               </div>
 
-              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
+              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[var(--text-main)] to-[var(--text-main)]/70">
                 Your AI workspace for focus, planning & tiny wins.
               </h1>
 

@@ -248,7 +248,7 @@ export default function AppHeader({ active }: HeaderProps) {
             className="rounded-xl"
             priority
           />
-          <span className="text-sm font-semibold tracking-tight text-[var(--text-main)]">
+          <span className="text-sm font-semibold tracking-tight text-[var(--text-main)] hidden sm:block">
             AI Productivity Hub
           </span>
         </Link>
