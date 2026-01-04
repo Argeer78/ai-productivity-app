@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isFacebookInAppBrowser } from "@/lib/isInAppBrowser";
 
 type StorageStatus = "ok" | "blocked" | "error";
 
@@ -74,11 +73,11 @@ async function safeIndexedDBTest(): Promise<StorageStatus> {
     await new Promise<void>((resolve, reject) => {
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
-      req.onupgradeneeded = () => {};
+      req.onupgradeneeded = () => { };
     });
     try {
       indexedDB.deleteDatabase("__idb_test__");
-    } catch {}
+    } catch { }
     return "ok";
   } catch (e: any) {
     const name = e?.name || "";
@@ -184,9 +183,9 @@ export default function AppBoot({ children }: { children: React.ReactNode }) {
     setRunningChecks(false);
 
     try {
-       
+
       console.log("[debug report]", rep);
-    } catch {}
+    } catch { }
   }
 
   async function copyReport() {
@@ -204,12 +203,6 @@ export default function AppBoot({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function boot() {
-      // Facebook / Instagram browser = skip SW wait
-      if (isFacebookInAppBrowser()) {
-        if (!cancelled) setReady(true);
-        return;
-      }
-
       // Never block forever on SW
       if ("serviceWorker" in navigator) {
         try {

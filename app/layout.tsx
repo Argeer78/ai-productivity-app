@@ -10,7 +10,6 @@ import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
 import { RtlDirectionManager } from "@/app/components/RtlDirectionManager";
 import TwaInit from "@/app/TwaInit";
 import AppBoot from "@/app/components/AppBoot";
-import FacebookRedirectGuard from "@/app/components/FacebookRedirectGuard";
 import { UiLanguageProvider } from "@/app/components/UiLanguageProvider"; // ✅ NEW
 import { FocusProvider } from "@/app/context/FocusContext";
 import GlobalFocusPlayer from "@/app/components/GlobalFocusPlayer";
@@ -124,9 +123,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UiLanguageProvider>
           <FocusProvider>
             <AppBoot>
-              {/* 🚫 FB / Instagram in-app browser protection */}
-              <FacebookRedirectGuard />
-
               {/* 🔗 TWA postMessage init */}
               <TwaInit />
 
