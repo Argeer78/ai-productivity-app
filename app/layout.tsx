@@ -2,8 +2,8 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import Script from "next/script";
 import PlausibleProvider from "next-plausible";
+import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next"
 import AppShell from "@/app/components/AppShell";
 import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
@@ -85,29 +85,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <Script id="google-ads-tag" strategy="afterInteractive">
           {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
+window.dataLayer = window.dataLayer || [];
+function gtag() { dataLayer.push(arguments); }
+gtag('js', new Date());
 
-            gtag('config', 'AW-17847132623');
-          `}
+gtag('config', 'AW-17847132623');
+`}
         </Script>
         <Script
           id="facebook-pixel"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
-              !function(f,b,e,v,n,t,s)
-              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-              n.queue=[];t=b.createElement(e);t.async=!0;
-              t.src=v;s=b.getElementsByTagName(e)[0];
-              s.parentNode.insertBefore(t,s)}(window, document,'script',
-              'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('init', '345527236565069');
-              fbq('track', 'PageView');
-            `,
+!function (f, b, e, v, n, t, s) {
+  if (f.fbq) return; n = f.fbq = function () {
+    n.callMethod ?
+    n.callMethod.apply(n, arguments) : n.queue.push(arguments)
+  };
+  if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0';
+  n.queue = []; t = b.createElement(e); t.async = !0;
+  t.src = v; s = b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t, s)
+}(window, document, 'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '345527236565069');
+fbq('track', 'PageView');
+`,
           }}
         />
         <noscript>
@@ -146,6 +149,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </AppBoot>
           </FocusProvider>
         </UiLanguageProvider>
+
+        {/* Google Tag (gtag.js) */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=AW-17847132623"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+window.dataLayer = window.dataLayer || [];
+function gtag() { dataLayer.push(arguments); }
+gtag('js', new Date());
+gtag('config', 'AW-17847132623');
+`}
+        </Script>
         <Analytics />
       </body>
     </html>
