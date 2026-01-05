@@ -8,6 +8,7 @@ import FeatureSlider from "@/app/components/FeatureSlider";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import SocialShareBar from "@/app/components/SocialShareBar";
+import ThemePreviewWidget from "@/app/components/ThemePreviewWidget";
 import { useT } from "@/lib/useT";
 
 function ToolsSection() {
@@ -386,6 +387,12 @@ export default function HomePage() {
 
       <div className="flex-1">
         <div className="max-w-5xl mx-auto px-4 pt-10 pb-16 md:pb-20 text-sm">
+
+          {/* THEME PREVIEW WIDGET */}
+          <div className="flex justify-center md:justify-start">
+            <ThemePreviewWidget />
+          </div>
+
           {/* HERO */}
           <section className="grid md:grid-cols-[1.4fr,1fr] gap-10 md:gap-12 items-center mb-14">
             <div>
