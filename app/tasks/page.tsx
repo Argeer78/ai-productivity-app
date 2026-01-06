@@ -10,6 +10,10 @@ import { useT } from "@/lib/useT";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import { useSound } from "@/lib/sound";
 import Alive3DImage from "@/app/components/Alive3DImage";
+import { useDemo } from "@/app/context/DemoContext";
+import { useGuestUsage } from "@/app/hooks/useGuestUsage";
+
+const STORAGE_KEY_DEMO_TASKS = "aph_demo_tasks_session_v1";
 
 type VoiceTaskSuggestion = {
   title: string;
@@ -399,58 +403,8 @@ const DEMO_TASKS: TaskRow[] = [
   },
 ];
 
-function AuthGateModal({
-  open,
-  onClose,
-  title = "Log in to continue",
-  subtitle = "Create an account to add, edit, or complete tasks.",
-}: {
-  open: boolean;
-  onClose: () => void;
-  title?: string;
-  subtitle?: string;
-}) {
-  if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-xl">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold">{title}</p>
-            <p className="text-[11px] text-[var(--text-muted)] mt-1">{subtitle}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="mt-4 flex gap-2">
-          <a
-            href="/auth"
-            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
-          >
-            Log in / Sign up
-          </a>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
-          >
-            Not now
-          </button>
-        </div>
-
-        <p className="mt-3 text-[10px] text-[var(--text-muted)]">You can still browse this page as a visitor.</p>
-      </div>
-    </div>
-  );
-}
+import AuthGateModal from "@/app/components/AuthGateModal";
 
 const WEEKDAYS = [
   { v: 0, key: "weekday.sun", fallback: "Sun" },
@@ -467,6 +421,7 @@ export default function TasksPage() {
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+  const { usage: guestUsage, limitReached: guestLimitReached, increment: incrementGuestUsage } = useGuestUsage();
 
   // Auth gate
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -545,7 +500,23 @@ export default function TasksPage() {
   }
 
   function handleVoiceResult(payload: { rawText: string | null; structured: VoiceStructured | null }) {
-    if (!requireAuth()) return;
+    // ✅ Allow guest usage
+    if (!user && guestLimitReached) {
+      setAuthModalOpen(true);
+      return;
+    }
+    // We don't increment here, we increment when they actually "Create" the tasks? 
+    // Or do we increment on successful voice capture? 
+    // The previous pattern was increment on "Action". 
+    // Voice capture is the action. 
+    // BUT VoiceCaptureButton implementation in other pages might handle increment? 
+    // No, I usually handled it in the parent.
+    // However, here the flow is: Voice -> Suggestions -> Click "Create Tasks".
+    // I should probably increment when they click "Create Tasks" or when they get suggestions?
+    // Let's increment when they get suggestions (successfully used AI).
+    if (!user) incrementGuestUsage();
+
+    // if (!requireAuth()) return; // REMOVED
 
     const structured = payload.structured;
 
@@ -663,19 +634,27 @@ export default function TasksPage() {
   }
 
   // Load tasks (or demo tasks for visitors)
+  const { isDemoMode } = useDemo();
+
   useEffect(() => {
-    if (!user) {
-      setTasks(DEMO_TASKS);
-      setOpenTaskIds(DEMO_TASKS.length ? [DEMO_TASKS[0].id] : []);
-      return;
+    if (user) {
+      fetchTasks(user.id);
+    } else {
+      // GUEST / DEMO MODE: Load from sessionStorage
+      const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]");
+      if (saved.length === 0 && !sessionStorage.getItem(STORAGE_KEY_DEMO_TASKS)) {
+        sessionStorage.setItem(STORAGE_KEY_DEMO_TASKS, JSON.stringify(DEMO_TASKS));
+        setTasks(DEMO_TASKS);
+        setOpenTaskIds(DEMO_TASKS.length ? [DEMO_TASKS[0].id] : []);
+      } else {
+        setTasks(saved);
+      }
     }
-    fetchTasks(user.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   async function handleAddTask(e: FormEvent) {
     e.preventDefault();
-    if (!requireAuth()) return;
-
     const title = newTitle.trim();
     const description = newDescription.trim();
     if (!title && !description) return;
@@ -699,6 +678,49 @@ export default function TasksPage() {
       const reminder_weekdays =
         repeat === "weekly" ? (newReminderWeekdays.length ? newReminderWeekdays : [new Date().getDay()]) : null;
       const reminder_month_day = repeat === "monthly" ? newReminderMonthDay : null;
+
+      // GUEST / SESSION INSERT
+      if (!user) {
+        const newTask: TaskRow = {
+          id: `demo-task-${Date.now()}`,
+          user_id: "demo-user",
+          title: title || null,
+          description: description || null,
+          completed: false,
+          due_date: dueDateIso,
+          created_at: new Date().toISOString(),
+          completed_at: null,
+          category: newCategory || null,
+          time_from: newTimeFrom || null,
+          time_to: newTimeTo || null,
+          reminder_enabled: !!reminderAtIso,
+          reminder_at: reminderAtIso,
+          reminder_repeat: repeat,
+          reminder_time,
+          reminder_weekdays,
+          reminder_month_day
+        };
+
+        const existing = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]");
+        const updated = [newTask, ...existing];
+        sessionStorage.setItem(STORAGE_KEY_DEMO_TASKS, JSON.stringify(updated));
+        setTasks(updated);
+
+        setNewTitle("");
+        setNewDescription("");
+        setNewDueDate("");
+        setNewCategory("");
+        setNewTimeFrom("");
+        setNewTimeTo("");
+        setNewReminderEnabled(false);
+        setNewReminderAtLocal("");
+        setNewReminderRepeat("none");
+        setNewReminderTimeLocal("09:00");
+        setNewReminderWeekdays([]);
+        setNewReminderMonthDay(1);
+        setSavingNew(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from("tasks")
@@ -785,7 +807,12 @@ export default function TasksPage() {
   }, [sharingTaskId]);
 
   async function handleCreateTasksFromVoice() {
-    if (!requireAuth()) return;
+    // ✅ Allow guest
+    if (!user && guestLimitReached) {
+      setAuthModalOpen(true);
+      return;
+    }
+    // if (!requireAuth()) return; // REMOVED
     if (voiceSuggestedTasks.length === 0) return;
 
     setCreatingVoiceTasks(true);
@@ -794,6 +821,41 @@ export default function TasksPage() {
 
     try {
       const nowIso = new Date().toISOString();
+
+      // GUEST LOGIC
+      if (!user) {
+        const guestRows: TaskRow[] = voiceSuggestedTasks.map((tt, index) => ({
+          id: `demo-task-${Date.now()}-${index}`,
+          user_id: "demo-user",
+          title: tt.title,
+          description: null,
+          completed: false,
+          created_at: nowIso,
+          completed_at: null,
+          category: null,
+          time_from: null,
+          time_to: null,
+          due_date: tt.dueIso,
+
+          reminder_enabled: !!tt.dueIso,
+          reminder_at: tt.dueIso,
+
+          reminder_repeat: "none",
+          reminder_time: null,
+          reminder_weekdays: null,
+          reminder_month_day: null,
+        }));
+
+        const existing = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]");
+        const updated = [...guestRows, ...existing];
+        sessionStorage.setItem(STORAGE_KEY_DEMO_TASKS, JSON.stringify(updated));
+        setTasks(updated);
+
+        setVoiceSuggestedTasks([]);
+        setVoiceResetKey((k) => k + 1);
+        setVoiceTasksMessage(t("voice.created", "Tasks created from voice 🎉"));
+        return;
+      }
 
       const rows = voiceSuggestedTasks.map((tt) => ({
         user_id: user.id,
@@ -839,10 +901,38 @@ export default function TasksPage() {
   const { play } = useSound();
 
   async function toggleDone(task: TaskRow) {
-    if (!requireAuth()) return;
+    if (!user && !task.id.startsWith("demo-")) {
+      if (!requireAuth()) return;
+    }
 
-    const newDone = !task.completed;
-    if (newDone) play("success"); // 🎉 Sound Effect
+    const nextVal = !task.completed;
+    const completedAt = nextVal ? new Date().toISOString() : null;
+
+    if (!user || task.id.startsWith("demo-")) {
+      const existing = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]");
+      const updated = existing.map((t: any) => (t.id === task.id ? { ...t, completed: nextVal, completed_at: completedAt } : t));
+      sessionStorage.setItem(STORAGE_KEY_DEMO_TASKS, JSON.stringify(updated));
+      setTasks(updated);
+
+      if (nextVal) {
+        confetti({
+          particleCount: 60,
+          spread: 60,
+          origin: { y: 0.7 },
+          colors: ["#6366f1", "#8b5cf6", "#ec4899"],
+        });
+      }
+      return;
+    }
+
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === task.id ? { ...t, completed: nextVal, completed_at: completedAt } : t
+      )
+    );
+
+    if (nextVal) play("success"); // 🎉 Sound Effect
     setSavingTaskId(task.id);
     setError("");
 
@@ -850,8 +940,8 @@ export default function TasksPage() {
       const { data, error } = await supabase
         .from("tasks")
         .update({
-          completed: newDone,
-          completed_at: newDone ? new Date().toISOString() : null,
+          completed: nextVal,
+          completed_at: completedAt,
         })
         .eq("id", task.id)
         .eq("user_id", user.id)
@@ -882,6 +972,35 @@ export default function TasksPage() {
     setError("");
 
     try {
+      // DEMO MODE UPDATE
+      if (isDemoMode) {
+        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]") as TaskRow[];
+        const updated = existing.map(t => {
+          if (t.id === task.id) {
+            return {
+              ...t,
+              title: updates.title ?? task.title,
+              description: updates.description ?? task.description,
+              due_date: updates.due_date ?? task.due_date,
+              category: updates.category !== undefined ? updates.category : task.category,
+              time_from: updates.time_from !== undefined ? updates.time_from : task.time_from,
+              time_to: updates.time_to !== undefined ? updates.time_to : task.time_to,
+              reminder_enabled: updates.reminder_enabled !== undefined ? updates.reminder_enabled : task.reminder_enabled,
+              reminder_at: updates.reminder_at !== undefined ? updates.reminder_at : task.reminder_at,
+              reminder_repeat: updates.reminder_repeat !== undefined ? updates.reminder_repeat : task.reminder_repeat,
+              reminder_time: updates.reminder_time !== undefined ? updates.reminder_time : task.reminder_time,
+              reminder_weekdays: updates.reminder_weekdays !== undefined ? updates.reminder_weekdays : task.reminder_weekdays,
+              reminder_month_day: updates.reminder_month_day !== undefined ? updates.reminder_month_day : task.reminder_month_day,
+            };
+          }
+          return t;
+        });
+        localStorage.setItem(STORAGE_KEY_DEMO_TASKS, JSON.stringify(updated));
+        setTasks(updated);
+        setSavingTaskId(null);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("tasks")
         .update({
@@ -960,6 +1079,18 @@ export default function TasksPage() {
     setError("");
 
     try {
+      // DEMO MODE BULK DELETE
+      if (isDemoMode) {
+        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]") as TaskRow[];
+        const updated = existing.filter(t => !idsToDelete.includes(t.id));
+        localStorage.setItem(STORAGE_KEY_DEMO_TASKS, JSON.stringify(updated));
+        setTasks(updated);
+        setSelectedTaskIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+        setOpenTaskIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+        setBulkDeleting(false);
+        return;
+      }
+
       const { error } = await supabase.from("tasks").delete().eq("user_id", user.id).in("id", idsToDelete);
 
       if (error) {
@@ -979,15 +1110,29 @@ export default function TasksPage() {
     }
   }
 
-  async function handleDeleteTask(task: TaskRow) {
-    if (!requireAuth()) return;
-    if (!window.confirm(t("confirmDelete", "Delete this task?"))) return;
+  async function handleDeleteTask(taskId: string) {
+    // If not user and not a demo task, maybe auth required?
+    // But for consistency we might just allow delete if it's in the list.
+    if (!user && !taskId.startsWith("demo-")) {
+      if (!requireAuth()) return;
+    }
 
-    setDeletingTaskId(task.id);
+    if (!confirm(t("confirm.deleteTask", "Delete this task permanently?"))) return;
+
+    setDeletingTaskId(taskId);
     setError("");
 
     try {
-      const { error } = await supabase.from("tasks").delete().eq("id", task.id).eq("user_id", user.id);
+      if (!user || taskId.startsWith("demo-")) {
+        const existing = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]");
+        const updated = existing.filter((t: any) => t.id !== taskId);
+        sessionStorage.setItem(STORAGE_KEY_DEMO_TASKS, JSON.stringify(updated));
+        setTasks(updated);
+        setDeletingTaskId(null);
+        return;
+      }
+
+      const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("user_id", user.id);
 
       if (error) {
         console.error("[tasks] delete error", error);
@@ -995,9 +1140,8 @@ export default function TasksPage() {
         return;
       }
 
-      setTasks((prev) => prev.filter((tRow) => tRow.id !== task.id));
-      setSelectedTaskIds((prev) => prev.filter((id) => id !== task.id));
-      setOpenTaskIds((prev) => prev.filter((id) => id !== task.id));
+      setOpenTaskIds((prev) => prev.filter((id) => id !== taskId));
+      setTasks((prev) => prev.filter((tRow) => tRow.id !== taskId));
     } catch (err) {
       console.error("[tasks] delete exception", err);
       setError(t("deleteError", "Could not delete task."));
@@ -1008,16 +1152,16 @@ export default function TasksPage() {
 
   function getTaskShareText(task: TaskRow) {
     const lines: string[] = [];
-    lines.push(`Task: ${task.title || "(untitled task)"}`);
-    if (task.category) lines.push(`Category: ${task.category}`);
+    lines.push(`Task: ${task.title || "(untitled task)"} `);
+    if (task.category) lines.push(`Category: ${task.category} `);
 
     if (task.due_date) {
       const date = new Date(task.due_date);
-      lines.push(`When: ${date.toLocaleDateString()}`);
+      lines.push(`When: ${date.toLocaleDateString()} `);
     }
 
     if (task.time_from || task.time_to) {
-      lines.push(`Time: ${task.time_from || "--:--"}–${task.time_to || "--:--"}`);
+      lines.push(`Time: ${task.time_from || "--:--"}–${task.time_to || "--:--"} `);
     }
 
     if (task.description) {
@@ -1146,7 +1290,12 @@ export default function TasksPage() {
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
       <AppHeader active="tasks" />
-      <AuthGateModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      <AuthGateModal
+        open={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        title={t("auth.title", "Log in to continue")}
+        subtitle={t("auth.subtitle", "Create an account to add, edit, or complete tasks.")}
+      />
 
       <div className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-8 md:py-10">
@@ -1177,14 +1326,7 @@ export default function TasksPage() {
 
           {/* New task form */}
           <form
-            onSubmit={(e) => {
-              if (!user) {
-                e.preventDefault();
-                setAuthModalOpen(true);
-                return;
-              }
-              handleAddTask(e);
-            }}
+            onSubmit={handleAddTask}
             className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 space-y-3 text-sm"
           >
             <div className="mb-2 flex items-center justify-between">
@@ -1206,27 +1348,17 @@ export default function TasksPage() {
 
             {/* Voice capture */}
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Voice capture - always show, use guest ID if needed */}
               <div className="flex items-center gap-2">
-                {user ? (
-                  <VoiceCaptureButton
-                    userId={user.id}
-                    mode="review"
-                    resetKey={voiceResetKey}
-                    onResult={handleVoiceResult}
-                    variant="icon"
-                    size="md"
-                    interaction="toggle"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setAuthModalOpen(true)}
-                    aria-label={t("voice.loginToUse", "Log in to use voice")}
-                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
-                  >
-                    🎤
-                  </button>
-                )}
+                <VoiceCaptureButton
+                  userId={user?.id || "guest"}
+                  mode="review"
+                  resetKey={voiceResetKey}
+                  onResult={handleVoiceResult}
+                  variant="icon"
+                  size="md"
+                  interaction="toggle"
+                />
 
                 {voiceSuggestedTasks.length > 0 && (
                   <button
@@ -1248,24 +1380,14 @@ export default function TasksPage() {
             <input
               type="text"
               value={newTitle}
-              readOnly={!user}
-              onFocus={() => requireAuth()}
-              onChange={(e) => {
-                if (!requireAuth()) return;
-                setNewTitle(e.target.value);
-              }}
+              onChange={(e) => setNewTitle(e.target.value)}
               placeholder={t("form.titlePlaceholder", "Task title…")}
               className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2"
             />
 
             <textarea
               value={newDescription}
-              readOnly={!user}
-              onFocus={() => requireAuth()}
-              onChange={(e) => {
-                if (!requireAuth()) return;
-                setNewDescription(e.target.value);
-              }}
+              onChange={(e) => setNewDescription(e.target.value)}
               placeholder={t("form.descriptionPlaceholder", "Optional description or notes…")}
               className="w-full rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-main)] mb-2 min-h-[60px]"
             />
@@ -1273,13 +1395,10 @@ export default function TasksPage() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 text-xs text-[var(--text-main)]">
                 <span className="text-[11px] text-[var(--text-muted)]">{t("form.dueDateLabel", "Due date")}</span>
-                <div onMouseDown={(e) => (!user ? (e.preventDefault(), setAuthModalOpen(true)) : null)}>
+                <div>
                   <MiniDatePicker
                     value={newDueDate}
-                    onChange={(val) => {
-                      if (!requireAuth()) return;
-                      setNewDueDate(val);
-                    }}
+                    onChange={(val) => setNewDueDate(val)}
                     t={t}
                   />
                 </div>
@@ -1289,11 +1408,7 @@ export default function TasksPage() {
                 <span className="text-[11px] text-[var(--text-muted)]">{t("form.categoryLabel", "Category")}</span>
                 <select
                   value={newCategory}
-                  onFocus={() => requireAuth()}
-                  onChange={(e) => {
-                    if (!requireAuth()) return;
-                    setNewCategory(e.target.value);
-                  }}
+                  onChange={(e) => setNewCategory(e.target.value)}
                   className="rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-2 py-1 text-[11px] text-[var(--text-main)]"
                 >
                   <option value="">{t("form.category.none", "None")}</option>

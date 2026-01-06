@@ -115,7 +115,9 @@ export async function POST(req: Request) {
       maxBudget?: string | number;
     };
 
-    if (!userId) {
+    const isGuest = userId === "guest" || userId.startsWith("demo-");
+
+    if (!userId && !isGuest) {
       return NextResponse.json(
         { error: "You must be logged in to generate a travel plan." },
         { status: 401 }
@@ -130,17 +132,19 @@ export async function POST(req: Request) {
     }
 
     // ✅ Fetch user language (and only what we need)
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("ui_language")
-      .eq("id", userId)
-      .maybeSingle();
+    let languageCode = "en";
+    if (!isGuest && userId) {
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .select("ui_language")
+        .eq("id", userId)
+        .maybeSingle();
 
-    if (profileError) {
-      console.error("[ai-travel-plan] profile error:", profileError);
+      if (profileError) {
+        console.error("[ai-travel-plan] profile error:", profileError);
+      }
+      languageCode = profile?.ui_language || "en";
     }
-
-    const languageCode = profile?.ui_language || "en";
     const languageInstruction = aiLanguageInstruction(languageCode);
 
     // ✅ Count AI call ONLY if we're going to call OpenAI
@@ -149,7 +153,7 @@ export async function POST(req: Request) {
       | { plan: string; dailyLimit: number; usedToday: number }
       | null = null;
 
-    usageMeta = await checkAndIncrementAiUsage(userId);
+    usageMeta = isGuest ? null : await checkAndIncrementAiUsage(userId!);
 
     const datesText = `${checkin} → ${checkout}`;
     const peopleText = `${adults || 1} adult(s)${children ? `, ${children} child(ren)` : ""

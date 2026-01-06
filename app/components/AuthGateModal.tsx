@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { useDemo } from "@/app/context/DemoContext";
 
 export type AuthGateCopy = {
   title?: string;
@@ -43,6 +44,8 @@ export default function AuthGateModal({
   secondaryLabel,
   footerHint,
 }: Props) {
+  const { isDemoMode, hasUsedDemo, startDemo } = useDemo();
+
   // Prefer new API when provided, else fall back to old
   const resolvedTitle = copy?.title ?? title ?? "Log in required";
   const resolvedSubtitle =
@@ -86,7 +89,7 @@ export default function AuthGateModal({
         <div className="flex items-center gap-2">
           <Link
             href={resolvedCtaHref}
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
+            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
           >
             {resolvedCtaLabel}
           </Link>
@@ -99,6 +102,20 @@ export default function AuthGateModal({
             {resolvedSecondaryLabel}
           </button>
         </div>
+
+        {/* Demo Mode Button */}
+        {!isDemoMode && !hasUsedDemo && (
+          <button
+            type="button"
+            onClick={() => {
+              startDemo();
+              onClose();
+            }}
+            className="mt-2 w-full px-4 py-2 rounded-xl border border-dashed border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-elevated)] text-xs transition-colors"
+          >
+            ⚡ Try Demo (No Login)
+          </button>
+        )}
 
         {resolvedFooterHint ? (
           <p className="mt-3 text-[11px] text-[var(--text-muted)]">

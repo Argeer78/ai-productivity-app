@@ -8,6 +8,7 @@ import { useT } from "@/lib/useT";
 
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
+import { useGuestUsage } from "@/app/hooks/useGuestUsage";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import Alive3DImage from "@/app/components/Alive3DImage";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
@@ -266,6 +267,7 @@ export default function TravelPage() {
   const [checkingUser, setCheckingUser] = useState(true);
 
   const gate = useAuthGate(user);
+  const { usage: guestUsage, limitReached: guestLimitReached, increment: incrementGuestUsage } = useGuestUsage();
 
   // ✅ session-safe auth init (avoids AuthSessionMissingError)
   useEffect(() => {
@@ -485,15 +487,17 @@ export default function TravelPage() {
     }
 
     // ✅ AI call: require auth so we can count usage
-    if (
-      !gate.requireAuth(undefined, {
+    if (!user && guestLimitReached) {
+      gate.openGate({
         title: t("auth.aiTitle", "Log in to generate an AI trip plan"),
-        subtitle: t("auth.aiSubtitle", "AI trip planning uses your daily AI limit and is linked to your account."),
-      })
-    ) {
+        subtitle: "Guest limit reached for this session."
+      });
       return;
     }
-    if (!user?.id) return;
+    if (!user) incrementGuestUsage();
+
+    // if (!gate.requireAuth(...)) return; // REMOVED
+    // if (!user?.id) return; // REMOVED
 
     setPlanning(true);
     try {
@@ -501,7 +505,7 @@ export default function TravelPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.id, // ✅ must be present for counting
+          userId: user?.id || "guest", // ✅ must be present for counting
           destination,
           checkin,
           checkout,
@@ -793,7 +797,7 @@ export default function TravelPage() {
 
                   <div className="flex flex-wrap gap-2 mt-2 items-center">
                     <VoiceCaptureButton
-                      userId={user?.id || ""}
+                      userId={user?.id || "guest"}
                       mode="travel"
                       variant="icon"
                       size="sm"

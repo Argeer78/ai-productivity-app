@@ -44,7 +44,10 @@ export async function POST(req: NextRequest) {
     const history: HistoryItem[] = Array.isArray(body.history) ? body.history : [];
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
 
-    if (!userId || typeof userId !== "string") {
+    // ✅ GUEST BYPASS
+    const isGuest = userId === "guest" || userId.startsWith("demo-");
+
+    if ((!userId || typeof userId !== "string") && !isGuest) {
       return NextResponse.json({ ok: false, error: "Missing userId in request body." }, { status: 400 });
     }
 
@@ -55,12 +58,16 @@ export async function POST(req: NextRequest) {
     // Handle Attachments (Pro check)
     let contextFromFiles = "";
     if (attachments.length > 0) {
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("plan")
-        .eq("id", userId)
-        .single();
-      const isPro = profile?.plan === "pro" || profile?.plan === "founder";
+      let isPro = false;
+      if (!isGuest) {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("plan")
+          .eq("id", userId)
+          .single();
+        isPro = profile?.plan === "pro" || profile?.plan === "founder";
+      }
+
       if (!isPro) {
         return NextResponse.json({ ok: false, error: "Attachments are a Pro feature." }, { status: 403 });
       }
@@ -101,7 +108,9 @@ export async function POST(req: NextRequest) {
     const title = userMessage.split("\n")[0].slice(0, 80).trim();
 
     // ✅ Count 1 AI call (only after success)
-    await bumpAiUsage(userId, 1);
+    if (!isGuest) {
+      await bumpAiUsage(userId, 1);
+    }
 
     return NextResponse.json({
       ok: true,

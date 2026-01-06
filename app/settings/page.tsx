@@ -725,7 +725,7 @@ export default function SettingsPage() {
                   className="w-full bg-[var(--bg-body)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm text-[var(--text-main)]"
                 >
                   {languageOptions.map((opt) => (
-                    <option key={opt.code} value={opt.code}>
+                    <option key={opt.code} value={opt.code} className="text-gray-900 bg-white">
                       {opt.flag ? `${opt.flag} ` : ""}
                       {opt.label ?? opt.code.toUpperCase()}
                     </option>

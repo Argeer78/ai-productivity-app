@@ -9,6 +9,7 @@ import { useT } from "@/lib/useT";
 // ✅ Auth gate (modal + requireAuth)
 import AuthGateModal from "@/app/components/AuthGateModal";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
+import { useGuestUsage } from "@/app/hooks/useGuestUsage";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 
 type ThreadRow = {
@@ -52,6 +53,7 @@ export default function AIChatPage() {
 
   // ✅ Auth gate hook
   const { open: authOpen, authHref, copy: authCopy, close: closeAuth, requireAuth } = useAuthGate(user);
+  const { usage: guestUsage, limitReached: guestLimitReached, increment: incrementGuestUsage } = useGuestUsage();
 
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [loadingThreads, setLoadingThreads] = useState(false);
@@ -325,16 +327,17 @@ export default function AIChatPage() {
   async function handleSend(e: FormEvent) {
     e.preventDefault();
 
-    if (
-      !requireAuth(undefined, {
+    if (!user && guestLimitReached) {
+      requireAuth(undefined, {
         title: "Log in to chat",
-        subtitle: "Create a free account to message the AI and save your conversation history.",
-      })
-    ) {
+        subtitle: "Guest limit reached for this session."
+      });
       return;
     }
+    if (!user) incrementGuestUsage();
 
-    if (!user) return;
+    // if (!requireAuth(...)) return; // REMOVED
+    // if (!user) return; // REMOVED
 
     const text = input.trim();
     if (!text) return;
@@ -354,7 +357,7 @@ export default function AIChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.id, // ✅ IMPORTANT: server increments ai_usage
+          userId: user?.id || "guest", // ✅ IMPORTANT: server increments ai_usage
           userMessage: text,
           category,
           history: historyForModel,
@@ -400,61 +403,79 @@ export default function AIChatPage() {
       setInput("");
 
       if (!activeThreadId) {
-        const fallbackTitle =
-          titleFromServer || text.split("\n")[0].slice(0, 80).trim() || t("newConversationFallback", "New conversation");
+        if (!user) {
+          // GUEST: mock thread, do not save
+          const mockId = `guest-${Date.now()}`;
+          const mockThread: ThreadRow = {
+            id: mockId,
+            title: titleFromServer || text.slice(0, 30),
+            category: category,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          // Don't save to state "threads" permanently as they can't be retrieved? 
+          // Actually we can just show it in the UI temporarily.
+          setActiveThreadId(mockId);
+          // Optional: setThreads([mockThread, ...threads]) if we want to show it in sidebar
+        } else {
+          const fallbackTitle =
+            titleFromServer || text.split("\n")[0].slice(0, 80).trim() || t("newConversationFallback", "New conversation");
 
-        const { data: threadData, error: threadError } = await supabase
-          .from("ai_chat_threads")
-          .insert({
-            user_id: user.id,
-            title: fallbackTitle,
-            category: category || null,
-          })
-          .select("id, title, category, created_at, updated_at")
-          .single();
+          const { data: threadData, error: threadError } = await supabase
+            .from("ai_chat_threads")
+            .insert({
+              user_id: user.id,
+              title: fallbackTitle,
+              category: category || null,
+            })
+            .select("id, title, category, created_at, updated_at")
+            .single();
 
-        if (threadError || !threadData) {
-          console.error("[ai-chat] create thread error", threadError);
-          setError(t("errors.saveThread", "Failed to save conversation, but you can continue chatting."));
-          return;
+          if (threadError || !threadData) {
+            console.error("[ai-chat] create thread error", threadError);
+            setError(t("errors.saveThread", "Failed to save conversation, but you can continue chatting."));
+            return;
+          }
+
+          const newThread = threadData as ThreadRow;
+          setActiveThreadId(newThread.id);
+          setThreads((prev) => [newThread, ...prev]);
+
+          const { error: msgErr } = await supabase.from("ai_chat_messages").insert([
+            { thread_id: newThread.id, user_id: user.id, role: "user", content: text },
+            { thread_id: newThread.id, user_id: user.id, role: "assistant", content: assistantMessage },
+          ]);
+
+          if (msgErr) console.error("[ai-chat] insert messages error", msgErr);
         }
-
-        const newThread = threadData as ThreadRow;
-        setActiveThreadId(newThread.id);
-        setThreads((prev) => [newThread, ...prev]);
-
-        const { error: msgErr } = await supabase.from("ai_chat_messages").insert([
-          { thread_id: newThread.id, user_id: user.id, role: "user", content: text },
-          { thread_id: newThread.id, user_id: user.id, role: "assistant", content: assistantMessage },
-        ]);
-
-        if (msgErr) console.error("[ai-chat] insert messages error", msgErr);
       } else {
         const threadId = activeThreadId;
 
-        const { error: msgErr } = await supabase.from("ai_chat_messages").insert([
-          { thread_id: threadId, user_id: user.id, role: "user", content: text },
-          { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantMessage },
-        ]);
+        if (user) {
+          const { error: msgErr } = await supabase.from("ai_chat_messages").insert([
+            { thread_id: threadId, user_id: user.id, role: "user", content: text },
+            { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantMessage },
+          ]);
 
-        if (msgErr) console.error("[ai-chat] insert messages error", msgErr);
+          if (msgErr) console.error("[ai-chat] insert messages error", msgErr);
 
-        const { error: threadErr } = await supabase
-          .from("ai_chat_threads")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", threadId)
-          .eq("user_id", user.id);
+          const { error: threadErr } = await supabase
+            .from("ai_chat_threads")
+            .update({ updated_at: new Date().toISOString() })
+            .eq("id", threadId)
+            .eq("user_id", user.id);
 
-        if (threadErr) console.error("[ai-chat] update thread timestamp error", threadErr);
+          if (threadErr) console.error("[ai-chat] update thread timestamp error", threadErr);
 
-        setThreads((prev) => {
-          const existing = prev.find((tRow) => tRow.id === threadId);
-          if (!existing) return prev;
+          setThreads((prev) => {
+            const existing = prev.find((tRow) => tRow.id === threadId);
+            if (!existing) return prev;
 
-          const updated: ThreadRow = { ...existing, updated_at: new Date().toISOString() };
-          const rest = prev.filter((tRow) => tRow.id !== threadId);
-          return [updated, ...rest];
-        });
+            const updated: ThreadRow = { ...existing, updated_at: new Date().toISOString() };
+            const rest = prev.filter((tRow) => tRow.id !== threadId);
+            return [updated, ...rest];
+          });
+        }
       }
     } catch (err) {
       console.error("[ai-chat] send exception", err);

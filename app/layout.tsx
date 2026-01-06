@@ -5,8 +5,12 @@ import { Inter } from "next/font/google";
 import PlausibleProvider from "next-plausible";
 import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next"
-import AppShell from "@/app/components/AppShell";
+import { DemoProvider } from "@/app/context/DemoContext";
+import DemoBanner from "@/app/components/DemoBanner";
+
+// ✅ Auth gate (full page always)
 import ServiceWorkerRegister from "@/app/components/ServiceWorkerRegister";
+import AppShell from "@/app/components/AppShell";
 import { RtlDirectionManager } from "@/app/components/RtlDirectionManager";
 import TwaInit from "@/app/TwaInit";
 import AppBoot from "@/app/components/AppBoot";
@@ -132,30 +136,35 @@ fbq('track', 'PageView');
         </noscript>
         {/* ✅ Make language available everywhere (including /auth) */}
         <UiLanguageProvider>
-          <FocusProvider>
-            <AppBoot>
-              {/* 🔗 TWA postMessage init */}
-              <TwaInit />
+          <DemoProvider>
+            <FocusProvider>
+              {/* Sticky Demo Banner */}
+              <DemoBanner />
 
-              <PlausibleProvider
-                domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
-                trackLocalhost={false}
-              >
-                {/* ✅ RTL manager can now react to chosen language too */}
-                <RtlDirectionManager>
-                  <AppShell>
-                    {children}
-                    {/* 🌍 Global Focus Player (Overlay + Floating) */}
-                    <GlobalFocusPlayer />
-                    <GlobalScreenRecorder />
-                  </AppShell>
-                </RtlDirectionManager>
-              </PlausibleProvider>
+              <AppBoot>
+                {/* 🔗 TWA postMessage init */}
+                <TwaInit />
 
-              {/* 🧩 Service worker (once) */}
-              <ServiceWorkerRegister />
-            </AppBoot>
-          </FocusProvider>
+                <PlausibleProvider
+                  domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || "aiprod.app"}
+                  trackLocalhost={false}
+                >
+                  {/* ✅ RTL manager can now react to chosen language too */}
+                  <RtlDirectionManager>
+                    <AppShell>
+                      {children}
+                      {/* 🌍 Global Focus Player (Overlay + Floating) */}
+                      <GlobalFocusPlayer />
+                      <GlobalScreenRecorder />
+                    </AppShell>
+                  </RtlDirectionManager>
+                </PlausibleProvider>
+
+                {/* 🧩 Service worker (once) */}
+                <ServiceWorkerRegister />
+              </AppBoot>
+            </FocusProvider>
+          </DemoProvider>
         </UiLanguageProvider>
 
         {/* Google Tag Manager */}

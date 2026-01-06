@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/useT";
+import { useDemo } from "@/app/context/DemoContext";
 import { supabase } from "@/lib/supabaseClient";
 import AnimatedNumber from "@/app/components/AnimatedNumber";
 
@@ -11,30 +12,37 @@ export default function DashboardGlance() {
     const [energy, setEnergy] = useState<number | null>(null);
     const [score, setScore] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
+    const { isDemoMode } = useDemo();
 
     useEffect(() => {
         async function loadData() {
             try {
                 const today = new Date().toISOString().split("T")[0];
 
-                // 1. Energy from LocalStorage (set by AI Task Creator)
+                // 1. Energy from LocalStorage (always check this first)
                 const savedEnergy = localStorage.getItem(`energy_${today}`);
                 if (savedEnergy) setEnergy(parseInt(savedEnergy, 10));
+
+                if (isDemoMode) {
+                    // DEMO MODE: Read Score from LocalStorage or default to local storage mock logic
+                    const savedScore = localStorage.getItem(`score_${today}`);
+                    if (savedScore) setScore(parseInt(savedScore, 10));
+                    setLoading(false);
+                    return;
+                }
 
                 // 2. Score & Energy from DB
                 let user = null;
                 try {
                     const { data, error } = await supabase.auth.getUser();
                     if (error && !error.message.includes("Auth session missing")) {
-                        console.error("DashboardGlance auth error", error);
+                        // silent
                     }
                     user = data?.user ?? null;
                 } catch (e: any) {
                     // ignore session missing
-                    if (!e?.message?.includes("Auth session missing")) {
-                        console.error(e);
-                    }
                 }
+
                 if (user) {
                     const { data } = await supabase
                         .from("daily_scores")
@@ -47,6 +55,9 @@ export default function DashboardGlance() {
                         if (data.score !== null) setScore(data.score);
                         if (data.energy_level !== null) setEnergy(data.energy_level);
                     }
+                } else if (!isDemoMode) {
+                    // Fallback for non-demo guests (shouldn't happen often if protected, but safe)
+                    setLoading(false);
                 }
             } catch (err) {
                 console.error("DashboardGlance error", err);
@@ -55,7 +66,7 @@ export default function DashboardGlance() {
             }
         }
         loadData();
-    }, []);
+    }, [isDemoMode]);
 
     if (loading) return <div className="animate-pulse h-32 bg-[var(--bg-card)] rounded-3xl border border-[var(--border-subtle)]" />;
 

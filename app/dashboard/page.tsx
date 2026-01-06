@@ -21,6 +21,7 @@ import LevelProgress from "@/app/components/LevelProgress";
 import { useFocus } from "@/app/context/FocusContext";
 import Confetti from "@/app/components/Confetti";
 import { useSound } from "@/lib/sound";
+import { useDemo } from "@/app/context/DemoContext";
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -166,11 +167,21 @@ export default function DashboardPage() {
   // ✅ FULL-KEY translations
   const { t } = useT();
 
+  const { isDemoMode } = useDemo();
+
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
-  // ✅ Auth gate (DO NOT pass {user: ...}; pass user directly to avoid the null destructure crash)
+  // ✅ Auth gate (allow demo mode)
   const gate = useAuthGate(user);
+
+  useEffect(() => {
+    if (isDemoMode) {
+      setCheckingUser(false);
+      return;
+    }
+    // Proceed with normal auth gate checks if NOT demo
+  }, [isDemoMode]);
 
   const [plan, setPlan] = useState<"free" | "pro" | "founder">("free");
   const [aiCountToday, setAiCountToday] = useState(0);

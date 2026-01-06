@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useAuthGate } from "@/app/hooks/useAuthGate";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import { useT } from "@/lib/useT";
+import { useGuestUsage } from "@/app/hooks/useGuestUsage";
 
 type ThreadRow = {
   id: string;
@@ -54,6 +55,7 @@ export default function AiCompanionPage() {
 
   // ✅ Auth gate (opens login/signup modal)
   const gate = useAuthGate(user);
+  const { usage: guestUsage, limitReached: guestLimitReached, increment: incrementGuestUsage } = useGuestUsage();
 
   // threads + messages
   const [threads, setThreads] = useState<ThreadRow[]>([]);
@@ -359,7 +361,23 @@ export default function AiCompanionPage() {
   }
 
   async function ensureThreadIfNeeded(firstUserText: string) {
-    if (!user) throw new Error("Not logged in");
+    if (!user) {
+      // Mock thread for guest
+      const mockId = `guest-${Date.now()}`;
+      if (activeThreadId && activeThreadId.startsWith("guest-")) return activeThreadId;
+
+      const thread: ThreadRow = {
+        id: mockId,
+        title: firstUserText.slice(0, 30),
+        category,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      setThreads(p => [thread, ...p]);
+      setActiveThreadId(mockId);
+      return mockId;
+    }
+
     if (activeThreadId) return activeThreadId;
 
     const title = firstUserText.split("\n")[0].slice(0, 60).trim() || t("thread.newReflection", "New reflection");
@@ -388,15 +406,17 @@ export default function AiCompanionPage() {
     if (e) e.preventDefault();
 
     // ✅ Gate send for guests
-    if (
-      !gate.requireAuth(undefined, {
+    if (!user && guestLimitReached) {
+      gate.openGate({
         title: t("gate.loginToChat.title", "Log in to chat"),
-        subtitle: t("gate.loginToChat.subtitle", "Create a free account to save your reflections."),
-      })
-    ) {
+        subtitle: "Guest limit reached for this session."
+      });
       return;
     }
-    if (!user) return;
+    if (!user) incrementGuestUsage();
+
+    // if (!gate.requireAuth(...)) return; // REMOVED
+    // if (!user) return; // REMOVED
 
     const text = safeTrim(textOverride ?? input);
     if (!text) return;
@@ -429,7 +449,7 @@ export default function AiCompanionPage() {
           category,
           history: historyForModel,
           threadId,
-          userId: user.id,
+          userId: user?.id || "guest",
           lang: uiLang, // ✅ Pass current language
           attachments, // ✅ Pass attachments
         }),
@@ -454,23 +474,27 @@ export default function AiCompanionPage() {
 
       setMessages((prev) => [...prev, localAssistant]);
 
-      const { error: msgErr } = await supabase.from("ai_companion_messages").insert([
-        { thread_id: threadId, user_id: user.id, role: "user", content: text },
-        { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantText },
-      ]);
-      if (msgErr) console.error("[ai-companion] insert messages error", msgErr);
+      setMessages((prev) => [...prev, localAssistant]);
 
-      const { error: updErr } = await supabase
-        .from("ai_companion_threads")
-        .update({
-          updated_at: new Date().toISOString(),
-          category,
-          summary: chatSummary ?? undefined,
-        })
-        .eq("id", threadId)
-        .eq("user_id", user.id);
+      if (user) {
+        const { error: msgErr } = await supabase.from("ai_companion_messages").insert([
+          { thread_id: threadId, user_id: user.id, role: "user", content: text },
+          { thread_id: threadId, user_id: user.id, role: "assistant", content: assistantText },
+        ]);
+        if (msgErr) console.error("[ai-companion] insert messages error", msgErr);
 
-      if (updErr) console.error("[ai-companion] update thread error", updErr);
+        const { error: updErr } = await supabase
+          .from("ai_companion_threads")
+          .update({
+            updated_at: new Date().toISOString(),
+            category,
+            summary: chatSummary ?? undefined,
+          })
+          .eq("id", threadId)
+          .eq("user_id", user.id);
+
+        if (updErr) console.error("[ai-companion] update thread error", updErr);
+      }
 
       setThreads((prev) => {
         const existing = prev.find((th) => th.id === threadId);

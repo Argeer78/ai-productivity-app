@@ -11,6 +11,10 @@ import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
 import { useT } from "@/lib/useT";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import Alive3DImage from "@/app/components/Alive3DImage";
+import { useGuestUsage } from "@/app/hooks/useGuestUsage";
+import { useDemo } from "@/app/context/DemoContext";
+
+const STORAGE_KEY_DEMO_NOTES = "aph_demo_notes_session_v1";
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -215,58 +219,7 @@ const DEMO_NOTES: Note[] = [
   },
 ];
 
-function AuthGateModal({
-  open,
-  onClose,
-  title = "Log in to continue",
-  subtitle = "Create an account to write, save, or use AI.",
-}: {
-  open: boolean;
-  onClose: () => void;
-  title?: string;
-  subtitle?: string;
-}) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-xl">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold break-words">{title}</p>
-            <p className="text-[11px] text-[var(--text-muted)] mt-1 break-words">{subtitle}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-[11px] px-2 py-1 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="mt-4 flex gap-2">
-          <a
-            href="/auth"
-            className="flex-1 text-center px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90 text-sm"
-          >
-            Log in / Sign up
-          </a>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-xl border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] text-sm"
-          >
-            Not now
-          </button>
-        </div>
-
-        <p className="mt-3 text-[10px] text-[var(--text-muted)]">You can still browse this page as a visitor.</p>
-      </div>
-    </div>
-  );
-}
+import AuthGateModal from "@/app/components/AuthGateModal";
 
 export default function NotesPage() {
   const router = useRouter();
@@ -306,7 +259,10 @@ export default function NotesPage() {
   const [plan, setPlan] = useState<"free" | "pro">("free");
   const [billingLoading, setBillingLoading] = useState(false);
 
+  const { usage: guestUsage, limitReached: guestLimitReached, increment: incrementGuestUsage } = useGuestUsage();
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
+
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
 
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -392,7 +348,7 @@ export default function NotesPage() {
   }
 
   function handleVoiceResult(payload: { rawText: string | null; structured: VoiceStructured | null }) {
-    if (!requireAuth()) return;
+    // if (!requireAuth()) return; // GUEST ALLOWED
 
     const structured = payload.structured;
 
@@ -470,7 +426,13 @@ export default function NotesPage() {
   }
 
   async function handleGenerateTasksFromNote(note: Note) {
-    if (!requireAuth()) return;
+    // if (!requireAuth()) return; // GUEST ALLOWED
+    if (!user && guestLimitReached) {
+      setAuthModalOpen(true);
+      return;
+    }
+    if (!user) incrementGuestUsage();
+
     if (!note.content?.trim()) return;
 
     setError("");
@@ -581,17 +543,30 @@ export default function NotesPage() {
     setAiCountToday((data as any)?.count || 0);
   }
 
+  const { isDemoMode } = useDemo();
+
   useEffect(() => {
     if (user) {
       ensureProfile();
       fetchNotes();
       fetchAiUsage();
     } else {
-      setNotes(DEMO_NOTES);
-      setOpenNoteIds(DEMO_NOTES.length ? [DEMO_NOTES[0].id] : []);
-      setPlan("free");
-      setAiCountToday(0);
+      // GUEST / DEMO MODE: Load from sessionStorage
+      // Unlike before, we allow this for ALL visitors (no explicit "Start Demo" needed for basic read/write)
+      const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_NOTES) || "[]");
+
+      if (saved.length === 0 && !sessionStorage.getItem(STORAGE_KEY_DEMO_NOTES)) {
+        // Initialize with default demo notes if session is empty
+        sessionStorage.setItem(STORAGE_KEY_DEMO_NOTES, JSON.stringify(DEMO_NOTES));
+        setNotes(DEMO_NOTES);
+        setOpenNoteIds(DEMO_NOTES.length ? [DEMO_NOTES[0].id] : []);
+      } else {
+        setNotes(saved);
+        setOpenNoteIds(saved.length ? [saved[0].id] : []);
+      }
     }
+    setPlan("free");
+    setAiCountToday(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -600,7 +575,15 @@ export default function NotesPage() {
 
   async function handleSaveNote(e: FormEvent) {
     e.preventDefault();
-    if (!requireAuth()) return;
+    // Allow saving if user OR if guest (implicit demo)
+    if (!user && !isDemoMode) {
+      // Auto-enable demo mode effectively for this action?
+      // User wants to write 1 time.
+      // We'll just let them save to session.
+    }
+
+    // We only require auth if we were strict, but requirement is "allow write".
+    // So we skip requireAuth for local save.
 
     if (!title.trim() && !content.trim()) {
       setError(t("errors.saveNoteMissing", "Please enter a title or content."));
@@ -620,15 +603,57 @@ export default function NotesPage() {
 
     const createdAtIso = new Date(`${noteDate}T00:00:00.000Z`).toISOString();
 
-    await supabase.from("notes").insert([
+    // GUEST / DEMO SAVE
+    if (!user) {
+      const newNote: Note = {
+        id: `demo-${Date.now()}`,
+        user_id: "demo-user",
+        title: finalTitle || null,
+        content,
+        created_at: createdAtIso,
+        category: newCategory || null,
+        ai_result: null,
+      };
+
+      const existing = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_NOTES) || "[]");
+      const updated = [newNote, ...existing];
+      sessionStorage.setItem(STORAGE_KEY_DEMO_NOTES, JSON.stringify(updated));
+      setNotes(updated);
+      setOpenNoteIds([newNote.id]);
+
+      // Reset form
+      setTitle("");
+      setContent("");
+      setNewCategory("");
+      setLoading(false);
+
+      // Track event
+      if (typeof window !== "undefined" && (window as any).gtag) {
+        (window as any).gtag("event", "note_created_guest", {
+          event_category: "Notes",
+          event_label: "Guest Session"
+        });
+      }
+      return;
+    }
+
+    // AUTHENTICATED SAVE
+    const { error: insertError } = await supabase.from("notes").insert([
       {
         title: finalTitle || null,
         content,
-        user_id: user!.id,
+        user_id: user.id,
         created_at: createdAtIso,
         category: newCategory || null,
       },
     ]);
+
+    if (insertError) {
+      console.error("Save note failed", insertError);
+      setError(t("errors.saveNoteFailed", "Failed to save note."));
+      setLoading(false);
+      return;
+    }
 
     setTitle("");
     setContent("");
@@ -640,9 +665,9 @@ export default function NotesPage() {
 
     await fetchNotes();
     track("note_created");
-
     setLoading(false);
   }
+
 
   async function incrementAiUsage() {
     if (!user) return aiCountToday;
@@ -669,7 +694,12 @@ export default function NotesPage() {
   }
 
   async function handleAI(noteId: string, noteContent: string | null, mode: AiMode) {
-    if (!requireAuth()) return;
+    if (!user && guestLimitReached) {
+      setAuthModalOpen(true);
+      return;
+    }
+    if (!user) incrementGuestUsage();
+
     if (!noteContent?.trim()) return;
 
     if (remaining <= 0) {
@@ -714,7 +744,9 @@ export default function NotesPage() {
   }
 
   function startEdit(note: Note) {
-    if (!requireAuth()) return;
+    if (!user && !note.id.startsWith("demo-")) {
+      if (!requireAuth()) return;
+    }
     setEditingNoteId(note.id);
     setEditTitle(note.title || "");
     setEditContent(note.content || "");
@@ -722,10 +754,25 @@ export default function NotesPage() {
   }
 
   async function saveEdit(id: string) {
-    if (!requireAuth()) return;
+    if (!user && !id.startsWith("demo-")) {
+      if (!requireAuth()) return;
+    }
 
     setSavingEditId(id);
 
+    // GUEST / SESSION EDIT
+    if (!user || id.startsWith("demo-")) {
+      const existing = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_NOTES) || "[]") as Note[];
+      const updated = existing.map(n => n.id === id ? { ...n, title: editTitle, content: editContent, category: editCategory || null } : n);
+      sessionStorage.setItem(STORAGE_KEY_DEMO_NOTES, JSON.stringify(updated));
+
+      setNotes(updated);
+      setSavingEditId(null);
+      cancelEdit();
+      return;
+    }
+
+    // AUTH EDIT
     await supabase
       .from("notes")
       .update({ title: editTitle, content: editContent, category: editCategory || null })
@@ -745,13 +792,35 @@ export default function NotesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!requireAuth()) return;
+    if (!user && !id.startsWith("demo-")) {
+      if (!requireAuth()) return;
+    }
     if (!confirm(t("confirm.deleteNote", "Delete this note?"))) return;
 
     setDeletingId(id);
-    await supabase.from("notes").delete().eq("id", id).eq("user_id", user!.id);
 
-    setNotes((prev) => prev.filter((n) => n.id !== id));
+    // GUEST / SESSION DELETE
+    if (!user || id.startsWith("demo-")) {
+      const existing = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_NOTES) || "[]") as Note[];
+      const updated = existing.filter((n) => n.id !== id);
+      sessionStorage.setItem(STORAGE_KEY_DEMO_NOTES, JSON.stringify(updated));
+
+      setNotes(updated);
+      setDeletingId(null);
+      if (openNoteIds.includes(id)) {
+        setOpenNoteIds(openNoteIds.filter((oid) => oid !== id));
+      }
+      return;
+    }
+
+    const { error } = await supabase.from("notes").delete().eq("id", id).eq("user_id", user!.id);
+    if (!error) {
+      // Refresh list
+      fetchNotes();
+      if (openNoteIds.includes(id)) {
+        setOpenNoteIds(openNoteIds.filter((oid) => oid !== id));
+      }
+    }
     setDeletingId(null);
   }
 
@@ -861,7 +930,12 @@ export default function NotesPage() {
   return (
     <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] overflow-x-hidden">
       <AppHeader active="notes" />
-      <AuthGateModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      <AuthGateModal
+        open={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        title={t("auth.title", "Log in to continue")}
+        subtitle={t("auth.subtitle", "Create an account to write, save, or use AI.")}
+      />
 
       <div className="w-full max-w-5xl mx-auto px-4 md:px-8 py-4 md:py-8 pb-24">
         {!user && (
@@ -930,14 +1004,7 @@ export default function NotesPage() {
             {error && <div className="text-sm text-red-400 mb-3 break-words">{error}</div>}
 
             <form
-              onSubmit={(e) => {
-                if (!user) {
-                  e.preventDefault();
-                  setAuthModalOpen(true);
-                  return;
-                }
-                handleSaveNote(e);
-              }}
+              onSubmit={handleSaveNote}
               className="flex flex-col gap-3 min-w-0"
             >
               <input
@@ -945,12 +1012,7 @@ export default function NotesPage() {
                 placeholder={t("form.titlePlaceholder", "Note title")}
                 className="w-full max-w-full px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm focus:outline-none"
                 value={title}
-                readOnly={!user}
-                onFocus={() => requireAuth()}
-                onChange={(e) => {
-                  if (!requireAuth()) return;
-                  setTitle(e.target.value);
-                }}
+                onChange={(e) => setTitle(e.target.value)}
               />
 
               <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)] min-w-0">
@@ -959,11 +1021,7 @@ export default function NotesPage() {
                   <input
                     type="date"
                     value={noteDate}
-                    onFocus={() => requireAuth()}
-                    onChange={(e) => {
-                      if (!requireAuth()) return;
-                      setNoteDate(e.target.value);
-                    }}
+                    onChange={(e) => setNoteDate(e.target.value)}
                     className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[11px] max-w-full"
                   />
                 </div>
@@ -972,9 +1030,7 @@ export default function NotesPage() {
                   <span className="whitespace-nowrap">{t("form.categoryLabel", "Category:")}</span>
                   <select
                     value={newCategory}
-                    onFocus={() => requireAuth()}
                     onChange={(e) => {
-                      if (!requireAuth()) return;
                       setNewCategory(e.target.value);
                       setTasksSourceCategory(normalizeTaskCategory(e.target.value || null));
                     }}
@@ -1007,12 +1063,7 @@ export default function NotesPage() {
                 placeholder={t("form.contentPlaceholder", "Write your note here...")}
                 className="w-full max-w-full min-h-[120px] px-3 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm whitespace-pre-wrap break-words"
                 value={content}
-                readOnly={!user}
-                onFocus={() => requireAuth()}
-                onChange={(e) => {
-                  if (!requireAuth()) return;
-                  setContent(e.target.value);
-                }}
+                onChange={(e) => setContent(e.target.value)}
               />
 
               <div className="flex flex-col gap-2 text-[11px] text-[var(--text-muted)]">
@@ -1050,25 +1101,28 @@ export default function NotesPage() {
               </div>
 
               <div className="mt-2 flex items-center gap-2 flex-wrap">
-                {user ? (
+                {!user && guestLimitReached ? (
+                  <button
+                    type="button"
+                    onClick={() => setAuthModalOpen(true)}
+                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:bg-[var(--bg-card)] text-[var(--accent)]"
+                    title="Guest limit reached. Log in for more."
+                  >
+                    🔒
+                  </button>
+                ) : (
                   <VoiceCaptureButton
-                    userId={user.id as string}
+                    userId={user?.id || "guest"}
                     mode={voiceMode}
                     resetKey={voiceResetKey}
-                    onResult={handleVoiceResult}
+                    onResult={(payload) => {
+                      if (!user) incrementGuestUsage();
+                      handleVoiceResult(payload);
+                    }}
                     variant="icon"
                     size="md"
                     interaction="toggle"
                   />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setAuthModalOpen(true)}
-                    aria-label={t("voice.loginToUse", "Log in to use voice")}
-                    className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent)] text-[var(--accent-contrast)] hover:opacity-90"
-                  >
-                    🎤
-                  </button>
                 )}
 
                 {(content || title || voiceSuggestedTasks.length > 0) && (

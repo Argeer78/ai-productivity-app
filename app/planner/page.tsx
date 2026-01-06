@@ -11,6 +11,7 @@ import { useT } from "@/lib/useT";
 
 // ✅ Auth gate
 import { useAuthGate } from "@/app/hooks/useAuthGate";
+import { useGuestUsage } from "@/app/hooks/useGuestUsage";
 import AuthGateModal from "@/app/components/AuthGateModal";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import Alive3DImage from "@/app/components/Alive3DImage";
@@ -81,6 +82,7 @@ export default function PlannerPage() {
 
   // ✅ Correct hook usage (pass user directly)
   const gate = useAuthGate(user);
+  const { usage: guestUsage, limitReached: guestLimitReached, increment: incrementGuestUsage } = useGuestUsage();
 
   const [planText, setPlanText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -131,18 +133,16 @@ export default function PlannerPage() {
     setError("");
 
     // ✅ Gate only when action needs auth
-    if (
-      !gate.requireAuth(undefined, {
+    if (!user && guestLimitReached) {
+      gate.openGate({
         title: t("auth.title", "Log in to use Daily Planner."),
-        subtitle: t(
-          "auth.subtitle",
-          "Your planner uses your saved tasks, so it needs an account."
-        ),
-      })
-    ) {
+        subtitle: "Guest limit reached."
+      });
       return;
     }
-    if (!user?.id) return;
+
+    // if (!gate.requireAuth(...)) return; // REMOVED
+    // if (!user?.id) return; // REMOVED
 
     setLoading(true);
     setPlanText("");
@@ -153,13 +153,23 @@ export default function PlannerPage() {
         : String(Date.now());
 
     try {
+      let body: any = { userId: user?.id || "guest" };
+
+      if (!user) {
+        incrementGuestUsage();
+        const STORAGE_KEY_DEMO_TASKS = "aph_demo_tasks_session_v1";
+        const guestTasks = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]");
+        // Filter incomplete
+        body.tasks = guestTasks.filter((t: any) => !t.completed);
+      }
+
       const res = await fetch("/api/daily-plan", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Client-Request-Id": reqId,
         },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify(body),
       });
 
       const raw = await res.text();
@@ -233,12 +243,14 @@ export default function PlannerPage() {
     if (!planText.trim()) return;
     play("pop");
 
-    if (!gate.requireAuth(undefined, {
-      title: t("auth.tasks.title", "Log in to create tasks."),
-      subtitle: t("auth.tasks.subtitle", "Turn your plan into actionable to-dos automatically.")
-    })) return;
+    if (!user && guestLimitReached) {
+      gate.openGate({ title: "Limit reached" });
+      return;
+    }
+    if (!user) incrementGuestUsage();
 
-    if (!user) return;
+    // if (!gate.requireAuth(...)) return; // REMOVED
+    // if (!user) return; // REMOVED
 
     setGeneratingTasks(true);
 

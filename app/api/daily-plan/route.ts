@@ -173,33 +173,50 @@ export async function POST(req: Request) {
 
     const today = getTodayAthensYmd();
 
-    // 0) Check usage BEFORE calling OpenAI
-    const usageState = await getPlanAndUsage(userId, today);
+    // GUEST BYPASS
+    const isGuest = userId === "guest" || userId.startsWith("demo-");
+    let usageState = {
+      isPro: false,
+      currentCount: 0,
+      dailyLimit: FREE_DAILY_LIMIT,
+      usageId: null,
+      planAccount: "free"
+    };
 
-    // block only for free
-    if (!usageState.isPro && usageState.currentCount >= usageState.dailyLimit) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "You’ve reached today’s AI limit. Try again tomorrow or upgrade.",
-          planAccount: usageState.planAccount,
-          dailyLimit: usageState.dailyLimit,
-          usedToday: usageState.currentCount,
-          usageDate: today,
-        },
-        { status: 429 }
-      );
+    if (!isGuest) {
+      // 0) Check usage BEFORE calling OpenAI
+      usageState = await getPlanAndUsage(userId, today);
+
+      // block only for free
+      if (!usageState.isPro && usageState.currentCount >= usageState.dailyLimit) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "You’ve reached today’s AI limit. Try again tomorrow or upgrade.",
+            planAccount: usageState.planAccount,
+            dailyLimit: usageState.dailyLimit,
+            usedToday: usageState.currentCount,
+            usageDate: today,
+          },
+          { status: 429 }
+        );
+      }
     }
 
     /* 1) PROFILE (tone, focus, language) */
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("ai_tone, focus_area, ui_language")
-      .eq("id", userId)
-      .maybeSingle();
+    let profile: any = null;
 
-    if (profileError) {
-      console.error("[daily-plan] profile load error", profileError);
+    if (!isGuest) {
+      const { data: p, error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .select("ai_tone, focus_area, ui_language")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("[daily-plan] profile load error", profileError);
+      }
+      profile = p;
     }
 
     const toneDescription = buildToneDescription(profile?.ai_tone);
@@ -209,16 +226,21 @@ export async function POST(req: Request) {
     const langName = getLanguageName(uiLang);
 
     /* 2) TASKS */
-    const { data: tasks, error: tasksErr } = await supabaseAdmin
-      .from("tasks")
-      .select("title, description, due_date, completed")
-      .eq("user_id", userId)
-      .order("due_date", { ascending: true })
-      .limit(30);
+    let openTasks: any[] = [];
 
-    if (tasksErr) console.error("[daily-plan] tasks load error", tasksErr);
+    if (isGuest && Array.isArray((body as any).tasks)) {
+      openTasks = (body as any).tasks;
+    } else if (!isGuest) {
+      const { data: tasks, error: tasksErr } = await supabaseAdmin
+        .from("tasks")
+        .select("title, description, due_date, completed")
+        .eq("user_id", userId)
+        .order("due_date", { ascending: true })
+        .limit(30);
 
-    const openTasks = (tasks || []).filter((t: any) => !t.completed);
+      if (tasksErr) console.error("[daily-plan] tasks load error", tasksErr);
+      openTasks = (tasks || []).filter((t: any) => !t.completed);
+    }
 
     const tasksText = openTasks
       .map((t: any, i: number) => {
@@ -272,7 +294,11 @@ Output format (no markdown tables):
     }
 
     /* 5) UPDATE USAGE (counts 1 AI call) */
-    const inc = await incrementUsage(userId, today, usageState.usageId, usageState.currentCount);
+    let usedToday = usageState.currentCount + 1;
+    if (!isGuest) {
+      const inc = await incrementUsage(userId, today, usageState.usageId, usageState.currentCount);
+      usedToday = inc.usedToday;
+    }
 
     // ✅ IMPORTANT:
     // Return "text" for the plan content.
@@ -281,7 +307,7 @@ Output format (no markdown tables):
       {
         ok: true,
         text,
-        usedToday: inc.usedToday,
+        usedToday,
         dailyLimit: usageState.dailyLimit,
         planAccount: usageState.planAccount,
         usageDate: today,

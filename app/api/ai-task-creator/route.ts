@@ -43,57 +43,71 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Load plan for limits
-    const { data: profile, error: profileErr } = await supabaseAdmin
-      .from("profiles")
-      .select("plan, email")
-      .eq("id", userId)
-      .maybeSingle();
+    // GUEST BYPASS
+    const isGuest = userId === "guest" || userId.startsWith("demo-");
 
-    if (profileErr) {
-      console.error("[ai-task-creator] profile load error", profileErr);
-      return NextResponse.json(
-        { ok: false, error: "Failed to load user plan." },
-        { status: 500 }
-      );
+    let isPro = false;
+    let planRaw = "free";
+    let dailyLimit = FREE_DAILY_LIMIT;
+
+    if (!isGuest) {
+      // ✅ Load plan for limits
+      const { data: profile, error: profileErr } = await supabaseAdmin
+        .from("profiles")
+        .select("plan, email")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (profileErr) {
+        console.error("[ai-task-creator] profile load error", profileErr);
+        return NextResponse.json(
+          { ok: false, error: "Failed to load user plan." },
+          { status: 500 }
+        );
+      }
+
+      planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
+      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+      const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
+      isPro = planRaw === "pro" || planRaw === "founder" || isAdmin;
+      dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
     }
-
-    const planRaw =
-      (profile?.plan as "free" | "pro" | "founder" | null) || "free";
-    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-    const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
-    const isPro = planRaw === "pro" || planRaw === "founder" || isAdmin;
-    const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
     const today = getTodayString();
+    let currentCount = 0;
+    let usage: any = null;
 
-    // ✅ Check usage
-    const { data: usage, error: usageErr } = await supabaseAdmin
-      .from("ai_usage")
-      .select("id, count")
-      .eq("user_id", userId)
-      .eq("usage_date", today)
-      .maybeSingle();
+    if (!isGuest) {
+      // ✅ Check usage
+      const { data: u, error: usageErr } = await supabaseAdmin
+        .from("ai_usage")
+        .select("id, count")
+        .eq("user_id", userId)
+        .eq("usage_date", today)
+        .maybeSingle();
 
-    if (usageErr && (usageErr as any).code !== "PGRST116") {
-      console.error("[ai-task-creator] usage select error", usageErr);
-      return NextResponse.json(
-        { ok: false, error: "Could not check AI usage." },
-        { status: 500 }
-      );
-    }
+      usage = u;
 
-    const currentCount = usage?.count || 0;
-    if (!isPro && currentCount >= dailyLimit) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "You’ve reached today’s AI limit. Try again tomorrow or upgrade.",
-          plan: planRaw,
-          dailyLimit,
-        },
-        { status: 429 }
-      );
+      if (usageErr && (usageErr as any).code !== "PGRST116") {
+        console.error("[ai-task-creator] usage select error", usageErr);
+        return NextResponse.json(
+          { ok: false, error: "Could not check AI usage." },
+          { status: 500 }
+        );
+      }
+
+      currentCount = usage?.count || 0;
+      if (!isPro && currentCount >= dailyLimit) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "You’ve reached today’s AI limit. Try again tomorrow or upgrade.",
+            plan: planRaw,
+            dailyLimit,
+          },
+          { status: 429 }
+        );
+      }
     }
 
     // --- Existing fields ---
@@ -205,18 +219,21 @@ Return ONLY valid JSON with this shape, nothing else:
       .filter((t: any) => t.title.length > 0);
 
     // ✅ Increment ai_usage AFTER success (kept same behavior)
+    // ✅ Increment ai_usage AFTER success (kept same behavior)
     try {
-      if (!usage) {
-        const { error: insErr } = await supabaseAdmin
-          .from("ai_usage")
-          .insert([{ user_id: userId, usage_date: today, count: 1 }]);
-        if (insErr) console.error("[ai-task-creator] usage insert error", insErr);
-      } else {
-        const { error: updErr } = await supabaseAdmin
-          .from("ai_usage")
-          .update({ count: currentCount + 1 })
-          .eq("id", usage.id);
-        if (updErr) console.error("[ai-task-creator] usage update error", updErr);
+      if (!isGuest) {
+        if (!usage) {
+          const { error: insErr } = await supabaseAdmin
+            .from("ai_usage")
+            .insert([{ user_id: userId, usage_date: today, count: 1 }]);
+          if (insErr) console.error("[ai-task-creator] usage insert error", insErr);
+        } else {
+          const { error: updErr } = await supabaseAdmin
+            .from("ai_usage")
+            .update({ count: currentCount + 1 })
+            .eq("id", usage.id);
+          if (updErr) console.error("[ai-task-creator] usage update error", updErr);
+        }
       }
     } catch (e) {
       console.error("[ai-task-creator] usage write exception", e);

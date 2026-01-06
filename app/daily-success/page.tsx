@@ -13,6 +13,8 @@ import Confetti from "@/app/components/Confetti";
 import Alive3DImage from "@/app/components/Alive3DImage";
 import { useSound } from "@/lib/sound";
 import VoiceCaptureButton from "@/app/components/VoiceCaptureButton";
+import { useGuestUsage } from "@/app/hooks/useGuestUsage";
+import { useDemo } from "@/app/context/DemoContext";
 
 type PlanType = "free" | "pro" | "founder";
 
@@ -430,16 +432,31 @@ export default function DailySuccessPage() {
   }
 
   // 5) Load score stats (today + last days)
+  const { isDemoMode } = useDemo();
+
   useEffect(() => {
-    if (!user) {
-      setAvgLast7(null);
-      setScoreStreak(0);
-      return;
-    }
+
 
     async function loadScores() {
       setScoreLoading(true);
       setScoreMessage("");
+
+      if (!user) {
+        // GUEST / DEMO MODE: Read from Session/Local
+        const todayStr = getTodayStr();
+        // Check session first, then local (if demo mode was used before)
+        const savedScore = sessionStorage.getItem(`score_${todayStr}`) || (isDemoMode ? localStorage.getItem(`score_${todayStr}`) : null);
+        const savedEnergy = sessionStorage.getItem(`energy_${todayStr}`) || (isDemoMode ? localStorage.getItem(`energy_${todayStr}`) : null);
+
+        if (savedScore) setScore(parseInt(savedScore, 10));
+        if (savedEnergy) setEnergyLevel(parseInt(savedEnergy, 10));
+
+        setChartData([]);
+        setAvgLast7(null);
+        setScoreStreak(0);
+        setScoreLoading(false);
+        return;
+      }
 
       try {
         const todayStr = getTodayStr();
@@ -504,7 +521,7 @@ export default function DailySuccessPage() {
     }
 
     loadScores();
-  }, [user]);
+  }, [user, isDemoMode]);
 
   // ✅ Energy Level logic
   const [energyLevel, setEnergyLevel] = useState<number>(5);
@@ -526,18 +543,24 @@ export default function DailySuccessPage() {
     setError("");
     setScoreMessage("");
 
-    // ✅ Gate
-    if (
-      !gate.requireAuth(undefined, {
-        title: t("dailySuccessSystem.auth.saveScore.title", "Log in to save your daily score."),
-        subtitle: t(
-          "dailySuccessSystem.auth.saveScore.subtitle",
-          "Create a free account to track your averages and streak."
-        ),
-      })
-    ) {
+    // GUEST / SESSION SAFEGUARD
+    if (!user) {
+      const todayStr = getTodayStr();
+      // Use sessionStorage for guest session
+      sessionStorage.setItem(`energy_${todayStr}`, String(energyLevel));
+      sessionStorage.setItem(`score_${todayStr}`, String(score));
+
+      // Also save energy to localStorage for interactions that might need it (like DashboardGlance in demo mode)?
+      // But adhering to "lost on close" rule, we rely on sessionStorage for this session.
+
+      setScoreMessage(t("dailySuccessSystem.score.savedMessage", "Saved!"));
+      if (score >= 60) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+      }
       return;
     }
+
     if (!user) return;
 
     setSavingScore(true);
@@ -635,6 +658,8 @@ export default function DailySuccessPage() {
   }
 
   // ✅ NEW: Generate tasks from any text (Morning plan or Evening reflection)
+  const { usage: guestUsage, limitReached: guestLimitReached, increment: incrementGuestUsage } = useGuestUsage();
+  const [activeTab, setActiveTab] = useState<"morning" | "evening">("morning");
   const [generatingTasksSource, setGeneratingTasksSource] = useState<"morning" | "evening" | null>(null);
 
   async function handleGenerateTasks(content: string | null, source: "morning" | "evening") {
@@ -692,7 +717,7 @@ export default function DailySuccessPage() {
       setTimeout(() => setShowConfetti(false), 3000);
 
       // Optional: Redirect to tasks or just show success
-      if (confirm(t("dailySuccessSystem.tasks.success", `Created ${rows.length} tasks! Go to Tasks page?`))) {
+      if (confirm(t("dailySuccessSystem.tasks.success", `Created ${rows.length} tasks! Go to Tasks page ? `))) {
         router.push("/tasks");
       }
 
@@ -1074,14 +1099,26 @@ export default function DailySuccessPage() {
                   {t("dailySuccessSystem.evening.title", "🌙 Evening: Reflect & score your day")}
                 </h2>
                 {/* ✅ Voice Button */}
+                {/* ✅ Voice Button */}
                 <VoiceCaptureButton
-                  userId={user?.id || ""}
+                  userId={user?.id || "guest"}
                   mode="psych"
                   variant="icon"
                   size="sm"
-                  interaction="hold" // or toggle
-                  onResult={handleVoiceReflection}
+                  interaction="hold"
+                  onResult={(payload) => {
+                    if (!user) incrementGuestUsage();
+                    handleVoiceReflection(payload);
+                  }}
                 />
+
+                {!user && guestLimitReached && (
+                  <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center rounded-2xl backdrop-blur-sm">
+                    <button onClick={() => gate.openGate({ title: "Guest limit reached" })} className="text-xs text-[var(--accent)] font-semibold flex items-center gap-1">
+                      🔒 Limit reached
+                    </button>
+                  </div>
+                )}
               </div>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 {t(
@@ -1132,7 +1169,7 @@ export default function DailySuccessPage() {
                       type="button"
                       onClick={() =>
                         sendToAssistant(
-                          `Here is my AI reflection output:\n\n${eveningResult}\n\nGive me 3 additional ideas to improve tomorrow.`,
+                          `Here is my AI reflection output: \n\n${eveningResult} \n\nGive me 3 additional ideas to improve tomorrow.`,
                           "Give additional ideas based on my reflection."
                         )
                       }
@@ -1188,12 +1225,12 @@ export default function DailySuccessPage() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <span
-                          className={`text-xs font-medium ${energyLevel <= 3
-                            ? "text-red-400"
-                            : energyLevel >= 8
-                              ? "text-emerald-400"
-                              : "text-[var(--accent)]"
-                            }`}
+                          className={`text - xs font - medium ${energyLevel <= 3
+                              ? "text-red-400"
+                              : energyLevel >= 8
+                                ? "text-emerald-400"
+                                : "text-[var(--accent)]"
+                            } `}
                         >
                           {energyLevel <= 3
                             ? t("energy.low", "Low Battery")

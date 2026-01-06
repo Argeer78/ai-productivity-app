@@ -26,6 +26,7 @@ import {
   Sparkles,
   Shield,
   Star,
+  Bot,
 } from "lucide-react";
 
 type HeaderProps = {
@@ -48,6 +49,7 @@ type HeaderProps = {
   | "travel"
   | "ai-companion"
   | "ai-chat"
+  | "ai-task-creator"
   | "reviews";
 };
 
@@ -61,6 +63,7 @@ const APPS: {
     { href: "/tasks", navKey: "tasks", fallback: "Tasks", Icon: CheckSquare },
     { href: "/planner", navKey: "planner", fallback: "Planner", Icon: Calendar },
     { href: "/calendar", navKey: "calendar", fallback: "Calendar", Icon: CalendarDays }, // New App
+    { href: "/ai-task-creator", navKey: "aiTaskCreator", fallback: "AI Task Creator", Icon: Bot },
     { href: "/ai-chat", navKey: "aiChat", fallback: "AI Hub Chat", Icon: MessageSquare },
     { href: "/ai-companion", navKey: "aiCompanion", fallback: "AI Companion", Icon: HeartHandshake },
     { href: "/templates", navKey: "templates", fallback: "Templates", Icon: FileText },
@@ -203,6 +206,7 @@ export default function AppHeader({ active }: HeaderProps) {
     "admin",
     "ai-companion",
     "ai-chat",
+    "ai-task-creator",
     "reviews",
   ].includes(active || "");
 
@@ -219,6 +223,7 @@ export default function AppHeader({ active }: HeaderProps) {
       { key: "planner", label: navLabel("planner", "Planner"), href: "/planner" },
       { key: "calendar", label: navLabel("calendar", "Calendar"), href: "/calendar" },
       { key: "ai-chat", label: navLabel("aiChat", "AI Hub Chat"), href: "/ai-chat" },
+      { key: "ai-task-creator", label: navLabel("aiTaskCreator", "AI Task Creator"), href: "/ai-task-creator" },
       { key: "ai-companion", label: navLabel("aiCompanion", "AI Companion"), href: "/ai-companion" },
       { key: "templates", label: navLabel("templates", "Templates"), href: "/templates" },
       { key: "daily-success", label: navLabel("dailySuccess", "Daily Success"), href: "/daily-success" },

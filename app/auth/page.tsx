@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useT } from "@/lib/useT";
 import type { Lang } from "@/lib/i18n";
+import { useDemo } from "@/app/context/DemoContext";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -56,6 +57,7 @@ export default function AuthPage() {
 
   const { lang, setLang } = useLanguage();
   const { t } = useT("auth");
+  const { isDemoMode, hasUsedDemo, startDemo } = useDemo();
 
   function resetState(next: Mode) {
     setMode(next);
@@ -63,6 +65,8 @@ export default function AuthPage() {
     setError("");
     if (next === "forgot") setPassword("");
   }
+
+
 
   async function handleAuthSubmit(e: FormEvent) {
     e.preventDefault();
@@ -285,6 +289,20 @@ export default function AuthPage() {
             className="mt-4 w-full px-4 py-2 rounded-xl bg-white text-slate-900"
           >
             🔑 {t("google.button")}
+          </button>
+        )}
+
+        {/* Demo Mode Link - Always allow if not currently in demo */}
+        {!isDemoMode && mode === "login" && (
+          <button
+            type="button"
+            onClick={() => {
+              startDemo();
+              window.location.href = "/dashboard";
+            }}
+            className="mt-4 w-full px-4 py-2 rounded-xl border border-dashed border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800 text-xs transition-colors"
+          >
+            ⚡ {t("demo.button", "Try Demo Mode (No Login)")}
           </button>
         )}
 

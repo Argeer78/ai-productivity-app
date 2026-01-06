@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useDemo } from "@/app/context/DemoContext";
 
 export type AuthGateCopy = {
   title?: string;
@@ -50,6 +51,8 @@ export function useAuthGate<TUser extends unknown>(
     return { user: (arg as TUser) ?? null };
   }, [arg]);
 
+  const { isDemoMode } = useDemo();
+
   const [open, setOpen] = useState(false);
   const [copy, setCopy] = useState<AuthGateCopy>(defaultCopy || {});
 
@@ -67,14 +70,14 @@ export function useAuthGate<TUser extends unknown>(
 
   const requireAuth = useCallback(
     (onAuthed?: () => void, overrideCopy?: AuthGateCopy) => {
-      if (user) {
+      if (user || isDemoMode) { // ✅ Allow if user OR demo mode
         onAuthed?.();
         return true;
       }
       openGate(overrideCopy);
       return false;
     },
-    [openGate, user]
+    [openGate, user, isDemoMode]
   );
 
   return { open, authHref, copy, close, requireAuth, openGate };

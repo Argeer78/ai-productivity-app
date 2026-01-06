@@ -15,7 +15,10 @@ export async function POST(req: Request) {
     const { message, history, category, userId, lang, attachments } = body;
 
     // ✅ Require userId so we can count usage per user
-    if (!userId || typeof userId !== "string") {
+    // ✅ GUEST BYPASS
+    const isGuest = userId === "guest" || userId.startsWith("demo-");
+
+    if ((!userId || typeof userId !== "string") && !isGuest) {
       return NextResponse.json(
         { ok: false, error: "Unauthorized: userId is required" },
         { status: 401 }
@@ -28,13 +31,16 @@ export async function POST(req: Request) {
     let contextFromFiles = "";
     if (Array.isArray(attachments) && attachments.length > 0) {
       // Check Plan
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("plan")
-        .eq("id", userId)
-        .single();
+      let isPro = false;
+      if (!isGuest) {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("plan")
+          .eq("id", userId)
+          .single();
+        isPro = profile?.plan === "pro" || profile?.plan === "founder";
+      }
 
-      const isPro = profile?.plan === "pro" || profile?.plan === "founder";
       if (!isPro) {
         return NextResponse.json(
           { ok: false, error: "Attachments are a Pro feature." },
@@ -135,7 +141,9 @@ RULES:
     }
 
     // ✅ Count this as 1 AI call ONLY after success
-    await bumpAiUsage(userId, 1);
+    if (!isGuest) {
+      await bumpAiUsage(userId, 1);
+    }
 
     return NextResponse.json({
       ok: true,

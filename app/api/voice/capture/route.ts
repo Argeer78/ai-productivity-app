@@ -155,9 +155,15 @@ export async function POST(req: Request) {
     }
 
     // ✅ Count 1 AI usage per capture (includes Whisper + Chat)
-    const usage = await checkAndIncrementAiUsage(userId);
-    if (!usage.ok) {
-      return jsonError("Daily AI limit reached.", 429, JSON.stringify(usage));
+    // GUEST / DEMO BYPASS
+    if (userId.startsWith("demo-") || userId === "guest") {
+      // Allow guest usage without DB tracking (rate limited by IP naturally/hopefuly or just trust for demo)
+      console.log("[voice-capture] Guest usage allowed:", userId);
+    } else {
+      const usage = await checkAndIncrementAiUsage(userId);
+      if (!usage.ok) {
+        return jsonError("Daily AI limit reached.", 429, JSON.stringify(usage));
+      }
     }
 
     console.log("[voice-capture] upload", {
@@ -416,7 +422,9 @@ RULES:
     };
 
     let noteId: string | null = null;
-    if (mode === "autosave" && structured.note) {
+    const isGuest = userId.startsWith("demo-") || userId === "guest";
+
+    if (mode === "autosave" && structured.note && !isGuest) {
       const { data, error } = await supabaseAdmin
         .from("notes")
         .insert({

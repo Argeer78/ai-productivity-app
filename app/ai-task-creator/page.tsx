@@ -16,6 +16,8 @@ type SuggestedTask = {
   size?: string; // "small" | "medium" | "big"
 };
 
+import { useGuestUsage } from "@/app/hooks/useGuestUsage";
+
 type PlanType = "free" | "pro" | "founder";
 
 export default function AITaskCreatorPage() {
@@ -28,6 +30,7 @@ export default function AITaskCreatorPage() {
 
   // ✅ Auth gate
   const gate = useAuthGate(user);
+  const { usage: guestUsage, limitReached: guestLimitReached, increment: incrementGuestUsage } = useGuestUsage();
 
   // Form fields
   const [gender, setGender] = useState<"male" | "female" | "other" | "skip">("skip");
@@ -102,18 +105,18 @@ export default function AITaskCreatorPage() {
     setStatusMessage("");
 
     // ✅ Gate for guests
-    if (
-      !gate.requireAuth(undefined, {
+    if (!user && guestLimitReached) {
+      gate.openGate({
         title: translate("errors.loginRequired", "Log in to generate AI tasks."),
-        subtitle: translate(
-          "loginPrompt",
-          "Log in or create a free account to let AI generate a personalized task list for your day."
-        ),
-      })
-    ) {
+        subtitle: "Guest limit reached for this session."
+      });
       return;
     }
-    if (!user) return;
+    if (!user) incrementGuestUsage();
+
+    // if (!gate.requireAuth(...)) return; // REMOVED
+
+    // if (!user) return; // REMOVED
 
     if (!todayPlan.trim() && !mainGoal.trim()) {
       setSuggestError(
@@ -128,7 +131,7 @@ export default function AITaskCreatorPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.id,
+          userId: user?.id || "guest",
           gender,
           ageRange,
           jobRole,
@@ -148,14 +151,16 @@ export default function AITaskCreatorPage() {
         localStorage.setItem(`energy_${today} `, String(energyLevel));
       }
 
-      await supabase.from("daily_scores").upsert(
-        {
-          user_id: user.id,
-          score_date: today,
-          energy_level: energyLevel,
-        },
-        { onConflict: "user_id,score_date" }
-      );
+      if (user) {
+        await supabase.from("daily_scores").upsert(
+          {
+            user_id: user.id,
+            score_date: today,
+            energy_level: energyLevel,
+          },
+          { onConflict: "user_id,score_date" }
+        );
+      }
 
       const data = await res.json().catch(() => null);
 
@@ -189,18 +194,8 @@ export default function AITaskCreatorPage() {
     setStatusMessage("");
 
     // ✅ Gate for guests
-    if (
-      !gate.requireAuth(undefined, {
-        title: translate("errors.loginToCreate", "Log in to create tasks."),
-        subtitle: translate(
-          "tasksSection.footerNote",
-          "Tasks will be added to your normal Tasks list. You can edit them later like any other task."
-        ),
-      })
-    ) {
-      return;
-    }
-    if (!user) return;
+    // if (!gate.requireAuth(...)) return; // ALLOW GUEST SAVE
+    // if (!user) return; 
 
     if (!suggestedTasks.length) {
       setSuggestError(translate("errors.noTasksYet", "Generate tasks first, or add at least one task."));
@@ -218,17 +213,36 @@ export default function AITaskCreatorPage() {
 
     setCreatingTasks(true);
     try {
-      const rows = cleaned.map((t) => ({
-        user_id: user.id,
-        title: t.title,
-        completed: false,
-      }));
+      if (!user) {
+        // GUEST: Save to Session Storage
+        const STORAGE_KEY_DEMO_TASKS = "aph_demo_tasks_session_v1";
+        const existing = JSON.parse(sessionStorage.getItem(STORAGE_KEY_DEMO_TASKS) || "[]");
 
-      const { error } = await supabase.from("tasks").insert(rows);
-      if (error) {
-        console.error("[ai-task-creator] insert error", error);
-        setSuggestError(translate("errors.insertFailed", "Failed to create tasks in your account."));
-        return;
+        const newRows = cleaned.map((t) => ({
+          id: `demo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          user_id: "demo-user",
+          title: t.title,
+          completed: false,
+          category: t.category || null, // normalized later
+          created_at: new Date().toISOString(),
+          due_date: new Date().toISOString()
+        }));
+
+        const updated = [...newRows, ...existing];
+        sessionStorage.setItem(STORAGE_KEY_DEMO_TASKS, JSON.stringify(updated));
+      } else {
+        const rows = cleaned.map((t) => ({
+          user_id: user.id,
+          title: t.title,
+          completed: false,
+        }));
+
+        const { error } = await supabase.from("tasks").insert(rows);
+        if (error) {
+          console.error("[ai-task-creator] insert error", error);
+          setSuggestError(translate("errors.insertFailed", "Failed to create tasks in your account."));
+          return;
+        }
       }
 
       setStatusMessage(translate("status.created", "Tasks created! Redirecting to your Tasks…"));
