@@ -2195,7 +2195,7 @@ export default function TasksPage() {
 
                           <button
                             type="button"
-                            onClick={() => handleDeleteTask(task)}
+                            onClick={() => handleDeleteTask(task.id)}
                             disabled={isDeleting}
                             className="text-[11px] text-red-400 hover:text-red-300"
                           >
