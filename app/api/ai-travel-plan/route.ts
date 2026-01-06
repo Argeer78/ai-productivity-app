@@ -115,7 +115,7 @@ export async function POST(req: Request) {
       maxBudget?: string | number;
     };
 
-    const isGuest = userId === "guest" || userId.startsWith("demo-");
+    const isGuest = userId === "guest" || (userId && userId.startsWith("demo-"));
 
     if (!userId && !isGuest) {
       return NextResponse.json(

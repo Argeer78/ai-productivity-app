@@ -12,6 +12,7 @@ import { useSound } from "@/lib/sound";
 import Alive3DImage from "@/app/components/Alive3DImage";
 import { useDemo } from "@/app/context/DemoContext";
 import { useGuestUsage } from "@/app/hooks/useGuestUsage";
+import confetti from "canvas-confetti";
 
 const STORAGE_KEY_DEMO_TASKS = "aph_demo_tasks_session_v1";
 
