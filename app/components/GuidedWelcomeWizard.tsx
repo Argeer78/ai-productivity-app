@@ -39,19 +39,7 @@ export default function GuidedWelcomeWizard({ isOpen, onClose }: Props) {
     const [authLoading, setAuthLoading] = useState(false);
     const [authError, setAuthError] = useState("");
 
-    useEffect(() => {
-        // Auto-open logic: If not logged in & not seen wizard
-        const checkUser = async () => {
-            const { data } = await supabase.auth.getSession();
-            const hasSeen = localStorage.getItem(STORAGE_KEY_WIZARD_COMPLETED);
 
-            if (!data.session && !hasSeen) {
-                // Simple delay to not jar the user immediately
-                setTimeout(() => setIsOpen(true), 1500);
-            }
-        };
-        checkUser();
-    }, []);
 
     const handleIntentSubmit = async () => {
         if (!intent.trim()) return;
