@@ -539,7 +539,7 @@ export default function HomePage() {
                       if (user) {
                         window.location.href = "/dashboard";
                       } else {
-                        onOpenWizard();
+                        setWizardOpen(true);
                       }
                     }}
                     className="px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
