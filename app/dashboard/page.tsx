@@ -991,6 +991,40 @@ export default function DashboardPage() {
 
   // ---------- RENDER STATES ----------
 
+  // Hydrate Wizard Tasks if newly signed up
+  useEffect(() => {
+    if (!user) return;
+
+    // Check session storage
+    const wizardTasksJson = sessionStorage.getItem("aph_wizard_pending_tasks");
+    if (wizardTasksJson) {
+      try {
+        const tasks = JSON.parse(wizardTasksJson);
+        if (Array.isArray(tasks) && tasks.length > 0) {
+          // Insert into DB
+          const rows = tasks.map((t: any) => ({
+            user_id: user.id,
+            title: t.title,
+            category: t.category,
+            created_at: new Date().toISOString()
+          }));
+
+          supabase.from("tasks").insert(rows).then(({ error }) => {
+            if (!error) {
+              showToast(t("dashboard.wizardSuccess", "Your generated plan has been saved! 🚀"));
+              // Refresh data
+              setRecentTasks((prev) => [...rows.map((r: any) => ({ ...r, id: crypto.randomUUID() })).slice(0, 3), ...prev.slice(0, 3)]);
+              // Clear storage
+              sessionStorage.removeItem("aph_wizard_pending_tasks");
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Wizard hydration error", e);
+      }
+    }
+  }, [user, t]);
+
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">

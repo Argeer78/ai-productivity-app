@@ -9,9 +9,11 @@ import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import SocialShareBar from "@/app/components/SocialShareBar";
 import ThemePreviewWidget from "@/app/components/ThemePreviewWidget";
+import GuidedWelcomeWizard from "@/app/components/GuidedWelcomeWizard";
 import { useT } from "@/lib/useT";
 
-function ToolsSection() {
+// function ToolsSection() {
+function ToolsSection({ onOpenWizard }: { onOpenWizard: () => void }) {
   const { t } = useT();
 
   const featureCards = useMemo(() => [
@@ -375,6 +377,20 @@ export default function HomePage() {
     loadUser();
   }, []);
 
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Auto-open wizard
+  useEffect(() => {
+    async function checkWizard() {
+      const { data } = await supabase.auth.getSession();
+      const hasSeen = localStorage.getItem("aph_wizard_completed");
+      if (!data.session && !hasSeen) {
+        setTimeout(() => setWizardOpen(true), 1500);
+      }
+    }
+    checkWizard();
+  }, []);
+
   const primaryCtaHref = user ? "/dashboard" : "/auth";
   const primaryCtaLabel = t("home.hero.cta.dashboard", "Open your dashboard");
 
@@ -414,12 +430,18 @@ export default function HomePage() {
               </p>
 
               <div className="flex flex-wrap items-center gap-3 mb-3">
-                <Link
-                  href={primaryCtaHref}
+                <button
+                  onClick={() => {
+                    if (user) {
+                      window.location.href = "/dashboard";
+                    } else {
+                      setWizardOpen(true);
+                    }
+                  }}
                   className="px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:opacity-90 text-sm font-medium text-[var(--accent-contrast)] active:scale-95 transition-transform"
                 >
-                  {primaryCtaLabel}
-                </Link>
+                  {user ? primaryCtaLabel : t("home.hero.getStarted", "Get started")}
+                </button>
 
                 <Link
                   href={secondaryCtaHref}
@@ -482,7 +504,7 @@ export default function HomePage() {
           {!checkingUser && <PromoHighlights isAuthed={!!user} />}
 
           {/* TOOLS / WHAT YOU GET */}
-          <ToolsSection />
+          <ToolsSection onOpenWizard={() => setWizardOpen(true)} />
 
           {/* ✅ PRICING TEASER (pricing moved to /pricing) */}
           <section className="mb-14" id="pricing">
@@ -512,12 +534,18 @@ export default function HomePage() {
                     {t("home.pricing.cta", "View pricing")}
                   </Link>
 
-                  <Link
-                    href={user ? "/dashboard" : "/auth"}
+                  <button
+                    onClick={() => {
+                      if (user) {
+                        window.location.href = "/dashboard";
+                      } else {
+                        onOpenWizard();
+                      }
+                    }}
                     className="px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] text-xs md:text-sm"
                   >
-                    {t("home.pricing.cta.secondary", "Open dashboard")}
-                  </Link>
+                    {user ? t("home.pricing.cta.secondary", "Open dashboard") : t("home.hero.getStarted", "Get started")}
+                  </button>
                 </div>
               </div>
 
@@ -595,7 +623,8 @@ export default function HomePage() {
             </div>
           </footer>
         </div>
-      </div>
-    </main>
+      </div >
+      <GuidedWelcomeWizard isOpen={wizardOpen} onClose={() => setWizardOpen(false)} />
+    </main >
   );
 }
