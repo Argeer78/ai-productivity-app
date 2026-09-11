@@ -1,0 +1,7 @@
+-- AIProd intentionally has no mandatory database seed rows at the M0.1 baseline.
+--
+-- The application can start with empty public tables. Supported languages and
+-- UI fallback strings are versioned under /languages and /lib. Product content,
+-- translations, templates, changelog entries, admin membership, and user data
+-- are restored from protected backups or managed through approved workflows;
+-- they must not be copied into a repository seed.
