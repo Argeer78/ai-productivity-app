@@ -1,19 +1,18 @@
 
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(request: Request) {
     try {
-        const supabase = createRouteHandlerClient({ cookies });
-        const { data: { user } } = await supabase.auth.getUser();
+        const { user } = await getAuthenticatedUser(request);
 
         if (!user) {
             return NextResponse.json({ hasReviewed: false });
         }
 
         // Check app_reviews table
-        const { count, error } = await supabase
+        const { count, error } = await supabaseAdmin
             .from("app_reviews")
             .select("*", { count: "exact", head: true })
             .eq("user_id", user.id);

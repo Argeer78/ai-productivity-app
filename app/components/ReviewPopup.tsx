@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import ReviewForm from "@/app/components/ReviewForm";
+import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
 
 // Trigger logic constants
@@ -26,7 +27,12 @@ export function useReviewPopupTrigger() {
 
         // 2. Check server-side (for cross-device or lost local storage) - triggers once
         if (!checkedServer) {
-            fetch("/api/reviews/check")
+            supabase.auth.getSession()
+                .then(({ data }) => fetch("/api/reviews/check", {
+                    headers: data.session?.access_token
+                        ? { Authorization: `Bearer ${data.session.access_token}` }
+                        : {},
+                }))
                 .then(res => res.json())
                 .then(data => {
                     if (data.hasReviewed) {
