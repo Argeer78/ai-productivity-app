@@ -19,7 +19,7 @@ async function checkAndIncrementAiUsage(userId: string) {
 
   const { data: profile, error: profErr } = await supabaseAdmin
     .from("profiles")
-    .select("plan, email")
+    .select("plan")
     .eq("id", userId)
     .maybeSingle();
 
@@ -27,9 +27,7 @@ async function checkAndIncrementAiUsage(userId: string) {
 
   const rawPlan = profile?.plan || "free";
   const plan = rawPlan.toLowerCase();
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
-  const isPro = plan === "pro" || plan === "founder" || isAdmin;
+  const isPro = plan === "pro" || plan === "founder";
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
   const { data: usage, error: usageErr } = await supabaseAdmin

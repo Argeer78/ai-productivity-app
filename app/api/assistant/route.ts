@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isAdminUser } from "@/lib/adminAuth";
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -117,15 +118,14 @@ async function checkAndIncrementAiUsage(userId: string) {
 
   const { data: profile, error: profErr } = await supabaseAdmin
     .from("profiles")
-    .select("plan, email")
+    .select("plan")
     .eq("id", userId)
     .maybeSingle();
 
   if (profErr) console.error("[assistant] profile load error", profErr);
 
   const plan = (profile?.plan as "free" | "pro" | "founder") || "free";
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
+  const isAdmin = await isAdminUser(userId);
   const isPro = plan === "pro" || plan === "founder" || isAdmin;
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 

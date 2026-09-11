@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:security": "tsx --test tests/security/*.test.ts",
     "export:ui-translations": "tsx scripts/export-ui-translations.ts"
   },
   "dependencies": {

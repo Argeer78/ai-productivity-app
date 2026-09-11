@@ -1,41 +1,29 @@
 import "server-only";
 
-import type { User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { authorizeAdminIdentity, type AdminAuthResult } from "@/lib/adminAuthorization";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export type AdminAuthResult =
-  | { user: User; error: null; status: 200 }
-  | { user: null; error: "Unauthorized" | "Forbidden" | "Admin authorization unavailable"; status: 401 | 403 | 500 };
-
-export async function requireAdmin(request: Request): Promise<AdminAuthResult> {
-  const auth = await getAuthenticatedUser(request);
-
-  if (!auth.user) {
-    return {
-      user: null,
-      error: auth.error === "server_misconfigured" ? "Admin authorization unavailable" : "Unauthorized",
-      status: auth.error === "server_misconfigured" ? 500 : 401,
-    };
-  }
-
+export async function isAdminUser(userId: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
     .from("admin_users")
     .select("user_id")
-    .eq("user_id", auth.user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {
     console.error("[admin-auth] Failed to verify admin membership", error.message);
-    return { user: null, error: "Admin authorization unavailable", status: 500 };
+    throw new Error("Admin authorization unavailable");
   }
 
-  if (!data) {
-    return { user: null, error: "Forbidden", status: 403 };
-  }
+  return Boolean(data);
+}
 
-  return { user: auth.user, error: null, status: 200 };
+export async function requireAdmin(
+  request: Request
+): Promise<AdminAuthResult> {
+  return authorizeAdminIdentity(await getAuthenticatedUser(request), isAdminUser);
 }
 
 export function adminAuthErrorResponse(result: AdminAuthResult) {

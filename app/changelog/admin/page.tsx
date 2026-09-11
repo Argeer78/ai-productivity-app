@@ -5,11 +5,7 @@ import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
-
-type Profile = {
-  id: string;
-  is_admin: boolean | null;
-};
+import { useAdminCapability } from "@/lib/useAdminCapability";
 
 // Allowed section labels
 const SECTION_OPTIONS = ["Latest", "Recent", "Earlier"] as const;
@@ -17,8 +13,8 @@ type SectionOption = (typeof SECTION_OPTIONS)[number];
 
 export default function ChangelogAdminPage() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [checking, setChecking] = useState(true);
+  const { isAdmin, loading: checkingAdmin } = useAdminCapability();
 
   const [title, setTitle] = useState("");
   const [section, setSection] = useState<SectionOption>("Latest");
@@ -38,23 +34,8 @@ export default function ChangelogAdminPage() {
           if (!cancelled) setChecking(false);
           return;
         }
-        const uid = authData.user.id;
         if (cancelled) return;
-
-        setUserId(uid);
-
-        const { data: prof, error: profErr } = await supabase
-          .from("profiles")
-          .select("id, is_admin")
-          .eq("id", uid)
-          .maybeSingle();
-
-        if (profErr) {
-          console.error("[changelog/admin] profile error", profErr);
-        }
-        if (!cancelled) {
-          setProfile(prof as Profile | null);
-        }
+        setUserId(authData.user.id);
       } catch (err) {
         console.error("[changelog/admin] load error", err);
       } finally {
@@ -109,7 +90,7 @@ export default function ChangelogAdminPage() {
   }
 
   // Gate: loading
-  if (checking) {
+  if (checking || checkingAdmin) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">Checking access…</p>
@@ -136,7 +117,7 @@ export default function ChangelogAdminPage() {
   }
 
   // Gate: not admin
-  if (!profile?.is_admin) {
+  if (!isAdmin) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col items-center justify-center p-4">
         <p className="mb-2 text-sm font-semibold">Changelog admin</p>

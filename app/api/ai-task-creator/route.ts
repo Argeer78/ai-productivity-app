@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       // ✅ Load plan for limits
       const { data: profile, error: profileErr } = await supabaseAdmin
         .from("profiles")
-        .select("plan, email")
+        .select("plan")
         .eq("id", userId)
         .maybeSingle();
 
@@ -67,9 +67,7 @@ export async function POST(req: Request) {
       }
 
       planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
-      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-      const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
-      isPro = planRaw === "pro" || planRaw === "founder" || isAdmin;
+  isPro = planRaw === "pro" || planRaw === "founder";
       dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
     }
 

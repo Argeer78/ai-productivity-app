@@ -1,6 +1,6 @@
 import { createClient, type User } from "@supabase/supabase-js";
 
-type AuthResult =
+export type AuthResult =
   | { user: User; error: null }
   | { user: null; error: "missing_token" | "invalid_token" | "server_misconfigured" };
 

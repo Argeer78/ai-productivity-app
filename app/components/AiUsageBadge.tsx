@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
+import { useAdminCapability } from "@/lib/useAdminCapability";
 
 type PlanType = "free" | "pro" | "founder";
 
@@ -25,6 +26,7 @@ export default function AiUsageBadge({
 }) {
     const { t: rawT } = useT("");
     const t = (k: string, f: string) => rawT(k, f);
+    const { isAdmin } = useAdminCapability();
 
     const FREE_DAILY_LIMIT =
         Number(process.env.NEXT_PUBLIC_FREE_AI_DAILY_LIMIT || "") || 10;
@@ -85,9 +87,6 @@ export default function AiUsageBadge({
 
                 if (!mounted) return;
 
-                const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-                const isAdmin = adminEmail && user.email === adminEmail;
-
                 const p = (profile?.plan || "free") as PlanType;
                 setPlan(p === "pro" || p === "founder" || isAdmin ? "founder" : "free");
             } catch {
@@ -102,7 +101,7 @@ export default function AiUsageBadge({
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [isAdmin]);
 
     // ---------- Refresh usage (reads ai_usage) ----------
     async function refreshUsage(uid: string) {

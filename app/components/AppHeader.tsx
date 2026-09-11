@@ -11,6 +11,7 @@ import { useLanguage } from "@/app/components/LanguageProvider";
 import AiUsageBadge from "@/app/components/AiUsageBadge";
 import { useT } from "@/lib/useT";
 import { useSound } from "@/lib/sound";
+import { useAdminCapability } from "@/lib/useAdminCapability";
 import {
   StickyNote,
   CheckSquare,
@@ -78,8 +79,6 @@ const APPS: {
 
 
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
-
 export default function AppHeader({ active }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -89,6 +88,7 @@ export default function AppHeader({ active }: HeaderProps) {
 
   const { lang, label: currentLangLabel } = useLanguage();
   const { t } = useT(); // no namespace
+  const { isAdmin } = useAdminCapability();
   const navLabel = (key: string, fallback: string) => t(`nav.${key}`, fallback);
   const authLabel = (key: "login" | "logout", fallback: string) => t(`auth.${key}`, fallback);
 
@@ -133,8 +133,6 @@ export default function AppHeader({ active }: HeaderProps) {
       subscription.unsubscribe();
     };
   }, []);
-
-  const isAdmin = userEmail === ADMIN_EMAIL;
 
   useEffect(() => {
     if (!appsOpen) return;
@@ -241,7 +239,6 @@ export default function AppHeader({ active }: HeaderProps) {
       {/* =======================
           MAIN HEADER ROW
           (Settings + Language are here)
-          DEBUG MARKER: {userEmail === null ? "NULL" : userEmail}
       ======================= */}
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 relative">
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">

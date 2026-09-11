@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isAdminUser } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,7 @@ async function checkAndIncrementAiUsage(userId: string) {
   // plan
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from("profiles")
-    .select("plan, email")
+    .select("plan")
     .eq("id", userId)
     .maybeSingle();
 
@@ -30,8 +31,7 @@ async function checkAndIncrementAiUsage(userId: string) {
   }
 
   const plan = (profile?.plan as "free" | "pro" | "founder") || "free";
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
+  const isAdmin = await isAdminUser(userId);
   const isPro = plan === "pro" || plan === "founder" || isAdmin;
   const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 

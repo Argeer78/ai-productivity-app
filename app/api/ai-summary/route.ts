@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { aiLanguageInstruction } from "@/lib/aiLanguage";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { isAdminUser } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     // Load profile (plan + tone + focus + language)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("plan, ai_tone, focus_area, ui_language, email")
+      .select("plan, ai_tone, focus_area, ui_language")
       .eq("id", userId)
       .maybeSingle();
 
@@ -89,8 +90,7 @@ export async function POST(req: Request) {
     }
 
     const planRaw = (profile?.plan as "free" | "pro" | "founder" | null) || "free";
-    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-    const isAdmin = adminEmail && profile?.email && profile.email === adminEmail;
+    const isAdmin = await isAdminUser(userId);
     const isPro = planRaw === "pro" || planRaw === "founder" || isAdmin;
     const dailyLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
 
