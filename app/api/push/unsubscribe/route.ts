@@ -1,28 +1,20 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient"; // ✅ use existing client
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: Request) {
   try {
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: auth.error === "server_misconfigured" ? 500 : 401 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
-    const { userId, endpoint } = body as { userId?: string; endpoint?: string };
+    const { endpoint } = body as { endpoint?: string };
 
-    // We allow either userId, endpoint, or both.
-    if (!userId && !endpoint) {
-      return NextResponse.json(
-        { ok: false, error: "Missing userId or endpoint" },
-        { status: 400 }
-      );
-    }
-
-    // Validate userId (optional)
-    if (userId && !isValidUUID(userId)) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid userId format" },
-        { status: 400 }
-      );
-    }
-
-    // Validate endpoint (optional)
     if (endpoint && !isValidUrl(endpoint)) {
       return NextResponse.json(
         { ok: false, error: "Invalid endpoint format" },
@@ -30,10 +22,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // ⚠️ Adjust table name/columns if yours is different
-    let query = supabase.from("push_subscriptions").delete();
+    let query = supabaseAdmin
+      .from("push_subscriptions")
+      .delete()
+      .eq("user_id", auth.user.id);
 
-    if (userId) query = query.eq("user_id", userId);
     if (endpoint) query = query.eq("endpoint", endpoint);
 
     const { error } = await query;
@@ -47,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     // Log successful unsubscription
-    console.log("[push/unsubscribe] Successfully unsubscribed user:", userId, "from endpoint:", endpoint);
+    console.log("[push/unsubscribe] Successfully unsubscribed authenticated user");
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -59,18 +52,11 @@ export async function POST(req: Request) {
   }
 }
 
-// Helper function to validate UUID format
-function isValidUUID(value: string): boolean {
-  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-  return uuidRegex.test(value);
-}
-
-// Helper function to validate URL format
 function isValidUrl(value: string): boolean {
   try {
     new URL(value);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }

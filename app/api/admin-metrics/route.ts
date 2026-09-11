@@ -1,11 +1,7 @@
 // app/api/admin-metrics/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
@@ -13,42 +9,10 @@ function getTodayString() {
 
 export async function GET(req: Request) {
   try {
-    // 1) Read access token from Authorization header
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-    const token = authHeader.slice("Bearer ".length);
+    const admin = await requireAdmin(req);
+    const authError = adminAuthErrorResponse(admin);
+    if (authError) return authError;
 
-    // 2) Verify user via anon client + token
-    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false },
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseAuth.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    if (!ADMIN_EMAIL || user.email !== ADMIN_EMAIL) {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
-    }
-
-    // 3) Use supabaseAdmin (service role) for global metrics
     const { count: totalUsers, error: usersErr } = await supabaseAdmin
       .from("profiles")
       .select("*", { count: "exact", head: true });

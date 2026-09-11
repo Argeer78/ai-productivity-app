@@ -1,6 +1,12 @@
 // app/api/stripe/checkout/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+import {
+  getStripePriceId,
+  type StripeCurrency,
+  type StripePlan,
+} from "@/lib/stripePrices";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
@@ -8,58 +14,39 @@ const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey)
   : null;
 
-type Currency = "eur" | "usd" | "gbp";
-type PlanType = "pro" | "yearly" | "founder";
-
-// ✅ Pro MONTHLY price IDs
-const PRO_PRICE_IDS: Record<Currency, string> = {
-  eur: "price_1SZXgJIaVkwgnHGjGepES6Vc",
-  usd: "price_1SZXxSIaVkwgnHGjm9SLuPfm",
-  gbp: "price_1SZXzNIaVkwgnHGjg4BdMcdJ",
-};
-
-// ✅ Pro YEARLY price IDs
-const YEARLY_PRICE_IDS: Record<Currency, string> = {
-  eur: "price_1SZXiIIaVkwgnHGjRoYLY1n3",
-  usd: "price_1SZY1DIaVkwgnHGjuNUXWjVB",
-  gbp: "price_1SZY2DIaVkwgnHGj51H10PI4",
-};
-
-// ✅ Founder MONTHLY price IDs
-const FOUNDER_PRICE_IDS: Record<Currency, string> = {
-  eur: "price_1SZXm9IaVkwgnHGjkj3mYYu7",
-  usd: "price_1SZXqYIaVkwgnHGjROTAO47Y",
-  gbp: "price_1SZXseIaVkwgnHGjdck8h4Qw",
-};
-
 export async function POST(req: Request) {
   try {
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: auth.error === "server_misconfigured" ? 500 : 401 }
+      );
+    }
+
     if (!stripe) {
       console.error("[stripe/checkout] Missing STRIPE_SECRET_KEY");
       return NextResponse.json(
         { ok: false, error: "Stripe is not configured on the server." },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
     const body = (await req.json().catch(() => null)) as
       | {
-          userId?: string;
-          email?: string;
           currency?: string;
           plan?: string; // "pro" | "yearly" | "founder"
         }
       | null;
 
-    if (!body || !body.userId || !body.email || !body.currency) {
-      console.error("[stripe/checkout] Missing required fields", body);
+    if (!body?.currency || !auth.user.email) {
       return NextResponse.json(
-        { ok: false, error: "Missing userId, email or currency." },
+        { ok: false, error: "Missing account email or currency." },
         { status: 400 }
       );
     }
 
-    const currency = body.currency.toLowerCase() as Currency;
+    const currency = body.currency.toLowerCase() as StripeCurrency;
 
     if (!["eur", "usd", "gbp"].includes(currency)) {
       return NextResponse.json(
@@ -70,7 +57,7 @@ export async function POST(req: Request) {
 
     // 🔁 Normalize plan (default to "pro" monthly if missing/unknown)
     const requestedPlan = (body.plan || "pro").toLowerCase();
-    let planType: PlanType;
+    let planType: StripePlan;
     if (requestedPlan === "founder") {
       planType = "founder";
     } else if (requestedPlan === "yearly") {
@@ -79,15 +66,7 @@ export async function POST(req: Request) {
       planType = "pro";
     }
 
-    // 🔗 Choose correct price ID based on planType + currency
-    let priceId: string | undefined;
-    if (planType === "founder") {
-      priceId = FOUNDER_PRICE_IDS[currency];
-    } else if (planType === "yearly") {
-      priceId = YEARLY_PRICE_IDS[currency];
-    } else {
-      priceId = PRO_PRICE_IDS[currency];
-    }
+    const priceId = getStripePriceId(planType, currency);
 
     if (!priceId) {
       console.error(
@@ -100,28 +79,33 @@ export async function POST(req: Request) {
           ok: false,
           error: `No Stripe price configured for plan "${planType}" and currency "${currency}".`,
         },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
-    const origin = req.headers.get("origin") || "";
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || origin || "https://aiprod.app";
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { ok: false, error: "Application URL is not configured on the server." },
+        { status: 503 }
+      );
+    }
+    const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
-      customer_email: body.email,
+      customer_email: auth.user.email,
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
-      success_url: `${baseUrl}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/dashboard?checkout=cancelled`,
+      success_url: `${normalizedBaseUrl}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${normalizedBaseUrl}/dashboard?checkout=cancelled`,
       metadata: {
-        userId: body.userId,
+        userId: auth.user.id,
         plan: planType, // "pro" | "yearly" | "founder"
         currency,
       },

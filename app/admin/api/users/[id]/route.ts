@@ -1,8 +1,7 @@
 // app/admin/api/users/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 type UserStats = {
   notesCount: number;
@@ -13,23 +12,9 @@ type UserStats = {
 };
 
 export async function GET(req: NextRequest) {
-  const headerKey = req.headers.get("x-admin-key") || "";
-
-  if (!ADMIN_KEY) {
-    console.error("[admin/api/users/:id] NEXT_PUBLIC_ADMIN_KEY is not set");
-    return NextResponse.json(
-      { ok: false, error: "Admin key is not configured on the server." },
-      { status: 500 }
-    );
-  }
-
-  if (headerKey !== ADMIN_KEY) {
-    console.warn("[admin/api/users/:id] Unauthorized request");
-    return NextResponse.json(
-      { ok: false, error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
+  const admin = await requireAdmin(req);
+  const authError = adminAuthErrorResponse(admin);
+  if (authError) return authError;
 
   const url = new URL(req.url);
   const segments = url.pathname.split("/").filter(Boolean);

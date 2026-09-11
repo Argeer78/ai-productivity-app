@@ -1,17 +1,12 @@
 // app/api/daily-score/suggest/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// Admin Supabase client (service role) – server-side only
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -86,18 +81,22 @@ async function checkAndIncrementAiUsage(userId: string) {
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as
-      | { userId?: string }
-      | null;
-
-    if (!body?.userId) {
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
       return NextResponse.json(
-        { ok: false, error: "Missing userId." },
-        { status: 400 }
+        { ok: false, error: "Unauthorized" },
+        { status: auth.error === "server_misconfigured" ? 500 : 401 }
       );
     }
 
-    const userId = body.userId;
+    if (!openai) {
+      return NextResponse.json(
+        { ok: false, error: "AI is not configured on this environment" },
+        { status: 503 }
+      );
+    }
+
+    const userId = auth.user.id;
 
     // ✅ Count + enforce
     const usage = await checkAndIncrementAiUsage(userId);

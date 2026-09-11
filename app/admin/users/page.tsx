@@ -6,9 +6,6 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
-
 type AdminUserRow = {
   id: string;
   email: string | null;
@@ -26,7 +23,7 @@ type UsersApiResponse = {
 export default function AdminUsersPage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [total, setTotal] = useState<number | null>(null);
@@ -36,17 +33,12 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState<"all" | "free" | "pro">("all");
 
-  // Load current user and check admin email
   useEffect(() => {
     async function loadUser() {
       try {
-        const { data } = await supabase.auth.getUser();
-        const u = data?.user ?? null;
-        setUser(u);
-
-        if (u?.email && ADMIN_EMAIL && u.email === ADMIN_EMAIL) {
-          setAuthorized(true);
-        }
+        const { data } = await supabase.auth.getSession();
+        setUser(data.session?.user ?? null);
+        setAccessToken(data.session?.access_token ?? null);
       } catch (err) {
         console.error("[admin/users] loadUser error", err);
       } finally {
@@ -58,7 +50,7 @@ export default function AdminUsersPage() {
 
   // Fetch users (with search + filters)
   useEffect(() => {
-    if (!authorized) return;
+    if (!accessToken) return;
 
     let cancelled = false;
     const controller = new AbortController();
@@ -74,7 +66,7 @@ export default function AdminUsersPage() {
 
         const res = await fetch(`/admin/api/users?${params.toString()}`, {
           headers: {
-            "X-Admin-Key": ADMIN_KEY,
+            Authorization: `Bearer ${accessToken}`,
           },
           signal: controller.signal,
         });
@@ -106,7 +98,7 @@ export default function AdminUsersPage() {
       controller.abort();
       clearTimeout(timeout);
     };
-  }, [authorized, search, planFilter]);
+  }, [accessToken, search, planFilter]);
 
   // ---- Guards ----
   if (checkingUser) {
@@ -137,7 +129,7 @@ export default function AdminUsersPage() {
     );
   }
 
-  if (!authorized) {
+  if (error === "Forbidden") {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="admin" />

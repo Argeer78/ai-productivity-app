@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 // Define types for the subscription data
@@ -13,18 +14,24 @@ interface PushSubscription {
 }
 
 interface SubscribeRequest {
-  userId: string;
   subscription: PushSubscription;
 }
 
 export async function POST(req: Request) {
   try {
-    const { userId, subscription }: SubscribeRequest = await req.json();
-
-    // Validate userId and subscription
-    if (!userId || !subscription) {
+    const authResult = await getAuthenticatedUser(req);
+    if (!authResult.user) {
       return NextResponse.json(
-        { ok: false, error: "Missing userId or subscription" },
+        { ok: false, error: "Unauthorized" },
+        { status: authResult.error === "server_misconfigured" ? 500 : 401 }
+      );
+    }
+
+    const { subscription }: SubscribeRequest = await req.json();
+
+    if (!subscription) {
+      return NextResponse.json(
+        { ok: false, error: "Missing subscription" },
         { status: 400 }
       );
     }
@@ -43,7 +50,7 @@ export async function POST(req: Request) {
     // Optionally validate endpoint URL (e.g., check it's a valid URL)
     try {
       new URL(endpoint); // This throws an error if the URL is invalid
-    } catch (e) {
+    } catch {
       return NextResponse.json(
         { ok: false, error: "Invalid endpoint URL" },
         { status: 400 }
@@ -55,7 +62,7 @@ export async function POST(req: Request) {
       .from("push_subscriptions")
       .upsert(
         {
-          user_id: userId,
+          user_id: authResult.user.id,
           endpoint,
           p256dh,
           auth,
@@ -69,21 +76,19 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: "DB error",
-          details: error.details ?? error.message,
-          code: error.code,
+          error: "Failed to save push subscription",
         },
         { status: 500 }
       );
     }
 
-    console.log("[Push Subscribe] Subscription saved successfully for user", userId);
+    console.log("[Push Subscribe] Subscription saved successfully for authenticated user");
 
     return NextResponse.json({ ok: true }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Push subscribe error:", error);
     return NextResponse.json(
-      { ok: false, error: error?.message || "Unknown error" },
+      { ok: false, error: "Unexpected server error" },
       { status: 500 }
     );
   }

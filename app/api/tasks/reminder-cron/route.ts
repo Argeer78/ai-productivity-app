@@ -3,47 +3,12 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderEmail } from "@/lib/emailTasks";
 import { sendTaskReminderPush } from "@/lib/pushServer";
+import { verifyCronAuth } from "@/lib/verifyCron";
 
 export const runtime = "nodejs";
 
-function checkCronAuth(req: Request): NextResponse | null {
-  const CRON_SECRET = process.env.CRON_SECRET;
-
-  // In dev, skip auth for manual testing
-  if (process.env.NODE_ENV === "development") {
-    return null;
-  }
-
-  if (!CRON_SECRET) {
-    console.warn(
-      "[reminder-cron] CRON_SECRET is not set – refusing unauthorized access."
-    );
-    return NextResponse.json(
-      { ok: false, error: "Cron secret not configured" },
-      { status: 500 }
-    );
-  }
-
-  const authHeader = req.headers.get("authorization");
-  const url = new URL(req.url);
-  const cronKeyParam = url.searchParams.get("cron_key");
-
-  const validByHeader = authHeader === `Bearer ${CRON_SECRET}`;
-  const validByQuery = cronKeyParam === CRON_SECRET;
-
-  if (!validByHeader && !validByQuery) {
-    console.warn("[reminder-cron] Unauthorized cron call");
-    return NextResponse.json(
-      { ok: false, error: "Unauthorized cron" },
-      { status: 401 }
-    );
-  }
-
-  return null;
-}
-
 export async function GET(req: Request) {
-  const authError = checkCronAuth(req);
+  const authError = verifyCronAuth(req as import("next/server").NextRequest);
   if (authError) return authError;
 
   if (!supabaseAdmin) {

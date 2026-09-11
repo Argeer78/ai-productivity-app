@@ -283,15 +283,19 @@ export default function TranslateWithAIButton() {
 
     try {
       const normalized = normalizeForCache(text);
+      const { data: sessionData } = await supabase.auth.getSession();
 
       const res = await fetch("/api/ai-translate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {}),
+        },
         body: JSON.stringify({
           text: normalized,
           targetLang: selectedLang.code,
-          // ✅ send userId so server can count AI usage on cache-miss
-          userId,
         }),
       });
 

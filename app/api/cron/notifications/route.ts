@@ -1,9 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { runNotifications } from "@/app/api/notifications/route";
+import { verifyCronAuth } from "@/lib/verifyCron";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
+
   const startTime = new Date().toISOString(); // Track when the cron job started
 
   try {

@@ -8,8 +8,7 @@ import { verifyCronAuth } from "@/lib/verifyCron";
 
 export const runtime = "nodejs";
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Make OpenAI optional (don’t crash deploys if key missing)
 const openai =
@@ -19,6 +18,11 @@ const openai =
 
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+const APP_URL = (
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://aiprod.app"
+).replace(/\/+$/, "");
 
 // Small helper for sleep
 function delay(ms: number) {
@@ -113,10 +117,7 @@ async function aiTranslate(
 async function sendWithRateLimit(
   args: Parameters<Resend["emails"]["send"]>[0]
 ) {
-  if (!resend) {
-    throw new Error("Email service not configured");
-  }
-
+  if (!resend) throw new Error("Email delivery is not configured");
   let attempt = 0;
 
   while (attempt < 3) {
@@ -171,6 +172,11 @@ export async function runWeeklyReport(): Promise<{
   ok: boolean;
   processed: number;
 }> {
+  if (!resend) {
+    console.warn("[weekly-report] RESEND_API_KEY is not configured; weekly email delivery is disabled.");
+    return { ok: true, processed: 0 };
+  }
+
   const { startDate, endDate } = getWeekRangeDateStrings();
 
   // Only pro users with weekly reports enabled
@@ -462,7 +468,7 @@ export async function runWeeklyReport(): Promise<{
           text,
           html,
           headers: {
-            "List-Unsubscribe": "<https://aiprod.app/settings>",
+            "List-Unsubscribe": `<${APP_URL}/settings>`,
           },
         });
 

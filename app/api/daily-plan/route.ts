@@ -1,14 +1,15 @@
 // app/api/daily-plan/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const client = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -154,27 +155,33 @@ type Body = { userId?: string };
 
 export async function POST(req: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    if (!client) {
       return NextResponse.json(
-        { ok: false, error: "OPENAI_API_KEY is not configured on the server." },
-        { status: 500 }
+        { ok: false, error: "AI is not configured on this environment" },
+        { status: 503 }
       );
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
-    const userId = body?.userId || null;
+    const requestedUserId = body?.userId || null;
+    const isGuest = requestedUserId === "guest" || Boolean(requestedUserId?.startsWith("demo-"));
+    const auth = isGuest ? null : await getAuthenticatedUser(req);
 
-    if (!userId) {
+    if (!isGuest && !auth?.user) {
       return NextResponse.json(
-        { ok: false, error: "You must be logged in to use the daily planner." },
-        { status: 401 }
+        { ok: false, error: "Unauthorized" },
+        { status: auth?.error === "server_misconfigured" ? 500 : 401 }
       );
+    }
+
+    const userId = isGuest ? requestedUserId : auth?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
     const today = getTodayAthensYmd();
 
     // GUEST BYPASS
-    const isGuest = userId === "guest" || userId.startsWith("demo-");
     let usageState = {
       isPro: false,
       currentCount: 0,

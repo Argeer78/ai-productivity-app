@@ -5,15 +5,17 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
 const subject = process.env.VAPID_SUBJECT || "mailto:hello@aiprod.app";
+const appUrl = (
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://aiprod.app"
+).replace(/\/+$/, "");
+const vapidConfigured = Boolean(publicKey && privateKey);
 
-const pushConfigured = Boolean(publicKey && privateKey);
-
-if (pushConfigured) {
-  webpush.setVapidDetails(subject, publicKey!, privateKey!);
+if (!vapidConfigured) {
+  console.warn("[pushServer] VAPID keys are not configured; push notifications are disabled.");
 } else {
-  console.warn(
-    "[pushServer] Missing VAPID keys – push notifications are disabled."
-  );
+  webpush.setVapidDetails(subject, publicKey!, privateKey!);
 }
 
 export type SubscriptionRow = {
@@ -32,10 +34,8 @@ export async function sendTaskReminderPush(
   sub: SubscriptionRow,
   payload: TaskPushPayload
 ) {
-  if (!pushConfigured) {
-    console.warn(
-      "[pushServer] Push skipped because VAPID is not configured."
-    );
+  if (!vapidConfigured) {
+    console.warn("[pushServer] Push notification skipped because VAPID is not configured.");
     return;
   }
   if (!payload.taskId || !payload.title) {
@@ -47,7 +47,7 @@ export async function sendTaskReminderPush(
     title: payload.title || "Task reminder",
     body: payload.note || "You have something to review.",
     data: {
-      url: "https://aiprod.app/tasks",
+      url: `${appUrl}/tasks`,
       taskId: payload.taskId,
     },
   });

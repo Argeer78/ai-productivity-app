@@ -1,12 +1,15 @@
 // app/api/daily-success/morning/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const openai = process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -179,16 +182,24 @@ type Body = {
 
 export async function POST(req: Request) {
     try {
-        if (!process.env.OPENAI_API_KEY) {
-            return NextResponse.json({ ok: false, error: "OPENAI_API_KEY missing" }, { status: 500 });
+        const auth = await getAuthenticatedUser(req);
+        if (!auth.user) {
+            return NextResponse.json(
+                { ok: false, error: "Unauthorized" },
+                { status: auth.error === "server_misconfigured" ? 500 : 401 }
+            );
+        }
+
+        if (!openai) {
+            return NextResponse.json(
+                { ok: false, error: "AI is not configured on this environment" },
+                { status: 503 }
+            );
         }
 
         const body = (await req.json().catch(() => null)) as Body | null;
 
-        const userId = (body?.userId || "").trim();
-        if (!userId) {
-            return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 401 });
-        }
+        const userId = auth.user.id;
 
         // ✅ accept both dayDescription and morningInput
         const dayDescription = String(body?.dayDescription ?? body?.morningInput ?? "").trim();

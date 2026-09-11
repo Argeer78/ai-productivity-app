@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { aiLanguageInstruction } from "@/lib/aiLanguage";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -80,16 +81,16 @@ async function checkAndIncrementAiUsage(userId: string) {
   }
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "",
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 export async function POST(req: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    if (!openai) {
       return NextResponse.json(
-        { error: "OpenAI API key is not configured on the server." },
-        { status: 500 }
+        { error: "AI is not configured on this environment" },
+        { status: 503 }
       );
     }
 
@@ -115,13 +116,19 @@ export async function POST(req: Request) {
       maxBudget?: string | number;
     };
 
-    const isGuest = userId === "guest" || (userId && userId.startsWith("demo-"));
+    const isGuest = userId === "guest" || Boolean(userId?.startsWith("demo-"));
+    const auth = isGuest ? null : await getAuthenticatedUser(req);
 
-    if (!userId && !isGuest) {
+    if (!isGuest && !auth?.user) {
       return NextResponse.json(
-        { error: "You must be logged in to generate a travel plan." },
-        { status: 401 }
+        { error: "Unauthorized" },
+        { status: auth?.error === "server_misconfigured" ? 500 : 401 }
       );
+    }
+
+    const effectiveUserId = isGuest ? userId : auth?.user?.id;
+    if (!effectiveUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (!destination || !checkin || !checkout) {
@@ -133,11 +140,11 @@ export async function POST(req: Request) {
 
     // ✅ Fetch user language (and only what we need)
     let languageCode = "en";
-    if (!isGuest && userId) {
+    if (!isGuest) {
       const { data: profile, error: profileError } = await supabaseAdmin
         .from("profiles")
         .select("ui_language")
-        .eq("id", userId)
+        .eq("id", effectiveUserId)
         .maybeSingle();
 
       if (profileError) {
@@ -153,7 +160,7 @@ export async function POST(req: Request) {
       | { plan: string; dailyLimit: number; usedToday: number }
       | null = null;
 
-    usageMeta = isGuest ? null : await checkAndIncrementAiUsage(userId!);
+    usageMeta = isGuest ? null : await checkAndIncrementAiUsage(effectiveUserId);
 
     const datesText = `${checkin} → ${checkout}`;
     const peopleText = `${adults || 1} adult(s)${children ? `, ${children} child(ren)` : ""

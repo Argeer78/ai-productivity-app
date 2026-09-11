@@ -1,6 +1,7 @@
 // app/api/admin/sync-ui-keys/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SUPPORTED_LANGS } from "@/lib/i18n";
 
@@ -8,11 +9,9 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
-const ADMIN_KEY = process.env.ADMIN_KEY || process.env.NEXT_PUBLIC_ADMIN_KEY || "";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 type Body = {
   sourceLang?: string; // default "en"
@@ -84,6 +83,7 @@ async function fetchAllSourceMap(lang: string): Promise<Map<string, string>> {
 
 async function translateBatch(params: { texts: string[]; targetLang: string }): Promise<string[]> {
   const { texts, targetLang } = params;
+  if (!openai) throw new Error("OpenAI is not configured");
 
   const prompt = [
     `Translate each item to ${targetLang}.`,
@@ -124,14 +124,15 @@ async function translateBatch(params: { texts: string[]; targetLang: string }): 
 
 export async function POST(req: Request) {
   try {
-    // --- Admin auth ---
-    const headerKey = req.headers.get("X-Admin-Key") || req.headers.get("x-admin-key") || "";
-    if (!ADMIN_KEY || headerKey !== ADMIN_KEY) {
-      return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
-    }
+    const admin = await requireAdmin(req);
+    const authError = adminAuthErrorResponse(admin);
+    if (authError) return authError;
 
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ ok: false, error: "OPENAI_API_KEY missing on server." }, { status: 500 });
+    if (!openai) {
+      return NextResponse.json(
+        { ok: false, error: "AI translation is not configured on this environment" },
+        { status: 503 }
+      );
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
@@ -227,6 +228,6 @@ export async function POST(req: Request) {
     );
   } catch (err: any) {
     console.error("[sync-ui-keys] fatal error:", err);
-    return NextResponse.json({ ok: false, error: err?.message || "Failed to sync keys." }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Failed to sync keys." }, { status: 500 });
   }
 }

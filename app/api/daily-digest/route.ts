@@ -8,11 +8,14 @@ import OpenAI from "openai";
 
 export const runtime = "nodejs";
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+const APP_URL = (
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://aiprod.app"
+).replace(/\/+$/, "");
 
 // OpenAI optional (deploy-safe)
 const openai =
@@ -114,6 +117,11 @@ function defaultSubjectForLang(lang: string) {
 
 // 🔹 Shared helper – used by cron AND manual triggers
 export async function runDailyDigest() {
+  if (!resend) {
+    console.warn("[daily-digest] RESEND_API_KEY is not configured; digest delivery is disabled.");
+    return { ok: true, message: "Email delivery is disabled.", processed: 0, attempted: 0, sent: 0 };
+  }
+
   const { data: profiles, error } = await supabaseAdmin
     .from("profiles")
     // ✅ your schema: ui_language + language
@@ -316,7 +324,7 @@ export async function runDailyDigest() {
         text,
         html,
         headers: {
-          "List-Unsubscribe": "<https://aiprod.app/settings>",
+          "List-Unsubscribe": `<${APP_URL}/settings>`,
         },
       });
 

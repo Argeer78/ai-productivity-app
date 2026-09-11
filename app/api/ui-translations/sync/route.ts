@@ -1,24 +1,14 @@
 // app/api/ui-translations/sync/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { UI_STRINGS, type UiTranslationKey } from "@/lib/uiStrings";
 
-const ADMIN_KEY =
-  process.env.ADMIN_KEY || process.env.NEXT_PUBLIC_ADMIN_KEY || "";
-
 export async function POST(req: NextRequest) {
   try {
-    // Optional admin protection
-    if (ADMIN_KEY) {
-      const headerKey =
-        req.headers.get("x-admin-key") || req.headers.get("X-Admin-Key");
-      if (headerKey !== ADMIN_KEY) {
-        return NextResponse.json(
-          { ok: false, error: "Unauthorized (bad admin key)" },
-          { status: 401 }
-        );
-      }
-    }
+    const admin = await requireAdmin(req);
+    const authError = adminAuthErrorResponse(admin);
+    if (authError) return authError;
 
     const body = await req.json().catch(() => null as any);
     const rawLang = (body?.languageCode || "").toString().trim();

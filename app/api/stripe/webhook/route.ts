@@ -3,20 +3,15 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendThankYouForUpgradeEmail } from "@/lib/stripeEmails";
+import { isFounderPriceId } from "@/lib/stripePrices";
 
 export const runtime = "nodejs"; // ensure Node runtime (not edge)
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
 type Plan = "free" | "pro" | "founder";
-
-// 🔐 All founder price IDs (any currency)
-const FOUNDER_PRICE_IDS = new Set<string>([
-  "price_1SZXm9IaVkwgnHGjkj3mYYu7", // FOUNDER EUR
-  "price_1SZXqYIaVkwgnHGjROTAO47Y", // FOUNDER USD
-  "price_1SZXseIaVkwgnHGjdck8h4Qw", // FOUNDER GBP
-]);
 
 function isActiveStatus(status: Stripe.Subscription.Status) {
   return (
@@ -37,7 +32,7 @@ function planFromSubscription(sub: Stripe.Subscription): Plan {
     ((firstItem as any)?.plan?.id as string | undefined) ||
     "";
 
-  const isFounder = priceId && FOUNDER_PRICE_IDS.has(priceId);
+  const isFounder = priceId && isFounderPriceId(priceId);
 
   if (isFounder) {
     // Founder is lifetime *while* subscription is on; if they cancel, go back to free
@@ -48,23 +43,13 @@ function planFromSubscription(sub: Stripe.Subscription): Plan {
 }
 
 export async function POST(req: Request) {
-  if (!STRIPE_SECRET_KEY) {
-    console.error("[stripe/webhook] STRIPE_SECRET_KEY is not configured");
-    return NextResponse.json(
-      { error: "Stripe is not configured" },
-      { status: 503 }
-    );
-  }
-
-  if (!STRIPE_WEBHOOK_SECRET) {
-    console.error("[stripe/webhook] STRIPE_WEBHOOK_SECRET is not configured");
+  if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+    console.warn("[stripe/webhook] Stripe webhook handling is disabled because configuration is missing.");
     return NextResponse.json(
       { error: "Webhook not configured" },
       { status: 503 }
     );
   }
-
-  const stripe = new Stripe(STRIPE_SECRET_KEY);
 
   const sig = req.headers.get("stripe-signature");
   if (!sig) {
@@ -128,7 +113,7 @@ export async function POST(req: Request) {
           const li = fullSession.line_items?.data?.[0];
           const priceId = (li?.price?.id as string | undefined) || "";
 
-          if (priceId && FOUNDER_PRICE_IDS.has(priceId)) {
+          if (priceId && isFounderPriceId(priceId)) {
             plan = "founder";
           } else {
             plan = "pro";

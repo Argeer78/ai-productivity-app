@@ -1,15 +1,12 @@
 // app/api/admin/ai-translate-namespace/route.ts
 import { NextResponse, type NextRequest } from "next/server";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import OpenAI from "openai";
 
-const ADMIN_KEY_HEADER = "X-Admin-Key";
-const ADMIN_KEY_ENV =
-  process.env.ADMIN_KEY || process.env.NEXT_PUBLIC_ADMIN_KEY;
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 type Body = {
   fromLanguage?: string; // e.g. "en"
@@ -19,12 +16,14 @@ type Body = {
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ Basic admin protection
-    const adminKeyHeader = req.headers.get(ADMIN_KEY_HEADER);
-    if (!ADMIN_KEY_ENV || adminKeyHeader !== ADMIN_KEY_ENV) {
+    const admin = await requireAdmin(req);
+    const authError = adminAuthErrorResponse(admin);
+    if (authError) return authError;
+
+    if (!openai) {
       return NextResponse.json(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 }
+        { ok: false, error: "AI translation is not configured on this environment" },
+        { status: 503 }
       );
     }
 

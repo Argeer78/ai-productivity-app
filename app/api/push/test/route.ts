@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderPush } from "@/lib/pushServer";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await req.json().catch(() => ({}));
-
-    if (!userId) {
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
       return NextResponse.json(
-        { ok: false, error: "Missing userId" },
-        { status: 400 }
+        { ok: false, error: "Unauthorized" },
+        { status: auth.error === "server_misconfigured" ? 500 : 401 }
       );
     }
 
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const { data: subs, error } = await supabaseAdmin
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
-      .eq("user_id", userId)
+      .eq("user_id", auth.user.id)
       .order("created_at", { ascending: false })
       .limit(1);
 

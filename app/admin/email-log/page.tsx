@@ -20,7 +20,7 @@ type FilterType = "all" | "daily_digest" | "test_email" | "other";
 type FilterStatus = "all" | "sent" | "error" | "skipped";
 
 export default function AdminEmailLogPage() {
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [checkingUser, setCheckingUser] = useState(true);
 
   const [logs, setLogs] = useState<EmailLog[]>([]);
@@ -33,53 +33,33 @@ export default function AdminEmailLogPage() {
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
-  const adminEmail =
-    process.env.NEXT_PUBLIC_ADMIN_EMAIL || "sgouros2305@gmail.com";
-
-  // 1) Load current user email
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        const { data, error } = await supabase.auth.getUser();
-        if (error) {
-          console.error(error);
-        }
-        setUserEmail(data?.user?.email ?? null);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setCheckingUser(false);
-      }
-    }
-
-    loadUser();
-  }, []);
-
-  // 2) Load email logs
   async function loadLogs() {
     setLoading(true);
     setError("");
     try {
-      const { data, error } = await supabase
-        .from("email_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200); // you can bump this if needed
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Unauthorized");
 
-      if (error) throw error;
-      setLogs((data || []) as EmailLog[]);
+      const response = await fetch("/api/admin/email-logs", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      setIsAuthorized(response.ok);
+      if (!response.ok) throw new Error(result.error || "Unauthorized");
+      setLogs((result.logs || []) as EmailLog[]);
     } catch (err: any) {
       console.error(err);
       setError("Failed to load email logs.");
     } finally {
       setLoading(false);
+      setCheckingUser(false);
     }
   }
 
   useEffect(() => {
-    if (!userEmail || userEmail !== adminEmail) return;
     loadLogs();
-  }, [userEmail, adminEmail]);
+  }, []);
 
   // 3) Derived filtered logs
   const filteredLogs = useMemo(() => {
@@ -131,16 +111,14 @@ export default function AdminEmailLogPage() {
     );
   }
 
-  if (!userEmail || userEmail !== adminEmail) {
+  if (!isAuthorized) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
         <AppHeader active="admin" />
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <h1 className="text-2xl font-bold mb-3">Admin — Email Log</h1>
           <p className="text-slate-300 text-sm text-center max-w-sm">
-            You must be logged in as{" "}
-            <span className="font-mono break-all">{adminEmail}</span> to view
-            this page.
+            You do not have permission to view this page.
           </p>
         </div>
       </main>

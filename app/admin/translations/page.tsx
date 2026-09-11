@@ -3,8 +3,7 @@
 
 import { useState } from "react";
 import { SUPPORTED_LANGS } from "@/lib/i18n";
-
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function TranslationsAdminPage() {
   const [loading, setLoading] = useState(false);
@@ -18,11 +17,15 @@ export default function TranslationsAdminPage() {
     setResult(null);
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
+
       const res = await fetch("/api/admin/ui-translation-sync", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(ADMIN_KEY ? { "X-Admin-Key": ADMIN_KEY } : {}),
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ languageCode }),
       });
@@ -73,12 +76,6 @@ export default function TranslationsAdminPage() {
             : `Sync UI translations for ${languageCode}`}
         </button>
 
-        {!ADMIN_KEY && (
-          <p className="text-[11px] text-amber-400">
-            Warning: <code>NEXT_PUBLIC_ADMIN_KEY</code> is not set – the API
-            call will be rejected by the server.
-          </p>
-        )}
       </div>
 
       {result && (

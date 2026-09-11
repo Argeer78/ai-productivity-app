@@ -1,14 +1,15 @@
 // app/api/daily-success/evening/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const maxDuration = 20;
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -29,21 +30,29 @@ function getTodayAthensYmd() {
 
 export async function POST(req: Request) {
     try {
-        if (!process.env.OPENAI_API_KEY) {
+        const auth = await getAuthenticatedUser(req);
+        if (!auth.user) {
             return NextResponse.json(
-                { ok: false, error: "AI is not configured on the server." },
-                { status: 500 }
+                { ok: false, error: "Unauthorized" },
+                { status: auth.error === "server_misconfigured" ? 500 : 401 }
+            );
+        }
+
+        if (!openai) {
+            return NextResponse.json(
+                { ok: false, error: "AI is not configured on this environment" },
+                { status: 503 }
             );
         }
 
         const body = await req.json().catch(() => null);
-        const userId = body?.userId as string | undefined;
+        const userId = auth.user.id;
         const reflection = (body?.reflection || "").trim();
         const lang = (body?.lang || "en") as string;
 
-        if (!userId || !reflection) {
+        if (!reflection) {
             return NextResponse.json(
-                { ok: false, error: "Missing userId or reflection." },
+            { ok: false, error: "Missing reflection." },
                 { status: 400 }
             );
         }

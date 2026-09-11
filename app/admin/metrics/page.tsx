@@ -1,59 +1,59 @@
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+"use client";
+
+import { useEffect, useState } from "react";
 import AppHeader from "@/app/components/AppHeader";
+import { supabase } from "@/lib/supabaseClient";
 
-// (Optional) protect route by email allowlist:
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(s => s.trim()).filter(Boolean);
+type Metrics = {
+  totalUsers: number;
+  proUsers: number;
+  aiCallsToday: number;
+  totalNotes: number;
+  totalTasks: number;
+};
 
-async function getStats() {
-  // Users
-  const { data: proCountRow } = await supabaseAdmin
-    .from("profiles")
-    .select("id", { count: "exact", head: true })
-    .eq("plan", "pro");
-  const { data: usersRow } = await supabaseAdmin
-    .from("profiles")
-    .select("id", { count: "exact", head: true });
+export default function AdminMetricsPage() {
+  const [stats, setStats] = useState<Metrics | null>(null);
+  const [error, setError] = useState("");
 
-  // AI usage today
-  const today = new Date().toISOString().split("T")[0];
-  const { data: aiRow } = await supabaseAdmin
-    .from("ai_usage")
-    .select("count", { count: "exact", head: true })
-    .eq("usage_date", today);
+  useEffect(() => {
+    async function loadMetrics() {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        setError("You do not have permission to view this page.");
+        return;
+      }
 
-  // Notes & tasks (total)
-  const { data: notesRow } = await supabaseAdmin
-    .from("notes")
-    .select("id", { count: "exact", head: true });
-  const { data: tasksRow } = await supabaseAdmin
-    .from("tasks")
-    .select("id", { count: "exact", head: true });
+      const response = await fetch("/api/admin-metrics", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(result.error || "Failed to load metrics.");
+        return;
+      }
+      setStats(result.metrics);
+    }
 
-  return {
-    totalUsers: (usersRow as any)?.length ?? usersRow ?? 0, // head:true returns null; count is on response meta in JS client, but length fallback won't hurt
-    proUsers: (proCountRow as any)?.length ?? proCountRow ?? 0,
-    aiCallsToday: (aiRow as any)?.length ?? aiRow ?? 0,
-    notesTotal: (notesRow as any)?.length ?? notesRow ?? 0,
-    tasksTotal: (tasksRow as any)?.length ?? tasksRow ?? 0,
-  };
-}
-
-export default async function AdminMetricsPage() {
-  // (Optional) server-protect by checking a cookie/session; for MVP just show metrics
-  const stats = await getStats();
+    loadMetrics();
+  }, []);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <AppHeader />
       <div className="max-w-5xl mx-auto px-4 py-10">
         <h1 className="text-2xl font-bold mb-6">Admin Metrics</h1>
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        {!stats && !error && <p className="text-sm text-slate-400">Loading metrics...</p>}
+        {stats && (
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-5">
           {[
             { label: "Total users", value: stats.totalUsers },
             { label: "Pro users", value: stats.proUsers },
             { label: "AI calls today", value: stats.aiCallsToday },
-            { label: "Notes total", value: stats.notesTotal },
-            { label: "Tasks total", value: stats.tasksTotal },
+            { label: "Notes total", value: stats.totalNotes },
+            { label: "Tasks total", value: stats.totalTasks },
           ].map((c) => (
             <div key={c.label} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
               <p className="text-xs text-slate-400 mb-1">{c.label.toUpperCase()}</p>
@@ -61,6 +61,7 @@ export default async function AdminMetricsPage() {
             </div>
           ))}
         </div>
+        )}
         <p className="text-[11px] text-slate-500 mt-6">
           (Tip) We can add time-series charts later; for now these top-line KPIs help you see traction quickly.
         </p>

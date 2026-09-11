@@ -7,9 +7,6 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
-
 type ProfileRow = {
   id: string;
   email: string | null;
@@ -38,7 +35,7 @@ export default function AdminUserDetailPage() {
 
   const [me, setMe] = useState<any | null>(null);
   const [checkingMe, setCheckingMe] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -49,12 +46,9 @@ export default function AdminUserDetailPage() {
   useEffect(() => {
     async function loadMe() {
       try {
-        const { data } = await supabase.auth.getUser();
-        const u = data?.user ?? null;
-        setMe(u);
-        if (u?.email && ADMIN_EMAIL && u.email === ADMIN_EMAIL) {
-          setAuthorized(true);
-        }
+        const { data } = await supabase.auth.getSession();
+        setMe(data.session?.user ?? null);
+        setAccessToken(data.session?.access_token ?? null);
       } catch (err) {
         console.error("[admin/user] loadMe error", err);
       } finally {
@@ -66,14 +60,7 @@ export default function AdminUserDetailPage() {
 
   // Load profile + stats via admin API
   useEffect(() => {
-    if (!authorized || !userId) return;
-
-    if (!ADMIN_KEY) {
-      setError(
-        "Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured. Cannot load user data."
-      );
-      return;
-    }
+    if (!accessToken || !userId) return;
 
     async function loadUserData() {
       setLoading(true);
@@ -82,7 +69,7 @@ export default function AdminUserDetailPage() {
       try {
         const res = await fetch(`/admin/api/users/${userId}`, {
           headers: {
-            "x-admin-key": ADMIN_KEY,
+            Authorization: `Bearer ${accessToken}`,
           },
         });
 
@@ -108,7 +95,7 @@ export default function AdminUserDetailPage() {
     }
 
     loadUserData();
-  }, [authorized, userId]);
+  }, [accessToken, userId]);
 
   // Guards
   if (checkingMe) {
@@ -141,7 +128,7 @@ export default function AdminUserDetailPage() {
     );
   }
 
-  if (!authorized) {
+  if (error === "Forbidden") {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader active="admin" />

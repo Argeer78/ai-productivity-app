@@ -7,37 +7,20 @@ import {
   renderSimpleTestEmail,
 } from "@/lib/emailTemplates";
 import { renderStripeUpgradeThankYouEmail } from "@/lib/stripeEmails";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const ADMIN_KEY =
-  process.env.NEXT_PUBLIC_ADMIN_KEY || process.env.CRON_SECRET || "";
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export async function POST(req: Request) {
   try {
-    if (!resendApiKey) {
-      console.error("[admin-test-email] RESEND_API_KEY is not configured");
+    const admin = await requireAdmin(req);
+    const authError = adminAuthErrorResponse(admin);
+    if (authError) return authError;
+
+    if (!resend) {
       return NextResponse.json(
-        { ok: false, error: "Email service not configured" },
+        { ok: false, error: "Email is not configured on this environment" },
         { status: 503 }
-      );
-    }
-
-    const resend = new Resend(resendApiKey);
-    // ✅ Enforce admin key
-    if (!ADMIN_KEY) {
-      console.error("[admin-test-email] ADMIN_KEY is not configured");
-      return NextResponse.json(
-        { ok: false, error: "Admin key not configured" },
-        { status: 500 }
-      );
-    }
-
-    const headerKey = req.headers.get("x-admin-key") || "";
-    if (headerKey !== ADMIN_KEY) {
-      console.warn("[admin-test-email] Unauthorized access");
-      return NextResponse.json(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 }
       );
     }
 
@@ -113,7 +96,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("[admin-test-email] error", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Internal error" },
+      { ok: false, error: "Internal error" },
       { status: 500 }
     );
   }

@@ -8,10 +8,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
 import { Star } from "lucide-react";
 
-// You might reuse ADMIN_EMAIL check if you want extra security logic here
-// relying on Row Level Security (RLS) is also fine if implemented correctly.
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
-
 type ReviewRow = {
     id: string;
     user_id: string | null;
@@ -28,9 +24,6 @@ export default function AdminReviewsPage() {
     const [user, setUser] = useState<any | null>(null);
     const [isAuthorized, setIsAuthorized] = useState(false);
 
-    // Move env read inside to ensure it's captured on render
-    const REQUIRED_ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-
     useEffect(() => {
         async function load() {
             try {
@@ -38,20 +31,6 @@ export default function AdminReviewsPage() {
                 const { data: { user: u } } = await supabase.auth.getUser();
                 setUser(u);
 
-                const currentEmail = u?.email?.toLowerCase().trim();
-                const allowedEmail = REQUIRED_ADMIN_EMAIL?.toLowerCase().trim();
-
-                // Allow access if emails match matches
-                const authorized = !!currentEmail && !!allowedEmail && currentEmail === allowedEmail;
-                setIsAuthorized(authorized);
-
-                if (!authorized) {
-                    setLoading(false);
-                    return; // Stop here if not admin, no need to fetch data
-                }
-
-                // 2. Fetch Data via Admin API (Bypasses RLS)
-                // We must pass the user's token so the API can verify they are admin
                 const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
 
@@ -67,7 +46,11 @@ export default function AdminReviewsPage() {
 
                 if (!res.ok) {
                     console.error("API Error", json);
+                    setIsAuthorized(false);
+                    return;
                 }
+
+                setIsAuthorized(true);
 
                 if (json.reviews) {
                     setReviews(json.reviews);
@@ -80,7 +63,7 @@ export default function AdminReviewsPage() {
             }
         }
         load();
-    }, [REQUIRED_ADMIN_EMAIL]);
+    }, []);
 
     if (loading) {
         return (
@@ -92,9 +75,6 @@ export default function AdminReviewsPage() {
     }
 
     if (!isAuthorized) {
-        const currentEmail = user?.email || "No detected user";
-        const envSet = !!REQUIRED_ADMIN_EMAIL;
-
         return (
             <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
                 <AppHeader active="admin" />
@@ -106,32 +86,6 @@ export default function AdminReviewsPage() {
 
                         <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
                         <p className="text-[var(--text-muted)] mb-6">You do not have permission to view the reviews manager.</p>
-
-                        <div className="bg-[var(--bg-elevated)] p-4 rounded-xl text-left text-xs font-mono space-y-2 mb-6 border border-[var(--border-subtle)]">
-                            <div className="flex justify-between border-b border-[var(--border-subtle)] pb-2 mb-2">
-                                <span className="font-bold">Diagnostic Info</span>
-                                <span className="opacity-50">v1.2</span>
-                            </div>
-
-                            <div className="grid grid-cols-[100px_1fr] gap-2">
-                                <span className="opacity-70">Status:</span>
-                                <span className="text-red-500 font-bold">UNAUTHORIZED</span>
-
-                                <span className="opacity-70">Logged In:</span>
-                                <span>{user ? "✅ Yes" : "❌ No"}</span>
-
-                                <span className="opacity-70">Env Var Set:</span>
-                                <span>{envSet ? "✅ Yes" : "❌ MISSING"}</span>
-
-                                <span className="opacity-70">Current User:</span>
-                                <span className="bg-yellow-200 dark:bg-yellow-900/50 px-1 rounded truncate block">{currentEmail}</span>
-
-                                <span className="opacity-70">Required:</span>
-                                <span className="bg-yellow-200 dark:bg-yellow-900/50 px-1 rounded truncate block">
-                                    {envSet ? REQUIRED_ADMIN_EMAIL : "(Set NEXT_PUBLIC_ADMIN_EMAIL)"}
-                                </span>
-                            </div>
-                        </div>
 
                         <div className="flex gap-3 justify-center">
                             <Link

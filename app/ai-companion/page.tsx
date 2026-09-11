@@ -308,12 +308,18 @@ export default function AiCompanionPage() {
 
     try {
       const threadId = await ensureThreadIfNeeded(localUser.content);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
 
       // POST to image API
       const res = await fetch("/api/ai-images", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, prompt: imagePrompt }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ prompt: imagePrompt }),
       });
 
       const data = await res.json();
@@ -440,10 +446,16 @@ export default function AiCompanionPage() {
       const threadId = await ensureThreadIfNeeded(text);
 
       const historyForModel = messages.slice(-14).map((m) => ({ role: m.role, content: m.content }));
+      const { data: sessionData } = await supabase.auth.getSession();
 
       const res = await fetch("/api/ai-companion-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {}),
+        },
         body: JSON.stringify({
           message: text,
           category,

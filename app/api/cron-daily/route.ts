@@ -1,10 +1,14 @@
 // app/api/cron-daily/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { runDailyDigest } from "@/app/api/daily-digest/route";
+import { verifyCronAuth } from "@/lib/verifyCron";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
+
   try {
     const result = await runDailyDigest();
 

@@ -1,27 +1,14 @@
 // app/api/cron-digest/route.ts
+import { NextRequest } from "next/server";
+import { verifyCronAuth } from "@/lib/verifyCron";
+
 export const dynamic = "force-dynamic"; // never cache cron responses
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
+
   const expectedSecret = process.env.CRON_SECRET;
-
-  if (!expectedSecret) {
-    console.error("[cron-digest] CRON_SECRET is not set");
-    return new Response("Server misconfigured: CRON_SECRET missing", {
-      status: 500,
-    });
-  }
-
-  const authHeader = request.headers.get("authorization") || "";
-  const url = new URL(request.url);
-  const querySecret = url.searchParams.get("secret") || "";
-
-  const headerMatches = authHeader === `Bearer ${expectedSecret}`;
-  const queryMatches = querySecret === expectedSecret;
-
-  if (!headerMatches && !queryMatches) {
-    console.warn("[cron-digest] Unauthorized call");
-    return new Response("Unauthorized", { status: 401 });
-  }
 
   try {
     // 👇 Call your *Next.js* daily-digest route, NOT the Supabase Edge Function
@@ -33,7 +20,7 @@ export async function GET(request: Request) {
       headers: {
         "Content-Type": "application/json",
         // pass the same secret so /api/daily-digest can verify
-        authorization: `Bearer ${expectedSecret}`,
+        authorization: `Bearer ${expectedSecret!}`,
       },
     });
 

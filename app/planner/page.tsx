@@ -153,7 +153,7 @@ export default function PlannerPage() {
         : String(Date.now());
 
     try {
-      let body: any = { userId: user?.id || "guest" };
+      const body: any = { userId: user?.id || "guest" };
 
       if (!user) {
         incrementGuestUsage();
@@ -163,11 +163,16 @@ export default function PlannerPage() {
         body.tasks = guestTasks.filter((t: any) => !t.completed);
       }
 
+      const { data: sessionData } = await supabase.auth.getSession();
+
       const res = await fetch("/api/daily-plan", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Client-Request-Id": reqId,
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {}),
         },
         body: JSON.stringify(body),
       });

@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { UI_STRINGS, type UiTranslationKey } from "@/lib/uiStrings";
 import OpenAI from "openai";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
 // Supported target languages
 const SUPPORTED_TARGET_LANGS = [
@@ -28,11 +27,12 @@ const LANGUAGE_LABELS: Record<TargetLangCode, string> = {
   nl: "Dutch (Netherlands)", hi: "Hindi", ko: "Korean",
 };
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 async function translateBatch({ texts, targetLang }: { texts: string[], targetLang: string }): Promise<string[]> {
+  if (!openai) throw new Error("OpenAI is not configured");
   const prompt = [
     `Translate each item to ${targetLang}.`,
     `Return STRICT JSON only as: {"translations":["...","..."]}`,
@@ -70,9 +70,15 @@ async function translateBatch({ texts, targetLang }: { texts: string[], targetLa
 
 export async function POST(req: NextRequest) {
   try {
-    const adminHeader = req.headers.get("X-Admin-Key") || "";
-    if (!ADMIN_KEY || adminHeader !== ADMIN_KEY) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const admin = await requireAdmin(req);
+    const authError = adminAuthErrorResponse(admin);
+    if (authError) return authError;
+
+    if (!openai) {
+      return NextResponse.json(
+        { ok: false, error: "AI translation is not configured on this environment" },
+        { status: 503 }
+      );
     }
 
     const body = await req.json().catch(() => ({} as any));

@@ -1,25 +1,12 @@
 // app/admin/api/stats/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(req: NextRequest) {
-  const adminKeyHeader = req.headers.get("x-admin-key") || "";
-  const expected = process.env.ADMIN_KEY;
-
-  if (!expected) {
-    console.error("[admin/stats] ADMIN_KEY env not set");
-    return NextResponse.json(
-      { ok: false, error: "Server misconfigured" },
-      { status: 500 }
-    );
-  }
-
-  if (adminKeyHeader !== expected) {
-    return NextResponse.json(
-      { ok: false, error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
+  const admin = await requireAdmin(req);
+  const authError = adminAuthErrorResponse(admin);
+  if (authError) return authError;
 
   try {
     const [{ count: totalUsers }, { count: proUsers }] = await Promise.all([

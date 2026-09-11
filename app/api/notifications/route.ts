@@ -6,11 +6,14 @@ import { Resend } from "resend";
 
 export const runtime = "nodejs";
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+const APP_URL = (
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://aiprod.app"
+).replace(/\/+$/, "");
 
 type NotificationSettingsRow = {
   user_id: string;
@@ -61,6 +64,11 @@ export async function runNotifications(opts?: {
   }
 
   const force = !!opts?.force;
+
+  if (!resend) {
+    console.warn("[notifications] RESEND_API_KEY is not configured; email notifications are disabled.");
+    return { ok: true, processed: 0 };
+  }
 
   // 1) Load notification settings
   const { data: settings, error: settingsError } =
@@ -119,7 +127,7 @@ export async function runNotifications(opts?: {
           subject: "Daily Success – quick check-in",
           text:
             "Take 10 seconds to score your day from 0–100 in AI Productivity Hub.\n\n" +
-            "Open the Daily Success page: https://aiprod.app/daily-success\n\n" +
+            `Open the Daily Success page: ${APP_URL}/daily-success\n\n` +
             "You can change reminder time in Settings → Notifications.",
         });
         processed++;
@@ -145,7 +153,7 @@ export async function runNotifications(opts?: {
           subject: "Evening reflection – 2-minute wrap-up",
           text:
             "Write a quick reflection about what went well, what was hard, and what you’ll focus on tomorrow.\n\n" +
-            "Open the Daily Success page: https://aiprod.app/daily-success\n\n" +
+            `Open the Daily Success page: ${APP_URL}/daily-success\n\n` +
             "You can change reminder time in Settings → Notifications.",
         });
         processed++;
@@ -169,7 +177,7 @@ export async function runNotifications(opts?: {
           subject: "Tasks for today",
           text:
             "Quick reminder to review your tasks for today in AI Productivity Hub.\n\n" +
-            "Open Tasks: https://aiprod.app/tasks\n\n" +
+            `Open Tasks: ${APP_URL}/tasks\n\n` +
             "You can turn this off in Settings → Notifications.",
         });
         processed++;

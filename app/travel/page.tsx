@@ -425,12 +425,17 @@ export default function TravelPage() {
     provider: string;
   }) {
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
       await fetch("/api/travel-click", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {}),
+        },
         body: JSON.stringify({
           ...payload,
-          userId: user?.id || null,
           destination: destination || null,
           fromCity: departureCity || null,
           checkin: checkin || null,
@@ -501,9 +506,15 @@ export default function TravelPage() {
 
     setPlanning(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
       const res = await fetch("/api/ai-travel-plan", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {}),
+        },
         body: JSON.stringify({
           userId: user?.id || "guest", // ✅ must be present for counting
           destination,

@@ -1,9 +1,7 @@
 // app/admin/api/users/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-
-// Use the same key as the client
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 // Simple UUID-ish check
 function looksLikeUuid(str: string) {
@@ -11,22 +9,9 @@ function looksLikeUuid(str: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const headerKey = req.headers.get("x-admin-key") || "";
-
-  if (!ADMIN_KEY) {
-    console.error("[admin/users] NEXT_PUBLIC_ADMIN_KEY is not set on server");
-    return NextResponse.json(
-      { ok: false, error: "Admin key is not configured on the server." },
-      { status: 500 }
-    );
-  }
-
-  if (headerKey !== ADMIN_KEY) {
-    console.warn("[admin/users] Unauthorized request");
-    return NextResponse.json(
-      { ok: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+  const admin = await requireAdmin(req);
+  if (admin.error) {
+    return NextResponse.json({ ok: false, error: admin.error }, { status: admin.status });
   }
 
   try {

@@ -3,18 +3,35 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { bumpAiUsage } from "@/lib/aiUsageServer";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-});
+const openai = process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
 
 export async function POST(req: Request) {
     try {
-        const { userId, prompt } = await req.json();
+        const auth = await getAuthenticatedUser(req);
+        if (!auth.user) {
+            return NextResponse.json(
+                { ok: false, error: "Unauthorized" },
+                { status: auth.error === "server_misconfigured" ? 500 : 401 }
+            );
+        }
 
-        if (!userId || !prompt) {
+        if (!openai) {
+            return NextResponse.json(
+                { ok: false, error: "AI is not configured on this environment" },
+                { status: 503 }
+            );
+        }
+
+        const { prompt } = await req.json();
+        const userId = auth.user.id;
+
+        if (!prompt) {
             return NextResponse.json({ ok: false, error: "Missing fields" }, { status: 400 });
         }
 

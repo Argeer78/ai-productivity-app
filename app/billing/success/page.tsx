@@ -1,6 +1,6 @@
 // app/billing/success/page.tsx
-import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { stripe } from "@/lib/stripe";
 import Link from "next/link";
 import HashToQuery from "./HashToQuery";
 import PlanProbe from "./PlanProbe";
@@ -24,8 +24,9 @@ export default async function BillingSuccessPage({
   let isSuccess = false;
 
   if (sessionId) {
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+    if (!stripe) {
+      message = "Billing is not configured on this environment.";
+    } else try {
 
       // Retrieve checkout session and useful fields
       const session = await stripe.checkout.sessions.retrieve(sessionId, {

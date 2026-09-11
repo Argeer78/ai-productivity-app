@@ -1,11 +1,12 @@
 // app/api/assistant/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -179,14 +180,22 @@ async function checkAndIncrementAiUsage(userId: string) {
 
 export async function POST(req: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      console.error("Assistant: OPENAI_API_KEY missing");
-      return NextResponse.json({ error: "AI is not configured on this server." }, { status: 500 });
+    if (!openai) {
+      return NextResponse.json({ error: "AI is not configured on this environment" }, { status: 503 });
+    }
+
+    const hasBearerToken = req.headers.get("authorization")?.startsWith("Bearer ") ?? false;
+    const auth = hasBearerToken ? await getAuthenticatedUser(req) : null;
+    if (hasBearerToken && !auth?.user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: auth?.error === "server_misconfigured" ? 500 : 401 }
+      );
     }
 
     const body = await req.json().catch(() => ({}));
     const rawMessages = body?.messages;
-    const userId = body?.userId as string | undefined;
+    const userId = auth?.user?.id;
 
     const uiLang = safeLangCode(body?.uiLang);
     const langName = languageNameForPrompt(uiLang);

@@ -7,8 +7,6 @@ import AppHeader from "@/app/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/useT";
 
-const ADMIN_EMAILS = ["sgouros2305@gmail.com"];
-
 type FeedbackRow = {
   id: string;
   user_id: string | null;
@@ -25,6 +23,7 @@ export default function FeedbackPage() {
 
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,7 +46,6 @@ export default function FeedbackPage() {
     loadUser();
   }, []);
 
-  // 2) Load all feedback (only after user check)
   useEffect(() => {
     if (!user) return;
 
@@ -56,13 +54,16 @@ export default function FeedbackPage() {
       setError("");
 
       try {
-        const { data, error } = await supabase
-          .from("feedback")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        setFeedback((data || []) as FeedbackRow[]);
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) throw new Error("Unauthorized");
+        const response = await fetch("/api/admin/feedback", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await response.json().catch(() => ({}));
+        setIsAuthorized(response.ok);
+        if (!response.ok) throw new Error(result.error || "Unauthorized");
+        setFeedback((result.data || []) as FeedbackRow[]);
       } catch (err) {
         console.error(err);
         // you don't have feedbackPage.loadError key, so keep fallback
@@ -111,7 +112,7 @@ export default function FeedbackPage() {
   }
 
   // Only allow specific admin emails to view feedback
-  if (!ADMIN_EMAILS.includes(user.email)) {
+  if (!isAuthorized) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col">
         <AppHeader />

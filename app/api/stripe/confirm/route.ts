@@ -1,23 +1,27 @@
 // app/api/stripe/confirm/route.ts
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
 type Plan = "free" | "pro" | "founder";
 
 export async function POST(req: Request) {
   try {
-    if (!STRIPE_SECRET_KEY) {
-      console.error("[stripe/confirm] STRIPE_SECRET_KEY is not configured");
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
       return NextResponse.json(
-        { error: "Stripe is not configured" },
-        { status: 503 }
+        { error: "Unauthorized" },
+        { status: auth.error === "server_misconfigured" ? 500 : 401 }
       );
     }
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY);
+    if (!stripe) {
+      return NextResponse.json({ error: "Billing is not configured on this environment" }, { status: 503 });
+    }
     const body = await req.json();
     // support either key: session_id or sessionId
     const sessionId = body.session_id || body.sessionId;
@@ -58,6 +62,9 @@ export async function POST(req: Request) {
         { error: "No user id in session metadata" },
         { status: 400 }
       );
+    }
+    if (userId !== auth.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Decide plan from metadata.plan ("pro" | "yearly" | "founder")

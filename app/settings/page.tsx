@@ -387,10 +387,16 @@ export default function SettingsPage() {
       if (sub) await sub.unsubscribe();
 
       try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
+
         await fetch("/api/push/unsubscribe", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
         });
       } catch (e) {
         console.warn("push/unsubscribe API error (non-fatal):", e);
@@ -784,10 +790,17 @@ export default function SettingsPage() {
                         track("manage_subscription_opened");
                       } catch { }
 
+                      const { data: sessionData } = await supabase.auth.getSession();
+                      if (!sessionData.session?.access_token) {
+                        throw new Error("Your session has expired. Please sign in again.");
+                      }
+
                       const res = await fetch("/api/stripe/portal", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId: user.id }),
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${sessionData.session.access_token}`,
+                        },
                       });
 
                       const data = await res.json();
@@ -838,11 +851,15 @@ export default function SettingsPage() {
                     if (!user?.id) return;
 
                     try {
+                      const { data: sessionData } = await supabase.auth.getSession();
+                      const accessToken = sessionData.session?.access_token;
+                      if (!accessToken) throw new Error("Missing authenticated session");
+
                       const res = await fetch("/api/export", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId: user.id }),
+                        headers: { Authorization: `Bearer ${accessToken}` },
                       });
+                      if (!res.ok) throw new Error(`Export failed (${res.status})`);
                       const blob = await res.blob();
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement("a");

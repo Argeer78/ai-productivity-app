@@ -2,27 +2,39 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { bumpAiUsage } from "@/lib/aiUsageServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { message, history, category, userId, lang, attachments } = body;
+    const { message, history, category, lang, attachments } = body;
+    const requestedUserId = typeof body.userId === "string" ? body.userId : "";
+    const isGuest = requestedUserId === "guest" || requestedUserId.startsWith("demo-");
+    const auth = isGuest ? null : await getAuthenticatedUser(req);
 
-    // ✅ Require userId so we can count usage per user
-    // ✅ GUEST BYPASS
-    const isGuest = userId === "guest" || userId.startsWith("demo-");
-
-    if ((!userId || typeof userId !== "string") && !isGuest) {
+    if (!isGuest && !auth?.user) {
       return NextResponse.json(
-        { ok: false, error: "Unauthorized: userId is required" },
-        { status: 401 }
+        { ok: false, error: "Unauthorized" },
+        { status: auth?.error === "server_misconfigured" ? 500 : 401 }
       );
+    }
+
+    if (!openai) {
+      return NextResponse.json(
+        { ok: false, error: "AI is not configured on this environment" },
+        { status: 503 }
+      );
+    }
+
+    const userId = isGuest ? requestedUserId : auth?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
     const userLang = lang || "en";

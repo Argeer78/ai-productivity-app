@@ -1,32 +1,29 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
 export async function POST(req: Request) {
   try {
-    if (!STRIPE_SECRET_KEY) {
-      console.error("[stripe/portal] STRIPE_SECRET_KEY is not configured");
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
       return NextResponse.json(
-        { error: "Stripe is not configured" },
-        { status: 503 }
+        { error: "Unauthorized" },
+        { status: auth.error === "server_misconfigured" ? 500 : 401 }
       );
     }
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY);
-    const { userId } = await req.json();
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Missing userId" },
-        { status: 400 }
-      );
+    if (!stripe) {
+      return NextResponse.json({ error: "Billing is not configured on this environment" }, { status: 503 });
     }
 
     const { data: profile, error } = await supabaseAdmin
       .from("profiles")
       .select("stripe_customer_id")
-      .eq("id", userId)
+      .eq("id", auth.user.id)
       .maybeSingle();
 
     if (error) {
@@ -46,7 +43,15 @@ export async function POST(req: Request) {
     }
 
     const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://aiprod.app";
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL;
+
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: "Application URL is not configured on this environment" },
+        { status: 503 }
+      );
+    }
 
     const returnUrl = `${baseUrl.replace(/\/+$/, "")}/settings`;
 
@@ -62,10 +67,10 @@ export async function POST(req: Request) {
     const session = await stripe.billingPortal.sessions.create(params);
 
     return NextResponse.json({ url: session.url });
-  } catch (err: any) {
+  } catch (err) {
     console.error("portal route error:", err);
     return NextResponse.json(
-      { error: err?.message || "Portal error" },
+      { error: "Could not open billing portal" },
       { status: 500 }
     );
   }

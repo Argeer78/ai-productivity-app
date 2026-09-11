@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
+    const hasBearerToken = req.headers.get("authorization")?.startsWith("Bearer ") ?? false;
+    const auth = hasBearerToken ? await getAuthenticatedUser(req) : null;
+    if (hasBearerToken && !auth?.user) {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: auth?.error === "server_misconfigured" ? 500 : 401 }
+      );
+    }
+
     const {
-      userId,
       clickType,   // 'stay' | 'flight' | 'car'
       provider,    // 'booking' | 'google-flights' | 'booking-cars'
       destination,
@@ -26,7 +35,7 @@ export async function POST(req: Request) {
 
     const { error } = await supabaseAdmin.from("travel_clicks").insert([
       {
-        user_id: userId || null,
+        user_id: auth?.user?.id || null,
         click_type: clickType,
         provider,
         destination: destination || null,

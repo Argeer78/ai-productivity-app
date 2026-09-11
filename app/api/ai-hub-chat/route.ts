@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { bumpAiUsage } from "@/lib/aiUsageServer";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 // Use Node runtime for maximum compatibility
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
           error:
             "OPENAI_API_KEY is not set on the server. Add it in Vercel → Project → Settings → Environment Variables.",
         },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
@@ -38,18 +39,25 @@ export async function POST(req: NextRequest) {
       attachments?: { name: string; content: string }[];
     };
 
-    const userId = body.userId ?? "";
+    const requestedUserId = body.userId ?? "";
     const userMessage = body.userMessage ?? "";
     const category = body.category ?? "General";
     const history: HistoryItem[] = Array.isArray(body.history) ? body.history : [];
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
 
     // ✅ GUEST BYPASS
-    const isGuest = userId === "guest" || userId.startsWith("demo-");
+    const isGuest = requestedUserId === "guest" || requestedUserId.startsWith("demo-");
+    const auth = isGuest ? null : await getAuthenticatedUser(req);
 
-    if ((!userId || typeof userId !== "string") && !isGuest) {
-      return NextResponse.json({ ok: false, error: "Missing userId in request body." }, { status: 400 });
+    if (!isGuest && !auth?.user) {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: auth?.error === "server_misconfigured" ? 500 : 401 }
+      );
     }
+
+    const userId = isGuest ? requestedUserId : auth?.user?.id;
+    if (!userId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     if (!userMessage || typeof userMessage !== "string") {
       return NextResponse.json({ ok: false, error: "Missing userMessage in request body." }, { status: 400 });

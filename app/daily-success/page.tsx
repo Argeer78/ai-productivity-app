@@ -282,11 +282,21 @@ export default function DailySuccessPage() {
     setMorningPlan(null);
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        setMorningPlanError(t("dailySuccessSystem.auth.morning.title", "Log in to generate your daily plan."));
+        return;
+      }
+
       // ✅ You should create this route (same style as evening route I gave you)
       // POST /api/daily-success/morning  { userId, dayDescription, priorities }
       const res = await fetch("/api/daily-success/morning", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           userId: user.id,
           dayDescription: trimmed,
@@ -373,13 +383,22 @@ export default function DailySuccessPage() {
     setEveningResult(null);
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        setEveningResultError(t("dailySuccessSystem.auth.evening.title", "Log in to reflect on your day."));
+        return;
+      }
+
       // ✅ Uses the evening route I gave you:
       // POST /api/daily-success/evening { userId, reflection }
       const res = await fetch("/api/daily-success/evening", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
-          userId: user.id,
           reflection: trimmed,
           lang: uiLang,
         }),
@@ -620,10 +639,19 @@ export default function DailySuccessPage() {
     setSuggestReason(null);
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        setSuggestError(t("dailySuccessSystem.auth.suggestScore.title", "Log in to let AI suggest your score."));
+        return;
+      }
+
       const res = await fetch("/api/daily-score/suggest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       const data = await res.json().catch(() => null);

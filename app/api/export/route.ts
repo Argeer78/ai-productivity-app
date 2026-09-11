@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 
 function mdEscape(s: string) {
   return (s || "").replace(/\r?\n/g, "\n");
@@ -7,10 +8,12 @@ function mdEscape(s: string) {
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await req.json();
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
+      const status = auth.error === "server_misconfigured" ? 500 : 401;
+      return NextResponse.json({ error: status === 401 ? "Unauthorized" : "Server misconfiguration" }, { status });
     }
+    const userId = auth.user.id;
 
     // Fetch notes
     const { data: notes, error: notesError } = await supabaseAdmin

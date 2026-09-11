@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
-
-const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
 /**
  * We reuse the `ui_translations` table to store system flags.
@@ -14,7 +13,6 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
 export async function GET(req: NextRequest) {
     try {
-        const adminHeader = req.headers.get("X-Admin-Key") || "";
         const { searchParams } = new URL(req.url);
         const flag = searchParams.get("flag");
 
@@ -22,8 +20,10 @@ export async function GET(req: NextRequest) {
         const PUBLIC_FLAGS = ["video_recorder"];
         const isPublic = flag && PUBLIC_FLAGS.includes(flag);
 
-        if (!isPublic && (!ADMIN_KEY || adminHeader !== ADMIN_KEY)) {
-            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        if (!isPublic) {
+            const admin = await requireAdmin(req);
+            const authError = adminAuthErrorResponse(admin);
+            if (authError) return authError;
         }
 
         if (!flag) {
@@ -50,17 +50,17 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({ ok: true, enabled: isEnabled });
 
-    } catch (err: any) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    } catch (err) {
+        console.error("Error fetching system flag:", err);
+        return NextResponse.json({ ok: false, error: "Failed to fetch system flag" }, { status: 500 });
     }
 }
 
 export async function POST(req: NextRequest) {
     try {
-        const adminHeader = req.headers.get("X-Admin-Key") || "";
-        if (!ADMIN_KEY || adminHeader !== ADMIN_KEY) {
-            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-        }
+        const admin = await requireAdmin(req);
+        const authError = adminAuthErrorResponse(admin);
+        if (authError) return authError;
 
         const body = await req.json();
         const { flag, enabled } = body;
@@ -86,7 +86,8 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json({ ok: true, enabled });
-    } catch (err: any) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    } catch (err) {
+        console.error("Error setting system flag:", err);
+        return NextResponse.json({ ok: false, error: "Failed to set system flag" }, { status: 500 });
     }
 }

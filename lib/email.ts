@@ -40,6 +40,8 @@ export async function sendTaskReminderEmail({
   }
 
   const subject = `Task reminder: ${taskTitle}`;
+  const appUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://aiprod.app")
+    .replace(/\/+$/, "");
 
   const humanDue =
     dueAt && !Number.isNaN(Date.parse(dueAt))
@@ -64,7 +66,7 @@ export async function sendTaskReminderEmail({
   plainLines.push(
     "",
     "Open your tasks to mark it done or reschedule:",
-    "https://aiprod.app/tasks",
+    `${appUrl}/tasks`,
     "",
     "— AI Productivity Hub"
   );
@@ -81,7 +83,7 @@ export async function sendTaskReminderEmail({
       </ul>
       ${taskNote ? `<p style="margin: 0 0 12px;"><strong>Notes:</strong><br />${escapeHtml(taskNote).replace(/\n/g, "<br />")}</p>` : ""}
       <p style="margin: 0 0 12px;">
-        <a href="https://aiprod.app/tasks" style="display:inline-block;padding:8px 14px;border-radius:999px;background:#6366f1;color:#f9fafb;text-decoration:none;font-size:13px;">
+        <a href="${appUrl}/tasks" style="display:inline-block;padding:8px 14px;border-radius:999px;background:#6366f1;color:#f9fafb;text-decoration:none;font-size:13px;">
           Open my tasks
         </a>
       </p>
@@ -101,7 +103,7 @@ export async function sendTaskReminderEmail({
         text,
         html,
         headers: {
-          "List-Unsubscribe": "<https://aiprod.app/settings>",
+          "List-Unsubscribe": `<${appUrl}/settings>`,
         },
       });
       console.log("[emailTasks] Task reminder email sent:", result?.data?.id || result);

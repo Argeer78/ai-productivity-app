@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -86,9 +87,9 @@ async function checkAndIncrementAiUsage(userId: string) {
   }
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -116,6 +117,15 @@ function normalizeForCache(s: string): string {
 
 export async function POST(req: Request) {
   try {
+    const hasBearerToken = req.headers.get("authorization")?.startsWith("Bearer ") ?? false;
+    const auth = hasBearerToken ? await getAuthenticatedUser(req) : null;
+    if (hasBearerToken && !auth?.user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: auth?.error === "server_misconfigured" ? 500 : 401 }
+      );
+    }
+
     const body = (await req.json()) as Body;
     const { text, targetLang } = body || {};
 
@@ -194,9 +204,16 @@ export async function POST(req: Request) {
 
     // 2) Call OpenAI only for missing snippets
     if (toTranslate.length > 0) {
+      if (!openai) {
+        return NextResponse.json(
+          { error: "AI is not configured on this environment" },
+          { status: 503 }
+        );
+      }
+
       // ✅ Count an AI call only when we actually call OpenAI (cache miss)
-      if (body?.userId) {
-        await checkAndIncrementAiUsage(body.userId);
+      if (auth?.user) {
+        await checkAndIncrementAiUsage(auth.user.id);
       }
 
       const originals = toTranslate.map((x) => x.originalNorm);
@@ -259,6 +276,7 @@ async function translateWithOpenAI(
   targetLang: string
 ): Promise<string[]> {
   if (snippets.length === 0) return [];
+  if (!openai) throw new Error("AI is not configured");
 
   const prompt = `
 You are a translation engine.

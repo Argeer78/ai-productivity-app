@@ -2,13 +2,14 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -74,19 +75,22 @@ function parseDigest(text: string, todayStr: string) {
 
 export async function POST(req: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
       return NextResponse.json(
-        { ok: false, error: "OPENAI_API_KEY is not configured on the server." },
-        { status: 500 }
+        { ok: false, error: "Unauthorized" },
+        { status: auth.error === "server_misconfigured" ? 500 : 401 }
       );
     }
 
-    const body = (await req.json().catch(() => ({}))) as { userId?: string | null };
-    const userId = body.userId || null;
-
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "Missing userId" }, { status: 400 });
+    if (!openai) {
+      return NextResponse.json(
+        { ok: false, error: "AI is not configured on this environment" },
+        { status: 503 }
+      );
     }
+
+    const userId = auth.user.id;
 
     // ✅ Athens date for both digest label + ai_usage row
     const todayStr = getTodayAthensYmd();

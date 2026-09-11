@@ -7,9 +7,6 @@ import { supabase } from "@/lib/supabaseClient";
 import AppHeader from "@/app/components/AppHeader";
 import { SUPPORTED_LANGS, Locale } from "@/lib/i18n";
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "";
-
 type AdminStats = {
   totalUsers: number;
   proUsers: number;
@@ -26,8 +23,10 @@ type AdminStats = {
 
 function AdminEmailTestPanel({
   currentUserEmail,
+  accessToken,
 }: {
   currentUserEmail: string | null;
+  accessToken: string;
 }) {
   const [targetEmail, setTargetEmail] = useState(currentUserEmail || "");
   const [kind, setKind] = useState<
@@ -42,11 +41,6 @@ function AdminEmailTestPanel({
       return;
     }
 
-    if (!ADMIN_KEY) {
-      setStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
-      return;
-    }
-
     setSending(true);
     setStatus(null);
 
@@ -55,7 +49,7 @@ function AdminEmailTestPanel({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Admin-Key": ADMIN_KEY,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           targetEmail: targetEmail.trim(),
@@ -144,11 +138,6 @@ function AdminEmailTestPanel({
         </p>
       )}
 
-      {!ADMIN_KEY && (
-        <p className="mt-2 text-[11px] text-amber-400">
-          Warning: <code>NEXT_PUBLIC_ADMIN_KEY</code> is not set in your env.
-        </p>
-      )}
     </section>
   );
 }
@@ -156,7 +145,9 @@ function AdminEmailTestPanel({
 export default function AdminHomePage() {
   const [user, setUser] = useState<any | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [authorized, setAuthorized] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -175,13 +166,10 @@ export default function AdminHomePage() {
   useEffect(() => {
     async function loadUser() {
       try {
-        const { data } = await supabase.auth.getUser();
-        const u = data?.user ?? null;
-        setUser(u);
-
-        if (u?.email && ADMIN_EMAIL && u.email === ADMIN_EMAIL) {
-          setAuthorized(true);
-        }
+        const { data } = await supabase.auth.getSession();
+        setUser(data.session?.user ?? null);
+        setAccessToken(data.session?.access_token ?? null);
+        if (!data.session) setCheckingAdmin(false);
       } catch (err) {
         console.error("[admin] loadUser error", err);
       } finally {
@@ -192,7 +180,7 @@ export default function AdminHomePage() {
   }, []);
 
   useEffect(() => {
-    if (!authorized || !ADMIN_KEY) return;
+    if (!accessToken) return;
 
     async function loadStats() {
       setStatsLoading(true);
@@ -200,7 +188,7 @@ export default function AdminHomePage() {
       try {
         const res = await fetch("/admin/api/stats", {
           headers: {
-            "X-Admin-Key": ADMIN_KEY,
+            Authorization: `Bearer ${accessToken}`,
           },
         });
         const json = await res.json().catch(() => null as any);
@@ -209,17 +197,20 @@ export default function AdminHomePage() {
           throw new Error(json?.error || "Failed to load stats");
         }
 
+        setAuthorized(true);
         setStats(json.stats as AdminStats);
       } catch (err: any) {
         console.error("[admin] loadStats error", err);
+        setAuthorized(false);
         setStatsError(err?.message || "Failed to load stats");
       } finally {
         setStatsLoading(false);
+        setCheckingAdmin(false);
       }
     }
 
     loadStats();
-  }, [authorized]);
+  }, [accessToken]);
 
   // Helper to sync a single language (AI translate + upsert)
   async function syncLanguage(lang: Locale): Promise<number> {
@@ -227,7 +218,7 @@ export default function AdminHomePage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Admin-Key": ADMIN_KEY,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         languageCode: lang,
@@ -245,8 +236,8 @@ export default function AdminHomePage() {
 
   // 🔹 Single-language sync (AI translate + upsert)
   async function handleSyncUiTranslations() {
-    if (!ADMIN_KEY) {
-      setSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
+    if (!accessToken) {
+      setSyncStatus("Your session has expired. Please sign in again.");
       return;
     }
 
@@ -268,8 +259,8 @@ export default function AdminHomePage() {
 
   // 🔹 Sync ALL languages (except 'en') in sequence (AI translate + upsert)
   async function handleSyncAllLanguages() {
-    if (!ADMIN_KEY) {
-      setSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
+    if (!accessToken) {
+      setSyncStatus("Your session has expired. Please sign in again.");
       return;
     }
 
@@ -298,8 +289,8 @@ export default function AdminHomePage() {
   async function handleSyncMissingKeysToAll() {
     setKeysSyncStatus(null);
 
-    if (!ADMIN_KEY) {
-      setKeysSyncStatus("Admin key (NEXT_PUBLIC_ADMIN_KEY) is not configured.");
+    if (!accessToken) {
+      setKeysSyncStatus("Your session has expired. Please sign in again.");
       return;
     }
 
@@ -311,7 +302,7 @@ export default function AdminHomePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Admin-Key": ADMIN_KEY,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           sourceLang: "en",
@@ -342,7 +333,7 @@ export default function AdminHomePage() {
   }
 
   // Auth guards
-  if (checkingUser) {
+  if (checkingUser || (user && checkingAdmin)) {
     return (
       <main className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex items-center justify-center">
         <p className="text-[var(--text-muted)] text-sm">Checking your session…</p>
@@ -638,16 +629,18 @@ export default function AdminHomePage() {
                 <p className="text-xs font-semibold text-[var(--text-main)]">Video Recorder Icon</p>
                 <p className="text-[10px] text-[var(--text-muted)]">Show/Hide the floating camcorder.</p>
               </div>
-              <SystemFlagToggle flag="video_recorder" />
+              <SystemFlagToggle flag="video_recorder" accessToken={accessToken!} />
             </div>
           </section>
 
-          <AdminEmailTestPanel currentUserEmail={user.email ?? null} />
+          <AdminEmailTestPanel
+            currentUserEmail={user.email ?? null}
+            accessToken={accessToken!}
+          />
 
           <div className="mt-8 text-[11px] text-[var(--text-muted)]">
             <p>
-              Tip: set <code>NEXT_PUBLIC_ADMIN_EMAIL</code>, <code>NEXT_PUBLIC_ADMIN_KEY</code> and{" "}
-              <code>ADMIN_KEY</code> in your env to control who can access admin tools and protected APIs.
+              Admin access is verified from your authenticated account on every protected request.
             </p>
           </div>
         </div>
@@ -656,7 +649,7 @@ export default function AdminHomePage() {
   );
 }
 
-function SystemFlagToggle({ flag }: { flag: string }) {
+function SystemFlagToggle({ flag, accessToken }: { flag: string; accessToken: string }) {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -665,7 +658,7 @@ function SystemFlagToggle({ flag }: { flag: string }) {
     async function load() {
       try {
         const res = await fetch(`/api/admin/system-flags?flag=${flag}`, {
-          headers: { "X-Admin-Key": process.env.NEXT_PUBLIC_ADMIN_KEY || "" }
+          headers: { Authorization: `Bearer ${accessToken}` }
         });
         const data = await res.json();
         if (data.ok) setEnabled(data.enabled);
@@ -676,7 +669,7 @@ function SystemFlagToggle({ flag }: { flag: string }) {
       }
     }
     load();
-  }, [flag]);
+  }, [accessToken, flag]);
 
   const toggle = async () => {
     const newVal = !enabled;
@@ -687,7 +680,7 @@ function SystemFlagToggle({ flag }: { flag: string }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Admin-Key": process.env.NEXT_PUBLIC_ADMIN_KEY || ""
+          Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({ flag, enabled: newVal })
       });
