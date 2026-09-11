@@ -1,7 +1,7 @@
 # API Security Matrix
 
 **Baseline commit:** `938a8483ab928297ae90b7f0f241c0be28c6c58d`  
-**Status:** M1.1 canonical admin authorization implemented locally; staging acceptance pending
+**Status:** M1.1 canonical admin authorization deployed with staging server acceptance; M1.2 ownership and voice containment implemented locally
 
 `User` means verified Supabase bearer identity, `Admin` means `requireAdmin()`, `Cron` means fail-closed `CRON_SECRET`, and `SR` means service-role access.
 
@@ -17,14 +17,14 @@
 | `/api/daily-plan` | User/guest | Caller/guest path | Yes | No | Guest quota bypass |
 | `/api/ai-travel-plan` | User/guest | Caller/guest path | Yes | No | Guest quota bypass |
 | `/api/ai-hub-chat` | User/guest | Caller-provided `userId` | Yes | No | Body identity is not authority |
-| `/api/ai-hub-chat/thread` | User/guest | Caller-provided identity | Yes | No | Require bearer-derived owner |
+| `/api/ai-hub-chat/thread` | User | Bearer-derived owner | Yes | No | M1.2: parent ownership proven before owner-scoped child and parent deletes |
 | `/api/ai-companion-chat` | User/guest | Caller-provided `userId` | Yes | No | Require bearer-derived owner |
-| `/api/voice/capture` | User/guest | Caller/guest path | Yes | No | Untracked paid usage |
+| `/api/voice/capture` | User | Bearer-derived user | Yes | Daily quota | M1.2: bounded file/type/provider work; shared rate limiting remains |
 | `/api/ai-translate` | Public/user | Optional bearer; admin membership by trusted user ID | Yes | No | Enforce quota and abuse limits in M1.4 |
 | `/api/assistant` | Public/user | Optional bearer; admin membership by trusted user ID | Yes | No | Define guest policy and enforce quota |
 | `/api/ai/notes` | User | Bearer user | Yes | No | Legacy JS route; verify quota/input |
 | `/api/export` | User | Server-derived bearer user | Yes | No | Current identity pattern is correct |
-| `/api/tasks/complete` | Unclear | Ownership not proven | Yes | No | Verify task belongs to bearer user |
+| `/api/tasks/complete` | User | Bearer-derived owner | Yes | No | M1.2: task and linked-note operations remain owner-scoped |
 | `/api/push/subscribe` | User | Bearer user | Yes | No | Schema currently permits one device/user |
 | `/api/push/unsubscribe` | User | Bearer user | Yes | No | Ownership pattern is appropriate |
 | `/api/push/test` | User | Bearer user | Yes | No | Keep non-production or tightly scoped |
@@ -58,7 +58,7 @@
 | `/api/integrity/verify` | Public | Provider request | No | No | Verify protocol and request binding |
 | `/api/scripts` | Unclear | Unverified | Unverified | No | Disable or strongly authenticate |
 
-Admin-specific routes under `/api/admin/` include feedback, email logs, review listing, UI key sync, translation sync, and AI namespace translation. They share the same broken `requireAdmin()` contract.
+Admin-specific routes under `/api/admin/` include feedback, email logs, review listing, UI key sync, translation sync, and AI namespace translation. They share the canonical M1.1 `requireAdmin()` contract.
 
 ## Privileged Helpers
 

@@ -1,26 +1,47 @@
-// app/api/ai-hub-chat/thread/route.ts
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { authorizeOwnedResource } from "@/lib/resourceAuthorization";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function DELETE(req: Request) {
   try {
     const body = (await req.json().catch(() => null)) as
-      | { threadId?: string; userId?: string }
+      | { threadId?: string }
       | null;
 
-    const { threadId, userId } = body || {};
+    const { threadId } = body || {};
 
-    if (!threadId || !userId) {
+    if (typeof threadId !== "string" || !UUID_PATTERN.test(threadId)) {
       return NextResponse.json(
-        { ok: false, error: "Missing threadId or userId" },
+        { ok: false, error: "Invalid request" },
         { status: 400 }
       );
     }
 
-    const supa = supabase;
+    const auth = await getAuthenticatedUser(req);
+    const authorization = await authorizeOwnedResource(auth, async (userId) => {
+      const { data, error } = await supabaseAdmin
+        .from("ai_chat_threads")
+        .select("id")
+        .eq("id", threadId)
+        .eq("user_id", userId)
+        .maybeSingle();
 
-    // 1) Delete messages for this thread & user
-    const { error: msgErr } = await supa
+      if (error) throw error;
+      return data;
+    });
+
+    if (authorization.status !== 200) {
+      return NextResponse.json(
+        { ok: false, error: authorization.error },
+        { status: authorization.status }
+      );
+    }
+
+    const userId = authorization.user.id;
+    const { error: msgErr } = await supabaseAdmin
       .from("ai_chat_messages")
       .delete()
       .eq("thread_id", threadId)
@@ -34,8 +55,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // 2) Delete the thread row
-    const { error: threadErr } = await supa
+    const { error: threadErr } = await supabaseAdmin
       .from("ai_chat_threads")
       .delete()
       .eq("id", threadId)

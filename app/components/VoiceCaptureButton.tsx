@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/useT";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import { supabase } from "@/lib/supabaseClient";
 
 /* ================= TYPES ================= */
 
@@ -253,18 +254,24 @@ export default function VoiceCaptureButton({
         setLoading(true);
 
         try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            setError(t("notes.voice.errors.loginRequired", "Log in to use voice capture."));
+            return;
+          }
+
           const fd = new FormData();
 
           // ✅ IMPORTANT: filename + extension
           const ext = finalType.includes("mp4") ? "mp4" : "webm";
           fd.append("file", blob, `voice-note.${ext}`);
 
-          fd.append("userId", userId);
           fd.append("mode", mode);
           fd.append("tz", getTimeZone());
 
           const res = await fetch("/api/voice/capture", {
             method: "POST",
+            headers: { Authorization: `Bearer ${session.access_token}` },
             body: fd,
           });
 

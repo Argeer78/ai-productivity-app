@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { toFile } from "openai/uploads";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+import {
+  isAllowedVoiceFile,
+  isValidTimeZone,
+  MAX_VOICE_FILE_BYTES,
+  parseVoiceMode,
+} from "@/lib/voiceCaptureValidation";
 
 export const runtime = "nodejs";
 
@@ -122,46 +129,55 @@ function jsonError(message: string, status = 500, detail?: any) {
 
 export async function POST(req: Request) {
   try {
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) {
+      return jsonError(
+        auth.error === "server_misconfigured" ? "Authorization unavailable" : "Unauthorized",
+        auth.error === "server_misconfigured" ? 500 : 401
+      );
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       return jsonError("AI is not configured on this environment.", 503);
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      maxRetries: 0,
+      timeout: 45_000,
+    });
 
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {
       return jsonError("Expected multipart/form-data", 400);
     }
 
+    const contentLength = Number(req.headers.get("content-length") || 0);
+    if (contentLength > MAX_VOICE_FILE_BYTES + 1_000_000) {
+      return jsonError("Audio file is too large.", 413);
+    }
+
     const formData = await req.formData();
 
     const file = formData.get("file");
-    const userIdRaw = formData.get("userId");
-    const userId = typeof userIdRaw === "string" ? userIdRaw : "";
-
-    const modeRaw = (formData.get("mode") as string | null) || "review";
-    const mode =
-      modeRaw === "autosave" ? "autosave" : modeRaw === "psych" ? "psych" : modeRaw === "travel" ? "travel" : "review";
+    const mode = parseVoiceMode(formData.get("mode"));
 
     const tz = (formData.get("tz") as string | null) || DEFAULT_TZ;
 
     if (!(file instanceof File)) {
       return jsonError("Missing audio file (file).", 400);
     }
-    if (!userId) {
-      return jsonError("Missing userId.", 400);
+    if (!isAllowedVoiceFile(file)) {
+      return jsonError("Audio file must be a supported type between 2 KB and 10 MB.", 400);
+    }
+    if (!mode || !isValidTimeZone(tz)) {
+      return jsonError("Invalid voice capture options.", 400);
     }
 
-    // ✅ Count 1 AI usage per capture (includes Whisper + Chat)
-    // GUEST / DEMO BYPASS
-    if (userId.startsWith("demo-") || userId === "guest") {
-      // Allow guest usage without DB tracking (rate limited by IP naturally/hopefuly or just trust for demo)
-      console.log("[voice-capture] Guest usage allowed:", userId);
-    } else {
-      const usage = await checkAndIncrementAiUsage(userId);
-      if (!usage.ok) {
-        return jsonError("Daily AI limit reached.", 429, JSON.stringify(usage));
-      }
+    const userId = auth.user.id;
+    const usage = await checkAndIncrementAiUsage(userId);
+    if (!usage.ok) {
+      return jsonError("Daily AI limit reached.", 429, JSON.stringify(usage));
     }
 
     console.log("[voice-capture] upload", {
@@ -420,9 +436,7 @@ RULES:
     };
 
     let noteId: string | null = null;
-    const isGuest = userId.startsWith("demo-") || userId === "guest";
-
-    if (mode === "autosave" && structured.note && !isGuest) {
+    if (mode === "autosave" && structured.note) {
       const { data, error } = await supabaseAdmin
         .from("notes")
         .insert({

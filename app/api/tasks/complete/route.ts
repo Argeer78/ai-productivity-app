@@ -1,43 +1,53 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { authorizeOwnedResource } from "@/lib/resourceAuthorization";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function POST(req: Request) {
   try {
     const { taskId, completed } = await req.json().catch(() => ({}));
 
-    if (!taskId) {
+    if (typeof taskId !== "string" || !UUID_PATTERN.test(taskId) || (completed !== undefined && typeof completed !== "boolean")) {
       return NextResponse.json(
-        { ok: false, error: "Missing taskId" },
+        { ok: false, error: "Invalid request" },
         { status: 400 }
       );
     }
 
-    // 1) Load the task (with source_note_id)
-    const { data: task, error: taskError } = await supabaseAdmin
-      .from("tasks")
-      .select("id, title, completed, source_note_id")
-      .eq("id", taskId)
-      .maybeSingle();
+    const auth = await getAuthenticatedUser(req);
+    const authorization = await authorizeOwnedResource(auth, async (userId) => {
+      const { data, error } = await supabaseAdmin
+        .from("tasks")
+        .select("id, title, completed, source_note_id")
+        .eq("id", taskId)
+        .eq("user_id", userId)
+        .maybeSingle();
 
-    if (taskError || !task) {
+      if (error) throw error;
+      return data;
+    });
+
+    if (authorization.status !== 200) {
       return NextResponse.json(
-        { ok: false, error: "Task not found" },
-        { status: 404 }
+        { ok: false, error: authorization.error },
+        { status: authorization.status }
       );
     }
 
+    const { resource: task, user } = authorization;
     const nowIso = new Date().toISOString();
     const newCompleted = completed ?? true;
 
-    // 2) Update the task as completed / not completed
     const { error: updateError } = await supabaseAdmin
       .from("tasks")
       .update({
         completed: newCompleted,
         completed_at: newCompleted ? nowIso : null,
       })
-      .eq("id", taskId);
+      .eq("id", taskId)
+      .eq("user_id", user.id);
 
     if (updateError) {
       console.error("[complete-task] update error", updateError);
@@ -47,12 +57,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3) If linked to a note, append a line to the note content
     if (task.source_note_id) {
       const { data: note, error: noteError } = await supabaseAdmin
         .from("notes")
         .select("id, content")
         .eq("id", task.source_note_id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
       if (!noteError && note) {
@@ -66,7 +76,8 @@ export async function POST(req: Request) {
         const { error: noteUpdateError } = await supabaseAdmin
           .from("notes")
           .update({ content: newContent })
-          .eq("id", note.id);
+          .eq("id", note.id)
+          .eq("user_id", user.id);
 
         if (noteUpdateError) {
           console.error(
