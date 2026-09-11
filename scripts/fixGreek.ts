@@ -11,7 +11,12 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openaiApiKey = process.env.OPENAI_API_KEY;
+if (!openaiApiKey) {
+    console.error("Missing OPENAI_API_KEY");
+    process.exit(1);
+}
+const openai = new OpenAI({ apiKey: openaiApiKey });
 
 async function fixGreek() {
     console.log("--- START FIX GREEK ---");

@@ -21,8 +21,13 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Init OpenAI
+const openaiApiKey = process.env.OPENAI_API_KEY;
+if (!openaiApiKey) {
+    console.error("Error: OPENAI_API_KEY required.");
+    process.exit(1);
+}
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: openaiApiKey,
 });
 
 async function getKeys(lang: string): Promise<Map<string, string>> {

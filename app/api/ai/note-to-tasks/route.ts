@@ -8,7 +8,7 @@ export async function POST(req: Request) {
       console.error("[note-to-tasks] Missing OPENAI_API_KEY");
       return NextResponse.json(
         { ok: false, error: "AI is not configured on the server." },
-        { status: 500 }
+        { status: 503 }
       );
     }
 

@@ -19,6 +19,13 @@ function getWeekRangeDateStrings() {
 
 export async function POST(req: Request) {
   try {
+    if (!openai) {
+      return NextResponse.json(
+        { ok: false, error: "AI is not configured on this environment." },
+        { status: 503 }
+      );
+    }
+
     const body = await req.json().catch(() => ({} as any));
     const userId = body?.userId as string | undefined;
     const explicitWeekStart = body?.weekStart as string | undefined;
@@ -224,11 +231,10 @@ export async function POST(req: Request) {
       },
     };
 
-    let planText =
-      "Your weekly action plan is ready, but the AI model is not configured. Please set OPENAI_API_KEY.";
+    let planText = "Your weekly action plan could not be generated. Please try again later.";
 
-    // 5) Call OpenAI (if configured) to generate the plan
-    if (openai) {
+    // 5) Call OpenAI to generate the plan
+    {
       const systemPrompt = `
 You are an encouraging productivity coach.
 Given a summary of the user's last 7 days (tasks, notes, AI usage, productivity scores, and weekly goal),

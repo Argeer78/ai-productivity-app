@@ -125,7 +125,7 @@ function jsonError(message: string, status = 500, detail?: any) {
 export async function POST(req: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
-      return jsonError("OPENAI_API_KEY is missing on the server.", 500);
+      return jsonError("AI is not configured on this environment.", 503);
     }
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

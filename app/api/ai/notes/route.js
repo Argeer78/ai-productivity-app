@@ -1,12 +1,18 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openaiApiKey = process.env.OPENAI_API_KEY;
 
 export async function POST(req) {
   try {
+    if (!openaiApiKey) {
+      return NextResponse.json(
+        { error: "AI is not configured on this environment." },
+        { status: 503 }
+      );
+    }
+
+    const client = new OpenAI({ apiKey: openaiApiKey });
     const { content, mode } = await req.json();
 
     if (!content) {
