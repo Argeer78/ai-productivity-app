@@ -8,7 +8,9 @@ import OpenAI from "openai";
 
 export const runtime = "nodejs";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "");
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
+
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
 
@@ -303,7 +305,11 @@ export async function runDailyDigest() {
     }
 
     try {
-      await resend.emails.send({
+     if (!resend) {
+       throw new Error("Email service not configured");
+     }
+
+  await resend.emails.send({
         from: FROM_EMAIL,
         to: email,
         subject,

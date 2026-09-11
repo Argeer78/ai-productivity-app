@@ -5,16 +5,19 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 
-if (!STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY env var is missing");
-}
-
-const stripe = new Stripe(STRIPE_SECRET_KEY);
-
 type Plan = "free" | "pro" | "founder";
 
 export async function POST(req: Request) {
   try {
+    if (!STRIPE_SECRET_KEY) {
+      console.error("[stripe/confirm] STRIPE_SECRET_KEY is not configured");
+      return NextResponse.json(
+        { error: "Stripe is not configured" },
+        { status: 503 }
+      );
+    }
+
+    const stripe = new Stripe(STRIPE_SECRET_KEY);
     const body = await req.json();
     // support either key: session_id or sessionId
     const sessionId = body.session_id || body.sessionId;

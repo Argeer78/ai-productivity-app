@@ -9,12 +9,6 @@ export const runtime = "nodejs"; // ensure Node runtime (not edge)
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
-if (!STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY env var is missing");
-}
-
-const stripe = new Stripe(STRIPE_SECRET_KEY);
-
 type Plan = "free" | "pro" | "founder";
 
 // 🔐 All founder price IDs (any currency)
@@ -54,13 +48,23 @@ function planFromSubscription(sub: Stripe.Subscription): Plan {
 }
 
 export async function POST(req: Request) {
-  if (!STRIPE_WEBHOOK_SECRET) {
-    console.error("STRIPE_WEBHOOK_SECRET is not configured");
+  if (!STRIPE_SECRET_KEY) {
+    console.error("[stripe/webhook] STRIPE_SECRET_KEY is not configured");
     return NextResponse.json(
-      { error: "Webhook not configured" },
-      { status: 500 }
+      { error: "Stripe is not configured" },
+      { status: 503 }
     );
   }
+
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error("[stripe/webhook] STRIPE_WEBHOOK_SECRET is not configured");
+    return NextResponse.json(
+      { error: "Webhook not configured" },
+      { status: 503 }
+    );
+  }
+
+  const stripe = new Stripe(STRIPE_SECRET_KEY);
 
   const sig = req.headers.get("stripe-signature");
   if (!sig) {

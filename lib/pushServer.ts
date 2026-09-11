@@ -6,12 +6,14 @@ const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
 const subject = process.env.VAPID_SUBJECT || "mailto:hello@aiprod.app";
 
-if (!publicKey || !privateKey) {
-  throw new Error(
-    "[pushServer] Missing VAPID keys – push notifications will NOT work."
-  );
+const pushConfigured = Boolean(publicKey && privateKey);
+
+if (pushConfigured) {
+  webpush.setVapidDetails(subject, publicKey!, privateKey!);
 } else {
-  webpush.setVapidDetails(subject, publicKey, privateKey);
+  console.warn(
+    "[pushServer] Missing VAPID keys – push notifications are disabled."
+  );
 }
 
 export type SubscriptionRow = {
@@ -30,6 +32,12 @@ export async function sendTaskReminderPush(
   sub: SubscriptionRow,
   payload: TaskPushPayload
 ) {
+  if (!pushConfigured) {
+    console.warn(
+      "[pushServer] Push skipped because VAPID is not configured."
+    );
+    return;
+  }
   if (!payload.taskId || !payload.title) {
     console.error("[pushServer] Invalid payload: Missing taskId or title.");
     return;

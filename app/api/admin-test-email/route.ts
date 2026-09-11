@@ -8,12 +8,21 @@ import {
 } from "@/lib/emailTemplates";
 import { renderStripeUpgradeThankYouEmail } from "@/lib/stripeEmails";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
+const resendApiKey = process.env.RESEND_API_KEY;
 const ADMIN_KEY =
   process.env.NEXT_PUBLIC_ADMIN_KEY || process.env.CRON_SECRET || "";
 
 export async function POST(req: Request) {
   try {
+    if (!resendApiKey) {
+      console.error("[admin-test-email] RESEND_API_KEY is not configured");
+      return NextResponse.json(
+        { ok: false, error: "Email service not configured" },
+        { status: 503 }
+      );
+    }
+
+    const resend = new Resend(resendApiKey);
     // ✅ Enforce admin key
     if (!ADMIN_KEY) {
       console.error("[admin-test-email] ADMIN_KEY is not configured");

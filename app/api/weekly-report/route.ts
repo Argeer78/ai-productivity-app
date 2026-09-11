@@ -8,7 +8,8 @@ import { verifyCronAuth } from "@/lib/verifyCron";
 
 export const runtime = "nodejs";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "");
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 // Make OpenAI optional (don’t crash deploys if key missing)
 const openai =
@@ -110,8 +111,12 @@ async function aiTranslate(
 
 // Wrapper: handle Resend 429 rate limit with retries
 async function sendWithRateLimit(
-  args: Parameters<typeof resend.emails.send>[0]
+  args: Parameters<Resend["emails"]["send"]>[0]
 ) {
+  if (!resend) {
+    throw new Error("Email service not configured");
+  }
+
   let attempt = 0;
 
   while (attempt < 3) {

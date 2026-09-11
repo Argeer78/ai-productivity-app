@@ -6,7 +6,9 @@ import { Resend } from "resend";
 
 export const runtime = "nodejs";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "");
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
+
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
 
@@ -51,6 +53,13 @@ function getLocalHHMM(timezone: string): string {
 export async function runNotifications(opts?: {
   force?: boolean;
 }): Promise<{ ok: boolean; processed: number }> {
+  if (!resend) {
+    console.warn(
+      "[notifications] RESEND_API_KEY is not configured – email notifications are disabled."
+    );
+    return { ok: false, processed: 0 };
+  }
+
   const force = !!opts?.force;
 
   // 1) Load notification settings
