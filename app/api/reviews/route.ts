@@ -1,7 +1,7 @@
 
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { parseJsonBody, parseQuery, REQUEST_LIMITS } from "@/lib/apiValidation";
 import { enforceAuthenticatedRateLimit } from "@/lib/rateLimit";
 import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
@@ -25,20 +25,7 @@ export async function POST(request: Request) {
         const rateLimit = await enforceAuthenticatedRateLimit(userId, "reviews:create", "authenticated-standard");
         if (!rateLimit.ok) return rateLimit.response;
 
-        // 2. Insert using Service Role (Bypasses RLS)
-        // This ensures the write succeeds even if RLS policies are misconfigured or strict
-        const adminSupabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false,
-                },
-            }
-        );
-
-        const { error } = await adminSupabase.from("app_reviews").insert({
+        const { error } = await supabaseAdmin.from("app_reviews").insert({
             user_id: userId,
             rating,
             comment: comment?.trim() || null,
@@ -47,45 +34,36 @@ export async function POST(request: Request) {
 
         if (error) {
             console.error("[reviews] insert error:", error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            return NextResponse.json({ error: "Unable to save review" }, { status: 500 });
         }
 
         return NextResponse.json({ success: true });
-    } catch (e: any) {
-        console.error("[reviews] fatal error:", e);
-        return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
+    } catch {
+        console.error("[reviews] request failed");
+        return NextResponse.json({ error: "Internal error" }, { status: 500 });
     }
 }
 
 export async function GET() {
     try {
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-        // Use admin client to ensure we can read all reviews even if RLS is strict
-        // We will only return safe public fields
-        if (!serviceKey || !dbUrl) {
-            return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
-        }
-
-        const adminSupabase = createClient(dbUrl, serviceKey, {
-            auth: { autoRefreshToken: false, persistSession: false },
-        });
-
-        const { data, error } = await adminSupabase
+        const { data, error } = await supabaseAdmin
             .from("app_reviews")
-            .select("id, rating, comment, user_id, created_at, source")
+            .select("id, rating, comment, created_at, source")
             .order("created_at", { ascending: false })
             .limit(50);
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("[reviews] public list query failed");
+            return NextResponse.json({ error: "Unable to load reviews" }, { status: 500 });
         }
 
-        return NextResponse.json({ reviews: data });
+        return NextResponse.json({
+            reviews: (data || []).map((review) => ({ ...review, verified: true })),
+        });
 
-    } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+    } catch {
+        console.error("[reviews] public list request failed");
+        return NextResponse.json({ error: "Internal error" }, { status: 500 });
     }
 }
 
@@ -102,21 +80,17 @@ export async function DELETE(request: Request) {
         const rateLimit = await enforceAuthenticatedRateLimit(admin.user.id, "admin:reviews-delete", "admin");
         if (!rateLimit.ok) return rateLimit.response;
 
-        const adminSupabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            { auth: { persistSession: false } }
-        );
-
-        const { error } = await adminSupabase.from("app_reviews").delete().eq("id", id);
+        const { error } = await supabaseAdmin.from("app_reviews").delete().eq("id", id);
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("[reviews] delete query failed");
+            return NextResponse.json({ error: "Unable to delete review" }, { status: 500 });
         }
 
         return NextResponse.json({ success: true });
 
-    } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+    } catch {
+        console.error("[reviews] delete request failed");
+        return NextResponse.json({ error: "Internal error" }, { status: 500 });
     }
 }

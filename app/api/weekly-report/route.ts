@@ -505,10 +505,10 @@ export async function GET(req: NextRequest) {
   try {
     const result = await runWeeklyReport();
     return NextResponse.json(result);
-  } catch (err) {
-    console.error("[weekly-report] Fatal error:", err);
+  } catch {
+    console.error("[weekly-report] request failed");
     return NextResponse.json(
-      { ok: false, error: String(err) },
+      { ok: false, error: "Internal error" },
       { status: 500 }
     );
   }

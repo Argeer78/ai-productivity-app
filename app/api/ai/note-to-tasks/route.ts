@@ -70,11 +70,10 @@ ${content}
     });
 
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      console.error("[note-to-tasks] OpenAI error:", response.status, text);
+      console.error("[note-to-tasks] provider request failed", { status: response.status });
       return NextResponse.json(
         { ok: false, error: "AI failed to generate tasks." },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
@@ -84,11 +83,11 @@ ${content}
     let parsed: any;
     try {
       parsed = JSON.parse(raw);
-    } catch (err) {
-      console.error("[note-to-tasks] JSON parse error:", err, raw);
+    } catch {
+      console.error("[note-to-tasks] provider returned invalid JSON");
       return NextResponse.json(
         { ok: false, error: "AI returned invalid JSON." },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
@@ -106,10 +105,10 @@ ${content}
       .filter((t: any) => t.title.length > 0);
 
     return NextResponse.json({ ok: true, tasks: normalized }, { status: 200 });
-  } catch (err: any) {
-    console.error("[note-to-tasks] Unexpected error", err);
+  } catch {
+    console.error("[note-to-tasks] request failed");
     return NextResponse.json(
-      { ok: false, error: err?.message || "Internal server error." },
+      { ok: false, error: "Internal server error." },
       { status: 500 }
     );
   }

@@ -92,10 +92,10 @@ export async function POST(req: Request) {
             ok: true,
             imageUrl,
         });
-    } catch (err: any) {
-        console.error("[ai-images]", err);
+    } catch {
+        console.error("[ai-images] request failed");
         return NextResponse.json(
-            { ok: false, error: err?.message || "Generation failed" },
+            { ok: false, error: "Generation failed" },
             { status: 500 }
         );
     }

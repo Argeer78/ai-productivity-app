@@ -314,10 +314,10 @@ Make a realistic plan for today.
             },
             { status: 200 }
         );
-    } catch (err: any) {
-        console.error("[daily-success/morning] error:", err);
+    } catch {
+        console.error("[daily-success/morning] request failed");
         return NextResponse.json(
-            { ok: false, error: err?.message || "Failed to generate plan." },
+            { ok: false, error: "Failed to generate plan." },
             { status: 500 }
         );
     }

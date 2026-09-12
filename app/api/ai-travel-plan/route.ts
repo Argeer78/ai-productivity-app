@@ -256,7 +256,7 @@ Budget: ${budgetText}
     if (err?.status === 429) {
       return NextResponse.json(
         {
-          error: err.message || "Daily AI limit reached.",
+          error: "Daily AI limit reached.",
           planTier: err.plan,
           dailyLimit: err.dailyLimit,
           usedToday: err.usedToday,

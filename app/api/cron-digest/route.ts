@@ -1,12 +1,15 @@
 // app/api/cron-digest/route.ts
 import { NextRequest } from "next/server";
 import { verifyCronAuth } from "@/lib/verifyCron";
+import { enforceInternalRateLimit } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic"; // never cache cron responses
 
 export async function GET(request: NextRequest) {
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+  const rateLimit = await enforceInternalRateLimit("internal:cron-digest");
+  if (!rateLimit.ok) return rateLimit.response;
 
   const expectedSecret = process.env.CRON_SECRET;
 
@@ -22,20 +25,14 @@ export async function GET(request: NextRequest) {
         // pass the same secret so /api/daily-digest can verify
         authorization: `Bearer ${expectedSecret!}`,
       },
+      signal: AbortSignal.timeout(35_000),
     });
 
     const text = await resp.text();
 
     if (!resp.ok) {
-      console.error(
-        "[cron-digest] /api/daily-digest failed:",
-        resp.status,
-        text
-      );
-      return new Response(
-        text || `/api/daily-digest failed with status ${resp.status}`,
-        { status: 500 }
-      );
+      console.error("[cron-digest] downstream request failed", { status: resp.status });
+      return new Response("Daily digest failed", { status: 502 });
     }
 
     console.log("[cron-digest] Daily digest triggered successfully");

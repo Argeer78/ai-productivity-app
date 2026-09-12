@@ -255,10 +255,10 @@ NEXT STEPS:
       },
       { status: 200 }
     );
-  } catch (err: any) {
-    console.error("[ai-summary] fatal", err);
+  } catch {
+    console.error("[ai-summary] request failed");
     return NextResponse.json(
-      { ok: false, error: err?.message || "AI summary failed." },
+      { ok: false, error: "AI summary failed." },
       { status: 500 }
     );
   }

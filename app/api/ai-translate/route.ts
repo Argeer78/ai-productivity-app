@@ -278,14 +278,14 @@ export async function POST(req: Request) {
     return NextResponse.json({
       translation: isArrayInput ? final : final[0],
     });
-  } catch (err: any) {
-    console.error("[ai-translate] fatal error", err);
+  } catch (err: unknown) {
+    console.error("[ai-translate] request failed");
 
-    const status = err?.status === 429 ? 429 : 500;
+    const status = typeof err === "object" && err !== null && "status" in err && err.status === 429 ? 429 : 500;
 
     if (status === 429) {
       return NextResponse.json(
-        { error: err?.message || "Daily AI limit reached." },
+        { error: "Daily AI limit reached." },
         { status: 429 }
       );
     }

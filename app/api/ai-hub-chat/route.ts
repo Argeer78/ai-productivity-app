@@ -140,13 +140,13 @@ export async function POST(req: NextRequest) {
       assistantMessage,
       title,
     });
-  } catch (err: any) {
-    console.error("[api/ai-hub-chat] error", err);
+  } catch {
+    console.error("[api/ai-hub-chat] request failed");
 
     return NextResponse.json(
       {
         ok: false,
-        error: err?.message || "The AI assistant had a problem responding. Please try again.",
+        error: "The AI assistant had a problem responding. Please try again.",
       },
       { status: 500 }
     );

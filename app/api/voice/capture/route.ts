@@ -345,9 +345,9 @@ RULES:
     let parsed: any;
     try {
       parsed = JSON.parse(content);
-    } catch (err) {
-      console.error("[voice-capture] Failed to parse JSON:", err, content);
-      return jsonError("Failed to parse AI JSON", 500);
+    } catch {
+      console.error("[voice-capture] provider returned invalid JSON");
+      return jsonError("Failed to parse AI JSON", 503);
     }
 
     const tasks = Array.isArray(parsed.tasks)

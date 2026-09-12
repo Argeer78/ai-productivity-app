@@ -43,11 +43,11 @@ export async function POST(req) {
     const aiText = completion.output[0].content[0].text;
 
     return NextResponse.json({ result: aiText });
-  } catch (error) {
-    console.error("AI Error:", error);
+  } catch {
+    console.error("[ai-notes] provider request failed");
     return NextResponse.json(
-      { error: "AI request failed." },
-      { status: 500 }
+      { error: "AI service is unavailable." },
+      { status: 503 }
     );
   }
 }

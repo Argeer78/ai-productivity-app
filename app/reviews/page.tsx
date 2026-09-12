@@ -11,7 +11,7 @@ type Review = {
     rating: number;
     comment: string | null;
     created_at: string;
-    user_id: string | null;
+    verified: boolean;
 };
 
 export default function ReviewPage() {
@@ -87,7 +87,7 @@ export default function ReviewPage() {
                                         <p className="text-sm leading-relaxed mb-2">"{r.comment}"</p>
                                     )}
                                     <div className="text-xs text-[var(--text-muted)] font-mono opacity-70">
-                                        — {r.user_id ? "Verified User" : "Guest"}
+                                        — {r.verified ? "Verified User" : "Guest"}
                                     </div>
                                 </div>
                             ))}

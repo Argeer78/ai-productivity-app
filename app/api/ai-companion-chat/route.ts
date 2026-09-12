@@ -169,11 +169,11 @@ RULES:
     let parsed: any;
     try {
       parsed = JSON.parse(raw);
-    } catch (err) {
-      console.error("[ai-companion] JSON parse error", raw);
+    } catch {
+      console.error("[ai-companion] provider returned invalid JSON");
       return NextResponse.json(
         { ok: false, error: "Invalid AI response format" },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
@@ -190,8 +190,8 @@ RULES:
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : null,
       chat_summary: parsed.chat_summary || "Personal reflection conversation",
     });
-  } catch (err) {
-    console.error("[ai-companion-chat]", err);
+  } catch {
+    console.error("[ai-companion-chat] request failed");
     return NextResponse.json(
       { ok: false, error: "Server error" },
       { status: 500 }

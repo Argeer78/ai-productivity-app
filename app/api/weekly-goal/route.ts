@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { z } from "zod";
 import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
-import { enforceProviderRateLimit } from "@/lib/rateLimit";
+import { enforceAuthenticatedRateLimit, enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -117,15 +117,11 @@ Original goal: "${goalText}"
 // Optional GET: return latest weekly goal for the user
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json(
-        { ok: false, error: "Missing userId." },
-        { status: 400 }
-      );
-    }
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: auth.error === "server_misconfigured" ? 500 : 401 });
+    const userId = auth.user.id;
+    const rateLimit = await enforceAuthenticatedRateLimit(userId, "weekly-goal:read", "authenticated-standard");
+    if (!rateLimit.ok) return rateLimit.response;
 
     const { data, error } = await supabaseAdmin
       .from("weekly_goals")

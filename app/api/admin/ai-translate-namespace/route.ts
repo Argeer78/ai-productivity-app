@@ -144,14 +144,11 @@ ${JSON.stringify(baseMap, null, 2)}
     let translatedMap: Record<string, unknown>;
     try {
       translatedMap = JSON.parse(content);
-    } catch (err) {
-      console.error(
-        "[ai-translate-namespace] JSON parse error. Raw content:",
-        content
-      );
+    } catch {
+      console.error("[ai-translate-namespace] provider returned invalid JSON");
       return NextResponse.json(
-        { ok: false, error: "Failed to parse AI JSON. See server logs." },
-        { status: 500 }
+        { ok: false, error: "Failed to parse AI JSON." },
+        { status: 503 }
       );
     }
 

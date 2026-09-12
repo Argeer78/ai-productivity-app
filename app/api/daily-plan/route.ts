@@ -335,16 +335,14 @@ Output format (no markdown tables):
         },
       }
     );
-  } catch (err: any) {
-    console.error("[daily-plan] error:", err);
-    const status = typeof err?.status === "number" ? err.status : 500;
-
+  } catch {
+    console.error("[daily-plan] request failed");
     return NextResponse.json(
       {
         ok: false,
-        error: err?.message || "Something went wrong while generating your daily plan.",
+        error: "Something went wrong while generating your daily plan.",
       },
-      { status }
+      { status: 500 }
     );
   }
 }

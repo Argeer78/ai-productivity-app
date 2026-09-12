@@ -196,8 +196,8 @@ Respond ONLY in strict JSON like:
       if (typeof parsed.reason === "string") {
         reason = parsed.reason;
       }
-    } catch (e) {
-      console.error("[daily-score/suggest] JSON parse error", e, raw);
+    } catch {
+      console.error("[daily-score/suggest] provider returned invalid JSON");
     }
 
     return NextResponse.json(
@@ -208,10 +208,10 @@ Respond ONLY in strict JSON like:
       },
       { status: 200 }
     );
-  } catch (err: any) {
-    console.error("[daily-score/suggest] unexpected error", err);
+  } catch {
+    console.error("[daily-score/suggest] request failed");
     return NextResponse.json(
-      { ok: false, error: err?.message || "Unexpected server error." },
+      { ok: false, error: "Unexpected server error." },
       { status: 500 }
     );
   }

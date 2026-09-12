@@ -126,10 +126,10 @@ export async function POST(req: Request) {
       { ok: true, url: session.url },
       { status: 200 }
     );
-  } catch (err: any) {
-    console.error("[stripe/checkout] Unexpected error", err);
+  } catch {
+    console.error("[stripe/checkout] request failed");
     return NextResponse.json(
-      { ok: false, error: err?.message || "Unexpected server error." },
+      { ok: false, error: "Unexpected server error." },
       { status: 500 }
     );
   }

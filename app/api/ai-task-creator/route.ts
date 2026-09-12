@@ -222,11 +222,11 @@ Return ONLY valid JSON with this shape, nothing else:
     let parsed: any;
     try {
       parsed = JSON.parse(content);
-    } catch (err) {
-      console.error("[ai-task-creator] JSON parse error:", err, content);
+    } catch {
+      console.error("[ai-task-creator] provider returned invalid JSON");
       return NextResponse.json(
         { ok: false, error: "AI returned an invalid response. Try again." },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
@@ -271,10 +271,10 @@ Return ONLY valid JSON with this shape, nothing else:
       },
       { status: 200 }
     );
-  } catch (err: any) {
-    console.error("[ai-task-creator] Unexpected error", err);
+  } catch {
+    console.error("[ai-task-creator] request failed");
     return NextResponse.json(
-      { ok: false, error: err?.message || "Unexpected server error." },
+      { ok: false, error: "Unexpected server error." },
       { status: 500 }
     );
   }

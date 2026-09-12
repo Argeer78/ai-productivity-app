@@ -358,10 +358,10 @@ If there's very little data, propose generic but helpful suggestions.
         created_at: savedPlan?.created_at ?? null,
       },
     });
-  } catch (err) {
-    console.error("[weekly-action-plan] Fatal error:", err);
+  } catch {
+    console.error("[weekly-action-plan] request failed");
     return NextResponse.json(
-      { ok: false, error: String(err) },
+      { ok: false, error: "Internal error" },
       { status: 500 }
     );
   }
