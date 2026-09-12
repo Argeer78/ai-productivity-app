@@ -1,59 +1,29 @@
 
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseJsonBody, parseQuery, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceAuthenticatedRateLimit } from "@/lib/rateLimit";
 import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+
+const createReviewSchema = z.object({
+    rating: z.number().int().min(1).max(5),
+    comment: z.string().trim().max(2_000).optional(),
+    source: z.string().trim().max(100).optional(),
+}).strict();
+const deleteReviewSchema = z.object({ id: z.uuid() }).strict();
 
 export async function POST(request: Request) {
     try {
-        const json = await request.json();
-        const { rating, comment, source } = json;
-
-        if (!rating || rating < 1 || rating > 5) {
-            return NextResponse.json(
-                { error: "Invalid rating (must be 1-5)" },
-                { status: 400 }
-            );
-        }
-
-        // 1. Get current user ID via Authorization Header
-        // (Since the client uses localStorage and not cookies, we must read the bearer token)
-        console.log("[reviews] Starting auth check...");
-        let userId: string | undefined;
-
-        try {
-            const authHeader = request.headers.get("Authorization");
-            if (authHeader) {
-                const token = authHeader.replace("Bearer ", "");
-
-                const supabase = createClient(
-                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                    { auth: { persistSession: false } }
-                );
-
-                const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-
-                if (userError) {
-                    console.warn("[reviews] Token validation failed:", userError);
-                }
-
-                userId = user?.id;
-                console.log("[reviews] User ID found:", userId);
-            } else {
-                console.warn("[reviews] No Authorization header found");
-            }
-
-        } catch (authError: any) {
-            console.error("[reviews] Auth Check Failed:", authError);
-            // Return 500 only if system failed hard, otherwise 401 later
-        }
-
-        if (!userId) {
-            console.log("[reviews] No user ID, returning 401");
-            return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-        }
+        const auth = await getAuthenticatedUser(request);
+        if (!auth.user) return NextResponse.json({ error: "Authentication required" }, { status: auth.error === "server_misconfigured" ? 500 : 401 });
+        const parsedBody = await parseJsonBody(request, createReviewSchema, REQUEST_LIMITS.smallJson);
+        if (!parsedBody.ok) return parsedBody.response;
+        const { rating, comment, source } = parsedBody.data;
+        const userId = auth.user.id;
+        const rateLimit = await enforceAuthenticatedRateLimit(userId, "reviews:create", "authenticated-standard");
+        if (!rateLimit.ok) return rateLimit.response;
 
         // 2. Insert using Service Role (Bypasses RLS)
         // This ensures the write succeeds even if RLS policies are misconfigured or strict
@@ -125,11 +95,12 @@ export async function DELETE(request: Request) {
         const authError = adminAuthErrorResponse(admin);
         if (authError) return authError;
 
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get("id");
-        if (!id) {
-            return NextResponse.json({ error: "Missing ID" }, { status: 400 });
-        }
+        if (!admin.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const parsedQuery = parseQuery(request, deleteReviewSchema);
+        if (!parsedQuery.ok) return parsedQuery.response;
+        const { id } = parsedQuery.data;
+        const rateLimit = await enforceAuthenticatedRateLimit(admin.user.id, "admin:reviews-delete", "admin");
+        if (!rateLimit.ok) return rateLimit.response;
 
         const adminSupabase = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,

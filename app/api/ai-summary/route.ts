@@ -3,13 +3,14 @@ import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { aiLanguageInstruction } from "@/lib/aiLanguage";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { isAdminUser } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const client = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
   : null;
 
 const FREE_DAILY_LIMIT = 10;
@@ -75,6 +76,8 @@ export async function POST(req: Request) {
     }
 
     const userId = auth.user.id;
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:summary", rateClass: "ai-light", verifiedUserId: userId });
+    if (!rateLimit.ok) return rateLimit.response;
 
     const today = getTodayAthensYmd();
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
     if (!stripe) {
       return NextResponse.json({ error: "Billing is not configured on this environment" }, { status: 503 });
     }
+
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "stripe:portal", rateClass: "sensitive", verifiedUserId: auth.user.id });
+    if (!rateLimit.ok) return rateLimit.response;
 
     const { data: profile, error } = await supabaseAdmin
       .from("profiles")

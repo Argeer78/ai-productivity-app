@@ -1,18 +1,35 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
 import { bumpAiUsage } from "@/lib/aiUsageServer";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
   : null;
+
+const messageSchema = z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(8_000) }).strict();
+const attachmentSchema = z.object({ name: z.string().max(255), content: z.string().max(50_000) }).strict();
+const requestSchema = z.object({
+  message: z.string().trim().min(1).max(8_000),
+  history: z.array(messageSchema).max(20).optional(),
+  category: z.string().max(100).optional(),
+  lang: z.string().regex(/^[a-z]{2}(-[a-z]{2})?$/i).optional(),
+  attachments: z.array(attachmentSchema).max(5).optional(),
+  userId: z.string().max(128).optional(),
+  threadId: z.string().max(128).nullable().optional(),
+}).strict();
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.data;
     const { message, history, category, lang, attachments } = body;
     const requestedUserId = typeof body.userId === "string" ? body.userId : "";
     const isGuest = requestedUserId === "guest" || requestedUserId.startsWith("demo-");
@@ -36,6 +53,14 @@ export async function POST(req: Request) {
     if (!userId) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+
+    const rateLimit = await enforceProviderRateLimit({
+      request: req,
+      action: "ai:companion-chat",
+      rateClass: "ai-light",
+      verifiedUserId: auth?.user?.id,
+    });
+    if (!rateLimit.ok) return rateLimit.response;
 
     const userLang = lang || "en";
 
@@ -119,7 +144,7 @@ RULES:
 - Return ONLY valid JSON. No markdown. No commentary.
 `.trim();
 
-    const messages = [
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
       ...(Array.isArray(history) ? history : []),
       { role: "user", content: message },

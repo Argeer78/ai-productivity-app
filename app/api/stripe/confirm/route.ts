@@ -1,11 +1,18 @@
 // app/api/stripe/confirm/route.ts
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
+const requestSchema = z.union([
+  z.object({ session_id: z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(255) }).strict(),
+  z.object({ sessionId: z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(255) }).strict(),
+]);
 
 type Plan = "free" | "pro" | "founder";
 
@@ -22,15 +29,13 @@ export async function POST(req: Request) {
     if (!stripe) {
       return NextResponse.json({ error: "Billing is not configured on this environment" }, { status: 503 });
     }
-    const body = await req.json();
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.data;
     // support either key: session_id or sessionId
-    const sessionId = body.session_id || body.sessionId;
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: "Missing sessionId" },
-        { status: 400 }
-      );
-    }
+    const sessionId = "session_id" in body ? body.session_id : body.sessionId;
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "stripe:confirm", rateClass: "sensitive", verifiedUserId: auth.user.id });
+    if (!rateLimit.ok) return rateLimit.response;
 
     // Get the session and expand useful fields
     const session = await stripe.checkout.sessions.retrieve(sessionId, {

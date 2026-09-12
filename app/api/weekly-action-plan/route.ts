@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const openaiApiKey = process.env.OPENAI_API_KEY || "";
-const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
+const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey, maxRetries: 0, timeout: 30_000 }) : null;
+const requestSchema = z.object({ userId: z.string().optional(), weekStart: z.iso.date().optional() }).strict();
 
 // Last 7 days including today
 function getWeekRangeDateStrings() {
@@ -26,16 +31,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json().catch(() => ({} as any));
-    const userId = body?.userId as string | undefined;
-    const explicitWeekStart = body?.weekStart as string | undefined;
-
-    if (!userId) {
-      return NextResponse.json(
-        { ok: false, error: "Missing userId in request body." },
-        { status: 400 }
-      );
-    }
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: auth.error === "server_misconfigured" ? 500 : 401 });
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const userId = auth.user.id;
+    const explicitWeekStart = parsedBody.data.weekStart;
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:weekly-action-plan", rateClass: "ai-light", verifiedUserId: userId });
+    if (!rateLimit.ok) return rateLimit.response;
 
     // 1) Check plan = pro
     const { data: profile, error: profileError } = await supabaseAdmin

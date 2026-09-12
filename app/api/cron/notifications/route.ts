@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runNotifications } from "@/app/api/notifications/route";
 import { verifyCronAuth } from "@/lib/verifyCron";
+import { enforceInternalRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+    const rateLimit = await enforceInternalRateLimit("internal:notifications");
+    if (!rateLimit.ok) return rateLimit.response;
 
   const startTime = new Date().toISOString(); // Track when the cron job started
 

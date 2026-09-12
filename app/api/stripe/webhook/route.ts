@@ -1,6 +1,7 @@
 // app/api/stripe/webhook/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { readBoundedText, REQUEST_LIMITS } from "@/lib/apiValidation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendThankYouForUpgradeEmail } from "@/lib/stripeEmails";
 import { isFounderPriceId } from "@/lib/stripePrices";
@@ -61,7 +62,9 @@ export async function POST(req: Request) {
 
   // 1) Verify signature using the raw body
   try {
-    const rawBody = await req.text();
+    const raw = await readBoundedText(req, REQUEST_LIMITS.webhook);
+    if (!raw.ok) return raw.response;
+    const rawBody = raw.data;
     event = await stripe.webhooks.constructEventAsync(
       rawBody,
       sig,

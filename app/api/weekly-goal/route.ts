@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const openaiApiKey = process.env.OPENAI_API_KEY || "";
-const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
+const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey, maxRetries: 0, timeout: 30_000 }) : null;
 
 // Compute the Monday of the current week
 function getWeekStartDateString() {
@@ -20,18 +24,16 @@ type PostBody = {
   goalText: string;
   refine?: boolean;
 };
+const requestSchema = z.object({ userId: z.string().optional(), goalText: z.string().trim().min(1).max(2_000), refine: z.boolean().optional() }).strict();
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as PostBody;
-    const { userId, goalText, refine } = body;
-
-    if (!userId || !goalText?.trim()) {
-      return NextResponse.json(
-        { ok: false, error: "Missing userId or goalText." },
-        { status: 400 }
-      );
-    }
+    const auth = await getAuthenticatedUser(req);
+    if (!auth.user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: auth.error === "server_misconfigured" ? 500 : 401 });
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { goalText, refine } = parsedBody.data as PostBody;
+    const userId = auth.user.id;
 
     const weekStart = getWeekStartDateString();
     let finalGoalText = goalText.trim();
@@ -39,6 +41,8 @@ export async function POST(req: Request) {
     // Optional: refine goal with OpenAI
     if (refine && openai) {
       try {
+        const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:weekly-goal", rateClass: "ai-light", verifiedUserId: userId });
+        if (!rateLimit.ok) return rateLimit.response;
         const prompt = `
 Rewrite this weekly goal to be specific, realistic, and action-focused,
 in one short sentence.

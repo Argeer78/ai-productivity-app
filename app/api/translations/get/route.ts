@@ -1,18 +1,22 @@
 // app/api/get-translations/route.ts (or wherever this lives)
 import { supabase } from "@/lib/supabaseClient";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceAnonymousRateLimit } from "@/lib/rateLimit";
+
+const requestSchema = z.object({
+  lang: z.string().min(2).max(16).regex(/^[a-z]{2,3}(-[a-z]{2})?$/i),
+  path: z.string().max(200).regex(/^\/?[a-z0-9/_-]*$/i).optional(),
+}).strict();
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({} as any));
-    const lang = (body.lang || "").toLowerCase();
-    const path = (body.path || "").trim(); // optional – we'll treat it as a prefix
-
-    if (!lang) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing lang" }),
-        { status: 400 }
-      );
-    }
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const lang = parsedBody.data.lang.toLowerCase();
+    const path = (parsedBody.data.path || "").trim();
+    const rateLimit = await enforceAnonymousRateLimit(req, "public:translations", "public-light");
+    if (!rateLimit.ok) return rateLimit.response;
 
     // Build base query against ui_translations
     let query = supabase

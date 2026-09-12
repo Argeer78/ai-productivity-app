@@ -1,6 +1,10 @@
 // app/api/ai-task-creator/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -10,6 +14,21 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
+
+const shortText = z.string().max(200).optional();
+const requestSchema = z.object({
+  userId: z.string().max(128),
+  gender: shortText,
+  ageRange: shortText,
+  jobRole: z.string().max(500).optional(),
+  workType: shortText,
+  hobbies: z.string().max(2_000).optional(),
+  todayPlan: z.string().max(8_000).optional(),
+  mainGoal: z.string().max(4_000).optional(),
+  hoursAvailable: shortText,
+  energyLevel: z.number().min(1).max(10).optional(),
+  intensity: shortText,
+}).strict();
 
 // ✅ Match the rest of the codebase (assistant/daily-plan/etc.)
 function getTodayString() {
@@ -26,25 +45,29 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json().catch(() => null)) as any;
-    if (!body) {
-      return NextResponse.json(
-        { ok: false, error: "Missing request body." },
-        { status: 400 }
-      );
-    }
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.data;
 
     // ✅ Require userId so we can count usage consistently
-    const userId = typeof body.userId === "string" ? body.userId : null;
+    const requestedUserId = body.userId;
+    const isGuest = requestedUserId === "guest" || requestedUserId.startsWith("demo-");
+    const auth = isGuest ? null : await getAuthenticatedUser(req);
+    if (!isGuest && !auth?.user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: auth?.error === "server_misconfigured" ? 500 : 401 });
+    }
+    const userId = isGuest ? requestedUserId : auth?.user?.id;
     if (!userId) {
-      return NextResponse.json(
-        { ok: false, error: "You must be logged in to use AI." },
-        { status: 401 }
-      );
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // GUEST BYPASS
-    const isGuest = userId === "guest" || userId.startsWith("demo-");
+    const rateLimit = await enforceProviderRateLimit({
+      request: req,
+      action: "ai:task-creator",
+      rateClass: "ai-light",
+      verifiedUserId: auth?.user?.id,
+    });
+    if (!rateLimit.ok) return rateLimit.response;
 
     let isPro = false;
     let planRaw = "free";
@@ -178,7 +201,7 @@ Return ONLY valid JSON with this shape, nothing else:
 }
 `.trim();
 
-    const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+    const client = new OpenAI({ apiKey: OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 });
 
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",

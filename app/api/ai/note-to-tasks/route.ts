@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const requestSchema = z.object({ content: z.string().trim().min(1).max(20_000) }).strict();
 
 export async function POST(req: Request) {
   try {
@@ -12,15 +16,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json().catch(() => null);
-    const content = typeof body?.content === "string" ? body.content : "";
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { content } = parsedBody.data;
 
-    if (!content.trim()) {
-      return NextResponse.json(
-        { ok: false, error: "Missing note content." },
-        { status: 400 }
-      );
-    }
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:note-to-tasks", rateClass: "ai-light" });
+    if (!rateLimit.ok) return rateLimit.response;
 
     const prompt = `
 Extract actionable tasks from the note below.
@@ -65,6 +66,7 @@ ${content}
         response_format: { type: "json_object" },
         temperature: 0.2,
       }),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {

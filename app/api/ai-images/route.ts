@@ -1,15 +1,20 @@
 
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { bumpAiUsage } from "@/lib/aiUsageServer";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
 const openai = process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 60_000 })
     : null;
+
+const requestSchema = z.object({ prompt: z.string().trim().min(1).max(1000) }).strict();
 
 export async function POST(req: Request) {
     try {
@@ -28,7 +33,9 @@ export async function POST(req: Request) {
             );
         }
 
-        const { prompt } = await req.json();
+        const parsed = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+        if (!parsed.ok) return parsed.response;
+        const { prompt } = parsed.data;
         const userId = auth.user.id;
 
         if (!prompt) {
@@ -53,6 +60,14 @@ export async function POST(req: Request) {
                 { status: 403 }
             );
         }
+
+        const rateLimit = await enforceProviderRateLimit({
+            request: req,
+            action: "ai:image",
+            rateClass: "ai-heavy",
+            verifiedUserId: userId,
+        });
+        if (!rateLimit.ok) return rateLimit.response;
 
         // 2. Generate Image
         const completion = await openai.images.generate({

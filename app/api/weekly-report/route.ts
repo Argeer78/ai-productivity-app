@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
 import { renderWeeklyReportEmail } from "@/lib/emailTemplates";
 import { verifyCronAuth } from "@/lib/verifyCron";
+import { enforceInternalRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -13,11 +14,12 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 // Make OpenAI optional (don’t crash deploys if key missing)
 const openai =
   process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
     : null;
 
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+const CRON_BATCH_LIMIT = 500;
 const APP_URL = (
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -185,7 +187,8 @@ export async function runWeeklyReport(): Promise<{
     // ✅ your schema: ui_language + language
     .select("id, email, plan, weekly_report_enabled, ui_language, language")
     .eq("weekly_report_enabled", true)
-    .eq("plan", "pro");
+    .eq("plan", "pro")
+    .limit(CRON_BATCH_LIMIT);
 
   if (usersError) {
     console.error("[weekly-report] profiles error:", usersError);
@@ -461,7 +464,7 @@ export async function runWeeklyReport(): Promise<{
 
       // ----- Send -----
       try {
-        const resendResult = await sendWithRateLimit({
+        await sendWithRateLimit({
           from: FROM_EMAIL,
           to: email,
           subject,
@@ -472,9 +475,9 @@ export async function runWeeklyReport(): Promise<{
           },
         });
 
-        console.log("[weekly-report] sent to", email, "lang=", lang, resendResult);
+        console.log("[weekly-report] sent", { lang });
       } catch (sendErr) {
-        console.error("[weekly-report] Resend error for", email, sendErr);
+        console.error("[weekly-report] Resend error", sendErr);
       }
 
       await delay(700);
@@ -496,6 +499,8 @@ export async function runWeeklyReport(): Promise<{
 export async function GET(req: NextRequest) {
   const authError = verifyCronAuth(req);
   if (authError) return authError;
+  const rateLimit = await enforceInternalRateLimit("internal:weekly-report");
+  if (!rateLimit.ok) return rateLimit.response;
 
   try {
     const result = await runWeeklyReport();

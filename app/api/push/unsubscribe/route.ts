@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceAuthenticatedRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -12,15 +15,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json().catch(() => ({}));
-    const { endpoint } = body as { endpoint?: string };
-
-    if (endpoint && !isValidUrl(endpoint)) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid endpoint format" },
-        { status: 400 }
-      );
-    }
+    const parsedBody = await parseJsonBody(req, z.object({ endpoint: z.url().max(2_048).optional() }).strict(), REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { endpoint } = parsedBody.data;
+    const rateLimit = await enforceAuthenticatedRateLimit(auth.user.id, "push:unsubscribe", "authenticated-standard");
+    if (!rateLimit.ok) return rateLimit.response;
 
     let query = supabaseAdmin
       .from("push_subscriptions")
@@ -49,14 +48,5 @@ export async function POST(req: Request) {
       { ok: false, error: "Unexpected server error" },
       { status: 500 }
     );
-  }
-}
-
-function isValidUrl(value: string): boolean {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
   }
 }

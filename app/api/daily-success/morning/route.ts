@@ -1,6 +1,9 @@
 // app/api/daily-success/morning/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -8,7 +11,7 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const openai = process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
     : null;
 
 const FREE_DAILY_LIMIT = 10;
@@ -180,6 +183,13 @@ type Body = {
     lang?: string;
 };
 
+const requestSchema = z.object({
+    dayDescription: z.string().max(8_000).optional(),
+    morningInput: z.string().max(8_000).optional(),
+    priorities: z.array(z.string().max(500)).max(10).optional(),
+    lang: z.string().max(16).optional(),
+}).strict();
+
 export async function POST(req: Request) {
     try {
         const auth = await getAuthenticatedUser(req);
@@ -197,9 +207,13 @@ export async function POST(req: Request) {
             );
         }
 
-        const body = (await req.json().catch(() => null)) as Body | null;
+        const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+        if (!parsedBody.ok) return parsedBody.response;
+        const body: Body = parsedBody.data;
 
         const userId = auth.user.id;
+        const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:morning", rateClass: "ai-light", verifiedUserId: userId });
+        if (!rateLimit.ok) return rateLimit.response;
 
         // ✅ accept both dayDescription and morningInput
         const dayDescription = String(body?.dayDescription ?? body?.morningInput ?? "").trim();

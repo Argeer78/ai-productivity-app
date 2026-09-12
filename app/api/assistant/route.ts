@@ -1,13 +1,21 @@
 // app/api/assistant/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminUser } from "@/lib/adminAuth";
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
   : null;
+
+const requestSchema = z.object({
+  messages: z.array(z.object({ role: z.enum(["user", "assistant", "system"]), content: z.string().max(8_000) }).strict()).min(1).max(40),
+  uiLang: z.string().max(16).optional(),
+}).strict();
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -193,7 +201,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json().catch(() => ({}));
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.data;
     const rawMessages = body?.messages;
     const userId = auth?.user?.id;
 
@@ -204,6 +214,14 @@ export async function POST(req: Request) {
     if (!messages.length) {
       return NextResponse.json({ error: "Missing messages." }, { status: 400 });
     }
+
+    const rateLimit = await enforceProviderRateLimit({
+      request: req,
+      action: "ai:assistant",
+      rateClass: "ai-light",
+      verifiedUserId: userId,
+    });
+    if (!rateLimit.ok) return rateLimit.response;
 
     // ✅ Enforce + increment usage (counts assistant calls)
     if (userId) {

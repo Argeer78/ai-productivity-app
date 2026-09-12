@@ -3,6 +3,9 @@ import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { UI_STRINGS, type UiTranslationKey } from "@/lib/uiStrings";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -28,8 +31,9 @@ const LANGUAGE_LABELS: Record<TargetLangCode, string> = {
 };
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 60_000 })
   : null;
+const requestSchema = z.object({ languageCode: z.string().min(2).max(16) }).strict();
 
 async function translateBatch({ texts, targetLang }: { texts: string[], targetLang: string }): Promise<string[]> {
   if (!openai) throw new Error("OpenAI is not configured");
@@ -73,6 +77,7 @@ export async function POST(req: NextRequest) {
     const admin = await requireAdmin(req);
     const authError = adminAuthErrorResponse(admin);
     if (authError) return authError;
+    if (!admin.user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     if (!openai) {
       return NextResponse.json(
@@ -81,8 +86,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json().catch(() => ({} as any));
-    const targetLangRaw = (body?.languageCode || "").trim().toLowerCase();
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const targetLangRaw = parsedBody.data.languageCode.trim().toLowerCase();
 
     if (!targetLangRaw) {
       return NextResponse.json({ ok: false, error: "Missing languageCode in body" }, { status: 400 });
@@ -94,6 +100,8 @@ export async function POST(req: NextRequest) {
 
     const targetLang = targetLangRaw as TargetLangCode;
     const targetLabel = LANGUAGE_LABELS[targetLang];
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "admin:ui-translation-sync", rateClass: "admin", verifiedUserId: admin.user.id });
+    if (!rateLimit.ok) return rateLimit.response;
 
     const { data: enRows, error: enError } = await supabaseAdmin
       .from("ui_translations")

@@ -127,9 +127,15 @@ export default function AITaskCreatorPage() {
 
     setLoadingSuggestions(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
       const res = await fetch("/api/ai-task-creator", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {}),
+        },
         body: JSON.stringify({
           userId: user?.id || "guest",
           gender,

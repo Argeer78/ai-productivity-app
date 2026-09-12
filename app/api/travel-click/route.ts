@@ -1,10 +1,27 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceAnonymousRateLimit, enforceAuthenticatedRateLimit } from "@/lib/rateLimit";
+
+const requestSchema = z.object({
+  clickType: z.enum(["stay", "flight", "car"]),
+  provider: z.enum(["booking", "google-flights", "booking-cars"]),
+  destination: z.string().max(200).optional(),
+  fromCity: z.string().max(200).optional(),
+  checkin: z.iso.date().optional(),
+  checkout: z.iso.date().optional(),
+  adults: z.number().int().min(1).max(20).optional(),
+  children: z.number().int().min(0).max(20).optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
+}).strict();
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.data;
     const hasBearerToken = req.headers.get("authorization")?.startsWith("Bearer ") ?? false;
     const auth = hasBearerToken ? await getAuthenticatedUser(req) : null;
     if (hasBearerToken && !auth?.user) {
@@ -26,12 +43,10 @@ export async function POST(req: Request) {
       meta,
     } = body || {};
 
-    if (!clickType || !provider) {
-      return NextResponse.json(
-        { ok: false, error: "Missing clickType or provider" },
-        { status: 400 }
-      );
-    }
+    const rateLimit = auth?.user
+      ? await enforceAuthenticatedRateLimit(auth.user.id, "public:travel-click", "authenticated-standard")
+      : await enforceAnonymousRateLimit(req, "public:travel-click", "public-light");
+    if (!rateLimit.ok) return rateLimit.response;
 
     const { error } = await supabaseAdmin.from("travel_clicks").insert([
       {

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { aiLanguageInstruction } from "@/lib/aiLanguage";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
@@ -82,8 +85,19 @@ async function checkAndIncrementAiUsage(userId: string) {
 }
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
   : null;
+
+const requestSchema = z.object({
+  userId: z.string().max(128).nullable().optional(),
+  destination: z.string().trim().min(1).max(200),
+  checkin: z.iso.date(),
+  checkout: z.iso.date(),
+  adults: z.number().int().min(1).max(20).optional(),
+  children: z.number().int().min(0).max(20).optional(),
+  minBudget: z.union([z.string().max(32), z.number().nonnegative()]).optional(),
+  maxBudget: z.union([z.string().max(32), z.number().nonnegative()]).optional(),
+}).strict();
 
 export async function POST(req: Request) {
   try {
@@ -94,7 +108,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.data;
 
     const {
       userId, // ✅ REQUIRED (send from client)
@@ -130,6 +146,14 @@ export async function POST(req: Request) {
     if (!effectiveUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const rateLimit = await enforceProviderRateLimit({
+      request: req,
+      action: "ai:travel-plan",
+      rateClass: "ai-light",
+      verifiedUserId: auth?.user?.id,
+    });
+    if (!rateLimit.ok) return rateLimit.response;
 
     if (!destination || !checkin || !checkout) {
       return NextResponse.json(

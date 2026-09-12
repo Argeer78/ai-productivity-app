@@ -1,6 +1,9 @@
 // app/api/daily-plan/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminUser } from "@/lib/adminAuth";
@@ -9,7 +12,7 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const client = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
   : null;
 
 const FREE_DAILY_LIMIT = 10;
@@ -152,6 +155,7 @@ async function incrementUsage(
 /* ---------------- ROUTE ---------------- */
 
 type Body = { userId?: string };
+const requestSchema = z.object({ userId: z.string().max(128).optional() }).strict();
 
 export async function POST(req: Request) {
   try {
@@ -162,7 +166,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json().catch(() => ({}))) as Body;
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body: Body = parsedBody.data;
     const requestedUserId = body?.userId || null;
     const isGuest = requestedUserId === "guest" || Boolean(requestedUserId?.startsWith("demo-"));
     const auth = isGuest ? null : await getAuthenticatedUser(req);
@@ -178,6 +184,9 @@ export async function POST(req: Request) {
     if (!userId) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:daily-plan", rateClass: "ai-light", verifiedUserId: auth?.user?.id });
+    if (!rateLimit.ok) return rateLimit.response;
 
     const today = getTodayAthensYmd();
 

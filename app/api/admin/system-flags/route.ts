@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { z } from "zod";
+import { parseJsonBody, parseQuery, REQUEST_LIMITS } from "@/lib/apiValidation";
 
 export const runtime = "nodejs";
+const flagSchema = z.string().min(1).max(64).regex(/^[a-z0-9_-]+$/);
 
 /**
  * We reuse the `ui_translations` table to store system flags.
@@ -13,8 +16,9 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
     try {
-        const { searchParams } = new URL(req.url);
-        const flag = searchParams.get("flag");
+        const parsedQuery = parseQuery(req, z.object({ flag: flagSchema }).strict());
+        if (!parsedQuery.ok) return parsedQuery.response;
+        const { flag } = parsedQuery.data;
 
         // Public whitelist: Flags that anyone can read
         const PUBLIC_FLAGS = ["video_recorder"];
@@ -24,10 +28,6 @@ export async function GET(req: NextRequest) {
             const admin = await requireAdmin(req);
             const authError = adminAuthErrorResponse(admin);
             if (authError) return authError;
-        }
-
-        if (!flag) {
-            return NextResponse.json({ ok: false, error: "Missing flag name" }, { status: 400 });
         }
 
         const dbKey = `feature.${flag}`;
@@ -62,12 +62,9 @@ export async function POST(req: NextRequest) {
         const authError = adminAuthErrorResponse(admin);
         if (authError) return authError;
 
-        const body = await req.json();
-        const { flag, enabled } = body;
-
-        if (!flag || typeof enabled !== "boolean") {
-            return NextResponse.json({ ok: false, error: "Invalid body" }, { status: 400 });
-        }
+        const parsedBody = await parseJsonBody(req, z.object({ flag: flagSchema, enabled: z.boolean() }).strict(), REQUEST_LIMITS.smallJson);
+        if (!parsedBody.ok) return parsedBody.response;
+        const { flag, enabled } = parsedBody.data;
 
         const dbKey = `feature.${flag}`;
         const value = String(enabled);

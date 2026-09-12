@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { toFile } from "openai/uploads";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import {
   isAllowedVoiceFile,
   isValidTimeZone,
@@ -141,6 +142,15 @@ export async function POST(req: Request) {
       return jsonError("AI is not configured on this environment.", 503);
     }
 
+    const rateLimit = await enforceProviderRateLimit({
+      request: req,
+      action: "ai:voice-capture",
+      rateClass: "ai-heavy",
+      verifiedUserId: auth.user.id,
+      cost: 2,
+    });
+    if (!rateLimit.ok) return rateLimit.response;
+
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       maxRetries: 0,
@@ -181,10 +191,8 @@ export async function POST(req: Request) {
     }
 
     console.log("[voice-capture] upload", {
-      userId,
       mode,
       tz,
-      fileName: file.name,
       fileType: file.type,
       fileSize: file.size,
     });

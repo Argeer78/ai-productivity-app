@@ -23,11 +23,15 @@
 | `STRIPE_SECRET_KEY` | Server secret | Stripe API |
 | `STRIPE_WEBHOOK_SECRET` | Server secret | Webhook verification |
 | `CRON_SECRET` | Server secret | Cron authentication |
+| `RATE_LIMIT_ID_SECRET` | Server secret | HMAC key for privacy-preserving limiter identities; minimum 32 characters |
+| `TRUST_PROXY_HEADERS` | Server operational | Enable only with a loopback-only app listener and Nginx-overwritten `X-Real-IP` |
 | `VAPID_PRIVATE_KEY` | Server secret | Web Push signing |
 | `VAPID_SUBJECT` | Server operational | Web Push contact |
 | `ANDROID_PACKAGE_NAME` | Server operational | Play Integrity app identity |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Server secret | Play Integrity account if configured |
 | `NODE_ENV` | Runtime | Framework mode |
+
+Optional `RATE_LIMIT_<CLASS>_MAX` and `RATE_LIMIT_<CLASS>_WINDOW_SECONDS` variables override defaults for `PUBLIC_LIGHT`, `AUTHENTICATED_STANDARD`, `SENSITIVE`, `AI_LIGHT`, `AI_HEAVY`, `ADMIN`, and `INTERNAL`.
 
 Stripe price names to verify are `STRIPE_PRICE_PRO_EUR`, `STRIPE_PRICE_PRO_USD`, `STRIPE_PRICE_FOUNDER_EUR`, and `STRIPE_PRICE_FOUNDER_USD`.
 

@@ -2,23 +2,16 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { authorizeOwnedResource } from "@/lib/resourceAuthorization";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const requestSchema = z.object({ threadId: z.uuid() }).strict();
 
 export async function DELETE(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as
-      | { threadId?: string }
-      | null;
-
-    const { threadId } = body || {};
-
-    if (typeof threadId !== "string" || !UUID_PATTERN.test(threadId)) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid request" },
-        { status: 400 }
-      );
-    }
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { threadId } = parsedBody.data;
 
     const auth = await getAuthenticatedUser(req);
     const authorization = await authorizeOwnedResource(auth, async (userId) => {

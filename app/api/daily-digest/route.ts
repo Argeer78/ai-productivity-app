@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { Resend } from "resend";
 import { renderDailyDigestEmail } from "@/lib/emailTemplates";
 import { verifyCronAuth } from "@/lib/verifyCron";
+import { enforceInternalRateLimit } from "@/lib/rateLimit";
 import OpenAI from "openai";
 
 export const runtime = "nodejs";
@@ -11,6 +12,7 @@ export const runtime = "nodejs";
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+const CRON_BATCH_LIMIT = 500;
 const APP_URL = (
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -20,7 +22,7 @@ const APP_URL = (
 // OpenAI optional (deploy-safe)
 const openai =
   process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
     : null;
 
 function delay(ms: number) {
@@ -127,7 +129,8 @@ export async function runDailyDigest() {
     // ✅ your schema: ui_language + language
     .select("id, email, ai_tone, focus_area, daily_digest_enabled, ui_language, language")
     .eq("daily_digest_enabled", true)
-    .not("email", "is", null);
+    .not("email", "is", null)
+    .limit(CRON_BATCH_LIMIT);
 
   if (error) {
     console.error("[daily-digest] profiles query error", error);
@@ -190,7 +193,7 @@ export async function runDailyDigest() {
       .lt("due_date", startOfTomorrowIso);
 
     if (tasksTodayError) {
-      console.error("[daily-digest] tasksDueToday error for", email, tasksTodayError);
+      console.error("[daily-digest] tasksDueToday query failed", tasksTodayError);
     }
 
     const { data: overdueTasks, error: overdueError } = await supabaseAdmin
@@ -201,7 +204,7 @@ export async function runDailyDigest() {
       .lt("due_date", startOfTodayIso);
 
     if (overdueError) {
-      console.error("[daily-digest] overdueTasks error for", email, overdueError);
+      console.error("[daily-digest] overdueTasks query failed", overdueError);
     }
 
     const safeTasksDueToday = tasksDueToday || [];
@@ -328,14 +331,10 @@ export async function runDailyDigest() {
         },
       });
 
-      console.log("[daily-digest] sent to", email, "lang=", lang);
+      console.log("[daily-digest] sent", { lang });
       sent++;
     } catch (sendErr: any) {
-      console.error(
-        "[daily-digest] Resend error for",
-        email,
-        sendErr?.message || sendErr
-      );
+      console.error("[daily-digest] Resend error", sendErr?.message || sendErr);
     }
 
     // Optional throttle:
@@ -355,6 +354,8 @@ export async function runDailyDigest() {
 export async function POST(req: NextRequest) {
   const authError = verifyCronAuth(req);
   if (authError) return authError;
+  const rateLimit = await enforceInternalRateLimit("internal:daily-digest");
+  if (!rateLimit.ok) return rateLimit.response;
 
   try {
     const result = await runDailyDigest();

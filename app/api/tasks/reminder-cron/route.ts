@@ -4,12 +4,15 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderEmail } from "@/lib/emailTasks";
 import { sendTaskReminderPush } from "@/lib/pushServer";
 import { verifyCronAuth } from "@/lib/verifyCron";
+import { enforceInternalRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   const authError = verifyCronAuth(req as import("next/server").NextRequest);
   if (authError) return authError;
+    const rateLimit = await enforceInternalRateLimit("internal:task-reminders");
+    if (!rateLimit.ok) return rateLimit.response;
 
   if (!supabaseAdmin) {
     console.error(

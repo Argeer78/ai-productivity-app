@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
 import { bumpAiUsage } from "@/lib/aiUsageServer";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -11,12 +14,20 @@ export const maxDuration = 20; // seconds (hint for Vercel)
 const apiKey = process.env.OPENAI_API_KEY;
 
 // Initialise client (will throw if key is missing, so we guard above)
-const client = apiKey ? new OpenAI({ apiKey }) : null;
+const client = apiKey ? new OpenAI({ apiKey, maxRetries: 0, timeout: 30_000 }) : null;
 
 type HistoryItem = {
   role: "user" | "assistant";
   content: string;
 };
+
+const requestSchema = z.object({
+  userId: z.string().max(128).optional(),
+  userMessage: z.string().trim().min(1).max(8_000),
+  category: z.string().max(100).optional(),
+  history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(8_000) }).strict()).max(20).optional(),
+  attachments: z.array(z.object({ name: z.string().max(255), content: z.string().max(50_000) }).strict()).max(5).optional(),
+}).strict();
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,13 +42,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = (await req.json().catch(() => ({}))) as {
-      userId?: string; // ✅ needed to count usage
-      userMessage?: string;
-      category?: string;
-      history?: HistoryItem[];
-      attachments?: { name: string; content: string }[];
-    };
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.data;
 
     const requestedUserId = body.userId ?? "";
     const userMessage = body.userMessage ?? "";
@@ -58,6 +65,14 @@ export async function POST(req: NextRequest) {
 
     const userId = isGuest ? requestedUserId : auth?.user?.id;
     if (!userId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+    const rateLimit = await enforceProviderRateLimit({
+      request: req,
+      action: "ai:hub-chat",
+      rateClass: "ai-light",
+      verifiedUserId: auth?.user?.id,
+    });
+    if (!rateLimit.ok) return rateLimit.response;
 
     if (!userMessage || typeof userMessage !== "string") {
       return NextResponse.json({ ok: false, error: "Missing userMessage in request body." }, { status: 400 });

@@ -3,9 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 60_000 })
   : null;
 
 type Body = {
@@ -13,12 +16,18 @@ type Body = {
   toLanguage?: string;   // e.g. "es"
   namespace?: string;    // e.g. "tools", "notes", "tasks" (prefix of key)
 };
+const requestSchema = z.object({
+  fromLanguage: z.string().regex(/^[a-z]{2,3}(-[a-z]{2})?$/i).optional(),
+  toLanguage: z.string().regex(/^[a-z]{2,3}(-[a-z]{2})?$/i),
+  namespace: z.string().trim().min(1).max(100).regex(/^[a-z0-9_-]+$/i),
+}).strict();
 
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin(req);
     const authError = adminAuthErrorResponse(admin);
     if (authError) return authError;
+    if (!admin.user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     if (!openai) {
       return NextResponse.json(
@@ -27,7 +36,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = (await req.json()) as Body;
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body: Body = parsedBody.data;
     const fromLanguage = (body.fromLanguage || "en").toLowerCase();
     const toLanguage = (body.toLanguage || "").toLowerCase();
     const namespace = (body.namespace || "").trim();
@@ -50,6 +61,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "admin:translate-namespace", rateClass: "admin", verifiedUserId: admin.user.id });
+    if (!rateLimit.ok) return rateLimit.response;
 
     // 1) Load all base strings for this namespace from ui_translations
     //    Namespace is treated as a key prefix, e.g. "tools."

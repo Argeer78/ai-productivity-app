@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceAuthenticatedRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -17,6 +20,13 @@ interface SubscribeRequest {
   subscription: PushSubscription;
 }
 
+const requestSchema = z.object({
+  subscription: z.object({
+    endpoint: z.url().max(2_048).refine((value) => value.startsWith("https://")),
+    keys: z.object({ p256dh: z.string().min(20).max(512), auth: z.string().min(8).max(256) }).strict(),
+  }).strict(),
+}).strict();
+
 export async function POST(req: Request) {
   try {
     const authResult = await getAuthenticatedUser(req);
@@ -27,35 +37,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const { subscription }: SubscribeRequest = await req.json();
-
-    if (!subscription) {
-      return NextResponse.json(
-        { ok: false, error: "Missing subscription" },
-        { status: 400 }
-      );
-    }
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { subscription }: SubscribeRequest = parsedBody.data;
 
     const { endpoint, keys } = subscription;
     const { p256dh, auth } = keys;
 
-    // Validate subscription keys
-    if (!endpoint || !p256dh || !auth) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid subscription payload (missing keys)" },
-        { status: 400 }
-      );
-    }
-
-    // Optionally validate endpoint URL (e.g., check it's a valid URL)
-    try {
-      new URL(endpoint); // This throws an error if the URL is invalid
-    } catch {
-      return NextResponse.json(
-        { ok: false, error: "Invalid endpoint URL" },
-        { status: 400 }
-      );
-    }
+    const rateLimit = await enforceAuthenticatedRateLimit(authResult.user.id, "push:subscribe", "authenticated-standard");
+    if (!rateLimit.ok) return rateLimit.response;
 
     // Upsert subscription in the database
     const { error } = await supabaseAdmin

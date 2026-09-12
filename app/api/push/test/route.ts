@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTaskReminderPush } from "@/lib/pushServer";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +13,9 @@ export async function POST(req: Request) {
         { status: auth.error === "server_misconfigured" ? 500 : 401 }
       );
     }
+
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "push:test", rateClass: "sensitive", verifiedUserId: auth.user.id });
+    if (!rateLimit.ok) return rateLimit.response;
 
     // Get the latest subscription for this user
     const { data: subs, error } = await supabaseAdmin
@@ -37,8 +41,6 @@ export async function POST(req: Request) {
     }
 
     const sub = subs[0];
-
-    console.log("[push-test] Sending test push to", sub.endpoint);
 
     await sendTaskReminderPush(sub, {
       taskId: "test-task",

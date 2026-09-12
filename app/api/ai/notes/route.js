@@ -1,7 +1,11 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 
 const openaiApiKey = process.env.OPENAI_API_KEY;
+const requestSchema = z.object({ content: z.string().trim().min(1).max(20_000), mode: z.enum(["summarize", "bullets", "rewrite"]).optional() }).strict();
 
 export async function POST(req) {
   try {
@@ -12,15 +16,12 @@ export async function POST(req) {
       );
     }
 
-    const client = new OpenAI({ apiKey: openaiApiKey });
-    const { content, mode } = await req.json();
-
-    if (!content) {
-      return NextResponse.json(
-        { error: "No note content provided." },
-        { status: 400 }
-      );
-    }
+    const client = new OpenAI({ apiKey: openaiApiKey, maxRetries: 0, timeout: 30_000 });
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { content, mode } = parsedBody.data;
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:notes", rateClass: "ai-light" });
+    if (!rateLimit.ok) return rateLimit.response;
 
     // Choose prompt depending on mode
     let prompt = "";

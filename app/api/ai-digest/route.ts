@@ -3,13 +3,14 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { isAdminUser } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
   : null;
 
 const FREE_DAILY_LIMIT = 10;
@@ -92,6 +93,8 @@ export async function POST(req: Request) {
     }
 
     const userId = auth.user.id;
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:digest", rateClass: "ai-light", verifiedUserId: userId });
+    if (!rateLimit.ok) return rateLimit.response;
 
     // ✅ Athens date for both digest label + ai_usage row
     const todayStr = getTodayAthensYmd();

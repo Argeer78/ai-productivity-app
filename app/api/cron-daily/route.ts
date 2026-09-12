@@ -2,12 +2,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runDailyDigest } from "@/app/api/daily-digest/route";
 import { verifyCronAuth } from "@/lib/verifyCron";
+import { enforceInternalRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+    const rateLimit = await enforceInternalRateLimit("internal:daily-digest");
+    if (!rateLimit.ok) return rateLimit.response;
 
   try {
     const result = await runDailyDigest();

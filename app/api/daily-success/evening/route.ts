@@ -1,6 +1,9 @@
 // app/api/daily-success/evening/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -8,8 +11,13 @@ export const runtime = "nodejs";
 export const maxDuration = 20;
 
 const openai = process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
     : null;
+
+const requestSchema = z.object({
+    reflection: z.string().trim().min(1).max(8_000),
+    lang: z.string().max(16).optional(),
+}).strict();
 
 const FREE_DAILY_LIMIT = 10;
 const PRO_DAILY_LIMIT = 2000;
@@ -45,10 +53,15 @@ export async function POST(req: Request) {
             );
         }
 
-        const body = await req.json().catch(() => null);
+        const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+        if (!parsedBody.ok) return parsedBody.response;
+        const body = parsedBody.data;
         const userId = auth.user.id;
-        const reflection = (body?.reflection || "").trim();
-        const lang = (body?.lang || "en") as string;
+        const reflection = body.reflection;
+        const lang = body.lang || "en";
+
+        const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:evening", rateClass: "ai-light", verifiedUserId: userId });
+        if (!rateLimit.ok) return rateLimit.response;
 
         if (!reflection) {
             return NextResponse.json(

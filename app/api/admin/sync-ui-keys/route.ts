@@ -4,19 +4,26 @@ import OpenAI from "openai";
 import { adminAuthErrorResponse, requireAdmin } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SUPPORTED_LANGS } from "@/lib/i18n";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 60_000 })
   : null;
 
 type Body = {
   sourceLang?: string; // default "en"
   targetLangs?: string[]; // optional
 };
+const requestSchema = z.object({
+  sourceLang: z.string().regex(/^[a-z]{2,3}(-[a-z]{2})?$/i).optional(),
+  targetLangs: z.array(z.string().regex(/^[a-z]{2,3}(-[a-z]{2})?$/i)).max(50).optional(),
+}).strict();
 
 const MODEL = "gpt-4.1-mini";
 const MAX_BATCH_ITEMS = 20;
@@ -127,6 +134,7 @@ export async function POST(req: Request) {
     const admin = await requireAdmin(req);
     const authError = adminAuthErrorResponse(admin);
     if (authError) return authError;
+    if (!admin.user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     if (!openai) {
       return NextResponse.json(
@@ -135,8 +143,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json().catch(() => ({}))) as Body;
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body: Body = parsedBody.data;
     const sourceLang = String(body.sourceLang || "en").toLowerCase();
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "admin:sync-ui-keys", rateClass: "admin", verifiedUserId: admin.user.id });
+    if (!rateLimit.ok) return rateLimit.response;
 
     const allSupported = (SUPPORTED_LANGS || [])
       .map((l: any) => String(l.code || "").toLowerCase())

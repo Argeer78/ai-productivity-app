@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyCronAuth } from "@/lib/verifyCron";
+import { enforceInternalRateLimit } from "@/lib/rateLimit";
 import { Resend } from "resend";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ export const runtime = "nodejs";
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "AI Productivity Hub <hello@aiprod.app>";
+const CRON_BATCH_LIMIT = 500;
 const APP_URL = (
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -76,7 +78,8 @@ export async function runNotifications(opts?: {
       .from("user_notification_settings")
       .select(
         "user_id, daily_success_enabled, daily_success_time, evening_reflection_enabled, evening_reflection_time, task_reminders_enabled, weekly_report_enabled, timezone"
-      );
+      )
+      .limit(CRON_BATCH_LIMIT);
 
   if (settingsError) {
     console.error("[notifications] settings query error", settingsError);
@@ -91,7 +94,8 @@ export async function runNotifications(opts?: {
   // 2) Load profiles to get emails
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from("profiles")
-    .select("id, email");
+    .select("id, email")
+    .in("id", settings.map((row) => row.user_id));
 
   if (profilesError) {
     console.error("[notifications] profiles query error", profilesError);
@@ -131,13 +135,9 @@ export async function runNotifications(opts?: {
             "You can change reminder time in Settings → Notifications.",
         });
         processed++;
-        console.log("[notifications] sent daily-success to", email);
+        console.log("[notifications] sent daily-success");
       } catch (err: any) {
-        console.error(
-          "[notifications] daily-success send error for",
-          email,
-          err?.message || err
-        );
+        console.error("[notifications] daily-success send error", err?.message || err);
       }
     }
 
@@ -157,13 +157,9 @@ export async function runNotifications(opts?: {
             "You can change reminder time in Settings → Notifications.",
         });
         processed++;
-        console.log("[notifications] sent evening-reflection to", email);
+        console.log("[notifications] sent evening-reflection");
       } catch (err: any) {
-        console.error(
-          "[notifications] evening-reflection send error for",
-          email,
-          err?.message || err
-        );
+        console.error("[notifications] evening-reflection send error", err?.message || err);
       }
     }
 
@@ -181,13 +177,9 @@ export async function runNotifications(opts?: {
             "You can turn this off in Settings → Notifications.",
         });
         processed++;
-        console.log("[notifications] sent task-reminder to", email);
+        console.log("[notifications] sent task-reminder");
       } catch (err: any) {
-        console.error(
-          "[notifications] task-reminder send error for",
-          email,
-          err?.message || err
-        );
+        console.error("[notifications] task-reminder send error", err?.message || err);
       }
     }
   }
@@ -198,6 +190,8 @@ export async function runNotifications(opts?: {
 export async function GET(req: NextRequest) {
   const authError = verifyCronAuth(req);
   if (authError) return authError;
+  const rateLimit = await enforceInternalRateLimit("internal:notifications");
+  if (!rateLimit.ok) return rateLimit.response;
 
   try {
     const url = new URL(req.url);

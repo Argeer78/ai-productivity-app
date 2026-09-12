@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { z } from "zod";
+import { parseJsonBody } from "@/lib/apiValidation";
 import {
   integrityTokenHash,
   MAX_INTEGRITY_TOKEN_LENGTH,
@@ -9,6 +11,7 @@ import {
 } from "@/lib/playIntegrity";
 
 const PACKAGE_NAME = process.env.ANDROID_PACKAGE_NAME;
+const requestSchema = z.object({ integrityToken: z.string().min(1).max(MAX_INTEGRITY_TOKEN_LENGTH) }).strict();
 
 export async function POST(req: Request) {
   try {
@@ -31,11 +34,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, reason: "verification_unavailable" }, { status: 503 });
     }
 
-    const contentLength = Number(req.headers.get("content-length") || 0);
-    if (contentLength > MAX_INTEGRITY_TOKEN_LENGTH + 1_000) {
-      return NextResponse.json({ ok: false, reason: "invalid_request" }, { status: 413 });
-    }
-
     // Convert "\n" into real newlines for the private key
     const privateKey = privateKeyRaw.replace(/\\n/g, "\n");
 
@@ -47,11 +45,9 @@ export async function POST(req: Request) {
       scopes: ["https://www.googleapis.com/auth/playintegrity"],
     });
 
-    const body = await req.json().catch(() => null) as { integrityToken?: unknown } | null;
-    const integrityToken = body?.integrityToken;
-    if (typeof integrityToken !== "string" || !integrityToken || integrityToken.length > MAX_INTEGRITY_TOKEN_LENGTH) {
-      return NextResponse.json({ ok: false, reason: "invalid_request" }, { status: 400 });
-    }
+    const parsedBody = await parseJsonBody(req, requestSchema, MAX_INTEGRITY_TOKEN_LENGTH + 1_000);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { integrityToken } = parsedBody.data;
 
     const playintegrity = google.playintegrity("v1");
 

@@ -2,6 +2,9 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceAnonymousRateLimit, enforceAuthenticatedRateLimit, enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminUser } from "@/lib/adminAuth";
@@ -88,7 +91,7 @@ async function checkAndIncrementAiUsage(userId: string) {
 }
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 30_000 })
   : null;
 
 const supabase = createClient(
@@ -101,6 +104,14 @@ type Body = {
   targetLang: string;
   userId?: string | null;
 };
+
+const textSchema = z.union([z.string().max(50_000), z.array(z.string().max(10_000)).max(100)])
+  .refine((value) => (Array.isArray(value) ? value.reduce((sum, item) => sum + item.length, 0) : value.length) <= 50_000);
+const requestSchema = z.object({
+  text: textSchema,
+  targetLang: z.string().trim().min(2).max(16).regex(/^[a-z]{2,3}(-[a-z]{2})?$/i),
+  userId: z.string().max(128).nullable().optional(),
+}).strict();
 
 // table: page_translations
 // id, language_code, original_text, translated_text, created_at
@@ -126,8 +137,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json()) as Body;
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body: Body = parsedBody.data;
     const { text, targetLang } = body || {};
+
+    const requestLimit = auth?.user
+      ? await enforceAuthenticatedRateLimit(auth.user.id, "translation:lookup", "authenticated-standard")
+      : await enforceAnonymousRateLimit(req, "translation:lookup", "public-light");
+    if (!requestLimit.ok) return requestLimit.response;
 
     if (!text || !targetLang) {
       return NextResponse.json(
@@ -210,6 +228,14 @@ export async function POST(req: Request) {
           { status: 503 }
         );
       }
+
+      const rateLimit = await enforceProviderRateLimit({
+        request: req,
+        action: "ai:translate",
+        rateClass: "ai-light",
+        verifiedUserId: auth?.user?.id,
+      });
+      if (!rateLimit.ok) return rateLimit.response;
 
       // ✅ Count an AI call only when we actually call OpenAI (cache miss)
       if (auth?.user) {

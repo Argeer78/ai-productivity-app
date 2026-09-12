@@ -1,6 +1,9 @@
 // app/api/stripe/checkout/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { z } from "zod";
+import { parseJsonBody, REQUEST_LIMITS } from "@/lib/apiValidation";
+import { enforceProviderRateLimit } from "@/lib/rateLimit";
 import { getAuthenticatedUser } from "@/lib/serverAuth";
 import {
   getStripePriceId,
@@ -13,6 +16,10 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey)
   : null;
+const requestSchema = z.object({
+  currency: z.enum(["eur", "usd", "gbp"]),
+  plan: z.enum(["pro", "yearly", "founder"]).optional(),
+}).strict();
 
 export async function POST(req: Request) {
   try {
@@ -32,12 +39,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json().catch(() => null)) as
-      | {
-          currency?: string;
-          plan?: string; // "pro" | "yearly" | "founder"
-        }
-      | null;
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.smallJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.data;
 
     if (!body?.currency || !auth.user.email) {
       return NextResponse.json(
@@ -46,14 +50,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const currency = body.currency.toLowerCase() as StripeCurrency;
-
-    if (!["eur", "usd", "gbp"].includes(currency)) {
-      return NextResponse.json(
-        { ok: false, error: `Unsupported currency "${body.currency}".` },
-        { status: 400 }
-      );
-    }
+    const currency = body.currency as StripeCurrency;
 
     // 🔁 Normalize plan (default to "pro" monthly if missing/unknown)
     const requestedPlan = (body.plan || "pro").toLowerCase();
@@ -91,6 +88,9 @@ export async function POST(req: Request) {
       );
     }
     const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+
+    const rateLimit = await enforceProviderRateLimit({ request: req, action: "stripe:checkout", rateClass: "sensitive", verifiedUserId: auth.user.id });
+    if (!rateLimit.ok) return rateLimit.response;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
