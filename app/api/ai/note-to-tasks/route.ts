@@ -8,6 +8,10 @@ const requestSchema = z.object({ content: z.string().trim().min(1).max(20_000) }
 
 export async function POST(req: Request) {
   try {
+    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { content } = parsedBody.data;
+
     if (!OPENAI_API_KEY) {
       console.error("[note-to-tasks] Missing OPENAI_API_KEY");
       return NextResponse.json(
@@ -15,10 +19,6 @@ export async function POST(req: Request) {
         { status: 503 }
       );
     }
-
-    const parsedBody = await parseJsonBody(req, requestSchema, REQUEST_LIMITS.aiTextJson);
-    if (!parsedBody.ok) return parsedBody.response;
-    const { content } = parsedBody.data;
 
     const rateLimit = await enforceProviderRateLimit({ request: req, action: "ai:note-to-tasks", rateClass: "ai-light" });
     if (!rateLimit.ok) return rateLimit.response;

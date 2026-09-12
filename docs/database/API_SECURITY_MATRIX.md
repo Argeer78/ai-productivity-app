@@ -108,6 +108,7 @@ Enabling RLS or changing grants requires an approved database migration and clea
 - Removed public reviewer UUID disclosure and centralized review service-role access.
 - Replaced caller-supplied weekly-goal read authority with verified bearer ownership and authenticated rate limiting.
 - Added internal throttling, timeout, and controlled downstream failures to `/api/cron-digest`.
+- Ensured oversized note AI requests are rejected before provider configuration or provider work.
 - Added executable fail-closed cron authentication tests.
 
 ## Remaining Work
